@@ -1,0 +1,33 @@
+name: "SATISFIABILITY_ERROR - Union member type fields unreachable"
+description: "Query returns SearchResult union, but User fields in profiles subgraph are unreachable"
+
+subgraphs:
+  search: |
+    type Query {
+      search(query: String!): [SearchResult]
+    }
+
+    union SearchResult = Product | User
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      username: String
+    }
+
+  profiles: |
+    type Query {
+      userProfile(id: ID!): User
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      bio: String
+      avatarUrl: String
+    }
+
+error: "SATISFIABILITY_ERROR"

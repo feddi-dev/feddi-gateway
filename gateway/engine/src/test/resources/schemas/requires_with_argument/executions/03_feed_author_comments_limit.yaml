@@ -1,0 +1,44 @@
+name: "Feed with author and comments with limit argument"
+description: |
+  Tests @require resolution alongside a user-requested field with an argument.
+  The query requests both author (which internally requires comments) and
+  comments(limit: 1). The gateway must handle both the @require-driven fetch
+  and the user-requested comments field.
+
+query: |
+  {
+    feed {
+      author {
+        id
+      }
+      comments(limit: 1) {
+        id
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: c
+    operation: '{feed{id comments(limit:1){authorId id}}}'
+    variables: {}
+    response: { data: { feed: [
+      { id: "p1", comments: [{ authorId: "a2", id: "c1" }] },
+      { id: "p2", comments: [{ authorId: "a1", id: "c4" }] }
+    ] } }
+
+  - subgraph: d
+    operation: 'query ($id:ID!,$commentAuthorIds:[ID]){postById(id:$id){author(commentAuthorIds:$commentAuthorIds){id}}}'
+    variables: { id: "p1", commentAuthorIds: ["a2"] }
+    response: { data: { postById: { author: { id: "a2" } } } }
+
+  - subgraph: d
+    operation: 'query ($id:ID!,$commentAuthorIds:[ID]){postById(id:$id){author(commentAuthorIds:$commentAuthorIds){id}}}'
+    variables: { id: "p2", commentAuthorIds: ["a1"] }
+    response: { data: { postById: { author: { id: "a1" } } } }
+
+expectedResponse: { data: { feed: [
+  { comments: [{ id: "c1" }], author: { id: "a2" } },
+  { comments: [{ id: "c4" }], author: { id: "a1" } }
+] } }

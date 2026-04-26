@@ -1,0 +1,37 @@
+name: "@require with path-prefixed object shorthand"
+description: |
+  Tests @require with path-prefixed object selection: shippingAddress.{ city state zip country }
+  The shipping_calculator subgraph requires specific address fields.
+
+query: |
+  {
+    orders {
+      id
+      shippingAddress {
+        street
+      }
+      shippingOptions {
+        carrier
+        method
+        price
+        days
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: orders
+      operation: "{ orders { id shippingAddress { street city state zip country } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: shipping_calculator
+      operation: "query($id: ID!, $destination: DestinationInput!) { orderByIdShipping(id: $id) { shippingOptions(destination: $destination) { carrier method price days } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+        destination: "shippingAddress.{ city state zip country }"
+      repeatedExecution: true

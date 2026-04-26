@@ -1,0 +1,15 @@
+name: "EXTERNAL_UNUSED - @external field not in @provides"
+description: "Spec 3.1.2: Every @external field must be used in a @provides directive"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @external
+    }
+
+error: "EXTERNAL_UNUSED"

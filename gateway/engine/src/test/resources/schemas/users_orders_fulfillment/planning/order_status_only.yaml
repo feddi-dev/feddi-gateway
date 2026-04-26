@@ -1,0 +1,34 @@
+name: "Order status only"
+description: "Skip orders subgraph fields, go to fulfillment"
+
+query: |
+  {
+    users {
+      orders {
+        status
+        estimatedDelivery
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: users
+      operation: "{ users { id } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: orders
+      operation: "query($id: ID!) { userById(id: $id) { orders { orderId } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true
+    - id: 3
+      subgraph: fulfillment
+      operation: "query($oid: ID!) { orderById(oid: $oid) { status estimatedDelivery } }"
+      dependsOn: [2]
+      requirements:
+        oid: "orderId"
+      repeatedExecution: true

@@ -1,0 +1,54 @@
+name: "Deeply nested named fragments execution"
+description: "Tests nested named fragments with cross-subgraph fields"
+
+query: |
+  {
+    articles {
+      ...ArticleWithDetails
+    }
+  }
+  fragment ArticleWithDetails on Article {
+    id
+    title
+    body
+    ...ArticleAnalytics
+  }
+  fragment ArticleAnalytics on Article {
+    views
+    readTime
+    shareCount
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ articles { id title body } }'
+    variables: {}
+    response: {
+      data: {
+        articles: [
+          { id: "a1", title: "First Article", body: "Content 1" },
+          { id: "a2", title: "Second Article", body: "Content 2" }
+        ]
+      }
+    }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { articleById(id: $id) { views readTime shareCount } }'
+    variables: { id: "a1" }
+    response: { data: { articleById: { views: 1000, readTime: 120, shareCount: 50 } } }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { articleById(id: $id) { views readTime shareCount } }'
+    variables: { id: "a2" }
+    response: { data: { articleById: { views: 2000, readTime: 180, shareCount: 75 } } }
+
+expectedResponse: {
+  data: {
+    articles: [
+      { id: "a1", title: "First Article", body: "Content 1", views: 1000, readTime: 120, shareCount: 50 },
+      { id: "a2", title: "Second Article", body: "Content 2", views: 2000, readTime: 180, shareCount: 75 }
+    ]
+  }
+}

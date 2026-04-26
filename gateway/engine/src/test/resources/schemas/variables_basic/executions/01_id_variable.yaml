@@ -1,0 +1,24 @@
+name: "ID variable execution"
+description: "Tests passing an ID type variable to a query"
+
+query: |
+  query GetUser($userId: ID!) {
+    user(id: $userId) {
+      id
+      name
+    }
+  }
+
+variables: { userId: "user-123" }
+
+subgraphCalls:
+  - subgraph: users
+    operation: 'query($userId: ID!) { user(id: $userId) { id name } }'
+    variables: { userId: "user-123" }
+    response: { data: { user: { id: "user-123", name: "Alice" } } }
+
+expectedResponse: {
+  data: {
+    user: { id: "user-123", name: "Alice" }
+  }
+}

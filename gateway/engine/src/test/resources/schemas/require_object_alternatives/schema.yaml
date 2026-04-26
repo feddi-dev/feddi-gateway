@@ -1,0 +1,107 @@
+name: "@require Object Selection with Alternatives"
+description: |
+  Tests @require with object selection alternatives:
+  @require(field: "{ bookId: <Book>.id, isbn: <Book>.isbn } | { movieId: <Movie>.id, imdbCode: <Movie>.code }")
+
+  This maps different input object shapes based on the entity's concrete type.
+  For a Book entity, the input would be { bookId: "b1", isbn: "978-..." }.
+  For a Movie entity, the input would be { movieId: "m1", imdbCode: "tt..." }.
+
+subgraphs:
+  catalog: |
+    type Query {
+      media: [Media]
+      mediaById(id: ID!): Media @lookup
+      bookById(id: ID!): Book @lookup
+      movieById(id: ID!): Movie @lookup
+    }
+
+    interface Media @key(fields: "id") {
+      id: ID!
+      title: String
+    }
+
+    type Book implements Media @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      isbn: String @shareable
+    }
+
+    type Movie implements Media @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      code: String @shareable
+    }
+
+  recommendations: |
+    type Query {
+      bookById(id: ID!): Book @lookup
+      movieById(id: ID!): Movie @lookup
+    }
+
+    interface Media @key(fields: "id") {
+      id: ID!
+    }
+
+    type Book implements Media @key(fields: "id") {
+      id: ID!
+      isbn: String @shareable
+      similar(
+        ref: BookRefInput! @require(field: "{ bookId: id, isbn }")
+      ): [Book!]
+    }
+
+    type Movie implements Media @key(fields: "id") {
+      id: ID!
+      code: String @shareable
+      similar(
+        ref: MovieRefInput! @require(field: "{ movieId: id, imdbCode: code }")
+      ): [Movie!]
+    }
+
+    input BookRefInput {
+      bookId: ID!
+      isbn: String
+    }
+
+    input MovieRefInput {
+      movieId: ID!
+      imdbCode: String
+    }
+
+supergraph: |
+  type Query {
+    media: [Media]
+    mediaById(id: ID!): Media
+    bookById(id: ID!): Book
+    movieById(id: ID!): Movie
+  }
+
+  interface Media {
+    id: ID!
+    title: String
+  }
+
+  type Book implements Media {
+    id: ID!
+    title: String
+    isbn: String
+    similar: [Book!]
+  }
+
+  type Movie implements Media {
+    id: ID!
+    title: String
+    code: String
+    similar: [Movie!]
+  }
+
+  input BookRefInput {
+    bookId: ID!
+    isbn: String
+  }
+
+  input MovieRefInput {
+    movieId: ID!
+    imdbCode: String
+  }

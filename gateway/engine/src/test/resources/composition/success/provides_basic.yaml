@@ -1,0 +1,56 @@
+name: "@provides basic - providing nested fields"
+description: "Using @provides to declare that a field provides nested entity fields"
+
+subgraphs:
+  users: |
+    type Query {
+      users: [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      email: String
+    }
+
+  reviews: |
+    type Query {
+      reviews: [Review]
+      userByIdReviews(id: ID!): User @lookup
+    }
+    
+    type User @key(fields: "id") {
+      id: ID!
+      name: String @external
+      reviews: [Review]
+    }
+    
+    type Review {
+      id: ID!
+      text: String
+      rating: Int
+      author: User @provides(fields: "name")
+    }
+
+supergraph: |
+  type Query {
+    users: [User]
+    userById(id: ID!): User
+    reviews: [Review]
+    userByIdReviews(id: ID!): User
+  }
+  
+  type User {
+    id: ID!
+    name: String
+    email: String
+    reviews: [Review]
+  }
+  
+  type Review {
+    id: ID!
+    text: String
+    rating: Int
+    author: User
+  }

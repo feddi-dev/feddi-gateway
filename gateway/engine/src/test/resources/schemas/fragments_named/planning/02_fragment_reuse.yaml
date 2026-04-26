@@ -1,0 +1,26 @@
+name: "Fragment reuse planning"
+description: "Tests planning with the same fragment used multiple times"
+
+query: |
+  query GetProductAndList {
+    product(id: "p1") {
+      ...ProductFields
+    }
+    products {
+      ...ProductFields
+    }
+  }
+  fragment ProductFields on Product {
+    id
+    name
+    price
+    category
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: '{ product(id: "p1") { id name price category } products { id name price category } }'
+      dependsOn: []
+      repeatedExecution: false

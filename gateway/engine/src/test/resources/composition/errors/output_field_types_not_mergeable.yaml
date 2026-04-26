@@ -1,0 +1,25 @@
+name: "OUTPUT_FIELD_TYPES_NOT_MERGEABLE - same field with different types"
+description: "Spec: Fields with the same name must have mergeable types"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      user: User
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      birthdate: String
+    }
+
+  schemaB: |
+    type Query {
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      birthdate: Int
+    }
+
+error: "OUTPUT_FIELD_TYPES_NOT_MERGEABLE"

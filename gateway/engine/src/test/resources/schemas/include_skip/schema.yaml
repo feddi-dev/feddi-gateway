@@ -1,0 +1,60 @@
+name: "Include Skip"
+description: |
+  Tests @include and @skip directives with @requires chains across subgraphs.
+  Subgraph a provides product with price, subgraph b computes isExpensive from price,
+  subgraph c computes include/skip/neverCalledInclude/neverCalledSkip from isExpensive.
+  When a field is excluded by @include(if: false) or @skip(if: true), the requires chain
+  should not be traversed and dependent subgraphs should not be called.
+
+subgraphs:
+  a: |
+    type Query {
+      product: Product
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float! @shareable
+    }
+
+  b: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float! @shareable
+      isExpensive(price: Float! @require(field: "price")): Boolean! @shareable
+    }
+
+  c: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      isExpensive: Boolean! @shareable
+      include(isExpensive: Boolean! @require(field: "isExpensive")): Boolean!
+      skip(isExpensive: Boolean! @require(field: "isExpensive")): Boolean!
+      neverCalledInclude(isExpensive: Boolean! @require(field: "isExpensive")): Boolean!
+      neverCalledSkip(isExpensive: Boolean! @require(field: "isExpensive")): Boolean!
+    }
+
+supergraph: |
+  type Product {
+    id: ID!
+    include: Boolean!
+    isExpensive: Boolean!
+    neverCalledInclude: Boolean!
+    neverCalledSkip: Boolean!
+    price: Float!
+    skip: Boolean!
+  }
+
+  type Query {
+    product: Product
+    productById(id: ID!): Product
+  }

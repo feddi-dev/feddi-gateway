@@ -1,0 +1,34 @@
+name: "Multiple @is arguments - composite key lookup"
+description: |
+  Tests lookup with multiple @is arguments forming a composite key.
+  The tracking subgraph requires both orderId and customerId to identify a shipment.
+
+query: |
+  {
+    orders(customerId: "cust123") {
+      id
+      status
+      shipment {
+        trackingNumber
+        carrier
+        status
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: orders
+      operation: "{ orders(customerId: \"cust123\") { id status customerId } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: tracking
+      operation: "query($orderId: ID!, $customerId: ID!) { orderByIdTracking(orderId: $orderId, customerId: $customerId) { shipment { trackingNumber carrier status } } }"
+      dependsOn: [1]
+      requirements:
+        orderId: "id"
+        customerId: "customerId"
+      repeatedExecution: true

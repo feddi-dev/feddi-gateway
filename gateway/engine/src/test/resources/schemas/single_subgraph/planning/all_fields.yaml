@@ -1,0 +1,23 @@
+name: "All fields - single subgraph"
+description: "All fields in one subgraph, no lookups needed"
+
+query: |
+  {
+    users {
+      id
+      name
+      email
+      profile {
+        bio
+        avatar
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: main
+      operation: "{ users { id name email profile { bio avatar } } }"
+      dependsOn: []
+      repeatedExecution: false

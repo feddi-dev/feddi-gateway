@@ -1,0 +1,44 @@
+name: "Internal Lookup Execution"
+description: |
+  Tests that @internal lookup fields can be used for entity resolution during
+  query planning and execution.
+
+  Subgraph B only has an @internal lookup (no public lookup), so the executor
+  MUST use it to resolve price/inventory fields. This demonstrates that @internal
+  lookups ARE used for entity resolution even though they're hidden from the public API.
+
+subgraphs:
+  a: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+    }
+
+  b: |
+    type Query {
+      internalLookup(code: String! @is(field: "id")): Product @internal @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Int
+      inventory: Int
+    }
+
+supergraph: |
+  type Query {
+    productById(id: ID!): Product
+    products: [Product]
+  }
+
+  type Product {
+    id: ID!
+    inventory: Int
+    name: String
+    price: Int
+  }

@@ -1,0 +1,48 @@
+plugins {
+    id 'java-library'
+    id 'antlr'
+}
+
+group = 'dev.feddi.federation'
+version = '1.0-SNAPSHOT'
+
+dependencies {
+    // GraphQL parsing and schema
+    api libs.graphql.java
+
+    // Reactive programming
+    api libs.reactor.core
+
+    // Logging
+    implementation libs.slf4j.api
+
+    // ANTLR runtime for FieldSelectionMap parser
+    implementation libs.antlr4.runtime
+    antlr libs.antlr4
+
+    // YAML parsing for test cases
+    implementation libs.jackson.dataformat.yaml
+    implementation libs.jackson.databind
+
+    // Testing
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+// Configure ANTLR grammar source generation
+tasks.generateGrammarSource {
+    include("FSM.g4")
+    maxHeapSize = "64m"
+    arguments = arguments + ["-visitor"]
+    outputDirectory = file("${project.buildDir}/generated-src/antlr/main/dev/feddi/federation/engine/parser/antlr")
+}
+
+// Add generated sources to source sets
+sourceSets {
+    main {
+        java {
+            srcDir "${project.buildDir}/generated-src/antlr/main"
+        }
+    }
+}

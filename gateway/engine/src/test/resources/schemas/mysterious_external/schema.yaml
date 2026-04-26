@@ -1,0 +1,38 @@
+name: "Mysterious External"
+description: "Tests @external field edge cases. Product type split across product (id, name) and price (id, price) subgraphs."
+
+subgraphs:
+  product: |
+    type Query {
+      products: [Product!]!
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String!
+    }
+
+  price: |
+    type Query {
+      cheapestProduct: Product
+      productByIdPrice(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float
+    }
+
+supergraph: |
+  type Query {
+    products: [Product!]!
+    cheapestProduct: Product
+    productById(id: ID!): Product
+    productByIdPrice(id: ID!): Product
+  }
+  type Product {
+    id: ID!
+    name: String!
+    price: Float
+  }

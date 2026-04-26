@@ -1,0 +1,36 @@
+name: "Widening type condition inside narrowing fragment"
+description: |
+  Narrows from Node interface to Product, then widens back to Node.
+  The normalizer simplifies away the widening ... on Node since Product implements Node.
+  Fields end up inside ... on Product only, so non-Product types don't get those fields.
+
+query: |
+  {
+    nodes {
+      ... on Product {
+        name
+        ... on Node {
+          id
+          createdAt
+        }
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: nodes
+    operation: '{ nodes { __typename ... on Product { name id createdAt } } }'
+    variables: {}
+    response: { data: { nodes: [{ __typename: "Product", name: "Laptop", id: "p1", createdAt: "2024-01-01" }, { __typename: "Order" }, { __typename: "Category" }] } }
+
+expectedResponse: {
+  data: {
+    nodes: [
+      { name: "Laptop", id: "p1", createdAt: "2024-01-01" },
+      {},
+      {}
+    ]
+  }
+}

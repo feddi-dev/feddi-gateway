@@ -1,0 +1,11 @@
+# Ignore Gradle project-specific cache directory
+.gradle
+
+# Ignore Gradle build output directory
+build
+
+# Ignore copied gateway JAR (build artifact)
+docker/gateway/*.jar
+
+# Ignore copied customizations JARs (build artifacts)
+docker/gateway/libs/

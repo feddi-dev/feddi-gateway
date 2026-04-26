@@ -1,0 +1,22 @@
+scalar DateTime
+
+type Query {
+  reviews: [Review]
+  productById(id: ID! @is(field: "id")): Product @lookup
+  failingQuery: String
+  reviewsByProductId(productId: ID!): [Review]
+}
+
+type Product @key(fields: "id") {
+  id: ID!
+  reviews: [Review]
+  failingField: String
+}
+
+type Review {
+  id: ID!
+  productId: ID!
+  text: String
+  stars: Int
+  writtenAt: DateTime
+}

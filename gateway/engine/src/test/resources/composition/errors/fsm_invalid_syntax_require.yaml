@@ -1,0 +1,16 @@
+name: "REQUIRE_INVALID_SYNTAX - invalid FieldSelectionMap in @require"
+description: "Validates that invalid FSM syntax in @require is rejected"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      weight: Int
+      shippingCost(w: Int @require(field: "... on Product { weight }")): Float
+    }
+
+error: "REQUIRE_INVALID_SYNTAX"

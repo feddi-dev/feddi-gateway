@@ -1,0 +1,39 @@
+name: "Single subgraph - no federation"
+description: "Single subgraph with no federation directives"
+
+subgraphs:
+  main: |
+    type Query {
+      users: [User]
+      userById(id: ID!): User
+    }
+    
+    type User {
+      id: ID!
+      name: String
+      email: String
+      profile: Profile
+    }
+    
+    type Profile {
+      bio: String
+      avatar: String
+    }
+
+supergraph: |
+  type Query {
+    users: [User]
+    userById(id: ID!): User
+  }
+  
+  type User {
+    id: ID!
+    name: String
+    email: String
+    profile: Profile
+  }
+  
+  type Profile {
+    bio: String
+    avatar: String
+  }

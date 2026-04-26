@@ -1,0 +1,78 @@
+name: "@is with different argument name execution"
+description: "Tests execution where @is maps productId to id (different names)"
+
+query: |
+  {
+    products(category: "electronics") {
+      id
+      name
+      price
+      currency
+      discount
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ products(category: "electronics") { id name } }'
+    variables: {}
+    response:
+      data:
+        products:
+          - id: "e1"
+            name: "Laptop"
+          - id: "e2"
+            name: "Phone"
+          - id: "e3"
+            name: "Tablet"
+
+  - subgraph: pricing
+    operation: 'query($productId: ID!) { productByIdPricing(productId: $productId) { price currency discount } }'
+    variables: { productId: "e1" }
+    response:
+      data:
+        productByIdPricing:
+          price: 999.99
+          currency: "USD"
+          discount: 0.10
+
+  - subgraph: pricing
+    operation: 'query($productId: ID!) { productByIdPricing(productId: $productId) { price currency discount } }'
+    variables: { productId: "e2" }
+    response:
+      data:
+        productByIdPricing:
+          price: 699.99
+          currency: "USD"
+          discount: 0.0
+
+  - subgraph: pricing
+    operation: 'query($productId: ID!) { productByIdPricing(productId: $productId) { price currency discount } }'
+    variables: { productId: "e3" }
+    response:
+      data:
+        productByIdPricing:
+          price: 449.99
+          currency: "USD"
+          discount: 0.15
+
+expectedResponse:
+  data:
+    products:
+      - id: "e1"
+        name: "Laptop"
+        price: 999.99
+        currency: "USD"
+        discount: 0.10
+      - id: "e2"
+        name: "Phone"
+        price: 699.99
+        currency: "USD"
+        discount: 0.0
+      - id: "e3"
+        name: "Tablet"
+        price: 449.99
+        currency: "USD"
+        discount: 0.15

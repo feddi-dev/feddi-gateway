@@ -1,0 +1,110 @@
+name: "Requires Interface"
+description: |
+  Tests @require with interface fields. User has an address (interface Address with
+  HomeAddress and WorkAddress implementations). The city field requires address.id
+  regardless of concrete type. The country field also requires address.id but the
+  resolver only returns a value when the address is a WorkAddress (returns null for
+  HomeAddress). Subgraph b owns the address field on User; subgraph a defines city
+  and country as @require fields.
+
+subgraphs:
+  a: |
+    type Query {
+      a: User
+      userById(id: ID!): User @lookup
+      homeAddressById(id: ID!): HomeAddress @lookup
+      workAddressById(id: ID!): WorkAddress @lookup
+    }
+
+    interface Address {
+      id: ID!
+    }
+
+    type HomeAddress implements Address @key(fields: "id") {
+      id: ID!
+      city: String @shareable
+    }
+
+    type WorkAddress implements Address @key(fields: "id") {
+      id: ID!
+      city: String @shareable
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String! @shareable
+      address: Address @shareable
+      city(addressId: ID @require(field: "address.id")): String
+      country(workAddressId: ID @require(field: "address.id")): String
+    }
+
+  b: |
+    type Query {
+      b: User
+      userById(id: ID!): User @lookup
+      homeAddressById(id: ID!): HomeAddress @lookup
+      workAddressById(id: ID!): WorkAddress @lookup
+      secondAddressById(id: ID!): SecondAddress @lookup
+    }
+
+    interface Address {
+      id: ID!
+    }
+
+    type HomeAddress implements Address @key(fields: "id") {
+      id: ID!
+      city: String @shareable
+    }
+
+    type WorkAddress implements Address @key(fields: "id") {
+      id: ID!
+      city: String @shareable
+    }
+
+    type SecondAddress implements Address @key(fields: "id") {
+      id: ID!
+      city: String @shareable
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String! @shareable
+      address: Address @shareable
+    }
+
+supergraph: |
+  interface Address {
+    id: ID!
+  }
+
+  type HomeAddress implements Address {
+    city: String
+    id: ID!
+  }
+
+  type Query {
+    a: User
+    b: User
+    homeAddressById(id: ID!): HomeAddress
+    secondAddressById(id: ID!): SecondAddress
+    userById(id: ID!): User
+    workAddressById(id: ID!): WorkAddress
+  }
+
+  type SecondAddress implements Address {
+    city: String
+    id: ID!
+  }
+
+  type User {
+    address: Address
+    city: String
+    country: String
+    id: ID!
+    name: String!
+  }
+
+  type WorkAddress implements Address {
+    city: String
+    id: ID!
+  }

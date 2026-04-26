@@ -1,0 +1,19 @@
+name: "Multiple list variables"
+description: "Tests planning with multiple list variables of different types"
+
+query: |
+  query GetStockLevels($productIds: [ID!]!, $warehouseIds: [ID]) {
+    stockLevels(productIds: $productIds, warehouseIds: $warehouseIds) {
+      productId
+      warehouseId
+      quantity
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: inventory
+      operation: "query($productIds: [ID!]!, $warehouseIds: [ID]) { stockLevels(productIds: $productIds, warehouseIds: $warehouseIds) { productId warehouseId quantity } }"
+      dependsOn: []
+      repeatedExecution: false

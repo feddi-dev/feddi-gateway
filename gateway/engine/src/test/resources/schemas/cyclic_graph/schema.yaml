@@ -1,0 +1,70 @@
+name: "Cyclic Graph"
+description: "Graph with potential cycles between subgraphs"
+
+subgraphs:
+  users: |
+    type Query {
+      users(role: String): [User]
+      userByIdOrders(userId: ID! @is(field: "id")): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      role: String
+    }
+
+  orders: |
+    type Query {
+      orderUserLookup(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      orders(minTotal: Float): [Order]
+    }
+
+    type Order {
+      orderId: ID!
+      total: Float
+      items: Int
+    }
+
+  reviews: |
+    type Query {
+      userByIdReviews(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      reviews(minStars: Int): [Review]
+    }
+
+    type Review {
+      text: String
+      stars: Int
+    }
+
+supergraph: |
+  type Query {
+    users(role: String): [User]
+    userByIdOrders(userId: ID!): User
+    orderUserLookup(id: ID!): User
+    userByIdReviews(id: ID!): User
+  }
+  type User {
+    id: ID!
+    name: String
+    role: String
+    orders(minTotal: Float): [Order]
+    reviews(minStars: Int): [Review]
+  }
+  type Order {
+    orderId: ID!
+    total: Float
+    items: Int
+  }
+  type Review {
+    text: String
+    stars: Int
+  }

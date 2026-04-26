@@ -1,0 +1,17 @@
+name: "__typename at root level execution"
+description: "Tests execution of __typename on the Query root type"
+
+query: |
+  {
+    __typename
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ __typename }'
+    variables: {}
+    response: { data: { __typename: "Query" } }
+
+expectedResponse: { data: { __typename: "Query" } }

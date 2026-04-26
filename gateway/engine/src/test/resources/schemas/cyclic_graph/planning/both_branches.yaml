@@ -1,0 +1,38 @@
+name: "Cycle prevention - orders and reviews"
+description: "Both branches from users, no infinite loops"
+
+query: |
+  {
+    users {
+      name
+      orders {
+        total
+      }
+      reviews {
+        text
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: users
+      operation: "{ users { name id } }"
+      dependsOn: []
+      repeatedExecution: false
+    - parallel:
+        - id: 2
+          subgraph: orders
+          operation: "query($id: ID!) { orderUserLookup(id: $id) { orders { total } } }"
+          dependsOn: [1]
+          requirements:
+            id: "id"
+          repeatedExecution: true
+        - id: 3
+          subgraph: reviews
+          operation: "query($id: ID!) { userByIdReviews(id: $id) { reviews { text } } }"
+          dependsOn: [1]
+          requirements:
+            id: "id"
+          repeatedExecution: true

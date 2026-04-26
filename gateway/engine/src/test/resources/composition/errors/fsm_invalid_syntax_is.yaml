@@ -1,0 +1,15 @@
+name: "IS_INVALID_SYNTAX - invalid FieldSelectionMap in @is"
+description: "Validates that invalid FSM syntax in @is is rejected"
+
+subgraphs:
+  products: |
+    type Query {
+      productById(id: ID! @is(field: "...id")): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "IS_INVALID_SYNTAX"

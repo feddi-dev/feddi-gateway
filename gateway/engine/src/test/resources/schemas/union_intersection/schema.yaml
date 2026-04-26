@@ -1,0 +1,131 @@
+name: "Union Intersection"
+description: "Tests union type intersection between subgraphs with different union members"
+
+subgraphs:
+  a: |
+    type Query {
+      media: Media @shareable
+      aMedia: Media @shareable
+      book: Book @shareable
+      song: Media @shareable
+      viewer: Viewer @shareable
+      bookByIdA(id: ID!): Book @lookup
+      songByIdA(id: ID!): Song @lookup
+    }
+
+    union Media = Book | Song
+
+    type Book @key(fields: "id") {
+      id: ID! @shareable
+      title: String! @shareable
+      aTitle: String! @shareable
+      bTitle: String! @shareable
+    }
+
+    type Song @key(fields: "id") {
+      id: ID!
+      title: String! @shareable
+      aTitle: String!
+    }
+
+    type Viewer @shareable {
+      media: ViewerMedia @shareable
+      aMedia: ViewerMedia @shareable
+      bMedia: ViewerMedia @shareable
+      book: Book @shareable
+      song: ViewerMedia @shareable
+    }
+
+    union ViewerMedia = Book | Song | Movie
+
+    type Movie @key(fields: "id") {
+      id: ID! @shareable
+      title: String! @shareable
+      bTitle: String! @shareable
+    }
+
+  b: |
+    type Query {
+      media: Media @shareable
+      bMedia: Media @shareable
+      book: Book @shareable
+      viewer: Viewer @shareable
+      bookById(id: ID!): Book @lookup
+      movieById(id: ID!): Movie @lookup
+      songById(id: ID!): Song @lookup
+    }
+
+    union Media = Book | Movie
+
+    type Movie @key(fields: "id") {
+      id: ID!
+      title: String! @shareable
+      bTitle: String! @shareable
+    }
+
+    type Book @key(fields: "id") {
+      id: ID! @shareable
+      title: String! @shareable
+      aTitle: String! @shareable
+      bTitle: String! @shareable
+    }
+
+    type Song @key(fields: "id") {
+      id: ID!
+    }
+
+    type Viewer @shareable {
+      media: ViewerMedia @shareable
+      aMedia: ViewerMedia @shareable
+      bMedia: ViewerMedia @shareable
+      book: Book @shareable
+      song: ViewerMedia @shareable
+    }
+
+    union ViewerMedia = Book | Movie | Song
+
+supergraph: |
+  union Media = Book | Movie | Song
+
+  union ViewerMedia = Book | Movie | Song
+
+  type Book {
+    aTitle: String!
+    bTitle: String!
+    id: ID!
+    title: String!
+  }
+
+  type Movie {
+    bTitle: String!
+    id: ID!
+    title: String!
+  }
+
+  type Query {
+    aMedia: Media
+    bMedia: Media
+    book: Book
+    bookById(id: ID!): Book
+    bookByIdA(id: ID!): Book
+    media: Media
+    movieById(id: ID!): Movie
+    song: Media
+    songById(id: ID!): Song
+    songByIdA(id: ID!): Song
+    viewer: Viewer
+  }
+
+  type Song {
+    aTitle: String!
+    id: ID!
+    title: String!
+  }
+
+  type Viewer {
+    aMedia: ViewerMedia
+    bMedia: ViewerMedia
+    book: Book
+    media: ViewerMedia
+    song: ViewerMedia
+  }

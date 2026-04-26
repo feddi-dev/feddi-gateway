@@ -1,0 +1,89 @@
+name: "Interface Lookup"
+description: |
+  Tests that lookups returning interfaces work for entity resolution.
+
+  The ratings subgraph has contentById(id): Content @lookup which returns
+  the Content interface. This lookup should create edges that allow resolving
+  fields on implementing types (Book, Movie) from other subgraphs.
+
+  This is a regression test for the bug where interface lookups only created
+  edges from Interface/source -> Implementation/target, but not from
+  Implementation/source -> Implementation/target.
+
+  Note: @is is omitted because the argument name "id" matches the field name.
+
+subgraphs:
+  content: |
+    type Query {
+      contents: [Content]
+      contentById(id: ID!): Content @lookup
+    }
+
+    interface Content @key(fields: "id") {
+      id: ID!
+      title: String
+    }
+
+    type Book implements Content @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      author: String
+    }
+
+    type Movie implements Content @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      director: String
+    }
+
+  ratings: |
+    type Query {
+      contentById(id: ID!): Content @lookup
+    }
+
+    interface Content @key(fields: "id") {
+      id: ID!
+      rating: Float
+      reviewCount: Int
+    }
+
+    type Book implements Content @key(fields: "id") {
+      id: ID!
+      rating: Float
+      reviewCount: Int
+    }
+
+    type Movie implements Content @key(fields: "id") {
+      id: ID!
+      rating: Float
+      reviewCount: Int
+    }
+
+supergraph: |
+  type Query {
+    contents: [Content]
+    contentById(id: ID!): Content
+  }
+
+  interface Content {
+    id: ID!
+    title: String
+    rating: Float
+    reviewCount: Int
+  }
+
+  type Book implements Content {
+    id: ID!
+    title: String
+    author: String
+    rating: Float
+    reviewCount: Int
+  }
+
+  type Movie implements Content {
+    id: ID!
+    title: String
+    director: String
+    rating: Float
+    reviewCount: Int
+  }

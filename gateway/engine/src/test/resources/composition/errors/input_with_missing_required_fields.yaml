@@ -1,0 +1,34 @@
+name: "INPUT_WITH_MISSING_REQUIRED_FIELDS - required field missing in one schema"
+description: "Spec: If an input field is non-null in any schema, it must exist in all schemas"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      books(filter: BookFilter): [Book]
+    }
+
+    input BookFilter {
+      title: String!
+      author: String
+    }
+
+    type Book {
+      id: ID!
+      title: String
+    }
+
+  schemaB: |
+    type Query {
+      bookById(id: ID!): Book
+    }
+
+    input BookFilter {
+      author: String
+    }
+
+    type Book {
+      id: ID!
+      author: String
+    }
+
+error: "INPUT_WITH_MISSING_REQUIRED_FIELDS"

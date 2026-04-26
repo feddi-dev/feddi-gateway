@@ -1,0 +1,24 @@
+name: "Float variable execution"
+description: "Tests passing a Float type variable (using score field)"
+
+query: |
+  query GetUser($userId: ID!) {
+    user(id: $userId) {
+      id
+      score
+    }
+  }
+
+variables: { userId: "u1" }
+
+subgraphCalls:
+  - subgraph: users
+    operation: 'query($userId: ID!) { user(id: $userId) { id score } }'
+    variables: { userId: "u1" }
+    response: { data: { user: { id: "u1", score: 95.5 } } }
+
+expectedResponse: {
+  data: {
+    user: { id: "u1", score: 95.5 }
+  }
+}

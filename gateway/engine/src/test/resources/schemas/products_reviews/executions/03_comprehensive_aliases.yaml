@@ -1,0 +1,87 @@
+name: "Comprehensive aliases across multiple subgraphs"
+description: |
+  Tests extensive use of aliases when fetching data from multiple subgraphs:
+  products, reviews, inventory, and pricing.
+
+query: |
+  {
+    items: products(category: "electronics", limit: 2) {
+      productId: id
+      productName: name
+      productRating: rating
+      available: inStock
+      stockCount: quantity
+      basePrice: price
+      salePrice: finalPrice
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ items: products(category: "electronics", limit: 2) { productId: id productName: name } }'
+    variables: {}
+    response: {
+      data: {
+        items: [
+          { productId: "p1", productName: "Laptop" },
+          { productId: "p2", productName: "Phone" }
+        ]
+      }
+    }
+
+  - subgraph: reviews
+    operation: 'query($id: ID!) { productById(id: $id) { productRating: rating } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { productRating: 4.8 } } }
+
+  - subgraph: reviews
+    operation: 'query($id: ID!) { productById(id: $id) { productRating: rating } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { productRating: 4.5 } } }
+
+  - subgraph: inventory
+    operation: 'query($id: ID!) { productById(id: $id) { available: inStock stockCount: quantity } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { available: true, stockCount: 50 } } }
+
+  - subgraph: inventory
+    operation: 'query($id: ID!) { productById(id: $id) { available: inStock stockCount: quantity } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { available: true, stockCount: 100 } } }
+
+  - subgraph: pricing
+    operation: 'query($id: ID!) { productById(id: $id) { basePrice: price salePrice: finalPrice } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { basePrice: 999.99, salePrice: 899.99 } } }
+
+  - subgraph: pricing
+    operation: 'query($id: ID!) { productById(id: $id) { basePrice: price salePrice: finalPrice } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { basePrice: 599.99, salePrice: 549.99 } } }
+
+expectedResponse: {
+  data: {
+    items: [
+      {
+        productId: "p1",
+        productName: "Laptop",
+        productRating: 4.8,
+        available: true,
+        stockCount: 50,
+        basePrice: 999.99,
+        salePrice: 899.99
+      },
+      {
+        productId: "p2",
+        productName: "Phone",
+        productRating: 4.5,
+        available: true,
+        stockCount: 100,
+        basePrice: 599.99,
+        salePrice: 549.99
+      }
+    ]
+  }
+}

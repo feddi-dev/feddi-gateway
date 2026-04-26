@@ -1,0 +1,23 @@
+name: "Products query returning names"
+description: "Fetches product names from the products subgraph"
+
+query: |
+  {
+    products {
+      name
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { name } }'
+    variables: {}
+    response: { data: { products: [{ name: "p-name-1" }, { name: "p-name-2" }] } }
+
+expectedResponse: {
+  data: {
+    products: [{ name: "p-name-1" }, { name: "p-name-2" }]
+  }
+}

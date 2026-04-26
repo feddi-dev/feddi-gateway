@@ -1,0 +1,53 @@
+name: "Three aliases on same field with different arguments"
+description: |
+  Tests that three aliases on the same field with different arguments all work correctly.
+
+query: |
+  {
+    first: items(category: "books") {
+      id
+      name
+    }
+    second: items(category: "games") {
+      id
+      name
+    }
+    third: items(category: "music") {
+      id
+      name
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: data
+    operation: '{ first: items(category: "books") { id name } second: items(category: "games") { id name } third: items(category: "music") { id name } }'
+    variables: {}
+    response: {
+      data: {
+        first: [
+          { id: "b1", name: "Novel" }
+        ],
+        second: [
+          { id: "g1", name: "Chess Set" }
+        ],
+        third: [
+          { id: "m1", name: "Album" }
+        ]
+      }
+    }
+
+expectedResponse: {
+  data: {
+    first: [
+      { id: "b1", name: "Novel" }
+    ],
+    second: [
+      { id: "g1", name: "Chess Set" }
+    ],
+    third: [
+      { id: "m1", name: "Album" }
+    ]
+  }
+}

@@ -1,0 +1,63 @@
+name: "Null intermediate in deep path - entity still resolves via id"
+description: |
+  Tests that when an entity has null intermediate values in a deep path
+  (headquarters is null), the planner can still resolve via the simpler
+  organizationById lookup. The deep path lookup is not needed.
+
+query: |
+  {
+    organizations {
+      id
+      name
+      headquarters {
+        name
+      }
+      deliveryZones
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: organizations
+    operation: '{ organizations { id name headquarters { name } } }'
+    variables: {}
+    response: {
+      data: {
+        organizations: [
+          { id: "org1", name: "Acme Corp", headquarters: { name: "HQ West" } },
+          { id: "org3", name: "Startup LLC", headquarters: null }
+        ]
+      }
+    }
+
+  - subgraph: local_services
+    operation: 'query ($id: ID!) { organizationById(id: $id) { deliveryZones } }'
+    variables: { id: "org1" }
+    response: {
+      data: {
+        organizationById: {
+          deliveryZones: ["Zone A", "Zone B"]
+        }
+      }
+    }
+
+  - subgraph: local_services
+    operation: 'query ($id: ID!) { organizationById(id: $id) { deliveryZones } }'
+    variables: { id: "org3" }
+    response: {
+      data: {
+        organizationById: {
+          deliveryZones: []
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    organizations: [
+      { id: "org1", name: "Acme Corp", headquarters: { name: "HQ West" }, deliveryZones: ["Zone A", "Zone B"] },
+      { id: "org3", name: "Startup LLC", headquarters: null, deliveryZones: [] }
+    ]
+  }
+}

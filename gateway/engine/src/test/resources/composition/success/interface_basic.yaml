@@ -1,0 +1,85 @@
+name: "Interface - basic inheritance"
+description: "Entities implementing interfaces across subgraphs"
+
+subgraphs:
+  content: |
+    type Query {
+      content: [Content]
+      articleById(id: ID!): Article @lookup
+      videoById(id: ID!): Video @lookup
+    }
+
+    interface Content {
+      id: ID!
+      title: String
+      createdAt: String
+    }
+
+    type Article implements Content @key(fields: "id") {
+      id: ID!
+      title: String
+      createdAt: String
+      body: String
+      author: String
+    }
+
+    type Video implements Content @key(fields: "id") {
+      id: ID!
+      title: String
+      createdAt: String
+      url: String
+      duration: Int
+    }
+
+  analytics: |
+    type Query {
+      articleByIdAnalytics(id: ID!): Article @lookup
+      videoByIdAnalytics(id: ID!): Video @lookup
+    }
+    
+    type Article @key(fields: "id") {
+      id: ID!
+      viewCount: Int
+      shareCount: Int
+    }
+    
+    type Video @key(fields: "id") {
+      id: ID!
+      viewCount: Int
+      watchTime: Int
+    }
+
+supergraph: |
+  type Query {
+    content: [Content]
+    articleById(id: ID!): Article
+    videoById(id: ID!): Video
+    articleByIdAnalytics(id: ID!): Article
+    videoByIdAnalytics(id: ID!): Video
+  }
+  
+  interface Content {
+    id: ID!
+    title: String
+    createdAt: String
+  }
+  
+  type Article implements Content {
+    id: ID!
+    title: String
+    createdAt: String
+    body: String
+    author: String
+    viewCount: Int
+    shareCount: Int
+  }
+  
+  type Video implements Content {
+    id: ID!
+    title: String
+    createdAt: String
+    url: String
+    duration: Int
+    viewCount: Int
+    watchTime: Int
+  }

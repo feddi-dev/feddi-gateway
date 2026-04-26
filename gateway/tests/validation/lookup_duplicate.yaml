@@ -1,0 +1,34 @@
+name: "Duplicate @lookup definitions with same return type and key fields"
+description: |
+  Two @lookup fields are considered duplicates if they:
+  1. Are on the same parent type
+  2. Return the same type (after unwrapping)
+  3. Have the same set of key field paths (as determined by @is directives or implicit argument names)
+
+  The key insight is that we compare the actual source fields (via @is), not the argument names,
+  because the semantics matter - two lookups that map to the same entity fields are equivalent.
+
+  In this test, both lookups resolve Product by the "id" field:
+  - productById uses implicit @is (argument name = field name)
+  - productByKey uses explicit @is(field: "id")
+
+category: validation
+
+source_schemas:
+  - name: products
+    sdl: |
+      type Query {
+        productById(id: ID!): Product @lookup
+        productByKey(key: ID! @is(field: "id")): Product @lookup
+      }
+      type Product @key(fields: "id") {
+        id: ID!
+        name: String
+      }
+
+validation:
+  phase: source_schema
+  expect: invalid
+  diagnostics:
+    - code: LOOKUP_DUPLICATE
+      severity: error

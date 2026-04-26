@@ -1,0 +1,52 @@
+name: "Nested Provides"
+description: "Tests @provides with nested field selections - category subgraph provides product categories with nested subCategories"
+
+subgraphs:
+  category: |
+    type Query {
+      products: [Product] @shareable @provides(fields: "categories { id name subCategories { id name } }")
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      categories: [Category] @external
+    }
+
+    type Category @key(fields: "id") {
+      id: ID!
+      name: String @external
+      subCategories: [Category] @external
+    }
+
+  subcategories: |
+    type Query {
+      productById(id: ID!): Product @lookup
+      categoryById(id: ID!): Category @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      categories: [Category] @shareable
+    }
+
+    type Category @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      subCategories: [Category] @shareable
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    categoryById(id: ID!): Category
+  }
+  type Product {
+    id: ID!
+    categories: [Category]
+  }
+  type Category {
+    id: ID!
+    name: String
+    subCategories: [Category]
+  }

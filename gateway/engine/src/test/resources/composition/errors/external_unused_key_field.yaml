@@ -1,0 +1,25 @@
+name: "EXTERNAL_UNUSED - @external on key field without @provides"
+description: "Spec 3.1.2: @external on key fields still requires @provides"
+
+subgraphs:
+  email: |
+    type Query {
+      user: User
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      email: String!
+    }
+
+  nickname: |
+    type Query {
+      userByEmail(email: String!): User @lookup
+    }
+
+    type User @key(fields: "email") {
+      email: String! @external
+      nickname: String!
+    }
+
+error: "EXTERNAL_UNUSED"

@@ -1,0 +1,19 @@
+name: "EXTERNAL_ON_INTERFACE - @external on interface field"
+description: "Spec: @external is not allowed on interface fields"
+
+subgraphs:
+  products: |
+    type Query {
+      nodes: [Node]
+    }
+
+    interface Node {
+      id: ID! @external
+    }
+
+    type Product implements Node @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "EXTERNAL_ON_INTERFACE"

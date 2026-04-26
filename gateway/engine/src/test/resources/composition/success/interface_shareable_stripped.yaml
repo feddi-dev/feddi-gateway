@@ -1,0 +1,57 @@
+name: "Object field - @shareable directive should be stripped"
+description: "Federation directives like @shareable should be stripped from object fields in the supergraph"
+
+subgraphs:
+  core: |
+    type Query {
+      nodes: [Node]
+      userById(id: ID!): User @lookup
+    }
+
+    interface Node {
+      id: ID!
+    }
+
+    type User implements Node @key(fields: "id") {
+      id: ID!
+      sharedField: String @shareable
+      name: String
+    }
+
+  products: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    interface Node {
+      id: ID!
+    }
+
+    type Product implements Node @key(fields: "id") {
+      id: ID!
+      sharedField: String @shareable
+      title: String
+    }
+
+supergraph: |
+  type Query {
+    nodes: [Node]
+    userById(id: ID!): User
+    productById(id: ID!): Product
+  }
+
+  interface Node {
+    id: ID!
+  }
+
+  type User implements Node {
+    id: ID!
+    sharedField: String
+    name: String
+  }
+
+  type Product implements Node {
+    id: ID!
+    sharedField: String
+    title: String
+  }

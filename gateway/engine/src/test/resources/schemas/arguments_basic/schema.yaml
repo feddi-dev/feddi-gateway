@@ -1,0 +1,65 @@
+name: "Basic Field Arguments"
+description: |
+  Tests field arguments with different types including strings, numbers, booleans, and enums.
+  Covers arguments on root fields and nested entity fields.
+
+subgraphs:
+  catalog: |
+    type Query {
+      products(category: String, minPrice: Float, sortBy: String): [Product]
+      productById(id: ID!): Product @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      price: Float
+      category: String
+      variants(color: String, size: String): [Variant]
+    }
+    type Variant {
+      id: ID!
+      color: String
+      size: String
+      sku: String
+    }
+
+  reviews: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      reviews(limit: Int, minStars: Int, verified: Boolean): [Review]
+    }
+    type Review {
+      id: ID!
+      stars: Int
+      comment: String
+      verified: Boolean
+    }
+
+supergraph: |
+  type Query {
+    products(category: String, minPrice: Float, sortBy: String): [Product]
+    productById(id: ID!): Product
+  }
+  type Product {
+    id: ID!
+    name: String
+    price: Float
+    category: String
+    variants(color: String, size: String): [Variant]
+    reviews(limit: Int, minStars: Int, verified: Boolean): [Review]
+  }
+  type Variant {
+    id: ID!
+    color: String
+    size: String
+    sku: String
+  }
+  type Review {
+    id: ID!
+    stars: Int
+    comment: String
+    verified: Boolean
+  }

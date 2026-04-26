@@ -1,0 +1,45 @@
+name: "Default Arguments"
+description: |
+  Tests default argument values in schema definitions.
+  Covers schema-defined defaults and how they interact with variables.
+
+subgraphs:
+  search: |
+    type Query {
+      search(query: String!, limit: Int = 10, offset: Int = 0): [SearchResult]
+      searchResultById(id: ID!): SearchResult @lookup
+    }
+    type SearchResult @key(fields: "id") {
+      id: ID!
+      title: String
+      score: Float
+    }
+
+  analytics: |
+    type Query {
+      searchResultById(id: ID!): SearchResult @lookup
+    }
+    type SearchResult @key(fields: "id") {
+      id: ID!
+      analytics(days: Int = 30): Analytics
+    }
+    type Analytics {
+      views: Int
+      clicks: Int
+    }
+
+supergraph: |
+  type Query {
+    search(query: String!, limit: Int = 10, offset: Int = 0): [SearchResult]
+    searchResultById(id: ID!): SearchResult
+  }
+  type SearchResult {
+    id: ID!
+    title: String
+    score: Float
+    analytics(days: Int = 30): Analytics
+  }
+  type Analytics {
+    views: Int
+    clicks: Int
+  }

@@ -1,0 +1,20 @@
+name: "EXTERNAL_UNUSED - nested @external field not provided"
+description: "Spec 3.1.2: Nested @external fields must be in @provides"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      variation: ProductVariation
+    }
+
+    type ProductVariation {
+      size: String @external
+      color: String
+    }
+
+error: "EXTERNAL_UNUSED"

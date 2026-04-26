@@ -1,0 +1,35 @@
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'checkstyle'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        implementation libs.jspecify
+    }
+
+    checkstyle {
+        toolVersion = '10.21.4'
+        configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+        // Fail build on violations
+        maxWarnings = 0
+        maxErrors = 0
+    }
+
+    // Exclude generated sources from checkstyle
+    tasks.named('checkstyleMain') {
+        source = fileTree('src/main/java')
+    }
+
+    tasks.named('test') {
+        useJUnitPlatform()
+    }
+}

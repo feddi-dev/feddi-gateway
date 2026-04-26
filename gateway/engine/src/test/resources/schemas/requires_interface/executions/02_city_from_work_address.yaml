@@ -1,0 +1,27 @@
+name: "City via @require with WorkAddress"
+description: |
+  User u2 has a WorkAddress (a2). Fetching city requires address.id via @require.
+  Gateway fetches user id and address id from subgraph b, then calls subgraph a
+  with the address id to resolve city.
+
+query: |
+  {
+    b {
+      city
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{b{id address{id}}}'
+    variables: {}
+    response: { data: { b: { id: "u2", address: { __typename: "WorkAddress", id: "a2" } } } }
+
+  - subgraph: a
+    operation: 'query ($id:ID!,$addressId:ID){userById(id:$id){city(addressId:$addressId)}}'
+    variables: { id: "u2", addressId: "a2" }
+    response: { data: { userById: { city: "a2-city" } } }
+
+expectedResponse: { data: { b: { city: "a2-city" } } }

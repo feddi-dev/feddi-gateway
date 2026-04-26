@@ -1,0 +1,30 @@
+name: "Provided random user with @provides"
+description: "Fetches providedRandomUser where name is provided by subgraph a via @provides, no cross-subgraph call"
+
+query: |
+  {
+    providedRandomUser {
+      id
+      rid
+      name
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ providedRandomUser { id rid } }'
+    variables: {}
+    response: { data: { providedRandomUser: { id: "u1", rid: "u1-rid" } } }
+
+  - subgraph: b
+    operation: 'query ($id: ID!) { userById(id: $id) { name } }'
+    variables: { id: "u1" }
+    response: { data: { userById: { name: "u1-name" } } }
+
+expectedResponse: {
+  data: {
+    providedRandomUser: { id: "u1", rid: "u1-rid", name: "u1-name" }
+  }
+}

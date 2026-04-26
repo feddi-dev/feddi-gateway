@@ -1,0 +1,198 @@
+name: "Complex @is and @require"
+description: |
+  Schema for testing complex FieldSelectionMap arguments with:
+  - @is arguments for name remapping (only needed when names differ)
+  - @require with list selections
+  - @require with path-prefixed objects
+
+  Note: @is is only used where the argument name differs from the field name.
+  For example, orderById(id) doesn't need @is, but orderByIdTracking(orderId)
+  needs @is(field: "id") because "orderId" != "id".
+
+subgraphs:
+  orders: |
+    type Query {
+      orders(customerId: ID): [Order]
+      orderById(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      customerId: ID! @shareable
+      status: OrderStatus!
+      items: [OrderItem!]! @shareable
+      shippingAddress: Address @shareable
+    }
+
+    enum OrderStatus {
+      PENDING
+      PROCESSING
+      SHIPPED
+      DELIVERED
+    }
+
+    type OrderItem @shareable {
+      productId: ID! @shareable
+      productName: String! @shareable
+      quantity: Int! @shareable
+      unitPrice: Float! @shareable
+    }
+
+    type Address @shareable {
+      street: String @shareable
+      city: String @shareable
+      state: String @shareable
+      zip: String @shareable
+      country: String @shareable
+    }
+
+  tracking: |
+    type Query {
+      orderByIdTracking(
+        orderId: ID! @is(field: "id")
+        customerId: ID!
+      ): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      customerId: ID! @shareable
+      shipment: Shipment
+    }
+
+    type Shipment {
+      trackingNumber: String
+      carrier: String
+      status: String
+      estimatedDelivery: String
+    }
+
+  analytics: |
+    type Query {
+      orderByIdAnalytics(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      items: [OrderItem!]! @shareable
+      itemAnalytics(productIds: [ID!]! @require(field: "items[productId]")): [ProductAnalytics!]
+    }
+
+    type OrderItem @shareable {
+      productId: ID! @shareable
+      productName: String! @shareable
+      quantity: Int! @shareable
+      unitPrice: Float! @shareable
+    }
+
+    type ProductAnalytics {
+      productId: ID!
+      views: Int
+      addToCartRate: Float
+      conversionRate: Float
+    }
+
+  shipping_calculator: |
+    type Query {
+      orderByIdShipping(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      shippingAddress: Address @shareable
+      shippingOptions(
+        destination: DestinationInput! @require(field: "shippingAddress.{ city state zip country }")
+      ): [ShippingOption!]
+    }
+
+    type Address @shareable {
+      street: String @shareable
+      city: String @shareable
+      state: String @shareable
+      zip: String @shareable
+      country: String @shareable
+    }
+
+    input DestinationInput {
+      city: String!
+      state: String!
+      zip: String!
+      country: String!
+    }
+
+    type ShippingOption {
+      carrier: String!
+      method: String!
+      price: Float!
+      days: Int!
+    }
+
+supergraph: |
+  type Query {
+    orders(customerId: ID): [Order]
+    orderById(id: ID!): Order
+    orderByIdTracking(orderId: ID!, customerId: ID!): Order
+    orderByIdAnalytics(id: ID!): Order
+    orderByIdShipping(id: ID!): Order
+  }
+
+  type Order {
+    id: ID!
+    customerId: ID!
+    status: OrderStatus!
+    items: [OrderItem!]!
+    shippingAddress: Address
+    shipment: Shipment
+    itemAnalytics: [ProductAnalytics!]
+    shippingOptions: [ShippingOption!]
+  }
+
+  enum OrderStatus {
+    PENDING
+    PROCESSING
+    SHIPPED
+    DELIVERED
+  }
+
+  type OrderItem {
+    productId: ID!
+    productName: String!
+    quantity: Int!
+    unitPrice: Float!
+  }
+
+  type Address {
+    street: String
+    city: String
+    state: String
+    zip: String
+    country: String
+  }
+
+  type Shipment {
+    trackingNumber: String
+    carrier: String
+    status: String
+    estimatedDelivery: String
+  }
+
+  type ProductAnalytics {
+    productId: ID!
+    views: Int
+    addToCartRate: Float
+    conversionRate: Float
+  }
+
+  type ShippingOption {
+    carrier: String!
+    method: String!
+    price: Float!
+    days: Int!
+  }
+
+  input DestinationInput {
+    city: String!
+    state: String!
+    zip: String!
+    country: String!
+  }

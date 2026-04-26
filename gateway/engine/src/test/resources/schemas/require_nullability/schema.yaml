@@ -1,0 +1,55 @@
+name: "Require Nullability Tests"
+description: |
+  NOT YET IMPLEMENTED - These tests document expected future behavior for @require argument nullability.
+
+  Tests @require argument nullability behavior based on type definitions:
+  - Case 1: Nullable argument with null value -> Call subgraph with null
+  - Case 2: Non-null argument with null value, nullable field -> Skip call, return null
+  - Case 3: Non-null argument with null value, non-null field -> Skip call, return null, add error
+
+  Implementation requires:
+  1. Tracking which requirements are key fields (@is/@key) vs @require fields
+  2. Only enforcing non-null constraint on @require fields, not all requirements
+  3. Adding field return type information to ExecutionStep
+  4. Implementing nullability-aware skip logic in Executor
+
+subgraphs:
+  products: |
+    type Query {
+      product(id: ID!): Product @lookup
+      products: [Product]
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      weight: Float
+      category: String!
+    }
+
+  shipping: |
+    type Query {
+      productById(id: ID! @is(field: "id")): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      estimateNullable(weight: Float @require(field: "weight")): Float
+      estimateRequired(weight: Float! @require(field: "weight")): Float
+      estimateStrict(weight: Float! @require(field: "weight")): Float!
+    }
+
+supergraph: |
+  type Query {
+    product(id: ID!): Product
+    products: [Product]
+    productById(id: ID!): Product
+  }
+
+  type Product {
+    id: ID!
+    weight: Float
+    category: String!
+    estimateNullable: Float
+    estimateRequired: Float
+    estimateStrict: Float!
+  }

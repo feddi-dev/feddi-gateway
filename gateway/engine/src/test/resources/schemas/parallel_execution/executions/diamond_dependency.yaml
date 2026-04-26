@@ -1,0 +1,66 @@
+name: "Diamond dependency pattern with controlled finish order"
+description: |
+  Tests that the executor correctly handles a diamond dependency pattern:
+
+       products (root)
+          /    \
+     pricing   inventory
+
+  With finish order controlling when each call completes, we can verify
+  that independent dependency chains execute in parallel.
+
+query: |
+  {
+    products {
+      id
+      name
+      price
+      stock
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - id: products
+    subgraph: products
+    operation: '{ products { id name } }'
+    variables: {}
+    response: { data: { products: [{ id: "p1", name: "Laptop" }, { id: "p2", name: "Phone" }] } }
+
+  - id: pricing-p1
+    subgraph: pricing
+    operation: 'query ($id: ID!) { productById(id: $id) { price } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { price: 999 } } }
+
+  - id: pricing-p2
+    subgraph: pricing
+    operation: 'query ($id: ID!) { productById(id: $id) { price } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { price: 599 } } }
+
+  - id: inventory-p1
+    subgraph: inventory
+    operation: 'query ($id: ID!) { productById(id: $id) { stock } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { stock: 50 } } }
+
+  - id: inventory-p2
+    subgraph: inventory
+    operation: 'query ($id: ID!) { productById(id: $id) { stock } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { stock: 100 } } }
+
+# Finish order: products first, then inventory calls, then pricing calls
+# This tests that independent dependency chains don't block each other
+finishOrder: "products,inventory-p1,inventory-p2,pricing-p1,pricing-p2"
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", price: 999, stock: 50 },
+      { id: "p2", name: "Phone", price: 599, stock: 100 }
+    ]
+  }
+}

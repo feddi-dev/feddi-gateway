@@ -1,0 +1,146 @@
+name: "Deep nested path in @is for entity resolution"
+description: |
+  Query organizations and resolve local services from a different subgraph.
+  The local_services subgraph has a lookup that uses deeply nested paths:
+  - cityName from headquarters.building.address.city.name
+  - country from headquarters.building.address.city.country
+
+  This test verifies that @is can reference fields several levels deep.
+
+query: |
+  {
+    organizations {
+      id
+      name
+      headquarters {
+        name
+        building {
+          name
+          address {
+            street
+            city {
+              name
+              country
+            }
+          }
+        }
+      }
+      localServices {
+        name
+        type
+        available
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: organizations
+    operation: '{ organizations { id name headquarters { name building { name address { street city { name country } } } } } }'
+    variables: {}
+    response: {
+      data: {
+        organizations: [
+          {
+            id: "org1",
+            name: "Acme Corp",
+            headquarters: {
+              name: "HQ West",
+              building: {
+                name: "Tower One",
+                address: {
+                  street: "123 Main St",
+                  city: { name: "San Francisco", country: "US" }
+                }
+              }
+            }
+          },
+          {
+            id: "org2",
+            name: "Global Inc",
+            headquarters: {
+              name: "HQ Europe",
+              building: {
+                name: "Centre Point",
+                address: {
+                  street: "456 High St",
+                  city: { name: "London", country: "GB" }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+
+  - subgraph: local_services
+    operation: 'query ($id: ID!) { organizationById(id: $id) { localServices { name type available } } }'
+    variables: { id: "org1" }
+    response: {
+      data: {
+        organizationById: {
+          localServices: [
+            { name: "Express Delivery", type: "shipping", available: true },
+            { name: "Same-Day Service", type: "support", available: true }
+          ]
+        }
+      }
+    }
+
+  - subgraph: local_services
+    operation: 'query ($id: ID!) { organizationById(id: $id) { localServices { name type available } } }'
+    variables: { id: "org2" }
+    response: {
+      data: {
+        organizationById: {
+          localServices: [
+            { name: "Next-Day Delivery", type: "shipping", available: true },
+            { name: "Local Support", type: "support", available: false }
+          ]
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    organizations: [
+      {
+        id: "org1",
+        name: "Acme Corp",
+        headquarters: {
+          name: "HQ West",
+          building: {
+            name: "Tower One",
+            address: {
+              street: "123 Main St",
+              city: { name: "San Francisco", country: "US" }
+            }
+          }
+        },
+        localServices: [
+          { name: "Express Delivery", type: "shipping", available: true },
+          { name: "Same-Day Service", type: "support", available: true }
+        ]
+      },
+      {
+        id: "org2",
+        name: "Global Inc",
+        headquarters: {
+          name: "HQ Europe",
+          building: {
+            name: "Centre Point",
+            address: {
+              street: "456 High St",
+              city: { name: "London", country: "GB" }
+            }
+          }
+        },
+        localServices: [
+          { name: "Next-Day Delivery", type: "shipping", available: true },
+          { name: "Local Support", type: "support", available: false }
+        ]
+      }
+    ]
+  }
+}

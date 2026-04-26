@@ -1,0 +1,43 @@
+name: "Feed with author and comments via variable"
+description: |
+  Same as test 03 but uses a query variable for the comments limit argument.
+  Verifies that the gateway correctly resolves both @require-driven fields and
+  user-requested fields when arguments come from variables.
+
+query: |
+  query ($limit: Int = 1) {
+    feed {
+      author {
+        id
+      }
+      comments(limit: $limit) {
+        id
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: c
+    operation: 'query ($limit:Int=1){feed{id comments(limit:$limit){authorId id}}}'
+    variables: {}
+    response: { data: { feed: [
+      { id: "p1", comments: [{ authorId: "a2", id: "c1" }] },
+      { id: "p2", comments: [{ authorId: "a1", id: "c4" }] }
+    ] } }
+
+  - subgraph: d
+    operation: 'query ($id:ID!,$commentAuthorIds:[ID]){postById(id:$id){author(commentAuthorIds:$commentAuthorIds){id}}}'
+    variables: { id: "p1", commentAuthorIds: ["a2"] }
+    response: { data: { postById: { author: { id: "a2" } } } }
+
+  - subgraph: d
+    operation: 'query ($id:ID!,$commentAuthorIds:[ID]){postById(id:$id){author(commentAuthorIds:$commentAuthorIds){id}}}'
+    variables: { id: "p2", commentAuthorIds: ["a1"] }
+    response: { data: { postById: { author: { id: "a1" } } } }
+
+expectedResponse: { data: { feed: [
+  { comments: [{ id: "c1" }], author: { id: "a2" } },
+  { comments: [{ id: "c4" }], author: { id: "a1" } }
+] } }

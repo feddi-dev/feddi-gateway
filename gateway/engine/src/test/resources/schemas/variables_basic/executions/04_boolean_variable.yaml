@@ -1,0 +1,25 @@
+name: "Boolean variable execution"
+description: "Tests passing a Boolean type variable"
+
+query: |
+  query GetUsers($active: Boolean) {
+    users(active: $active) {
+      id
+      name
+      active
+    }
+  }
+
+variables: { active: true }
+
+subgraphCalls:
+  - subgraph: users
+    operation: 'query($active: Boolean) { users(active: $active) { id name active } }'
+    variables: { active: true }
+    response: { data: { users: [{ id: "u1", name: "Alice", active: true }, { id: "u2", name: "Bob", active: true }] } }
+
+expectedResponse: {
+  data: {
+    users: [{ id: "u1", name: "Alice", active: true }, { id: "u2", name: "Bob", active: true }]
+  }
+}

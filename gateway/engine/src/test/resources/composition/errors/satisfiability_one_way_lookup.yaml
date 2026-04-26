@@ -1,0 +1,33 @@
+name: "SATISFIABILITY_ERROR - One-way lookup insufficient"
+description: "Subgraph B can lookup to A, but A cannot reach B's fields without a reverse lookup"
+
+subgraphs:
+  users: |
+    type Query {
+      users: [User]
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      email: String
+    }
+
+  orders: |
+    type Query {
+      orders: [Order]
+      userByIdOrders(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      orders: [Order]
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      total: Float
+      user: User
+    }
+
+error: "SATISFIABILITY_ERROR"

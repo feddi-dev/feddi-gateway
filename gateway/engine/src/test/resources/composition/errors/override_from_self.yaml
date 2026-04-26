@@ -1,0 +1,15 @@
+name: "OVERRIDE_FROM_SELF - @override references own schema"
+description: "Spec: @override(from:) cannot reference the same schema"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      bill: Bill
+    }
+
+    type Bill @key(fields: "id") {
+      id: ID!
+      amount: Int @override(from: "schemaA")
+    }
+
+error: "OVERRIDE_FROM_SELF"

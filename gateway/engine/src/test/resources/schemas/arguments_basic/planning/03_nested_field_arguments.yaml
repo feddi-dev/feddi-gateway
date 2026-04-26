@@ -1,0 +1,22 @@
+name: "Nested field arguments"
+description: "Tests planning with arguments on nested object fields"
+
+query: |
+  query GetProductVariants($category: String, $color: String) {
+    products(category: $category) {
+      id
+      name
+      variants(color: $color) {
+        id
+        sku
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "query($category: String, $color: String) { products(category: $category) { id name variants(color: $color) { id sku } } }"
+      dependsOn: []
+      repeatedExecution: false

@@ -1,0 +1,24 @@
+name: "Filter users by REGULAR enum type"
+description: "Queries usersByType with REGULAR enum value, which is accessible in both subgraphs"
+
+query: |
+  {
+    usersByType(type: REGULAR) {
+      id
+      type
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{ usersByType(type: REGULAR) { id type } }'
+    variables: {}
+    response: { data: { usersByType: [{ id: "u1", type: "REGULAR" }] } }
+
+expectedResponse: {
+  data: {
+    usersByType: [{ id: "u1", type: "REGULAR" }]
+  }
+}

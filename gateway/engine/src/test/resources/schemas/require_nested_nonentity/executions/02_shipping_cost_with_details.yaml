@@ -1,0 +1,58 @@
+name: "Shipping cost with details included"
+description: |
+  Tests that when the client also requests the nested details fields,
+  the @require extraction still works correctly.
+
+query: |
+  {
+    product(id: "2") {
+      id
+      details {
+        weight
+        dimensions
+      }
+      shippingCost
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ product(id: "2") { id details { weight dimensions } } }'
+    variables: {}
+    response: {
+      data: {
+        product: {
+          id: "2",
+          details: {
+            weight: 5.0,
+            dimensions: "10x20x30"
+          }
+        }
+      }
+    }
+
+  - subgraph: shipping
+    operation: 'query ($id: ID!, $weight: Float) { productById(id: $id) { shippingCost(weight: $weight) } }'
+    variables: { id: "2", weight: 5.0 }
+    response: {
+      data: {
+        productById: {
+          shippingCost: 25.00
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    product: {
+      id: "2",
+      details: {
+        weight: 5.0,
+        dimensions: "10x20x30"
+      },
+      shippingCost: 25.00
+    }
+  }
+}

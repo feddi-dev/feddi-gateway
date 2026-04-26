@@ -1,0 +1,19 @@
+name: "@skip directive with variable preserved"
+description: "Tests that @skip(if: $skipEmail) directive is preserved in the subgraph operation"
+
+query: |
+  query GetUser($skipEmail: Boolean!) {
+    user {
+      id
+      name
+      email @skip(if: $skipEmail)
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: a
+      operation: "query ($skipEmail: Boolean!) { user { id name email @skip(if: $skipEmail) } }"
+      dependsOn: []
+      repeatedExecution: false

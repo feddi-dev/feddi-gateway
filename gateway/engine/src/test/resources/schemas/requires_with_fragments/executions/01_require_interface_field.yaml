@@ -1,0 +1,50 @@
+name: "Require interface field via inline fragment"
+description: |
+  Tests @require on a field from the base interface (data.foo).
+  When data is Qux, the planner must fetch data.foo from subgraph a.
+
+query: |
+  {
+    a {
+      id
+      requirer2
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ a { id data { foo } } }'
+    variables: {}
+    response: {
+      data: {
+        a: {
+          id: "e1",
+          data: {
+            __typename: "Qux",
+            foo: "foo-value"
+          }
+        }
+      }
+    }
+
+  - subgraph: b
+    operation: 'query ($id: ID!, $dataFoo: String) { entityById(id: $id) { requirer2(dataFoo: $dataFoo) } }'
+    variables: { id: "e1", dataFoo: "foo-value" }
+    response: {
+      data: {
+        entityById: {
+          requirer2: "processed: foo-value"
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    a: {
+      id: "e1",
+      requirer2: "processed: foo-value"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+name: "Nullable argument receives null value - calls subgraph"
+description: |
+  NOT YET IMPLEMENTED - This test documents expected future behavior.
+
+  When a @require argument has a nullable type (Float) and the value is null,
+  the subgraph should be called with the null value. This allows the subgraph
+  to decide how to handle null input values.
+
+  This is Case 1 of the @require nullability handling:
+  - Argument type: nullable (Float)
+  - Value: null
+  - Behavior: Call subgraph with null
+
+skip: true
+
+query: |
+  {
+    product(id: "1") {
+      id
+      estimateNullable
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ product(id: "1") { id weight } }'
+    variables: {}
+    response: {
+      data: {
+        product: {
+          id: "1",
+          weight: null
+        }
+      }
+    }
+
+  - subgraph: shipping
+    operation: 'query ($id: ID!, $weight: Float) { productById(id: $id) { estimateNullable(weight: $weight) } }'
+    variables: { id: "1", weight: null }
+    response: {
+      data: {
+        productById: {
+          estimateNullable: null
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    product: {
+      id: "1",
+      estimateNullable: null
+    }
+  }
+}

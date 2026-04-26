@@ -1,0 +1,75 @@
+name: "Union Lookup"
+description: |
+  Tests that lookups returning unions work for entity resolution.
+
+  The ratings subgraph has mediaById(id): Media @lookup which returns
+  the Media union. This lookup should create edges that allow resolving
+  fields on member types (Book, Movie) from other subgraphs.
+
+  This is analogous to interface lookup tests but for union types.
+
+  Note: @is is omitted because the argument name "id" matches the field name.
+
+subgraphs:
+  content: |
+    type Query {
+      allMedia: [Media]
+      mediaById(id: ID!): Media @lookup
+    }
+
+    union Media = Book | Movie
+
+    type Book @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      author: String
+    }
+
+    type Movie @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      director: String
+    }
+
+  ratings: |
+    type Query {
+      mediaById(id: ID!): Media @lookup
+    }
+
+    union Media = Book | Movie
+
+    type Book @key(fields: "id") {
+      id: ID!
+      rating: Float
+      reviewCount: Int
+    }
+
+    type Movie @key(fields: "id") {
+      id: ID!
+      rating: Float
+      reviewCount: Int
+    }
+
+supergraph: |
+  type Query {
+    allMedia: [Media]
+    mediaById(id: ID!): Media
+  }
+
+  union Media = Book | Movie
+
+  type Book {
+    id: ID!
+    title: String
+    author: String
+    rating: Float
+    reviewCount: Int
+  }
+
+  type Movie {
+    id: ID!
+    title: String
+    director: String
+    rating: Float
+    reviewCount: Int
+  }

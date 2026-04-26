@@ -1,0 +1,80 @@
+name: "Union Interface Distributed"
+description: "Tests distributed union and interface types - Oven implements Node & WithWarranty only in subgraph b"
+
+subgraphs:
+  a: |
+    type Query {
+      products: [Product]
+      node(id: ID!): Node
+      nodes: [Node]
+      toasters: [Toaster]
+      ovenById(id: ID!): Oven @lookup
+      toasterById(id: ID!): Toaster @lookup
+    }
+
+    union Product = Oven | Toaster
+
+    interface Node {
+      id: ID!
+    }
+
+    interface WithWarranty {
+      warranty: Int
+    }
+
+    type Oven @key(fields: "id") {
+      id: ID!
+    }
+
+    type Toaster implements Node & WithWarranty @key(fields: "id") {
+      id: ID!
+      warranty: Int
+    }
+
+  b: |
+    type Query {
+      ovenById(id: ID!): Oven @lookup
+    }
+
+    interface Node {
+      id: ID!
+    }
+
+    interface WithWarranty {
+      warranty: Int
+    }
+
+    type Oven implements Node & WithWarranty @key(fields: "id") {
+      id: ID!
+      warranty: Int
+    }
+
+supergraph: |
+  interface Node {
+    id: ID!
+  }
+
+  interface WithWarranty {
+    warranty: Int
+  }
+
+  union Product = Oven | Toaster
+
+  type Oven implements Node & WithWarranty {
+    id: ID!
+    warranty: Int
+  }
+
+  type Query {
+    node(id: ID!): Node
+    nodes: [Node]
+    ovenById(id: ID!): Oven
+    products: [Product]
+    toasterById(id: ID!): Toaster
+    toasters: [Toaster]
+  }
+
+  type Toaster implements Node & WithWarranty {
+    id: ID!
+    warranty: Int
+  }

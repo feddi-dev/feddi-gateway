@@ -1,0 +1,52 @@
+name: "Enum Intersection"
+description: "Tests enum type intersection between subgraphs with @inaccessible values. ANONYMOUS is marked @inaccessible in subgraph b, so it's removed from the supergraph."
+
+subgraphs:
+  a: |
+    type Query {
+      users: [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID
+      type: UserType @shareable
+    }
+
+    enum UserType {
+      REGULAR
+    }
+
+  b: |
+    type Query {
+      usersByType(type: UserType!): [User!]
+      usersB: [User!]
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID
+      type: UserType @shareable
+    }
+
+    enum UserType {
+      ANONYMOUS @inaccessible
+      REGULAR
+    }
+
+supergraph: |
+  type Query {
+    userById(id: ID!): User
+    users: [User]
+    usersB: [User!]
+    usersByType(type: UserType!): [User!]
+  }
+
+  type User {
+    id: ID
+    type: UserType
+  }
+
+  enum UserType {
+    REGULAR
+  }

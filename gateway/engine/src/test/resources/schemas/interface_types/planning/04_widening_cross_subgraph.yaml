@@ -1,0 +1,32 @@
+name: "Widening type condition with cross-subgraph field"
+description: |
+  productByIdNodes returns Product (concrete), ... on Node widens to interface.
+  The widening is simplified away by the normalizer.
+  price is from extensions subgraph, requiring entity resolution.
+  id and createdAt are from nodes subgraph.
+
+query: |
+  {
+    productByIdNodes(id: "p1") {
+      price
+      ... on Node {
+        id
+        createdAt
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: nodes
+      operation: '{ productByIdNodes(id: "p1") { id createdAt } }'
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: extensions
+      operation: 'query ($id: ID!) { productById(id: $id) { price } }'
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

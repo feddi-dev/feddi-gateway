@@ -1,0 +1,44 @@
+name: "Interface fields with multiple type-specific fragments execution"
+description: "Tests execution of interface fields combined with inline fragments"
+
+query: |
+  {
+    contents {
+      id
+      createdAt
+      ... on Article {
+        body
+        wordCount
+      }
+      ... on Video {
+        url
+        duration
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { id createdAt __typename ... on Article { body wordCount } ... on Video { url duration } } }'
+    variables: {}
+    response: {
+      data: {
+        contents: [
+          { __typename: "Article", id: "a1", createdAt: "2024-01-15", body: "Article content", wordCount: 800 },
+          { __typename: "Video", id: "v1", createdAt: "2024-01-16", url: "https://video.example/v1", duration: 300 },
+          { __typename: "Podcast", id: "p1", createdAt: "2024-01-17" }
+        ]
+      }
+    }
+
+expectedResponse: {
+  data: {
+    contents: [
+      { id: "a1", createdAt: "2024-01-15", body: "Article content", wordCount: 800 },
+      { id: "v1", createdAt: "2024-01-16", url: "https://video.example/v1", duration: 300 },
+      { id: "p1", createdAt: "2024-01-17" }
+    ]
+  }
+}

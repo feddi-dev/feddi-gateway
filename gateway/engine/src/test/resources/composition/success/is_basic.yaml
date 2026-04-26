@@ -1,0 +1,51 @@
+name: "@is basic - argument mapping"
+description: |
+  Using @is to map lookup arguments to entity key fields.
+
+  The @is directive is only needed when the argument name differs from
+  the field name on the return type. When names match, @is can be omitted.
+
+  In this example:
+  - productBySkuCatalog(sku): No @is needed, argument name matches field name
+  - productBySku(productSku): @is IS needed because "productSku" != "sku"
+
+subgraphs:
+  catalog: |
+    type Query {
+      products(category: String): [Product]
+      productBySkuCatalog(sku: String!): Product @lookup
+    }
+
+    type Product @key(fields: "sku") {
+      sku: String!
+      name: String
+      price: Float
+    }
+
+  inventory: |
+    type Query {
+      productBySku(productSku: String! @is(field: "sku")): Product @lookup
+    }
+
+    type Product @key(fields: "sku") {
+      sku: String!
+      inStock: Boolean
+      quantity: Int
+      warehouse: String
+    }
+
+supergraph: |
+  type Query {
+    products(category: String): [Product]
+    productBySkuCatalog(sku: String!): Product
+    productBySku(productSku: String!): Product
+  }
+  
+  type Product {
+    sku: String!
+    name: String
+    price: Float
+    inStock: Boolean
+    quantity: Int
+    warehouse: String
+  }

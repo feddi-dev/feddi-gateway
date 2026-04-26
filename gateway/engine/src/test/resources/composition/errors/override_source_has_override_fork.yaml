@@ -1,0 +1,35 @@
+name: "OVERRIDE_SOURCE_HAS_OVERRIDE - multiple overrides from same source"
+description: "Spec: Only one schema can override a field from a given source"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      bills: [Bill]
+    }
+
+    type Bill @key(fields: "id") {
+      id: ID!
+      amount: Int @override(from: "schemaC")
+    }
+
+  schemaB: |
+    type Query {
+      billByIdB(id: ID!): Bill @lookup
+    }
+
+    type Bill @key(fields: "id") {
+      id: ID!
+      amount: Int @override(from: "schemaC")
+    }
+
+  schemaC: |
+    type Query {
+      billByIdC(id: ID!): Bill @lookup
+    }
+
+    type Bill @key(fields: "id") {
+      id: ID!
+      amount: Int
+    }
+
+error: "OVERRIDE_SOURCE_HAS_OVERRIDE"

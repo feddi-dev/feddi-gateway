@@ -1,0 +1,48 @@
+name: "Inline fragment cross-subgraph execution"
+description: "Tests execution where inline fragment fields come from different subgraph"
+
+query: |
+  {
+    contents {
+      id
+      title
+      ... on Article {
+        views
+        readTime
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { id title __typename } }'
+    variables: {}
+    response: {
+      data: {
+        contents: [
+          { __typename: "Article", id: "a1", title: "Tech News" },
+          { __typename: "Video", id: "v1", title: "Tutorial Video" }
+        ]
+      }
+    }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views readTime } } }'
+    variables: { id: "a1" }
+    response: { data: { contentById: { __typename: "Article", views: 1500, readTime: 180 } } }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views readTime } } }'
+    variables: { id: "v1" }
+    response: { data: { contentById: { __typename: "Video" } } }
+
+expectedResponse: {
+  data: {
+    contents: [
+      { id: "a1", title: "Tech News", views: 1500, readTime: 180 },
+      { id: "v1", title: "Tutorial Video" }
+    ]
+  }
+}

@@ -1,0 +1,56 @@
+name: "@external basic - referencing external fields"
+description: "Using @external to reference fields owned by another subgraph"
+
+subgraphs:
+  users: |
+    type Query {
+      users: [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      email: String
+      country: String @shareable
+    }
+
+  billing: |
+    type Query {
+      userByIdBilling(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      country: String @shareable
+      billingAddress: Address
+      taxRate(countryCode: String @require(field: "country")): Float
+    }
+    
+    type Address {
+      street: String
+      city: String
+      postalCode: String
+    }
+
+supergraph: |
+  type Query {
+    users: [User]
+    userById(id: ID!): User
+    userByIdBilling(id: ID!): User
+  }
+
+  type User {
+    id: ID!
+    name: String
+    email: String
+    country: String
+    billingAddress: Address
+    taxRate: Float
+  }
+
+  type Address {
+    street: String
+    city: String
+    postalCode: String
+  }

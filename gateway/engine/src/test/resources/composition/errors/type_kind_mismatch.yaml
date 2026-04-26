@@ -1,0 +1,28 @@
+name: "TYPE_KIND_MISMATCH - same type name with different kinds"
+description: "Spec: Types with the same name must have the same kind across subgraphs"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  schemaB: |
+    type Query {
+      search: [SearchResult]
+    }
+
+    interface Product {
+      id: ID!
+    }
+
+    type SearchResult implements Product {
+      id: ID!
+    }
+
+error: "TYPE_KIND_MISMATCH"

@@ -1,0 +1,21 @@
+name: "EMPTY_MERGED_ENUM_TYPE - enum with all values inaccessible"
+description: "Spec 3.4.4.1: Enum types must have at least one accessible value after merging"
+
+subgraphs:
+  products: |
+    type Query {
+      products(status: ProductStatus): [Product]
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      status: ProductStatus
+    }
+    
+    enum ProductStatus {
+      INTERNAL_DRAFT @inaccessible
+      INTERNAL_REVIEW @inaccessible
+    }
+
+error: "EMPTY_MERGED_ENUM_TYPE"

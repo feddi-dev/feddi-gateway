@@ -1,0 +1,45 @@
+name: "Nested named fragments"
+description: "Tests execution with fragments that spread other fragments"
+
+query: |
+  query GetProductDetails {
+    products {
+      ...ProductFull
+    }
+  }
+  fragment ProductBasics on Product {
+    id
+    name
+  }
+  fragment ProductPricing on Product {
+    price
+    category
+  }
+  fragment ProductFull on Product {
+    ...ProductBasics
+    ...ProductPricing
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { id name price category } }'
+    variables: {}
+    response: {
+      data: {
+        products: [
+          { id: "p1", name: "Laptop", price: 999.99, category: "Electronics" },
+          { id: "p2", name: "Desk", price: 299.99, category: "Furniture" }
+        ]
+      }
+    }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", price: 999.99, category: "Electronics" },
+      { id: "p2", name: "Desk", price: 299.99, category: "Furniture" }
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+name: "Multi-hop - users to fulfillment"
+description: "Three subgraphs in chain - Users -> Orders -> Fulfillment with variable and hardcoded args"
+
+query: |
+  query($activeOnly: Boolean) {
+    users(active: $activeOnly, limit: 50) {
+      name
+      orders(limit: 10) {
+        total
+        trackingNumber
+        carrier
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: users
+      operation: "query($activeOnly: Boolean) { users(active: $activeOnly, limit: 50) { name id } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: orders
+      operation: "query($id: ID!) { userById(id: $id) { orders(limit: 10) { total orderId } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true
+    - id: 3
+      subgraph: fulfillment
+      operation: "query($oid: ID!) { orderById(oid: $oid) { trackingNumber carrier } }"
+      dependsOn: [2]
+      requirements:
+        oid: "orderId"
+      repeatedExecution: true

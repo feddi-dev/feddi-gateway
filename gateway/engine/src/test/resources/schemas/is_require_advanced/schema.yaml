@@ -1,0 +1,308 @@
+name: "Advanced @is and @require Tests"
+description: |
+  Schema for testing advanced FieldSelectionMap features:
+  - @is with type conditions for type-specific lookups
+  - Nested lists with @require
+  - List with object element selection in @require
+  - @require with type conditions
+
+  Domain: Media Streaming (Movie, TVShow, Podcast)
+
+subgraphs:
+  catalog: |
+    type Query {
+      media: [Media]
+      mediaById(id: ID!): Media @lookup
+      movieById(id: ID!): Movie @lookup
+      tvShowById(id: ID!): TVShow @lookup
+      podcastById(id: ID!): Podcast @lookup
+    }
+
+    interface Media @key(fields: "id") {
+      id: ID!
+      title: String
+    }
+
+    type Movie implements Media @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      imdbCode: String @shareable
+      internalCode: String @shareable
+    }
+
+    type TVShow implements Media @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      tvdbCode: String @shareable
+      seasons: [Season!]! @shareable
+      relatedMedia: Media @shareable
+    }
+
+    type Season @shareable {
+      number: Int! @shareable
+      episodes: [Episode!]! @shareable
+    }
+
+    type Episode @shareable {
+      id: ID! @shareable
+      title: String @shareable
+      duration: Int @shareable
+    }
+
+    type Podcast implements Media @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      episodeIds: [[ID!]!]! @shareable
+    }
+
+  ratings: |
+    type Query {
+      movieByImdb(code: String! @is(field: "<Movie>.imdbCode")): Movie @lookup
+      tvShowByTvdb(code: String! @is(field: "<TVShow>.tvdbCode")): TVShow @lookup
+    }
+
+    interface Media @key(fields: "id") {
+      id: ID!
+    }
+
+    type Movie implements Media @key(fields: "id") {
+      id: ID!
+      imdbCode: String @shareable
+      rating: Float
+      reviewCount: Int
+    }
+
+    type TVShow implements Media @key(fields: "id") {
+      id: ID!
+      tvdbCode: String @shareable
+      rating: Float
+      reviewCount: Int
+    }
+
+  analytics: |
+    type Query {
+      mediaById(id: ID!): Media @lookup
+      podcastById(id: ID!): Podcast @lookup
+      tvShowById(id: ID!): TVShow @lookup
+    }
+
+    interface Media @key(fields: "id") {
+      id: ID!
+    }
+
+    type TVShow implements Media @key(fields: "id") {
+      id: ID!
+      seasons: [Season!]! @shareable
+      episodeAnalytics(
+        data: [EpisodeInput!]! @require(field: "seasons[episodes[{ id duration }]]")
+      ): [EpisodeAnalytics!]
+    }
+
+    type Season @shareable {
+      number: Int! @shareable
+      episodes: [Episode!]! @shareable
+    }
+
+    type Episode @shareable {
+      id: ID! @shareable
+      title: String @shareable
+      duration: Int @shareable
+    }
+
+    input EpisodeInput {
+      id: ID!
+      duration: Int
+    }
+
+    type EpisodeAnalytics {
+      episodeId: ID!
+      views: Int
+      completionRate: Float
+    }
+
+    type Podcast implements Media @key(fields: "id") {
+      id: ID!
+      episodeIds: [[ID!]!]! @shareable
+      nestedStats(
+        ids: [[ID!]!]! @require(field: "episodeIds")
+      ): NestedStats
+    }
+
+    type NestedStats {
+      totalGroups: Int
+      totalEpisodes: Int
+    }
+
+  recommendations: |
+    type Query {
+      mediaById(id: ID!): Media @lookup
+      movieById(id: ID!): Movie @lookup
+      tvShowById(id: ID!): TVShow @lookup
+    }
+
+    interface Media @key(fields: "id") {
+      id: ID!
+    }
+
+    type Movie implements Media @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      imdbCode: String @shareable
+      similarMovies(
+        code: String! @require(field: "<Movie>.imdbCode")
+      ): [Movie!]
+    }
+
+    type TVShow implements Media @key(fields: "id") {
+      id: ID!
+      tvdbCode: String @shareable
+      relatedMedia: Media @shareable
+      relatedMovieRecommendations(
+        code: String @require(field: "relatedMedia<Movie>.imdbCode")
+      ): [Movie!]
+    }
+
+  discovery: |
+    type Query {
+      movieById(id: ID!): Movie @lookup
+      tvShowById(id: ID!): TVShow @lookup
+    }
+
+    type Movie implements Media @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      imdbCode: String @shareable
+      internalCode: String @shareable
+      recommendations(
+        code: String @require(field: "imdbCode | internalCode")
+      ): [Movie!]
+      typeConditionedRecommendations(
+        code: String @require(field: "<Movie>.imdbCode | internalCode")
+      ): [Movie!]
+    }
+
+    type TVShow implements Media @key(fields: "id") {
+      id: ID!
+      seasons: [Season!]! @shareable
+      relatedMedia: Media @shareable
+      relatedContent(
+        imdbCode: String @require(field: "relatedMedia<Movie>.imdbCode"),
+        internalCode: String @require(field: "relatedMedia<Movie>.internalCode")
+      ): [Media!]
+      episodeSummary(
+        data: [EpisodeSummaryInput!] @require(field: "seasons[episodes[{ id title duration }]]")
+      ): EpisodeSummary
+    }
+
+    type Season @shareable {
+      number: Int! @shareable
+      episodes: [Episode!]! @shareable
+    }
+
+    type Episode @shareable {
+      id: ID! @shareable
+      title: String @shareable
+      duration: Int @shareable
+    }
+
+    interface Media @key(fields: "id") {
+      id: ID!
+    }
+
+    input EpisodeSummaryInput {
+      id: ID!
+      title: String
+      duration: Int
+    }
+
+    type EpisodeSummary {
+      totalEpisodes: Int
+      totalDuration: Int
+    }
+
+supergraph: |
+  type Query {
+    media: [Media]
+    mediaById(id: ID!): Media
+    movieById(id: ID!): Movie
+    movieByImdb(code: String!): Movie
+    podcastById(id: ID!): Podcast
+    tvShowById(id: ID!): TVShow
+    tvShowByTvdb(code: String!): TVShow
+  }
+
+  interface Media {
+    id: ID!
+    title: String
+  }
+
+  type Movie implements Media {
+    id: ID!
+    title: String
+    imdbCode: String
+    internalCode: String
+    rating: Float
+    reviewCount: Int
+    similarMovies: [Movie!]
+    recommendations: [Movie!]
+    typeConditionedRecommendations: [Movie!]
+  }
+
+  type TVShow implements Media {
+    id: ID!
+    title: String
+    tvdbCode: String
+    seasons: [Season!]!
+    relatedMedia: Media
+    rating: Float
+    reviewCount: Int
+    episodeAnalytics: [EpisodeAnalytics!]
+    relatedMovieRecommendations: [Movie!]
+    relatedContent: [Media!]
+    episodeSummary: EpisodeSummary
+  }
+
+  type EpisodeSummary {
+    totalEpisodes: Int
+    totalDuration: Int
+  }
+
+  input EpisodeSummaryInput {
+    id: ID!
+    title: String
+    duration: Int
+  }
+
+  type Podcast implements Media {
+    id: ID!
+    title: String
+    episodeIds: [[ID!]!]!
+    nestedStats: NestedStats
+  }
+
+  type Season {
+    number: Int!
+    episodes: [Episode!]!
+  }
+
+  type Episode {
+    id: ID!
+    title: String
+    duration: Int
+  }
+
+  type EpisodeAnalytics {
+    episodeId: ID!
+    views: Int
+    completionRate: Float
+  }
+
+  type NestedStats {
+    totalGroups: Int
+    totalEpisodes: Int
+  }
+
+  input EpisodeInput {
+    id: ID!
+    duration: Int
+  }

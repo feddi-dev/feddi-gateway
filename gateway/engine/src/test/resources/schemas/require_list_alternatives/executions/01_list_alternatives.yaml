@@ -1,0 +1,69 @@
+name: "@require with list selection alternatives"
+description: |
+  Tests @require(field: "items[productId | sku]") where the list element
+  extraction uses alternatives. Each item should contribute its productId
+  if available, otherwise its sku.
+
+query: |
+  {
+    orderById(id: "ord1") {
+      id
+      items {
+        name
+        quantity
+      }
+      itemAnalytics {
+        code
+        views
+        conversionRate
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: orders
+    operation: '{ orderById(id: "ord1") { id items { name quantity productId sku } } }'
+    variables: {}
+    response: {
+      data: {
+        orderById: {
+          id: "ord1",
+          items: [
+            { name: "Laptop", quantity: 1, productId: "p1", sku: "SKU-001" },
+            { name: "Mouse", quantity: 2, productId: null, sku: "SKU-002" }
+          ]
+        }
+      }
+    }
+
+  - subgraph: analytics
+    operation: 'query($id:ID!,$codes:[String!]!){orderById(id:$id){itemAnalytics(codes:$codes){code views conversionRate}}}'
+    variables: { id: "ord1", codes: ["p1", "SKU-002"] }
+    response: {
+      data: {
+        orderById: {
+          itemAnalytics: [
+            { code: "p1", views: 5000, conversionRate: 0.15 },
+            { code: "SKU-002", views: 12000, conversionRate: 0.25 }
+          ]
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    orderById: {
+      id: "ord1",
+      items: [
+        { name: "Laptop", quantity: 1 },
+        { name: "Mouse", quantity: 2 }
+      ],
+      itemAnalytics: [
+        { code: "p1", views: 5000, conversionRate: 0.15 },
+        { code: "SKU-002", views: 12000, conversionRate: 0.25 }
+      ]
+    }
+  }
+}

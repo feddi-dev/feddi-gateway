@@ -1,0 +1,52 @@
+name: "Feed with author and comments via fragments"
+description: |
+  Same as test 04 but uses named fragments to request comments. Two fragments (Foo and Bar)
+  both select the same comments field, verifying correct deduplication and resolution
+  alongside the @require-driven author field.
+
+query: |
+  query ($limit: Int = 1) {
+    feed {
+      author {
+        id
+      }
+      ...Foo
+      ...Bar
+    }
+  }
+  fragment Foo on Post {
+    comments(limit: $limit) {
+      id
+    }
+  }
+  fragment Bar on Post {
+    comments(limit: $limit) {
+      id
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: c
+    operation: 'query ($limit: Int = 1) { feed { id comments(limit: $limit) { authorId id } } }'
+    variables: {}
+    response: { data: { feed: [
+      { id: "p1", comments: [{ authorId: "a2", id: "c1" }, { authorId: "a2", id: "c2" }, { authorId: "a2", id: "c3" }] },
+      { id: "p2", comments: [{ authorId: "a1", id: "c4" }, { authorId: "a1", id: "c5" }, { authorId: "a1", id: "c6" }] }
+    ] } }
+
+  - subgraph: d
+    operation: 'query ($id:ID!,$commentAuthorIds:[ID]){postById(id:$id){author(commentAuthorIds:$commentAuthorIds){id}}}'
+    variables: { id: "p1", commentAuthorIds: ["a2", "a2", "a2"] }
+    response: { data: { postById: { author: { id: "a2" } } } }
+
+  - subgraph: d
+    operation: 'query ($id:ID!,$commentAuthorIds:[ID]){postById(id:$id){author(commentAuthorIds:$commentAuthorIds){id}}}'
+    variables: { id: "p2", commentAuthorIds: ["a1", "a1", "a1"] }
+    response: { data: { postById: { author: { id: "a1" } } } }
+
+expectedResponse: { data: { feed: [
+  { comments: [{ id: "c1" }, { id: "c2" }, { id: "c3" }], author: { id: "a2" } },
+  { comments: [{ id: "c4" }, { id: "c5" }, { id: "c6" }], author: { id: "a1" } }
+] } }

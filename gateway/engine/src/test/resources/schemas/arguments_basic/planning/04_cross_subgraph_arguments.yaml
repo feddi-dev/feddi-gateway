@@ -1,0 +1,31 @@
+name: "Cross-subgraph arguments"
+description: "Tests planning with arguments on fields from different subgraphs"
+
+query: |
+  query GetProductsWithReviews($category: String, $limit: Int, $minStars: Int) {
+    products(category: $category) {
+      id
+      name
+      reviews(limit: $limit, minStars: $minStars) {
+        id
+        stars
+        comment
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "query($category: String) { products(category: $category) { id name } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: reviews
+      operation: "query($id: ID!, $limit: Int, $minStars: Int) { productById(id: $id) { reviews(limit: $limit, minStars: $minStars) { id stars comment } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

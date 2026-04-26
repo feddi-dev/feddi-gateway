@@ -1,0 +1,39 @@
+name: "External Extends Compatibility (Repeatable Declaration Style)"
+description: "Repeatable external declaration style. User type is split across subgraphs with @provides for name."
+
+subgraphs:
+  a: |
+    type Query {
+      randomUser: User
+      providedRandomUser: User @provides(fields: "name")
+      userByIdFromA(id: ID!): User @lookup
+    }
+    type User @key(fields: "id") {
+      id: ID!
+      rid: ID
+      name: String! @external
+    }
+
+  b: |
+    type Query {
+      userById(id: ID!): User @lookup
+    }
+    type User @key(fields: "id") {
+      id: ID!
+      name: String!
+      nickname: String
+    }
+
+supergraph: |
+  type Query {
+    randomUser: User
+    providedRandomUser: User
+    userById(id: ID!): User
+    userByIdFromA(id: ID!): User
+  }
+  type User {
+    id: ID!
+    name: String!
+    nickname: String
+    rid: ID
+  }

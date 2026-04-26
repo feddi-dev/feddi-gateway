@@ -1,0 +1,29 @@
+name: "Orders filtered by status"
+description: |
+  Queries orders by status using the ordersByStatus field.
+  Only INACTIVE and PENDING are valid values in the supergraph.
+
+query: |
+  {
+    ordersByStatus(status: INACTIVE) {
+      id
+      priority
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{ ordersByStatus(status: INACTIVE) { id priority } }'
+    variables: {}
+    response: { data: { ordersByStatus: [{ id: "o1", priority: 1 }, { id: "o3", priority: 2 }] } }
+
+expectedResponse: {
+  data: {
+    ordersByStatus: [
+      { id: "o1", priority: 1 },
+      { id: "o3", priority: 2 }
+    ]
+  }
+}

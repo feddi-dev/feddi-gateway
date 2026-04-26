@@ -1,0 +1,26 @@
+name: "Path selection - price field"
+description: "Multiple paths to pricing subgraph with brand filter"
+
+query: |
+  {
+    products(brand: "Apple") {
+      name
+      price
+      taxRate
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "{ products(brand: \"Apple\") { name id } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: pricing
+      operation: "query($pid: ID!) { productByIdPricing(pid: $pid) { price taxRate } }"
+      dependsOn: [1]
+      requirements:
+        pid: "id"
+      repeatedExecution: true

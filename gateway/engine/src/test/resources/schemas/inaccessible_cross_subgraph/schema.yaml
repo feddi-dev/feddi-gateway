@@ -1,0 +1,64 @@
+name: "Inaccessible Cross Subgraph"
+description: |
+  Tests that @inaccessible hides type system members from the composite schema
+  even if other source schemas define the same member without @inaccessible.
+
+  In this test:
+  - Subgraph A defines Status enum with ACTIVE, INACTIVE (no @inaccessible)
+  - Subgraph B defines Status enum with ACTIVE @inaccessible, INACTIVE, PENDING
+
+  The supergraph should NOT include ACTIVE because it's @inaccessible in subgraph B,
+  even though subgraph A defines it without @inaccessible.
+
+subgraphs:
+  a: |
+    type Query {
+      orders: [Order]
+      orderById(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      status: Status @shareable
+    }
+
+    enum Status {
+      ACTIVE
+      INACTIVE
+    }
+
+  b: |
+    type Query {
+      ordersByStatus(status: Status!): [Order!]
+      orderById(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      status: Status @shareable
+      priority: Int
+    }
+
+    enum Status {
+      ACTIVE @inaccessible
+      INACTIVE
+      PENDING
+    }
+
+supergraph: |
+  type Query {
+    orderById(id: ID!): Order
+    orders: [Order]
+    ordersByStatus(status: Status!): [Order!]
+  }
+
+  type Order {
+    id: ID!
+    priority: Int
+    status: Status
+  }
+
+  enum Status {
+    INACTIVE
+    PENDING
+  }

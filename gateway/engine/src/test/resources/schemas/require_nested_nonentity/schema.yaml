@@ -1,0 +1,47 @@
+name: "Require on Nested Non-Entity Type"
+description: |
+  Tests @require on an entity field that references nested non-entity data.
+  Product.shippingCost requires details.weight where ProductDetails is a non-entity type.
+
+subgraphs:
+  products: |
+    type Query {
+      product(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      details: ProductDetails
+    }
+
+    type ProductDetails {
+      weight: Float
+      dimensions: String
+    }
+
+  shipping: |
+    type Query {
+      productById(id: ID! @is(field: "id")): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      shippingCost(weight: Float @require(field: "details.weight")): Float
+    }
+
+supergraph: |
+  type Query {
+    product(id: ID!): Product
+    productById(id: ID!): Product
+  }
+
+  type Product {
+    id: ID!
+    details: ProductDetails
+    shippingCost: Float
+  }
+
+  type ProductDetails {
+    weight: Float
+    dimensions: String
+  }

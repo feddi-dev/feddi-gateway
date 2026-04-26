@@ -1,0 +1,16 @@
+name: "Circular product reference"
+description: "Test circular reference through interface with @provides"
+
+query: |
+  {
+    product {
+      samePriceProduct {
+        samePriceProduct {
+          ... on Book {
+            id
+            price
+          }
+        }
+      }
+    }
+  }

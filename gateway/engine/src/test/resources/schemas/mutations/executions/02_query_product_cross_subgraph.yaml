@@ -1,0 +1,38 @@
+name: "Query product with cross-subgraph resolution"
+description: "Query product from subgraph a, then resolve isExpensive and isAvailable from subgraph b via entity lookup"
+
+query: |
+  {
+    product(id: "p1") {
+      id
+      name
+      price
+      isExpensive
+      isAvailable
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ product(id: "p1") { id name price } }'
+    variables: {}
+    response: { data: { product: { id: "p1", name: "p1-name", price: 9.99 } } }
+
+  - subgraph: b
+    operation: 'query ($id: ID!, $price: Float!) { productById(id: $id) { isExpensive(price: $price) isAvailable } }'
+    variables: { id: "p1", price: 9.99 }
+    response: { data: { productById: { isExpensive: false, isAvailable: true } } }
+
+expectedResponse: {
+  data: {
+    product: {
+      id: "p1",
+      name: "p1-name",
+      price: 9.99,
+      isExpensive: false,
+      isAvailable: true
+    }
+  }
+}

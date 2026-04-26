@@ -1,0 +1,35 @@
+name: "City via @require with HomeAddress"
+description: |
+  User u1 has a HomeAddress (a1). The city field has @require(field: "address.id"),
+  which must be resolved from a different subgraph (b). Since the query starts in
+  subgraph a, the gateway:
+  1. Fetches user id from subgraph a
+  2. Looks up user in subgraph b to get address.id
+  3. Looks up user in subgraph a to get city(addressId)
+
+query: |
+  {
+    a {
+      city
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{a{id}}'
+    variables: {}
+    response: { data: { a: { id: "u1" } } }
+
+  - subgraph: b
+    operation: 'query ($id:ID!){userById(id:$id){id address{id}}}'
+    variables: { id: "u1" }
+    response: { data: { userById: { id: "u1", address: { __typename: "HomeAddress", id: "a1" } } } }
+
+  - subgraph: a
+    operation: 'query ($id:ID!,$addressId:ID){userById(id:$id){city(addressId:$addressId)}}'
+    variables: { id: "u1", addressId: "a1" }
+    response: { data: { userById: { city: "a1-city" } } }
+
+expectedResponse: { data: { a: { city: "a1-city" } } }

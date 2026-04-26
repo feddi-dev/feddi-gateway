@@ -1,0 +1,16 @@
+name: "EXTERNAL_REQUIRE_COLLISION - @external field with @require argument"
+description: "Spec: Arguments on @external fields cannot have @require"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      title(subtitle: String @require(field: "subtitle")): String @external
+      subtitle: String
+    }
+
+error: "EXTERNAL_REQUIRE_COLLISION"

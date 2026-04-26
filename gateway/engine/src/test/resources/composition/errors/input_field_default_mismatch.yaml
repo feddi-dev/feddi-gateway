@@ -1,0 +1,33 @@
+name: "INPUT_FIELD_DEFAULT_MISMATCH - input fields have different defaults"
+description: "Spec: Input fields with the same name across schemas must have consistent default values"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      books(filter: BookFilter): [Book]
+    }
+
+    input BookFilter {
+      genre: String = "fiction"
+    }
+
+    type Book {
+      id: ID!
+      title: String
+    }
+
+  schemaB: |
+    type Query {
+      bookById(id: ID!): Book
+    }
+
+    input BookFilter {
+      genre: String = "non-fiction"
+    }
+
+    type Book {
+      id: ID!
+      author: String
+    }
+
+error: "INPUT_FIELD_DEFAULT_MISMATCH"

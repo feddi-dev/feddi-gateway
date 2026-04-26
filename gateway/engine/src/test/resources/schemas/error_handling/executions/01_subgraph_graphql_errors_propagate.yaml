@@ -1,0 +1,76 @@
+name: "GraphQL errors from subgraph propagate to response"
+description: |
+  Verifies that when a subgraph returns GraphQL errors in its response,
+  those errors are propagated to the final response along with any partial data.
+
+query: |
+  {
+    products {
+      id
+      name
+      reviews {
+        id
+        rating
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { id name } }'
+    variables: {}
+    response: {
+      data: {
+        products: [
+          { id: "p1", name: "Laptop" },
+          { id: "p2", name: "Phone" }
+        ]
+      }
+    }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { reviews { id rating } } }'
+    variables: { id: "p1" }
+    response: {
+      data: {
+        productById: {
+          reviews: [
+            { id: "r1", rating: 5 }
+          ]
+        }
+      }
+    }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { reviews { id rating } } }'
+    variables: { id: "p2" }
+    response: {
+      data: {
+        productById: null
+      },
+      errors: [
+        {
+          message: "Failed to fetch reviews for product p2",
+          path: ["productById", "reviews"],
+          extensions: { code: "REVIEW_SERVICE_ERROR" }
+        }
+      ]
+    }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", reviews: [{ id: "r1", rating: 5 }] },
+      { id: "p2", name: "Phone", reviews: null }
+    ]
+  },
+  errors: [
+    {
+      message: "Failed to fetch reviews for product p2",
+      path: ["productById", "reviews"],
+      extensions: { code: "REVIEW_SERVICE_ERROR" }
+    }
+  ]
+}

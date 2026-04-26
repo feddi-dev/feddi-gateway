@@ -1,0 +1,57 @@
+name: "Provides directive with aliases"
+description: |
+  Tests aliases when using @provides directive - the provided field should
+  be fetched from the providing subgraph and aliases should be preserved.
+
+query: |
+  {
+    products: topProducts {
+      productId: id
+      productName: name
+      related: relatedProduct {
+        relatedId: id
+        relatedName: name
+        relatedPrice: price
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products: topProducts { productId: id productName: name related: relatedProduct { relatedId: id relatedName: name relatedPrice: price } } }'
+    variables: {}
+    response: {
+      data: {
+        products: [
+          {
+            productId: "p1",
+            productName: "Laptop",
+            related: { relatedId: "p2", relatedName: "Laptop Stand", relatedPrice: 49.99 }
+          },
+          {
+            productId: "p3",
+            productName: "Phone",
+            related: { relatedId: "p4", relatedName: "Phone Case", relatedPrice: 19.99 }
+          }
+        ]
+      }
+    }
+
+expectedResponse: {
+  data: {
+    products: [
+      {
+        productId: "p1",
+        productName: "Laptop",
+        related: { relatedId: "p2", relatedName: "Laptop Stand", relatedPrice: 49.99 }
+      },
+      {
+        productId: "p3",
+        productName: "Phone",
+        related: { relatedId: "p4", relatedName: "Phone Case", relatedPrice: 19.99 }
+      }
+    ]
+  }
+}

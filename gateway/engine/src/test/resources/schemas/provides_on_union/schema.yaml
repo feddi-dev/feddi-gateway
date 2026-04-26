@@ -1,0 +1,51 @@
+name: "Provides on Union"
+description: "Tests @provides with union types - media query provides Book title but not Movie title"
+
+subgraphs:
+  b: |
+    type Query {
+      media: [Media] @shareable @provides(fields: "... on Book { title }")
+    }
+
+    union Media = Book | Movie
+
+    type Book @key(fields: "id") {
+      id: ID!
+      title: String @external
+    }
+
+    type Movie @key(fields: "id") {
+      id: ID!
+    }
+
+  c: |
+    type Query {
+      bookById(id: ID!): Book @lookup
+      movieById(id: ID!): Movie @lookup
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+    }
+
+    type Movie @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+    }
+
+supergraph: |
+  type Query {
+    media: [Media]
+    bookById(id: ID!): Book
+    movieById(id: ID!): Movie
+  }
+  union Media = Book | Movie
+  type Book {
+    id: ID!
+    title: String
+  }
+  type Movie {
+    id: ID!
+    title: String
+  }

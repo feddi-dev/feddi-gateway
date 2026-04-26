@@ -1,0 +1,84 @@
+name: "@require Deep Path Alternatives"
+description: |
+  Tests @require directive with deeply nested path alternatives:
+  @require(field: "primary.contact.email | backup.contact.email")
+
+  When the primary contact email is available, use it; otherwise fall back
+  to the backup contact email.
+
+subgraphs:
+  customers: |
+    type Query {
+      customerById(id: ID!): Customer @lookup
+    }
+
+    type Customer @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      primary: ContactInfo @shareable
+      backup: ContactInfo @shareable
+    }
+
+    type ContactInfo @shareable {
+      contact: Contact @shareable
+    }
+
+    type Contact @shareable {
+      email: String @shareable
+      phone: String @shareable
+    }
+
+  notifications: |
+    type Query {
+      customerById(id: ID!): Customer @lookup
+    }
+
+    type Customer @key(fields: "id") {
+      id: ID!
+      primary: ContactInfo @shareable
+      backup: ContactInfo @shareable
+      notificationPreference(
+        email: String @require(field: "primary.contact.email | backup.contact.email")
+      ): NotificationPref
+    }
+
+    type ContactInfo @shareable {
+      contact: Contact @shareable
+    }
+
+    type Contact @shareable {
+      email: String @shareable
+      phone: String @shareable
+    }
+
+    type NotificationPref {
+      channel: String
+      address: String
+    }
+
+supergraph: |
+  type Query {
+    customerById(id: ID!): Customer
+  }
+
+  type Customer {
+    id: ID!
+    name: String
+    primary: ContactInfo
+    backup: ContactInfo
+    notificationPreference: NotificationPref
+  }
+
+  type ContactInfo {
+    contact: Contact
+  }
+
+  type Contact {
+    email: String
+    phone: String
+  }
+
+  type NotificationPref {
+    channel: String
+    address: String
+  }

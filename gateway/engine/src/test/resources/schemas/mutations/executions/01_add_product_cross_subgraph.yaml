@@ -1,0 +1,36 @@
+name: "addProduct mutation with cross-subgraph resolution"
+description: "Execute addProduct mutation on subgraph a, then resolve isExpensive and isAvailable from subgraph b via entity lookup"
+
+query: |
+  mutation {
+    addProduct(input: { name: "new", price: 599.99 }) {
+      name
+      price
+      isExpensive
+      isAvailable
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: 'mutation { addProduct(input: {name: "new", price: 599.99}) { name price id } }'
+    variables: {}
+    response: { data: { addProduct: { id: "p-added-0", name: "new", price: 599.99 } } }
+
+  - subgraph: b
+    operation: 'query ($id: ID!, $price: Float!) { productById(id: $id) { isExpensive(price: $price) isAvailable } }'
+    variables: { id: "p-added-0", price: 599.99 }
+    response: { data: { productById: { isExpensive: true, isAvailable: true } } }
+
+expectedResponse: {
+  data: {
+    addProduct: {
+      name: "new",
+      price: 599.99,
+      isExpensive: true,
+      isAvailable: true
+    }
+  }
+}

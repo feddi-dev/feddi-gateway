@@ -1,0 +1,31 @@
+name: "Mutation with cross-subgraph lookup"
+description: "Mutation returns Product, then fetches reviews from reviews subgraph"
+
+query: |
+  mutation {
+    createProduct(name: "Laptop", price: 1299) {
+      id
+      name
+      price
+      reviews {
+        id
+        text
+        stars
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "mutation { createProduct(name: \"Laptop\", price: 1299) { id name price } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: reviews
+      operation: "query($id: ID!) { productById(id: $id) { reviews { id text stars } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

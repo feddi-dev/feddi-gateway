@@ -1,0 +1,36 @@
+name: "@include(if: true) includes field and requires chain"
+description: "When @include(if: true) is used, the field is included and the full @require chain is executed"
+
+query: |
+  {
+    product {
+      id
+      include @include(if: true)
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - id: step1
+    subgraph: a
+    operation: '{ product { id price } }'
+    response: { data: { product: { id: "p1", price: 100.0 } } }
+
+  - id: step3
+    subgraph: b
+    operation: 'query ($id: ID!, $price: Float!) { productById(id: $id) { isExpensive(price: $price) } }'
+    variables: { id: "p1", price: 100.0 }
+    response: { data: { productById: { isExpensive: true } } }
+
+  - id: step2
+    subgraph: c
+    operation: 'query ($id: ID!, $isExpensive: Boolean!) { productById(id: $id) { include(isExpensive: $isExpensive) } }'
+    variables: { id: "p1", isExpensive: true }
+    response: { data: { productById: { include: true } } }
+
+expectedResponse: {
+  data: {
+    product: { id: "p1", include: true }
+  }
+}

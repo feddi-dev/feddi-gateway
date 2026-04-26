@@ -1,0 +1,61 @@
+name: "Multiple type inline fragments cross-subgraph execution"
+description: "Tests inline fragments for Article and Video with analytics fields from different subgraph"
+
+query: |
+  {
+    contents {
+      id
+      title
+      ... on Article {
+        body
+        views
+        shareCount
+      }
+      ... on Video {
+        url
+        watchTime
+        completionRate
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { id title __typename ... on Article { body } ... on Video { url } } }'
+    variables: {}
+    response: {
+      data: {
+        contents: [
+          { __typename: "Article", id: "a1", title: "Tech News", body: "Article content" },
+          { __typename: "Video", id: "v1", title: "Tutorial", url: "https://video.example/v1" },
+          { __typename: "Article", id: "a2", title: "Science Daily", body: "Science content" }
+        ]
+      }
+    }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views shareCount } ... on Video { watchTime completionRate } } }'
+    variables: { id: "a1" }
+    response: { data: { contentById: { __typename: "Article", views: 1500, shareCount: 42 } } }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views shareCount } ... on Video { watchTime completionRate } } }'
+    variables: { id: "v1" }
+    response: { data: { contentById: { __typename: "Video", watchTime: 3600, completionRate: 0.85 } } }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views shareCount } ... on Video { watchTime completionRate } } }'
+    variables: { id: "a2" }
+    response: { data: { contentById: { __typename: "Article", views: 800, shareCount: 15 } } }
+
+expectedResponse: {
+  data: {
+    contents: [
+      { id: "a1", title: "Tech News", body: "Article content", views: 1500, shareCount: 42 },
+      { id: "v1", title: "Tutorial", url: "https://video.example/v1", watchTime: 3600, completionRate: 0.85 },
+      { id: "a2", title: "Science Daily", body: "Science content", views: 800, shareCount: 15 }
+    ]
+  }
+}

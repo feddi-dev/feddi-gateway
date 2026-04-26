@@ -1,0 +1,52 @@
+name: "@internal on field - internal resolution field"
+description: "Using @internal to mark fields used only for internal resolution"
+
+subgraphs:
+  users: |
+    type Query {
+      users: [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID! @shareable
+      name: String
+      legacyId: String @internal
+    }
+
+  legacy: |
+    type Query {
+      userByLegacyId(legacyId: String!): User @lookup
+      userByIdLegacy(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "legacyId") @key(fields: "id") {
+      id: ID! @shareable
+      legacyId: String!
+      legacyData: LegacyUserData
+    }
+    
+    type LegacyUserData {
+      oldEmail: String
+      migratedAt: String
+    }
+
+supergraph: |
+  type Query {
+    users: [User]
+    userById(id: ID!): User
+    userByLegacyId(legacyId: String!): User
+    userByIdLegacy(id: ID!): User
+  }
+
+  type User {
+    id: ID!
+    name: String
+    legacyId: String!
+    legacyData: LegacyUserData
+  }
+
+  type LegacyUserData {
+    oldEmail: String
+    migratedAt: String
+  }

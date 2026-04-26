@@ -1,0 +1,75 @@
+name: "@require List Selection with Alternatives"
+description: |
+  Tests @require directive with list selection containing alternatives:
+  @require(field: "items[productId | sku]")
+
+  This tests that when extracting values from list elements, alternatives
+  work correctly - picking productId when available, falling back to sku.
+
+subgraphs:
+  orders: |
+    type Query {
+      orderById(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      items: [OrderItem!]! @shareable
+    }
+
+    type OrderItem @shareable {
+      productId: ID @shareable
+      sku: String @shareable
+      name: String @shareable
+      quantity: Int @shareable
+    }
+
+  analytics: |
+    type Query {
+      orderById(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      items: [OrderItem!]! @shareable
+      itemAnalytics(
+        codes: [String!]! @require(field: "items[productId | sku]")
+      ): [ItemAnalytics!]
+    }
+
+    type OrderItem @shareable {
+      productId: ID @shareable
+      sku: String @shareable
+      name: String @shareable
+      quantity: Int @shareable
+    }
+
+    type ItemAnalytics {
+      code: String!
+      views: Int
+      conversionRate: Float
+    }
+
+supergraph: |
+  type Query {
+    orderById(id: ID!): Order
+  }
+
+  type Order {
+    id: ID!
+    items: [OrderItem!]!
+    itemAnalytics: [ItemAnalytics!]
+  }
+
+  type OrderItem {
+    productId: ID
+    sku: String
+    name: String
+    quantity: Int
+  }
+
+  type ItemAnalytics {
+    code: String!
+    views: Int
+    conversionRate: Float
+  }

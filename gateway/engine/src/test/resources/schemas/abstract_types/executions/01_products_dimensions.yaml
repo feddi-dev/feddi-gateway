@@ -1,0 +1,32 @@
+name: "Products with dimensions"
+description: "Queries all products and resolves dimensions from the products subgraph using interface-to-concrete type expansion"
+
+query: |
+  {
+    products {
+      id
+      dimensions {
+        size
+        weight
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { id dimensions { size weight } } }'
+    variables: {}
+    response: { data: { products: [{ __typename: "Book", id: "p1", dimensions: { size: "small", weight: 0.5 } }, { __typename: "Book", id: "p3", dimensions: { size: "small", weight: 0.6 } }, { __typename: "Magazine", id: "p2", dimensions: { size: "small", weight: 0.2 } }, { __typename: "Magazine", id: "p4", dimensions: { size: "small", weight: 0.3 } }] } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", dimensions: { size: "small", weight: 0.5 } },
+      { id: "p3", dimensions: { size: "small", weight: 0.6 } },
+      { id: "p2", dimensions: { size: "small", weight: 0.2 } },
+      { id: "p4", dimensions: { size: "small", weight: 0.3 } }
+    ]
+  }
+}

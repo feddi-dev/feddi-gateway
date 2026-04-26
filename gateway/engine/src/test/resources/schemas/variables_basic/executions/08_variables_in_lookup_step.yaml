@@ -1,0 +1,43 @@
+name: "Query variables propagated to lookup steps"
+description: "Tests that query variables are passed to entity lookup operations (Bug fix: query variables not propagated)"
+
+query: |
+  query GetUserOrders($userId: ID!, $orderLimit: Int) {
+    user(id: $userId) {
+      id
+      name
+      recentOrders(limit: $orderLimit) {
+        id
+        total
+      }
+    }
+  }
+
+variables: { userId: "u1", orderLimit: 3 }
+
+subgraphCalls:
+  # Root step receives only the variables it defines
+  - subgraph: users
+    operation: 'query($userId: ID!) { user(id: $userId) { id name } }'
+    variables: { userId: "u1" }
+    response: { data: { user: { id: "u1", name: "Alice" } } }
+
+  # Lookup step receives: query variables used by operation + requirement variables
+  - subgraph: orders
+    operation: 'query($id: ID!, $orderLimit: Int) { userById(id: $id) { recentOrders(limit: $orderLimit) { id total } } }'
+    variables: { orderLimit: 3, id: "u1" }
+    response: { data: { userById: { recentOrders: [{ id: "o1", total: 99.99 }, { id: "o2", total: 49.99 }, { id: "o3", total: 25.00 }] } } }
+
+expectedResponse: {
+  data: {
+    user: {
+      id: "u1",
+      name: "Alice",
+      recentOrders: [
+        { id: "o1", total: 99.99 },
+        { id: "o2", total: 49.99 },
+        { id: "o3", total: 25.00 }
+      ]
+    }
+  }
+}

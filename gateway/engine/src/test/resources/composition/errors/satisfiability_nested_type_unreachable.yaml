@@ -1,0 +1,32 @@
+name: "SATISFIABILITY_ERROR - Nested type fields unreachable"
+description: "Product.details returns Details, but Details.weight in subgraph B is unreachable without a lookup"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      details: Details
+    }
+
+    type Details @key(fields: "sku") {
+      sku: String!
+      description: String
+    }
+
+  inventory: |
+    type Query {
+      inventoryDetails(sku: String!): Details
+    }
+
+    type Details @key(fields: "sku") {
+      sku: String!
+      weight: Float
+      dimensions: String
+    }
+
+error: "SATISFIABILITY_ERROR"

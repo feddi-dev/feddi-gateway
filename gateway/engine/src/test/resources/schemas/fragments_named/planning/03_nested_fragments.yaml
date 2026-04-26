@@ -1,0 +1,29 @@
+name: "Nested named fragments planning"
+description: "Tests planning with fragments that spread other fragments - all should be inlined"
+
+query: |
+  query GetProductDetails {
+    products {
+      ...ProductFull
+    }
+  }
+  fragment ProductBasics on Product {
+    id
+    name
+  }
+  fragment ProductPricing on Product {
+    price
+    category
+  }
+  fragment ProductFull on Product {
+    ...ProductBasics
+    ...ProductPricing
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "{ products { id name price category } }"
+      dependsOn: []
+      repeatedExecution: false

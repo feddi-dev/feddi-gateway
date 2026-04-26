@@ -1,0 +1,20 @@
+name: "KEY_INVALID_FIELDS - @key references non-existent nested field"
+description: "Spec: @key fields argument must reference existing fields on the type"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id author { firstName }") {
+      id: ID!
+      author: Author
+    }
+
+    type Author {
+      id: ID!
+      name: String
+    }
+
+error: "KEY_INVALID_FIELDS"

@@ -1,0 +1,128 @@
+name: "Complex Nested"
+description: "Deeply nested selections with multiple subgraphs"
+
+subgraphs:
+  orgs: |
+    type Query {
+      organizations(industry: String): [Organization]
+      organizationById(id: ID!): Organization
+      teamByIdOrgs(teamId: ID!): Team @lookup
+    }
+
+    type Organization {
+      id: ID!
+      name: String
+      description: String
+      teams(active: Boolean): [Team]
+    }
+
+    type Team @key(fields: "teamId") {
+      teamId: ID!
+      teamName: String
+    }
+
+  projects: |
+    type Query {
+      teamById(teamId: ID!): Team @lookup
+      projectByIdProjects(projectId: ID!): Project @lookup
+    }
+
+    type Team @key(fields: "teamId") {
+      teamId: ID!
+      projects(status: ProjectStatus): [Project]
+    }
+
+    enum ProjectStatus {
+      ACTIVE
+      COMPLETED
+      ON_HOLD
+    }
+
+    type Project @key(fields: "projectId") {
+      projectId: ID!
+      projectName: String
+      deadline: String
+      budget: Float
+    }
+
+  tasks: |
+    type Query {
+      projectById(pid: ID! @is(field: "projectId")): Project @lookup
+    }
+
+    type Project @key(fields: "projectId") {
+      projectId: ID!
+      tasks(priority: Priority, assignedTo: ID): [Task]
+    }
+
+    enum Priority {
+      LOW
+      MEDIUM
+      HIGH
+      CRITICAL
+    }
+
+    type Task {
+      taskId: ID!
+      title: String
+      status: String
+      priority: Priority
+      assignee: User
+    }
+
+    type User {
+      userId: ID!
+      username: String
+      email: String
+    }
+
+supergraph: |
+  type Query {
+    organizations(industry: String): [Organization]
+    organizationById(id: ID!): Organization
+    teamById(teamId: ID!): Team
+    teamByIdOrgs(teamId: ID!): Team
+    projectById(pid: ID!): Project
+    projectByIdProjects(projectId: ID!): Project
+  }
+  type Organization {
+    id: ID!
+    name: String
+    description: String
+    teams(active: Boolean): [Team]
+  }
+  type Team {
+    teamId: ID!
+    teamName: String
+    projects(status: ProjectStatus): [Project]
+  }
+  type Project {
+    projectId: ID!
+    projectName: String
+    deadline: String
+    budget: Float
+    tasks(priority: Priority, assignedTo: ID): [Task]
+  }
+  enum ProjectStatus {
+    ACTIVE
+    COMPLETED
+    ON_HOLD
+  }
+  enum Priority {
+    LOW
+    MEDIUM
+    HIGH
+    CRITICAL
+  }
+  type Task {
+    taskId: ID!
+    title: String
+    status: String
+    priority: Priority
+    assignee: User
+  }
+  type User {
+    userId: ID!
+    username: String
+    email: String
+  }

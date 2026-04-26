@@ -1,0 +1,30 @@
+name: "Random user with cross-subgraph fields"
+description: "Fetches randomUser needing rid from a and name from b via entity resolution"
+
+query: |
+  {
+    randomUser {
+      id
+      rid
+      name
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ randomUser { id rid } }'
+    variables: {}
+    response: { data: { randomUser: { id: "u1", rid: "u1-rid" } } }
+
+  - subgraph: b
+    operation: 'query ($id: ID!) { userById(id: $id) { name } }'
+    variables: { id: "u1" }
+    response: { data: { userById: { name: "u1-name" } } }
+
+expectedResponse: {
+  data: {
+    randomUser: { id: "u1", rid: "u1-rid", name: "u1-name" }
+  }
+}

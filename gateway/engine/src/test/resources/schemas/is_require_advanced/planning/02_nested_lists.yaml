@@ -1,0 +1,32 @@
+name: "Nested list extraction via @require"
+description: |
+  Tests planning for @require directive with nested list field [[ID!]!]!.
+
+query: |
+  {
+    podcastById(id: "pod1") {
+      id
+      title
+      nestedStats {
+        totalGroups
+        totalEpisodes
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "{ podcastById(id: \"pod1\") { id title episodeIds } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: analytics
+      operation: "query($id: ID!, $ids: [[ID!]!]!) { podcastById(id: $id) { nestedStats(ids: $ids) { totalGroups totalEpisodes } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+        ids: "episodeIds"
+      repeatedExecution: true

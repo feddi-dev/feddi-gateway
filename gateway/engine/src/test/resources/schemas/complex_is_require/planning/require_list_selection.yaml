@@ -1,0 +1,37 @@
+name: "@require with list selection"
+description: |
+  Tests @require with list selection pattern: items[productId]
+  The analytics subgraph requires extracting all productIds from the items list.
+
+query: |
+  {
+    orders {
+      id
+      items {
+        productName
+        quantity
+      }
+      itemAnalytics {
+        productId
+        views
+        conversionRate
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: orders
+      operation: "{ orders { id items { productName quantity productId } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: analytics
+      operation: "query($id: ID!, $productIds: [ID!]!) { orderByIdAnalytics(id: $id) { itemAnalytics(productIds: $productIds) { productId views conversionRate } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+        productIds: "items[productId]"
+      repeatedExecution: true

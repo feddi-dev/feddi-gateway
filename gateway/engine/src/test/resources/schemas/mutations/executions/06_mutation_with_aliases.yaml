@@ -1,0 +1,35 @@
+name: "Mutation with aliases"
+description: |
+  Tests aliases on mutation operations including the mutation field alias
+  and result field aliases within the same subgraph.
+
+query: |
+  mutation CreateProduct {
+    newProduct: addProduct(input: { name: "New Widget", price: 29.99 }) {
+      productId: id
+      productName: name
+      productPrice: price
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: 'mutation{newProduct:addProduct(input:{name:"New Widget",price:29.99}){productId:id productName:name productPrice:price}}'
+    variables: {}
+    response: {
+      data: {
+        newProduct: { productId: "p99", productName: "New Widget", productPrice: 29.99 }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    newProduct: {
+      productId: "p99",
+      productName: "New Widget",
+      productPrice: 29.99
+    }
+  }
+}

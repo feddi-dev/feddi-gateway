@@ -1,0 +1,39 @@
+name: "Users in age with friends from different subgraph"
+description: "Fetches users from age subgraph, then resolves friends via @lookup on friends subgraph for each user"
+
+query: |
+  {
+    usersInAge {
+      id
+      friends {
+        id
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: age
+    operation: '{ usersInAge { id } }'
+    variables: {}
+    response: { data: { usersInAge: [{ id: "u1" }, { id: "u2" }] } }
+
+  - subgraph: friends
+    operation: 'query ($id: ID!) { userById(id: $id) { friends { id } } }'
+    variables: { id: "u1" }
+    response: { data: { userById: { friends: [{ id: "u2" }] } } }
+
+  - subgraph: friends
+    operation: 'query ($id: ID!) { userById(id: $id) { friends { id } } }'
+    variables: { id: "u2" }
+    response: { data: { userById: { friends: [{ id: "u1" }] } } }
+
+expectedResponse: {
+  data: {
+    usersInAge: [
+      { id: "u1", friends: [{ id: "u2" }] },
+      { id: "u2", friends: [{ id: "u1" }] }
+    ]
+  }
+}

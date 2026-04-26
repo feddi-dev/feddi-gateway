@@ -1,0 +1,15 @@
+name: "IS_INVALID_USAGE - @is directive on non-lookup field"
+description: "Spec 3.1.3.3: The @is directive can only be used on arguments of @lookup fields"
+
+subgraphs:
+  products: |
+    type Query {
+      products(filter: String @is(field: "name")): [Product]
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "IS_INVALID_USAGE"

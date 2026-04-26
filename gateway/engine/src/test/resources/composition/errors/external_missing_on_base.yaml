@@ -1,0 +1,25 @@
+name: "EXTERNAL_MISSING_ON_BASE - external field has no base definition"
+description: "Spec: Fields marked @external must have a non-external definition in at least one other schema"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float
+    }
+
+  schemaB: |
+    type Query {
+      productById(id: ID!): Product @lookup @provides(fields: "name")
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @external
+    }
+
+error: "EXTERNAL_MISSING_ON_BASE"

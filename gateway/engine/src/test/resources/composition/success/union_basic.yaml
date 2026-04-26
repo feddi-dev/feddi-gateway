@@ -1,0 +1,65 @@
+name: "Union - search results"
+description: "Union type aggregating results from multiple subgraphs"
+
+subgraphs:
+  users: |
+    type Query {
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      email: String
+    }
+
+  products: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      price: Float
+    }
+
+  search: |
+    type Query {
+      search(query: String!): [SearchResult]
+      userByIdSearch(id: ID!): User @lookup
+      productByIdSearch(id: ID!): Product @lookup
+    }
+    
+    type User @key(fields: "id") {
+      id: ID!
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+    }
+    
+    union SearchResult = User | Product
+
+supergraph: |
+  type Query {
+    userById(id: ID!): User
+    productById(id: ID!): Product
+    search(query: String!): [SearchResult]
+    userByIdSearch(id: ID!): User
+    productByIdSearch(id: ID!): Product
+  }
+  
+  type User {
+    id: ID!
+    name: String
+    email: String
+  }
+  
+  type Product {
+    id: ID!
+    name: String
+    price: Float
+  }
+  
+  union SearchResult = User | Product

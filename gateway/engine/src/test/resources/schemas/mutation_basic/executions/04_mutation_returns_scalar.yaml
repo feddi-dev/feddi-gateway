@@ -1,0 +1,21 @@
+name: "Mutation returns scalar execution"
+description: "Execute deleteProduct mutation that returns Boolean"
+
+query: |
+  mutation {
+    deleteProduct(id: "p1")
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: 'mutation { deleteProduct(id: "p1") }'
+    variables: {}
+    response: { data: { deleteProduct: true } }
+
+expectedResponse: {
+  data: {
+    deleteProduct: true
+  }
+}

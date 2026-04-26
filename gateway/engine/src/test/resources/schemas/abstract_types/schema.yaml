@@ -1,0 +1,142 @@
+name: "Abstract Types"
+description: "Tests abstract types (interfaces, unions) across multiple subgraphs with @key, @require, @shareable, and @external directives"
+
+subgraphs:
+  agency: |
+    type Query {
+      agencyById(id: ID!): Agency @lookup
+      groupById(id: ID!): Group @lookup
+    }
+    type Agency @key(fields: "id") { id: ID!, companyName: String, email: Email }
+    type Email { address: String }
+    type Group { id: ID!, name: String, email: String }
+
+  books: |
+    type Query {
+      books: [Book]
+      bookById(id: ID!): Book @lookup
+    }
+    type Book @key(fields: "id") { id: ID!, title: String }
+
+  magazines: |
+    type Query {
+      magazines: [Magazine]
+      magazineById(id: ID!): Magazine @lookup
+    }
+    type Magazine @key(fields: "id") { id: ID!, title: String }
+
+  products: |
+    type Query {
+      products: [Product]
+      similar(id: ID!): [Product]
+      bookById(id: ID!): Book @lookup
+      magazineById(id: ID!): Magazine @lookup
+    }
+    interface Product {
+      id: ID!
+      sku: String
+      dimensions: ProductDimension
+      createdBy: User
+    }
+    interface Similar {
+      similar: [Product]
+    }
+    type ProductDimension @shareable { size: String @shareable, weight: Float @shareable }
+    type Book implements Product & Similar @key(fields: "id") {
+      id: ID!
+      sku: String
+      dimensions: ProductDimension @shareable
+      createdBy: User
+      similar: [Book] @shareable
+      publisherType: PublisherType
+    }
+    type Magazine implements Product & Similar @key(fields: "id") {
+      id: ID!
+      sku: String
+      dimensions: ProductDimension @shareable
+      createdBy: User
+      similar: [Magazine] @shareable
+      publisherType: PublisherType
+    }
+    union PublisherType = Agency | Self
+    type Agency { id: ID! @shareable }
+    type Self { email: String }
+    type User @key(fields: "email") { email: ID!, totalProductsCreated: Int @shareable }
+
+  users: |
+    type Query {
+      userByEmail(email: ID!): User @lookup
+    }
+    type User @key(fields: "email") { email: ID!, name: String, totalProductsCreated: Int @shareable }
+
+  inventory: |
+    type Query {
+      bookById(id: ID!): Book @lookup
+      magazineById(id: ID!): Magazine @lookup
+    }
+    interface Product {
+      id: ID!
+      dimensions: ProductDimension
+      delivery(zip: String): DeliveryEstimates
+    }
+    type Book implements Product @key(fields: "id") {
+      id: ID!
+      dimensions: ProductDimension @shareable
+      delivery(zip: String, dim: ProductDimensionInput @require(field: "dimensions.{ size weight }")): DeliveryEstimates
+    }
+    type Magazine implements Product @key(fields: "id") {
+      id: ID!
+      dimensions: ProductDimension @shareable
+      delivery(zip: String, dim: ProductDimensionInput @require(field: "dimensions.{ size weight }")): DeliveryEstimates
+    }
+    input ProductDimensionInput { size: String, weight: Float }
+    type ProductDimension @shareable { size: String @shareable, weight: Float @shareable }
+    type DeliveryEstimates { estimatedDelivery: String, fastestDelivery: String }
+
+  reviews: |
+    type Query {
+      review(id: Int!): Review
+      bookById(id: ID!): Book @lookup
+      magazineById(id: ID!): Magazine @lookup
+    }
+    interface Product {
+      id: ID!
+      reviewsCount: Int!
+      reviewsScore: Float!
+      reviews: [Review!]!
+    }
+    interface Similar { similar: [Product] }
+    type Book implements Product & Similar @key(fields: "id") {
+      id: ID!
+      reviewsCount: Int!
+      reviewsScore: Float! @shareable
+      reviews: [Review!]!
+      similar: [Book] @shareable
+      reviewsOfSimilar(similarIds: [ID] @require(field: "similar[id]")): [Review!]!
+    }
+    type Magazine implements Product & Similar @key(fields: "id") {
+      id: ID!
+      reviewsCount: Int!
+      reviewsScore: Float! @shareable
+      reviews: [Review!]!
+      similar: [Magazine] @shareable
+      reviewsOfSimilar(similarIds: [ID] @require(field: "similar[id]")): [Review!]!
+    }
+    type Review { id: Int!, body: String!, product: Product }
+
+supergraph: |
+  interface Product { id: ID!, sku: String, dimensions: ProductDimension, createdBy: User, reviewsCount: Int!, reviewsScore: Float!, reviews: [Review!]!, delivery(zip: String): DeliveryEstimates }
+  interface Similar { similar: [Product] }
+  union PublisherType = Agency | Self
+  type Agency { id: ID!, companyName: String, email: Email }
+  type Book implements Product & Similar { id: ID!, sku: String, title: String, dimensions: ProductDimension, createdBy: User, similar: [Book], reviewsCount: Int!, reviewsScore: Float!, reviews: [Review!]!, delivery(zip: String): DeliveryEstimates, publisherType: PublisherType, reviewsOfSimilar: [Review!]! }
+  type DeliveryEstimates { estimatedDelivery: String, fastestDelivery: String }
+  type Email { address: String }
+  type Group { id: ID!, name: String, email: String }
+  type Magazine implements Product & Similar { id: ID!, sku: String, title: String, dimensions: ProductDimension, createdBy: User, similar: [Magazine], reviewsCount: Int!, reviewsScore: Float!, reviews: [Review!]!, delivery(zip: String): DeliveryEstimates, publisherType: PublisherType, reviewsOfSimilar: [Review!]! }
+  type ProductDimension { size: String, weight: Float }
+  type Query { agencyById(id: ID!): Agency, bookById(id: ID!): Book, books: [Book], groupById(id: ID!): Group, magazineById(id: ID!): Magazine, magazines: [Magazine], products: [Product], review(id: Int!): Review, similar(id: ID!): [Product], userByEmail(email: ID!): User }
+  type Review { id: Int!, body: String!, product: Product }
+  type Self { email: String }
+  type User { email: ID!, name: String, totalProductsCreated: Int }
+  input ProductDimensionInput { size: String, weight: Float }

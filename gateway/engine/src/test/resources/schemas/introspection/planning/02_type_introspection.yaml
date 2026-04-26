@@ -1,0 +1,21 @@
+name: "Type introspection"
+description: "Tests that __type queries are routed to the $introspection subgraph"
+
+query: |
+  {
+    __type(name: "Product") {
+      name
+      kind
+      fields {
+        name
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: $introspection
+      operation: '{ __type(name: "Product") { name kind fields { name } } }'
+      dependsOn: []
+      repeatedExecution: false

@@ -1,0 +1,46 @@
+name: "Multiple inline fragments execution"
+description: "Tests execution of multiple inline fragments with different type conditions"
+
+query: |
+  {
+    contents {
+      id
+      title
+      ... on Article {
+        body
+      }
+      ... on Video {
+        url
+        duration
+      }
+      ... on Podcast {
+        audioUrl
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { id title __typename ... on Article { body } ... on Video { url duration } ... on Podcast { audioUrl } } }'
+    variables: {}
+    response: {
+      data: {
+        contents: [
+          { __typename: "Article", id: "a1", title: "News", body: "Breaking news content" },
+          { __typename: "Video", id: "v1", title: "How-to", url: "https://video.example/1", duration: 600 },
+          { __typename: "Podcast", id: "p1", title: "Tech Talk", audioUrl: "https://audio.example/1" }
+        ]
+      }
+    }
+
+expectedResponse: {
+  data: {
+    contents: [
+      { id: "a1", title: "News", body: "Breaking news content" },
+      { id: "v1", title: "How-to", url: "https://video.example/1", duration: 600 },
+      { id: "p1", title: "Tech Talk", audioUrl: "https://audio.example/1" }
+    ]
+  }
+}

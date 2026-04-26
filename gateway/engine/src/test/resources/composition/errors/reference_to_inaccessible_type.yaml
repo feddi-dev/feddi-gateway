@@ -1,0 +1,28 @@
+name: "REFERENCE_TO_INACCESSIBLE_TYPE - accessible field references inaccessible type"
+description: "Spec: Accessible fields must only reference accessible types"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      search(filter: SearchFilter): SearchResult
+    }
+
+    input SearchFilter {
+      query: String
+      options: FilterOptions
+    }
+
+    input FilterOptions @inaccessible {
+      caseSensitive: Boolean
+    }
+
+    type SearchResult {
+      items: [Item]
+    }
+
+    type Item @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "REFERENCE_TO_INACCESSIBLE_TYPE"

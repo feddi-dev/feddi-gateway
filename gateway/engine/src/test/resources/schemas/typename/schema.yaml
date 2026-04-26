@@ -1,0 +1,35 @@
+name: "Typename"
+description: "Tests __typename resolution on unions and interfaces with aliases"
+
+subgraphs:
+  a: |
+    type Query {
+      union: Product
+      interface: Node
+    }
+    union Product = Oven | Toaster
+    interface Node {
+      id: ID!
+    }
+    type Oven implements Node {
+      id: ID!
+    }
+    type Toaster implements Node {
+      id: ID!
+    }
+
+supergraph: |
+  type Query {
+    union: Product
+    interface: Node
+  }
+  union Product = Oven | Toaster
+  interface Node {
+    id: ID!
+  }
+  type Oven implements Node {
+    id: ID!
+  }
+  type Toaster implements Node {
+    id: ID!
+  }

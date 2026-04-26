@@ -1,0 +1,15 @@
+name: "KEY_FIELDS_SELECT_INVALID_TYPE - @key references list field"
+description: "Spec: @key fields cannot reference fields that return a list type"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "tags") {
+      id: ID!
+      tags: [String]
+    }
+
+error: "KEY_FIELDS_SELECT_INVALID_TYPE"

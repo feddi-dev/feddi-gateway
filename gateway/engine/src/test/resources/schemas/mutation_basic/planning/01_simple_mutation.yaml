@@ -1,0 +1,19 @@
+name: "Simple mutation - create product"
+description: "Single mutation in products subgraph, returns Product with local fields only"
+
+query: |
+  mutation {
+    createProduct(name: "Desk", price: 599) {
+      id
+      name
+      price
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "mutation { createProduct(name: \"Desk\", price: 599) { id name price } }"
+      dependsOn: []
+      repeatedExecution: false

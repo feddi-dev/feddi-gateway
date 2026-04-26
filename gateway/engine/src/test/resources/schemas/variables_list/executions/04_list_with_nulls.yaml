@@ -1,0 +1,24 @@
+name: "Optional list with null values"
+description: "Tests passing a list that allows null elements"
+
+query: |
+  query GetProductsByTags($tags: [String]) {
+    productsByTags(tags: $tags) {
+      id
+      name
+    }
+  }
+
+variables: { tags: ["electronics", null, "featured"] }
+
+subgraphCalls:
+  - subgraph: products
+    operation: 'query($tags: [String]) { productsByTags(tags: $tags) { id name } }'
+    variables: { tags: ["electronics", null, "featured"] }
+    response: { data: { productsByTags: [{ id: "p1", name: "Laptop" }] } }
+
+expectedResponse: {
+  data: {
+    productsByTags: [{ id: "p1", name: "Laptop" }]
+  }
+}

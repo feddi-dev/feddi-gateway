@@ -1,0 +1,33 @@
+services:
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    depends_on:
+      products:
+        condition: service_healthy
+      reviews:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  products:
+    build:
+      context: ./subgraphs/products
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4001/', {method:'POST',headers:{'Content-Type':'application/json'},body:'{\"query\":\"{__typename}\"}'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  reviews:
+    build:
+      context: ./subgraphs/reviews
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4002/', {method:'POST',headers:{'Content-Type':'application/json'},body:'{\"query\":\"{__typename}\"}'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

@@ -1,0 +1,16 @@
+name: "Media with titles via inline fragments"
+description: "Query union type with inline fragments - Book.title provided, Movie.title needs lookup"
+
+query: |
+  {
+    media {
+      ... on Book {
+        id
+        title
+      }
+      ... on Movie {
+        id
+        title
+      }
+    }
+  }

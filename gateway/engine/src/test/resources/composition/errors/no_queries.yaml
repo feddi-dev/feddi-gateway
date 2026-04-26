@@ -1,0 +1,15 @@
+name: "NO_QUERIES - no accessible query fields"
+description: "Spec 3.4.1.1: The merged schema must have at least one accessible Query field"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product] @inaccessible
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "NO_QUERIES"

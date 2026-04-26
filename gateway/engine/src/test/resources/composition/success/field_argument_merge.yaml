@@ -1,0 +1,38 @@
+name: "Field arguments - merge from different subgraphs"
+description: "Spec 3.3.9/3.3.10: Arguments on same field from different sources are merged"
+
+subgraphs:
+  users: |
+    type Query {
+      users(limit: Int, sortBy: String): [User] @shareable
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") @shareable {
+      id: ID!
+      name: String
+    }
+
+  profiles: |
+    type Query {
+      users(limit: Int, offset: Int, filter: String): [User] @shareable
+      userByIdProfiles(id: ID!): User @lookup
+    }
+    
+    type User @key(fields: "id") @shareable {
+      id: ID!
+      avatar: String
+    }
+
+supergraph: |
+  type Query {
+    users(limit: Int, sortBy: String, offset: Int, filter: String): [User]
+    userById(id: ID!): User
+    userByIdProfiles(id: ID!): User
+  }
+  
+  type User {
+    id: ID!
+    name: String
+    avatar: String
+  }

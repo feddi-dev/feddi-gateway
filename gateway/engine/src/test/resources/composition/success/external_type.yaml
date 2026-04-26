@@ -1,0 +1,70 @@
+name: "@external on type - entire type is external"
+description: "Using @external on a type to mark all its fields as external"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      specs: ProductSpecs @shareable
+    }
+
+    type ProductSpecs @shareable {
+      weight: Float @shareable
+      dimensions: String @shareable
+      color: String @shareable
+    }
+
+  warehouse: |
+    type Query {
+      productByIdWarehouse(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      specs: ProductSpecs @shareable
+      storageLocation(
+        specData: SpecInput @require(field: "{ w: specs.weight, d: specs.dimensions }")
+      ): String
+    }
+
+    type ProductSpecs @shareable {
+      weight: Float @shareable
+      dimensions: String @shareable
+      color: String @shareable
+    }
+    
+    input SpecInput {
+      w: Float
+      d: String
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    productByIdWarehouse(id: ID!): Product
+  }
+
+  type Product {
+    id: ID!
+    name: String
+    specs: ProductSpecs
+    storageLocation: String
+  }
+
+  type ProductSpecs {
+    weight: Float
+    dimensions: String
+    color: String
+  }
+
+  input SpecInput {
+    w: Float
+    d: String
+  }

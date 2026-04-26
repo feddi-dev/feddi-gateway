@@ -1,0 +1,25 @@
+name: "REQUIRE_INVALID_FIELDS - @require references non-existent field"
+description: "Spec: @require field references must exist in other schemas"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      books: [Book]
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      pages(pageSize: Int @require(field: "unknownField")): Int
+    }
+
+  schemaB: |
+    type Query {
+      bookById(id: ID!): Book @lookup
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      title: String
+    }
+
+error: "REQUIRE_INVALID_FIELDS"

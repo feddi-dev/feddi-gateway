@@ -1,0 +1,36 @@
+name: "@include(if: true) literal keeps field in plan"
+description: "When @include(if: true) is used, the field is kept and the full @require chain is included in the plan"
+
+query: |
+  {
+    product {
+      id
+      include @include(if: true)
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: a
+      operation: "{ product { id price } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: c
+      operation: "query ($id: ID!, $isExpensive: Boolean!) { productById(id: $id) { include(isExpensive: $isExpensive) } }"
+      dependsOn: [1, 3]
+      requirements:
+        id: "id"
+        isExpensive: "isExpensive"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: b
+      operation: "query ($id: ID!, $price: Float!) { productById(id: $id) { isExpensive(price: $price) } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+        price: "price"
+      repeatedExecution: true

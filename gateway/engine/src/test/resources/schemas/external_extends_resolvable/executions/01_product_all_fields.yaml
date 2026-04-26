@@ -1,0 +1,32 @@
+name: "Product with all fields from both subgraphs"
+description: "Fetches productInA from subgraph a, resolves price and upc from subgraph b via composite key lookup"
+
+query: |
+  {
+    productInA {
+      id
+      pid
+      price
+      upc
+      name
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ productInA { id pid name } }'
+    variables: {}
+    response: { data: { productInA: { id: "p1", pid: "p1-pid", name: "p1-name" } } }
+
+  - subgraph: b
+    operation: 'query ($id: ID!, $name: String) { productByIdName(id: $id, name: $name) { price upc } }'
+    variables: { id: "p1", name: "p1-name" }
+    response: { data: { productByIdName: { price: 12.3, upc: "upc1" } } }
+
+expectedResponse: {
+  data: {
+    productInA: { id: "p1", pid: "p1-pid", price: 12.3, upc: "upc1", name: "p1-name" }
+  }
+}

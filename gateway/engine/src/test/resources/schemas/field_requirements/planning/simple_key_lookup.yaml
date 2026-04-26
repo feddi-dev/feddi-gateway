@@ -1,0 +1,27 @@
+name: "Simple key lookup"
+description: "Lookup using key field with different argument name"
+
+query: |
+  {
+    products {
+      name
+      price
+      currency
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "{ products { name id } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: pricing
+      operation: "query($productId: ID!) { productByIdPricing(productId: $productId) { price currency } }"
+      dependsOn: [1]
+      requirements:
+        productId: "id"
+      repeatedExecution: true

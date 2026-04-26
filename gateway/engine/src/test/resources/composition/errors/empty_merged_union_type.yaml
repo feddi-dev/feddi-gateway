@@ -1,0 +1,22 @@
+name: "EMPTY_MERGED_UNION_TYPE - union with all members inaccessible"
+description: "Spec 3.4.5.1: Union types must have at least one accessible member after merging"
+
+subgraphs:
+  search: |
+    type Query {
+      search(query: String!): [SearchResult]
+    }
+    
+    type InternalDoc @key(fields: "id") @inaccessible {
+      id: ID!
+      content: String
+    }
+    
+    type PrivateNote @key(fields: "id") @inaccessible {
+      id: ID!
+      text: String
+    }
+    
+    union SearchResult = InternalDoc | PrivateNote
+
+error: "EMPTY_MERGED_UNION_TYPE"

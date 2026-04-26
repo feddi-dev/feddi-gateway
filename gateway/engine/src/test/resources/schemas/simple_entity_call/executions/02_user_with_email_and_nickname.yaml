@@ -1,0 +1,33 @@
+name: "User with email (requested = artificial) and nickname"
+description: |
+  Tests that when a field is both requested by the client AND needed as an artificial
+  key field for lookup, it is correctly included in the response.
+  Here 'email' is requested AND used as the @is key for the nickname subgraph lookup.
+
+query: |
+  {
+    user {
+      id
+      email
+      nickname
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: email
+    operation: '{ user { id email } }'
+    variables: {}
+    response: { data: { user: { id: "1", email: "user1@gmail.com" } } }
+
+  - subgraph: nickname
+    operation: 'query ($email: String!) { userByEmail(email: $email) { nickname } }'
+    variables: { email: "user1@gmail.com" }
+    response: { data: { userByEmail: { nickname: "user1" } } }
+
+expectedResponse: {
+  data: {
+    user: { id: "1", email: "user1@gmail.com", nickname: "user1" }
+  }
+}

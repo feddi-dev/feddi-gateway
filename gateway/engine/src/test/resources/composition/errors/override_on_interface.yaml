@@ -1,0 +1,20 @@
+name: "OVERRIDE_ON_INTERFACE - @override on interface field"
+description: "Spec: @override cannot be used on interface fields"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      bill: Bill
+    }
+
+    interface Bill {
+      id: ID!
+      amount: Int @override(from: "schemaB")
+    }
+
+    type Invoice implements Bill @key(fields: "id") {
+      id: ID!
+      amount: Int
+    }
+
+error: "OVERRIDE_ON_INTERFACE"

@@ -1,0 +1,25 @@
+name: "IS_INVALID_FIELDS - @is references non-existent field"
+description: "Spec: @is field references must exist in other schemas"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      personById(id: ID! @is(field: "unknownField")): Person @lookup
+    }
+
+    type Person @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  schemaB: |
+    type Query {
+      personById(id: ID!): Person @lookup
+    }
+
+    type Person @key(fields: "id") {
+      id: ID!
+      email: String
+    }
+
+error: "IS_INVALID_FIELDS"

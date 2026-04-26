@@ -1,0 +1,90 @@
+name: "Keys Mashup"
+description: |
+  Tests multiple @key directives with different resolvability across subgraphs.
+  Subgraph a has type A with one resolvable key (id) and three non-resolvable keys.
+  Subgraph b has type A with one resolvable composite key (id + compositeId two/three)
+  and three non-resolvable keys. A.nameInB requires the external field name.
+
+subgraphs:
+  a: |
+    type Query {
+      aById(id: ID!): A @lookup
+    }
+
+    type A
+      @key(fields: "id")
+      @key(fields: "pId")
+      @key(fields: "compositeId { one two }")
+      @key(fields: "id compositeId { two three }") {
+      id: ID!
+      pId: ID! @shareable
+      compositeId: CompositeID! @shareable
+      name: String! @shareable
+    }
+
+    type CompositeID {
+      one: ID! @shareable
+      two: ID! @shareable
+      three: ID! @shareable
+    }
+
+  b: |
+    type Query {
+      b: B
+      bById(id: ID!): B @lookup
+      aByIdAndCompositeId(
+        id: ID!
+        compositeIdTwo: ID! @is(field: "compositeId.two")
+        compositeIdThree: ID! @is(field: "compositeId.three")
+      ): A @lookup
+    }
+
+    type B @key(fields: "id") {
+      id: ID!
+      a: [A!]!
+    }
+
+    type A
+      @key(fields: "compositeId { one two }")
+      @key(fields: "id compositeId { two three }")
+      @key(fields: "pId")
+      @key(fields: "id") {
+      id: ID!
+      pId: ID! @shareable
+      compositeId: CompositeID! @shareable
+      name: String! @shareable
+      nameInB(name: String! @require(field: "name")): String!
+    }
+
+    type CompositeID {
+      one: ID! @shareable
+      two: ID! @shareable
+      three: ID! @shareable
+    }
+
+supergraph: |
+  type Query {
+    b: B
+    bById(id: ID!): B
+    aById(id: ID!): A
+    aByIdAndCompositeId(id: ID!, compositeIdTwo: ID!, compositeIdThree: ID!): A
+  }
+
+  type B {
+    id: ID!
+    a: [A!]!
+  }
+
+  type A {
+    id: ID!
+    pId: ID!
+    compositeId: CompositeID!
+    name: String!
+    nameInB: String!
+  }
+
+  type CompositeID {
+    one: ID!
+    two: ID!
+    three: ID!
+  }

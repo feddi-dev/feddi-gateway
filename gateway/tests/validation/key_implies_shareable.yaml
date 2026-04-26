@@ -1,0 +1,31 @@
+name: "@key directive makes key fields implicitly shareable"
+description: |
+  When a type has a @key directive, the fields referenced in the key become
+  implicitly shareable across subgraphs. This means you don't need to add
+  @shareable to key fields.
+
+  This test is the @key-based solution to shareable_required_without_key.yaml.
+
+category: validation
+
+source_schemas:
+  - name: a
+    sdl: |
+      type Query {
+        productById(id: ID!): Product @lookup
+      }
+      type Product @key(fields: "id") {
+        id: ID!
+        price: Float!
+      }
+
+  - name: b
+    sdl: |
+      type Product @key(fields: "id") {
+        id: ID!
+        name: String!
+      }
+
+validation:
+  phase: pre_merge
+  expect: valid

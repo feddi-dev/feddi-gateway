@@ -1,0 +1,108 @@
+name: "@require with path-prefixed object execution"
+description: |
+  Tests execution with @require using path-prefixed object selection: shippingAddress.{ city state zip country }
+  The shipping_calculator subgraph requires specific address fields to calculate shipping options.
+
+query: |
+  {
+    orders {
+      id
+      shippingAddress {
+        street
+      }
+      shippingOptions {
+        carrier
+        method
+        price
+        days
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: orders
+    operation: '{orders{id shippingAddress{street city state zip country}}}'
+    variables: {}
+    response:
+      data:
+        orders:
+          - id: "order-1"
+            shippingAddress:
+              street: "123 Main St"
+              city: "Seattle"
+              state: "WA"
+              zip: "98101"
+              country: "US"
+          - id: "order-2"
+            shippingAddress:
+              street: "456 Oak Ave"
+              city: "Portland"
+              state: "OR"
+              zip: "97201"
+              country: "US"
+
+  - subgraph: shipping_calculator
+    operation: 'query($id:ID!,$destination:DestinationInput!){orderByIdShipping(id:$id){shippingOptions(destination:$destination){carrier method price days}}}'
+    variables:
+      id: "order-1"
+      destination: { city: "Seattle", state: "WA", zip: "98101", country: "US" }
+    response:
+      data:
+        orderByIdShipping:
+          shippingOptions:
+            - carrier: "FedEx"
+              method: "Ground"
+              price: 9.99
+              days: 5
+            - carrier: "FedEx"
+              method: "Express"
+              price: 24.99
+              days: 2
+
+  - subgraph: shipping_calculator
+    operation: 'query($id:ID!,$destination:DestinationInput!){orderByIdShipping(id:$id){shippingOptions(destination:$destination){carrier method price days}}}'
+    variables:
+      id: "order-2"
+      destination: { city: "Portland", state: "OR", zip: "97201", country: "US" }
+    response:
+      data:
+        orderByIdShipping:
+          shippingOptions:
+            - carrier: "UPS"
+              method: "Ground"
+              price: 8.99
+              days: 4
+            - carrier: "UPS"
+              method: "Next Day"
+              price: 29.99
+              days: 1
+
+expectedResponse:
+  data:
+    orders:
+      - id: "order-1"
+        shippingAddress:
+          street: "123 Main St"
+        shippingOptions:
+          - carrier: "FedEx"
+            method: "Ground"
+            price: 9.99
+            days: 5
+          - carrier: "FedEx"
+            method: "Express"
+            price: 24.99
+            days: 2
+      - id: "order-2"
+        shippingAddress:
+          street: "456 Oak Ave"
+        shippingOptions:
+          - carrier: "UPS"
+            method: "Ground"
+            price: 8.99
+            days: 4
+          - carrier: "UPS"
+            method: "Next Day"
+            price: 29.99
+            days: 1

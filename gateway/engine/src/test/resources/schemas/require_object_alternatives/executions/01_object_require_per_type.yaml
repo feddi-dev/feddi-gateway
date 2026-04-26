@@ -1,0 +1,77 @@
+name: "@require with type-specific object selection"
+description: |
+  Tests @require with object selection that uses type-specific field mappings.
+  Book.similar requires { bookId: id, isbn } and Movie.similar requires { movieId: id, imdbCode: code }.
+  Each type has its own @require mapping, so this tests per-type @require with object selection.
+
+  Plan is 3 steps:
+  1. catalog: fetch root book (id, title, isbn)
+  2. recommendations: fetch similar books (id only) using @require ref
+  3. catalog: fetch title for each similar book
+
+query: |
+  {
+    bookById(id: "b1") {
+      id
+      title
+      isbn
+      similar {
+        id
+        title
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ bookById(id: "b1") { id title isbn } }'
+    variables: {}
+    response: {
+      data: {
+        bookById: {
+          id: "b1",
+          title: "GraphQL Guide",
+          isbn: "978-1234567890"
+        }
+      }
+    }
+
+  - subgraph: recommendations
+    operation: 'query($id:ID!,$ref:BookRefInput!){bookById(id:$id){similar(ref:$ref){id}}}'
+    variables: { id: "b1", ref: { bookId: "b1", isbn: "978-1234567890" } }
+    response: {
+      data: {
+        bookById: {
+          similar: [
+            { id: "b2" },
+            { id: "b3" }
+          ]
+        }
+      }
+    }
+
+  - subgraph: catalog
+    operation: 'query($id:ID!){bookById(id:$id){title}}'
+    variables: { id: "b2" }
+    response: { data: { bookById: { title: "Learning GraphQL" } } }
+
+  - subgraph: catalog
+    operation: 'query($id:ID!){bookById(id:$id){title}}'
+    variables: { id: "b3" }
+    response: { data: { bookById: { title: "Production GraphQL" } } }
+
+expectedResponse: {
+  data: {
+    bookById: {
+      id: "b1",
+      title: "GraphQL Guide",
+      isbn: "978-1234567890",
+      similar: [
+        { id: "b2", title: "Learning GraphQL" },
+        { id: "b3", title: "Production GraphQL" }
+      ]
+    }
+  }
+}

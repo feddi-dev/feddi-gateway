@@ -1,0 +1,37 @@
+name: "@include with variable=false excludes field at runtime"
+description: "When @include(if: $var) is used and $var=false, the field is excluded at runtime"
+
+query: |
+  query GetProduct($showField: Boolean!) {
+    product {
+      id
+      include @include(if: $showField)
+    }
+  }
+
+variables: { showField: false }
+
+subgraphCalls:
+  - id: step1
+    subgraph: a
+    operation: '{ product { id price } }'
+    variables: {}
+    response: { data: { product: { id: "p1", price: 100.0 } } }
+
+  - id: step3
+    subgraph: b
+    operation: 'query ($id: ID!, $price: Float!) { productById(id: $id) { isExpensive(price: $price) } }'
+    variables: { id: "p1", price: 100.0 }
+    response: { data: { productById: { isExpensive: false } } }
+
+  - id: step2
+    subgraph: c
+    operation: 'query ($id: ID!, $isExpensive: Boolean!, $showField: Boolean!) { productById(id: $id) { include(isExpensive: $isExpensive) @include(if: $showField) } }'
+    variables: { id: "p1", isExpensive: false, showField: false }
+    response: { data: { productById: {} } }
+
+expectedResponse: {
+  data: {
+    product: { id: "p1" }
+  }
+}

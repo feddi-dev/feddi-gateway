@@ -1,0 +1,157 @@
+name: "Inaccessible All Locations"
+description: |
+  Tests @inaccessible directive on all supported type system members.
+  Each case tests cross-subgraph behavior where one subgraph marks something
+  @inaccessible but another doesn't - the member should be hidden regardless.
+
+  Locations tested:
+  - FIELD_DEFINITION: User.internalId hidden
+  - OBJECT: InternalData type hidden
+  - INTERFACE: InternalNode interface hidden
+  - UNION: InternalResult union hidden
+  - ARGUMENT_DEFINITION: users(internalFilter:) argument hidden
+  - SCALAR: InternalID scalar hidden
+  - ENUM: InternalStatus enum hidden
+  - ENUM_VALUE: Priority.INTERNAL value hidden
+  - INPUT_OBJECT: InternalInput type hidden
+  - INPUT_FIELD_DEFINITION: UserFilter.internalFlag field hidden
+
+subgraphs:
+  a: |
+    type Query {
+      users(filter: UserFilter, internalFilter: String): [User] @shareable
+      searchResults: [SearchResult]
+      internalResults: [InternalResult]
+      node(id: ID!): Node
+      internalNode(id: ID!): InternalNode
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      internalId: String @shareable
+      priority: Priority @shareable
+      internalData: InternalData @shareable
+    }
+
+    type InternalData @shareable {
+      secret: String @shareable
+    }
+
+    interface Node {
+      id: ID!
+    }
+
+    type NodeImpl implements Node {
+      id: ID!
+    }
+
+    interface InternalNode {
+      internalKey: String
+    }
+
+    union SearchResult = User | InternalData
+
+    union InternalResult = User
+
+    scalar InternalID
+
+    enum Priority {
+      LOW
+      HIGH
+      INTERNAL
+    }
+
+    enum InternalStatus {
+      ACTIVE
+      INACTIVE
+    }
+
+    input UserFilter {
+      name: String
+      internalFlag: Boolean
+    }
+
+    input InternalInput {
+      value: String
+    }
+
+  b: |
+    type Query {
+      users(filter: UserFilter, internalFilter: String @inaccessible): [User] @shareable
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      internalId: String @inaccessible @shareable
+      priority: Priority @shareable
+      internalData: InternalData @inaccessible @shareable
+    }
+
+    type InternalData @inaccessible @shareable {
+      secret: String @shareable
+    }
+
+    interface InternalNode @inaccessible {
+      internalKey: String
+    }
+
+    union InternalResult @inaccessible = User
+
+    scalar InternalID @inaccessible
+
+    enum Priority {
+      LOW
+      HIGH
+      INTERNAL @inaccessible
+    }
+
+    enum InternalStatus @inaccessible {
+      ACTIVE
+      INACTIVE
+    }
+
+    input UserFilter {
+      name: String
+      internalFlag: Boolean @inaccessible
+    }
+
+    input InternalInput @inaccessible {
+      value: String
+    }
+
+supergraph: |
+  type Query {
+    node(id: ID!): Node
+    searchResults: [SearchResult]
+    userById(id: ID!): User
+    users(filter: UserFilter): [User]
+  }
+
+  type User {
+    id: ID!
+    name: String
+    priority: Priority
+  }
+
+  interface Node {
+    id: ID!
+  }
+
+  type NodeImpl implements Node {
+    id: ID!
+  }
+
+  union SearchResult = User
+
+  enum Priority {
+    HIGH
+    LOW
+  }
+
+  input UserFilter {
+    name: String
+  }

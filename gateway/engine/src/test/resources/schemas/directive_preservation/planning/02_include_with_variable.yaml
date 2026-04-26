@@ -1,0 +1,19 @@
+name: "@include directive with variable preserved"
+description: "Tests that @include(if: $showEmail) directive is preserved in the subgraph operation"
+
+query: |
+  query GetUser($showEmail: Boolean!) {
+    user {
+      id
+      name
+      email @include(if: $showEmail)
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: a
+      operation: "query ($showEmail: Boolean!) { user { id name email @include(if: $showEmail) } }"
+      dependsOn: []
+      repeatedExecution: false

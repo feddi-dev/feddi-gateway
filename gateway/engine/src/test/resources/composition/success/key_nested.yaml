@@ -1,0 +1,69 @@
+name: "@key nested - key with nested field selection"
+description: "Entity key that includes a nested field path"
+
+subgraphs:
+  accounts: |
+    type Query {
+      accounts: [Account]
+      accountByOwnerIdAccounts(ownerId: ID! @is(field: "owner.id")): Account @lookup
+      userByIdAccounts(id: ID!): User @lookup
+    }
+
+    type Account @key(fields: "owner { id }") {
+      id: ID!
+      balance: Float
+      owner: User
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  transactions: |
+    type Query {
+      accountByOwnerIdTx(ownerId: ID! @is(field: "owner.id")): Account @lookup
+      userByIdTx(id: ID!): User @lookup
+    }
+
+    type Account @key(fields: "owner { id }") {
+      owner: User
+      transactions: [Transaction]
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+    }
+    
+    type Transaction {
+      id: ID!
+      amount: Float
+      date: String
+    }
+
+supergraph: |
+  type Query {
+    accounts: [Account]
+    accountByOwnerIdAccounts(ownerId: ID!): Account
+    accountByOwnerIdTx(ownerId: ID!): Account
+    userByIdAccounts(id: ID!): User
+    userByIdTx(id: ID!): User
+  }
+  
+  type Account {
+    id: ID!
+    balance: Float
+    owner: User
+    transactions: [Transaction]
+  }
+  
+  type User {
+    id: ID!
+    name: String
+  }
+  
+  type Transaction {
+    id: ID!
+    amount: Float
+    date: String
+  }

@@ -1,0 +1,38 @@
+name: "Simple Entity Call"
+description: "Basic entity resolution with @key and @lookup. User entity split across email and nickname subgraphs with different keys (id vs email)."
+
+subgraphs:
+  email: |
+    type Query {
+      user: User
+      userById(id: ID!): User @lookup
+      userByEmailEmail(email: String!): User @lookup
+    }
+
+    type User @key(fields: "id") @key(fields: "email") {
+      id: ID!
+      email: String!
+    }
+
+  nickname: |
+    type Query {
+      userByEmail(email: String!): User @lookup
+    }
+
+    type User @key(fields: "email") {
+      email: String!
+      nickname: String!
+    }
+
+supergraph: |
+  type Query {
+    user: User
+    userById(id: ID!): User
+    userByEmail(email: String!): User
+    userByEmailEmail(email: String!): User
+  }
+  type User {
+    id: ID!
+    email: String!
+    nickname: String!
+  }

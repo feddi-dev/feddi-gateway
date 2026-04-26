@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+
+##############################################################################
+#
+#  feddi gateway launcher script for Linux/macOS
+#
+#  Finds Java, validates version, and starts the gateway with tuned defaults.
+#
+#  Environment variables:
+#    GATEWAY_JAVA_HOME - Java home for the gateway (takes priority over JAVA_HOME)
+#    JAVA_HOME         - Standard Java home
+#    JAVA_OPTS         - Additional JVM options (appended after defaults)
+#
+##############################################################################
+
+# Resolve the script's real location (follow symlinks)
+PRG="$0"
+while [ -h "$PRG" ]; do
+    ls=$(ls -ld "$PRG")
+    link=$(expr "$ls" : '.*-> \(.*\)$')
+    if expr "$link" : '/.*' > /dev/null; then
+        PRG="$link"
+    else
+        PRG="$(dirname "$PRG")/$link"
+    fi
+done
+
+# Determine the application home directory
+BIN_DIR=$(cd "$(dirname "$PRG")" && pwd)
+APP_HOME=$(cd "$BIN_DIR/.." && pwd)
+
+# --------------------------------------------------------------------------
+# Find Java
+# --------------------------------------------------------------------------
+if [ -n "$GATEWAY_JAVA_HOME" ] && [ -x "$GATEWAY_JAVA_HOME/bin/java" ]; then
+    JAVA="$GATEWAY_JAVA_HOME/bin/java"
+elif [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA="$JAVA_HOME/bin/java"
+elif command -v java > /dev/null 2>&1; then
+    JAVA="$(command -v java)"
+else
+    echo ""
+    echo "ERROR: Java not found." >&2
+    echo ""
+    echo "  Set JAVA_HOME or GATEWAY_JAVA_HOME, or add java to your PATH." >&2
+    echo "  feddi gateway requires Java 25 or later." >&2
+    echo ""
+    exit 1
+fi
+
+# --------------------------------------------------------------------------
+# Validate Java version (require 25+)
+# --------------------------------------------------------------------------
+JAVA_VERSION_OUTPUT=$("$JAVA" -version 2>&1)
+
+# Extract major version — handles both old "1.8.0" and new "25.0.1" formats
+JAVA_MAJOR=$(echo "$JAVA_VERSION_OUTPUT" | head -1 | sed -E 's/.*version "([0-9]+).*/\1/')
+
+if [ -z "$JAVA_MAJOR" ] || [ "$JAVA_MAJOR" -lt 25 ] 2>/dev/null; then
+    echo ""
+    echo "ERROR: feddi gateway requires Java 25 or later." >&2
+    echo ""
+    echo "  Found: $(echo "$JAVA_VERSION_OUTPUT" | head -1)" >&2
+    echo "  Java:  $JAVA" >&2
+    echo ""
+    echo "  Set GATEWAY_JAVA_HOME or JAVA_HOME to a Java 25+ installation." >&2
+    echo ""
+    exit 1
+fi
+
+# --------------------------------------------------------------------------
+# Verify app.jar exists
+# --------------------------------------------------------------------------
+if [ ! -f "$APP_HOME/app.jar" ]; then
+    echo ""
+    echo "ERROR: app.jar not found in $APP_HOME" >&2
+    echo ""
+    exit 1
+fi
+
+# --------------------------------------------------------------------------
+# Default JVM options — tuned for the feddi gateway
+#
+# ZGC:                Sub-millisecond GC pauses for low tail latency
+# Heap:               256MB initial, 1GB max, 768MB soft target
+# SoftMaxHeapSize:    ZGC tries to stay at 768MB but can burst to 1GB
+# StringDeduplication: Reduces memory for repeated GraphQL field/type names
+# AlwaysPreTouch:     Pre-fault heap pages at startup for predictable runtime
+# ExitOnOutOfMemory:  Die cleanly on OOM (important for container restarts)
+# HeapDump:           Write heap dump on OOM for post-mortem analysis
+# OmitStackTrace:     Always include full stack traces (JVM optimization disabled)
+#
+# Override any of these with JAVA_OPTS, e.g.:
+#   JAVA_OPTS="-Xmx2g" ./bin/feddi-gateway
+#
+# --------------------------------------------------------------------------
+DEFAULT_JVM_OPTS="\
+ -XX:+UseZGC \
+ -Xms256m \
+ -Xmx1g \
+ -XX:SoftMaxHeapSize=768m \
+ -XX:+UseStringDeduplication \
+ -XX:+AlwaysPreTouch \
+ -XX:+ExitOnOutOfMemoryError \
+ -XX:+HeapDumpOnOutOfMemoryError \
+ -XX:-OmitStackTraceInFastThrow"
+
+# --------------------------------------------------------------------------
+# Launch the gateway
+# --------------------------------------------------------------------------
+# Using exec replaces this shell with the Java process, so:
+# - Java gets PID 1 in containers (receives signals correctly)
+# - Ctrl+C works as expected
+# - No extra shell process hanging around
+exec "$JAVA" $DEFAULT_JVM_OPTS $JAVA_OPTS \
+    -Dloader.path="$APP_HOME/libs" \
+    -jar "$APP_HOME/app.jar" \
+    "$@"

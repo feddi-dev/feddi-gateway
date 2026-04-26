@@ -1,0 +1,60 @@
+name: "@require with alternatives - fallback to second option"
+description: |
+  Tests @require directive with alternatives syntax when first option is null.
+  When imdbCode is null, the executor falls back to internalCode.
+
+query: |
+  {
+    movieById(id: "m2") {
+      id
+      title
+      recommendations {
+        id
+        title
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ movieById(id: "m2") { id title imdbCode internalCode } }'
+    variables: {}
+    response: {
+      data: {
+        movieById: {
+          id: "m2",
+          title: "The Dark Knight",
+          imdbCode: null,
+          internalCode: "INT002"
+        }
+      }
+    }
+
+  - subgraph: discovery
+    operation: 'query($id:ID!,$code:String){movieById(id:$id){recommendations(code:$code){id title}}}'
+    variables: { id: "m2", code: "INT002" }
+    response: {
+      data: {
+        movieById: {
+          recommendations: [
+            { id: "m1", title: "Inception" },
+            { id: "m4", title: "Batman Begins" }
+          ]
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    movieById: {
+      id: "m2",
+      title: "The Dark Knight",
+      recommendations: [
+        { id: "m1", title: "Inception" },
+        { id: "m4", title: "Batman Begins" }
+      ]
+    }
+  }
+}

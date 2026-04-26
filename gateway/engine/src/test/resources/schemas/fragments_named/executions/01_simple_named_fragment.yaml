@@ -1,0 +1,40 @@
+name: "Simple named fragment execution"
+description: "Tests execution of query with a simple named fragment definition"
+
+query: |
+  query GetProducts {
+    products {
+      ...ProductBasics
+    }
+  }
+  fragment ProductBasics on Product {
+    id
+    name
+    price
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { id name price } }'
+    variables: {}
+    response: {
+      data: {
+        products: [
+          { id: "p1", name: "Laptop", price: 999.99 },
+          { id: "p2", name: "Phone", price: 599.99 },
+          { id: "p3", name: "Tablet", price: 399.99 }
+        ]
+      }
+    }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", price: 999.99 },
+      { id: "p2", name: "Phone", price: 599.99 },
+      { id: "p3", name: "Tablet", price: 399.99 }
+    ]
+  }
+}

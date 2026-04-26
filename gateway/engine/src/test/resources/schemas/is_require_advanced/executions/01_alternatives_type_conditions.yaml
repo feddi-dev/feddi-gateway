@@ -1,0 +1,68 @@
+name: "@is with type conditions via interface query"
+description: |
+  Tests @is directive with type conditions for type-specific lookups.
+  Queries through the interface 'media' with inline fragments.
+
+query: |
+  {
+    media {
+      id
+      title
+      ... on Movie {
+        rating
+        reviewCount
+      }
+      ... on TVShow {
+        rating
+        reviewCount
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{media{id title __typename ...on Movie{imdbCode} ...on TVShow{tvdbCode}}}'
+    variables: {}
+    response: {
+      data: {
+        media: [
+          { id: "m1", title: "Inception", __typename: "Movie", imdbCode: "tt1375666" },
+          { id: "t1", title: "Breaking Bad", __typename: "TVShow", tvdbCode: "81189" }
+        ]
+      }
+    }
+
+  - subgraph: ratings
+    operation: 'query($code:String!){movieByImdb(code:$code){...on Movie{rating reviewCount}}}'
+    variables: { code: "tt1375666" }
+    response: {
+      data: {
+        movieByImdb: {
+          rating: 8.8,
+          reviewCount: 2500000
+        }
+      }
+    }
+
+  - subgraph: ratings
+    operation: 'query($code:String!){tvShowByTvdb(code:$code){...on TVShow{rating reviewCount}}}'
+    variables: { code: "81189" }
+    response: {
+      data: {
+        tvShowByTvdb: {
+          rating: 9.5,
+          reviewCount: 1800000
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    media: [
+      { id: "m1", title: "Inception", rating: 8.8, reviewCount: 2500000 },
+      { id: "t1", title: "Breaking Bad", rating: 9.5, reviewCount: 1800000 }
+    ]
+  }
+}

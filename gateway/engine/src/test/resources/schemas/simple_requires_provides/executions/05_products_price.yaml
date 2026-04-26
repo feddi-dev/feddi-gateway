@@ -1,0 +1,23 @@
+name: "Products query returning prices"
+description: "Fetches product prices from the products subgraph"
+
+query: |
+  {
+    products {
+      price
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { price } }'
+    variables: {}
+    response: { data: { products: [{ price: 11 }, { price: 22 }] } }
+
+expectedResponse: {
+  data: {
+    products: [{ price: 11 }, { price: 22 }]
+  }
+}

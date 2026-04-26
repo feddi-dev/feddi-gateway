@@ -1,0 +1,29 @@
+name: "Create mutation with input"
+description: "Tests mutation with input object containing nested ProfileInput"
+
+query: |
+  mutation CreateUser($input: CreateUserInput!) {
+    createUser(input: $input) {
+      id
+      name
+      email
+      profile {
+        bio
+        avatar
+      }
+    }
+  }
+
+variables: { input: { name: "Bob Jones", email: "bob@example.com", profile: { bio: "Developer", avatar: "https://example.com/bob.jpg" } } }
+
+subgraphCalls:
+  - subgraph: users
+    operation: 'mutation($input: CreateUserInput!) { createUser(input: $input) { id name email profile { bio avatar } } }'
+    variables: { input: { name: "Bob Jones", email: "bob@example.com", profile: { bio: "Developer", avatar: "https://example.com/bob.jpg" } } }
+    response: { data: { createUser: { id: "u-new", name: "Bob Jones", email: "bob@example.com", profile: { bio: "Developer", avatar: "https://example.com/bob.jpg" } } } }
+
+expectedResponse: {
+  data: {
+    createUser: { id: "u-new", name: "Bob Jones", email: "bob@example.com", profile: { bio: "Developer", avatar: "https://example.com/bob.jpg" } }
+  }
+}

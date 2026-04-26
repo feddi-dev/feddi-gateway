@@ -1,0 +1,26 @@
+name: "Same subgraph type narrowing"
+description: "Inline fragment narrows interface to concrete type, all fields in same subgraph"
+
+query: |
+  {
+    contents {
+      id
+      title
+      ... on Article {
+        body
+        wordCount
+      }
+      ... on Video {
+        url
+        duration
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: content
+      operation: "{ contents { id title __typename ... on Article { body wordCount } ... on Video { url duration } } }"
+      dependsOn: []
+      repeatedExecution: false

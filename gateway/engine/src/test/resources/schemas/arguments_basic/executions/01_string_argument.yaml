@@ -1,0 +1,28 @@
+name: "String argument execution"
+description: "Tests passing a string argument to a field"
+
+query: |
+  query GetProducts($category: String) {
+    products(category: $category) {
+      id
+      name
+      category
+    }
+  }
+
+variables: { category: "electronics" }
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: 'query($category: String) { products(category: $category) { id name category } }'
+    variables: { category: "electronics" }
+    response: { data: { products: [{ id: "p1", name: "Laptop", category: "electronics" }, { id: "p2", name: "Phone", category: "electronics" }] } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", category: "electronics" },
+      { id: "p2", name: "Phone", category: "electronics" }
+    ]
+  }
+}

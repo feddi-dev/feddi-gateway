@@ -1,0 +1,19 @@
+name: "REQUIRE_INVALID_FIELD_TYPE - @require field argument is not a string"
+description: "Spec: @require field argument must be a string"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      user: User
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      profile(name: String! @require(field: true)): Profile
+    }
+
+    type Profile {
+      bio: String
+    }
+
+error: "REQUIRE_INVALID_FIELD_TYPE"

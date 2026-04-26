@@ -1,0 +1,28 @@
+name: "ROOT_SUBSCRIPTION_USED - root subscription type not named Subscription"
+description: "Spec: The root subscription type must be named 'Subscription'"
+
+subgraphs:
+  products: |
+    schema {
+      query: Query
+      subscription: RootSubscription
+    }
+
+    type Query {
+      products: [Product]
+    }
+
+    type RootSubscription {
+      productCreated: Product
+    }
+
+    type Subscription {
+      deprecatedField: String
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "ROOT_SUBSCRIPTION_USED"

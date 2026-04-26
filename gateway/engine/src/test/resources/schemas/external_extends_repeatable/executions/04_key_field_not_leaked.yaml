@@ -1,0 +1,28 @@
+name: "Key field not leaked when not requested"
+description: "Verifies that key fields used for entity resolution are not included in the response when not requested by the user"
+
+query: |
+  {
+    randomUser {
+      name
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ randomUser { id } }'
+    variables: {}
+    response: { data: { randomUser: { id: "u1" } } }
+
+  - subgraph: b
+    operation: 'query ($id: ID!) { userById(id: $id) { name } }'
+    variables: { id: "u1" }
+    response: { data: { userById: { name: "u1-name" } } }
+
+expectedResponse: {
+  data: {
+    randomUser: { name: "u1-name" }
+  }
+}

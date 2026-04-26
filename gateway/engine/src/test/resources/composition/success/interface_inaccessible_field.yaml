@@ -1,0 +1,57 @@
+name: "Interface - @inaccessible field should be excluded"
+description: "Interface fields marked @inaccessible should be excluded from the supergraph"
+
+subgraphs:
+  core: |
+    type Query {
+      nodes: [Node]
+      userById(id: ID!): User @lookup
+    }
+
+    interface Node {
+      id: ID!
+      secret: String @inaccessible
+    }
+
+    type User implements Node @key(fields: "id") {
+      id: ID!
+      secret: String @inaccessible
+      name: String
+    }
+
+  products: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    interface Node {
+      id: ID!
+      secret: String @inaccessible
+    }
+
+    type Product implements Node @key(fields: "id") {
+      id: ID!
+      secret: String @inaccessible
+      title: String
+    }
+
+supergraph: |
+  type Query {
+    nodes: [Node]
+    userById(id: ID!): User
+    productById(id: ID!): Product
+  }
+
+  interface Node {
+    id: ID!
+  }
+
+  type User implements Node {
+    id: ID!
+    name: String
+  }
+
+  type Product implements Node {
+    id: ID!
+    title: String
+  }

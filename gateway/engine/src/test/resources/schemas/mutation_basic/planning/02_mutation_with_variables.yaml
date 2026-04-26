@@ -1,0 +1,19 @@
+name: "Mutation with variables"
+description: "Mutation using variable arguments"
+
+query: |
+  mutation CreateProduct($name: String!, $price: Int!) {
+    createProduct(name: $name, price: $price) {
+      id
+      name
+      price
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "mutation ($name: String!, $price: Int!) { createProduct(name: $name, price: $price) { id name price } }"
+      dependsOn: []
+      repeatedExecution: false

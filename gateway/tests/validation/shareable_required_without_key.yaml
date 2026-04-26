@@ -1,0 +1,36 @@
+name: "Field shared across subgraphs requires @shareable without @key"
+description: |
+  When a field exists on the same type in multiple subgraphs, it must be either:
+  1. Part of a @key directive (which makes it implicitly shareable)
+  2. Explicitly marked with @shareable
+
+  This test verifies that composition fails when neither condition is met.
+  Subgraph A has a @lookup field but no @key, so the 'id' field is not
+  automatically shareable.
+
+category: validation
+
+source_schemas:
+  - name: a
+    sdl: |
+      type Query {
+        productById(id: ID!): Product @lookup
+      }
+      type Product {
+        id: ID!
+        price: Float!
+      }
+
+  - name: b
+    sdl: |
+      type Product {
+        id: ID!
+        name: String!
+      }
+
+validation:
+  phase: pre_merge
+  expect: invalid
+  diagnostics:
+    - code: INVALID_FIELD_SHARING
+      severity: error

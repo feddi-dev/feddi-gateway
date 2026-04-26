@@ -1,0 +1,16 @@
+name: "REQUIRE_INVALID_FIELDS - @require references field from same schema"
+description: "Spec: @require field references must come from OTHER schemas, not the defining schema"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      books: [Book]
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      size: Int
+      pages(pageSize: Int @require(field: "size")): Int
+    }
+
+error: "REQUIRE_INVALID_FIELDS"

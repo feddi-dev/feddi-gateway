@@ -1,0 +1,49 @@
+name: "@require on nested entity field"
+description: |
+  Tests planning for @require on a field inside a nested entity.
+  The nameInB field requires the name field, which must come from
+  a DIFFERENT subgraph (a), not the local subgraph (b).
+
+  Expected flow: b -> a -> b
+  1. Query subgraph b for B.a with id (key for lookup to a)
+  2. Lookup to subgraph a to get name and composite key fields
+  3. Lookup back to subgraph b to call nameInB(name)
+
+query: |
+  {
+    b {
+      a {
+        nameInB
+      }
+    }
+  }
+
+# Note: Step IDs are assigned in order they're created during planning.
+# Step 2 depends on Step 3 because it needs the @require fields from subgraph a.
+# Requirements use dot-notation paths for nested fields (e.g., "compositeId.two").
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: b
+      operation: "{ b { a { id } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: b
+      operation: "query ($id: ID!, $compositeIdTwo: ID!, $compositeIdThree: ID!, $name: String!) { aByIdAndCompositeId(id: $id, compositeIdTwo: $compositeIdTwo, compositeIdThree: $compositeIdThree) { nameInB(name: $name) } }"
+      dependsOn: [3]
+      requirements:
+        id: "id"
+        compositeIdTwo: "compositeId.two"
+        compositeIdThree: "compositeId.three"
+        name: "name"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: a
+      operation: "query ($id: ID!) { aById(id: $id) { id compositeId { two three } name } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

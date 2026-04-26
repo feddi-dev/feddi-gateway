@@ -1,0 +1,18 @@
+name: "Required list variable"
+description: "Tests planning with required non-null list [ID!]!"
+
+query: |
+  query GetProducts($ids: [ID!]!) {
+    productsByIds(ids: $ids) {
+      id
+      name
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "query($ids: [ID!]!) { productsByIds(ids: $ids) { id name } }"
+      dependsOn: []
+      repeatedExecution: false

@@ -1,0 +1,47 @@
+name: "Internal Type"
+description: |
+  Tests @internal on entire types. Internal types do not appear in the
+  supergraph and can contain lookup fields for entity resolution.
+
+  The InternalLookups type is @internal and contains lookup fields that
+  can be used for entity resolution but are hidden from the public API.
+
+subgraphs:
+  a: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+      lookups: InternalLookups! @internal
+    }
+
+    type InternalLookups @internal {
+      productByBarcode(barcode: String! @is(field: "id")): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+    }
+
+  b: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      price: Int
+    }
+
+supergraph: |
+  type Query {
+    productById(id: ID!): Product
+    products: [Product]
+  }
+
+  type Product {
+    id: ID!
+    name: String
+    price: Int
+  }

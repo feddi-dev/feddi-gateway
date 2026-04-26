@@ -1,0 +1,51 @@
+name: "List Variable Handling"
+description: |
+  Tests list variable types [ID!]!, [String], etc.
+  Covers required and optional list types with various element types.
+
+subgraphs:
+  products: |
+    type Query {
+      productsByIds(ids: [ID!]!): [Product]
+      productsByTags(tags: [String]): [Product]
+      productById(id: ID!): Product @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      tags: [String]
+    }
+
+  inventory: |
+    type Query {
+      stockLevels(productIds: [ID!]!, warehouseIds: [ID]): [StockLevel]
+      productById(id: ID!): Product @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      inStock: Boolean
+    }
+    type StockLevel {
+      productId: ID!
+      warehouseId: ID!
+      quantity: Int
+    }
+
+supergraph: |
+  type Query {
+    productsByIds(ids: [ID!]!): [Product]
+    productsByTags(tags: [String]): [Product]
+    productById(id: ID!): Product
+    stockLevels(productIds: [ID!]!, warehouseIds: [ID]): [StockLevel]
+  }
+  type Product {
+    id: ID!
+    name: String
+    tags: [String]
+    inStock: Boolean
+  }
+  type StockLevel {
+    productId: ID!
+    warehouseId: ID!
+    quantity: Int
+  }

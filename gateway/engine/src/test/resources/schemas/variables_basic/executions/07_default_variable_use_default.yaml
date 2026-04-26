@@ -1,0 +1,24 @@
+name: "Default variable use default"
+description: "Tests using default value when variable is omitted"
+
+query: |
+  query GetOrders($userId: ID!, $limit: Int = 10) {
+    orders(userId: $userId, limit: $limit) {
+      id
+      total
+    }
+  }
+
+variables: { userId: "user-1" }
+
+subgraphCalls:
+  - subgraph: orders
+    operation: 'query($userId: ID!, $limit: Int = 10) { orders(userId: $userId, limit: $limit) { id total } }'
+    variables: { userId: "user-1" }
+    response: { data: { orders: [{ id: "o1", total: 100.0 }, { id: "o2", total: 50.0 }] } }
+
+expectedResponse: {
+  data: {
+    orders: [{ id: "o1", total: 100.0 }, { id: "o2", total: 50.0 }]
+  }
+}

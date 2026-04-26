@@ -1,0 +1,25 @@
+name: "FIELD_ARGUMENT_TYPES_NOT_MERGEABLE - same argument with different types"
+description: "Spec: Field arguments with the same name must have mergeable types"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      users(limit: Int): [User]
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  schemaB: |
+    type Query {
+      users(limit: String): [User]
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      email: String
+    }
+
+error: "FIELD_ARGUMENT_TYPES_NOT_MERGEABLE"

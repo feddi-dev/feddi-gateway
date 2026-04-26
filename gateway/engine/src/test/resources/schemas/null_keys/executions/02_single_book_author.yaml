@@ -1,0 +1,39 @@
+name: "Single book with author"
+description: "Basic test without null keys - verify the multi-hop key translation works"
+
+query: |
+  {
+    bookContainers {
+      book {
+        author {
+          name
+        }
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ bookContainers { book { upc } } }'
+    variables: {}
+    response: { data: { bookContainers: [{ book: { upc: "upc1" } }] } }
+
+  - subgraph: b
+    operation: 'query ($upc: ID!) { bookByUpc(upc: $upc) { id } }'
+    variables: { upc: "upc1" }
+    response: { data: { bookByUpc: { id: "id1" } } }
+
+  - subgraph: c
+    operation: 'query ($id: ID!) { bookById(id: $id) { author { name } } }'
+    variables: { id: "id1" }
+    response: { data: { bookById: { author: { name: "Author One" } } } }
+
+expectedResponse: {
+  data: {
+    bookContainers: [
+      { book: { author: { name: "Author One" } } }
+    ]
+  }
+}

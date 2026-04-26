@@ -1,0 +1,76 @@
+name: "@require with infix type condition"
+description: |
+  Tests @require directive with infix type condition syntax: relatedMedia<Movie>.imdbCode
+  The TVShow.relatedMovieRecommendations field requires imdbCode from relatedMedia,
+  but only when relatedMedia is a Movie (not TVShow or Podcast).
+
+  The planner should generate a query with an inline fragment:
+  relatedMedia { __typename ... on Movie { imdbCode } }
+
+query: |
+  {
+    tvShowById(id: "t1") {
+      id
+      title
+      relatedMedia {
+        id
+        title
+      }
+      relatedMovieRecommendations {
+        id
+        title
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ tvShowById(id: "t1") { id title relatedMedia { id title __typename ... on Movie { imdbCode } } } }'
+    variables: {}
+    response: {
+      data: {
+        tvShowById: {
+          id: "t1",
+          title: "Breaking Bad",
+          relatedMedia: {
+            id: "m1",
+            title: "El Camino",
+            __typename: "Movie",
+            imdbCode: "tt9243946"
+          }
+        }
+      }
+    }
+
+  - subgraph: recommendations
+    operation: 'query($id:ID!,$code:String){tvShowById(id:$id){relatedMovieRecommendations(code:$code){id title}}}'
+    variables: { id: "t1", code: "tt9243946" }
+    response: {
+      data: {
+        tvShowById: {
+          relatedMovieRecommendations: [
+            { id: "m2", title: "No Country for Old Men" },
+            { id: "m3", title: "Sicario" }
+          ]
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    tvShowById: {
+      id: "t1",
+      title: "Breaking Bad",
+      relatedMedia: {
+        id: "m1",
+        title: "El Camino"
+      },
+      relatedMovieRecommendations: [
+        { id: "m2", title: "No Country for Old Men" },
+        { id: "m3", title: "Sicario" }
+      ]
+    }
+  }
+}

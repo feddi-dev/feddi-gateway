@@ -1,0 +1,24 @@
+name: "Use schema default"
+description: "Tests execution when relying on schema-defined default values"
+
+query: |
+  query Search($q: String!) {
+    search(query: $q) {
+      id
+      title
+    }
+  }
+
+variables: { q: "graphql" }
+
+subgraphCalls:
+  - subgraph: search
+    operation: 'query($q: String!) { search(query: $q) { id title } }'
+    variables: { q: "graphql" }
+    response: { data: { search: [{ id: "s1", title: "GraphQL Basics" }, { id: "s2", title: "Advanced GraphQL" }] } }
+
+expectedResponse: {
+  data: {
+    search: [{ id: "s1", title: "GraphQL Basics" }, { id: "s2", title: "Advanced GraphQL" }]
+  }
+}

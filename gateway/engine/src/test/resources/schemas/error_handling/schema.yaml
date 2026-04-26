@@ -1,0 +1,53 @@
+name: "Error Handling"
+description: |
+  Schema for testing error handling scenarios:
+  - GraphQL errors from subgraphs propagate to the final response
+  - Subgraph call failures result in appropriate errors
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      price: Int
+    }
+
+  reviews: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      reviews: [Review]
+    }
+
+    type Review {
+      id: ID!
+      rating: Int
+      comment: String
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+  }
+
+  type Product {
+    id: ID!
+    name: String
+    price: Int
+    reviews: [Review]
+  }
+
+  type Review {
+    id: ID!
+    rating: Int
+    comment: String
+  }

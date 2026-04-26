@@ -1,0 +1,27 @@
+name: "Mutation with variables execution"
+description: "Execute mutation with variable arguments"
+
+query: |
+  mutation CreateProduct($name: String!, $price: Int!) {
+    createProduct(name: $name, price: $price) {
+      id
+      name
+      price
+    }
+  }
+
+variables:
+  name: "Monitor"
+  price: 399
+
+subgraphCalls:
+  - subgraph: products
+    operation: 'mutation ($name: String!, $price: Int!) { createProduct(name: $name, price: $price) { id name price } }'
+    variables: { name: "Monitor", price: 399 }
+    response: { data: { createProduct: { id: "p30", name: "Monitor", price: 399 } } }
+
+expectedResponse: {
+  data: {
+    createProduct: { id: "p30", name: "Monitor", price: 399 }
+  }
+}

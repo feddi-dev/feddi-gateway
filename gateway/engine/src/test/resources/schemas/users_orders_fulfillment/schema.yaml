@@ -1,0 +1,81 @@
+name: "Users, Orders, and Fulfillment"
+description: "Three subgraphs in chain for multi-hop scenarios"
+
+subgraphs:
+  users: |
+    type Query {
+      users(active: Boolean, limit: Int): [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      email: String
+    }
+
+  orders: |
+    type Query {
+      userById(id: ID!): User @lookup
+      ordersByStatus(status: OrderStatus): [Order]
+      orderByIdOrders(orderId: ID!): Order @lookup
+    }
+
+    enum OrderStatus {
+      PENDING
+      SHIPPED
+      DELIVERED
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      orders(status: OrderStatus, limit: Int): [Order]
+    }
+
+    type Order @key(fields: "orderId") {
+      orderId: ID!
+      total: Float
+      currency: String
+    }
+
+  fulfillment: |
+    type Query {
+      orderById(oid: ID! @is(field: "orderId")): Order @lookup
+    }
+
+    type Order @key(fields: "orderId") {
+      orderId: ID!
+      trackingNumber: String
+      status: String
+      carrier: String
+      estimatedDelivery: String
+    }
+
+supergraph: |
+  type Query {
+    users(active: Boolean, limit: Int): [User]
+    userById(id: ID!): User
+    ordersByStatus(status: OrderStatus): [Order]
+    orderById(oid: ID!): Order
+    orderByIdOrders(orderId: ID!): Order
+  }
+  type User {
+    id: ID!
+    name: String
+    email: String
+    orders(status: OrderStatus, limit: Int): [Order]
+  }
+  type Order {
+    orderId: ID!
+    total: Float
+    currency: String
+    trackingNumber: String
+    status: String
+    carrier: String
+    estimatedDelivery: String
+  }
+  enum OrderStatus {
+    PENDING
+    SHIPPED
+    DELIVERED
+  }

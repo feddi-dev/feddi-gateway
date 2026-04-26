@@ -1,0 +1,31 @@
+name: "LOOKUP_UNION_KEY_FIELD_MISSING - @is field missing on union member"
+description: |
+  When a @lookup field returns a union type, all @is referenced fields must exist
+  on ALL union member types. This ensures the key values can be extracted regardless
+  of which union member is returned.
+
+subgraphs:
+  products: |
+    type Query {
+      product(id: ID!, categoryId: Int): Product @lookup
+    }
+
+    union Product = Electronics | Clothing
+
+    type Electronics @key(fields: "id") {
+      id: ID!
+      categoryId: Int
+      name: String
+      brand: String
+      price: Float
+    }
+
+    # Clothing does not have categoryId field
+    type Clothing @key(fields: "id") {
+      id: ID!
+      name: String
+      size: String
+      price: Float
+    }
+
+error: "LOOKUP_UNION_KEY_FIELD_MISSING"

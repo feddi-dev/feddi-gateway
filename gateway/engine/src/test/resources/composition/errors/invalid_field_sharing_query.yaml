@@ -1,0 +1,26 @@
+name: "INVALID_FIELD_SHARING - Query field defined in multiple subgraphs"
+description: "Spec 3.2.7.1: Query fields defined in multiple subgraphs must be marked as @shareable"
+
+subgraphs:
+  users: |
+    type Query {
+      me: User
+    }
+    
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  accounts: |
+    type Query {
+      me: User
+      userByIdAccounts(id: ID!): User @lookup
+    }
+    
+    type User @key(fields: "id") {
+      id: ID!
+      email: String
+    }
+
+error: "INVALID_FIELD_SHARING"

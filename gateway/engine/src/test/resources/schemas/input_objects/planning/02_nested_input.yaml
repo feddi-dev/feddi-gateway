@@ -1,0 +1,19 @@
+name: "Nested input object"
+description: "Tests planning with nested input objects"
+
+query: |
+  query GetOrders($filter: OrderFilter) {
+    orders(filter: $filter) {
+      id
+      total
+      status
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: orders
+      operation: "query($filter: OrderFilter) { orders(filter: $filter) { id total status } }"
+      dependsOn: []
+      repeatedExecution: false

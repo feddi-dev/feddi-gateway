@@ -1,0 +1,76 @@
+name: "Complex multi-dependency query"
+description: "Query spanning 5 subgraphs: products -> [reviews, inventory, pricing] -> users (nested lookup)"
+
+query: |
+  {
+    products(category: "electronics", limit: 5) {
+      id
+      name
+      rating
+      reviews(first: 3) {
+        id
+        text
+        stars
+        author {
+          name
+          avatar
+        }
+      }
+      inStock
+      quantity
+      warehouse {
+        name
+        location
+      }
+      price
+      discount
+      finalPrice
+    }
+  }
+
+expectedPlan:
+  steps:
+    # Step 1: Get products from products subgraph
+    - id: 1
+      subgraph: products
+      operation: "{ products(category: \"electronics\", limit: 5) { id name } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    # Steps 2, 4, 5 can run in parallel - all depend only on step 1
+    - parallel:
+        # Step 2: Get reviews and rating from reviews subgraph (depends on step 1)
+        - id: 2
+          subgraph: reviews
+          operation: "query($id: ID!) { productById(id: $id) { rating reviews(first: 3) { id text stars } } }"
+          dependsOn: [1]
+          requirements:
+            id: "id"
+          repeatedExecution: true
+
+        # Step 4: Get inventory info from inventory subgraph (depends on step 1)
+        - id: 4
+          subgraph: inventory
+          operation: "query($id: ID!) { productById(id: $id) { inStock quantity warehouse { name location } } }"
+          dependsOn: [1]
+          requirements:
+            id: "id"
+          repeatedExecution: true
+
+        # Step 5: Get pricing info from pricing subgraph (depends on step 1)
+        - id: 5
+          subgraph: pricing
+          operation: "query($id: ID!) { productById(id: $id) { price discount finalPrice } }"
+          dependsOn: [1]
+          requirements:
+            id: "id"
+          repeatedExecution: true
+
+    # Step 3: Get author details from users subgraph (depends on step 2 - uses review.id)
+    - id: 3
+      subgraph: users
+      operation: "query($id: ID!) { reviewById(id: $id) { author { name avatar } } }"
+      dependsOn: [2]
+      requirements:
+        id: "id"
+      repeatedExecution: true

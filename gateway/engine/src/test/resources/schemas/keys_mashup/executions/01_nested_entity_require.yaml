@@ -1,0 +1,65 @@
+name: "@require on nested entity field"
+description: |
+  Tests that @require works correctly when the field with @require is on a
+  nested entity (A inside B.a), not the root entity. The nameInB field on A
+  requires the name field to be fetched first and passed as an argument.
+
+  The @require field (name) must come from a DIFFERENT subgraph than where
+  nameInB is defined. So the correct flow is:
+  1. Query subgraph b for B.a with id (key for lookup)
+  2. Lookup to subgraph a via aById to get name and composite key fields
+  3. Lookup back to subgraph b via aByIdAndCompositeId to call nameInB(name)
+
+query: |
+  {
+    b {
+      a {
+        nameInB
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  # Step 1: Get B with nested A entities with id (key field for lookup)
+  - subgraph: b
+    operation: '{ b { a { id } } }'
+    variables: {}
+    response: { data: { b: { a: [
+      { id: "a1" },
+      { id: "a2" }
+    ] } } }
+
+  # Step 2: Lookup to subgraph a to get @require field (name) and composite key fields
+  - subgraph: a
+    operation: 'query ($id: ID!) { aById(id: $id) { id compositeId { two three } name } }'
+    variables: { id: "a1" }
+    response: { data: { aById: { id: "a1", compositeId: { two: "two1", three: "three1" }, name: "Alice" } } }
+
+  - subgraph: a
+    operation: 'query ($id: ID!) { aById(id: $id) { id compositeId { two three } name } }'
+    variables: { id: "a2" }
+    response: { data: { aById: { id: "a2", compositeId: { two: "two2", three: "three2" }, name: "Bob" } } }
+
+  # Step 3: Lookup back to subgraph b to call nameInB with @require argument
+  - subgraph: b
+    operation: 'query ($id: ID!, $compositeIdTwo: ID!, $compositeIdThree: ID!, $name: String!) { aByIdAndCompositeId(id: $id, compositeIdTwo: $compositeIdTwo, compositeIdThree: $compositeIdThree) { nameInB(name: $name) } }'
+    variables: { id: "a1", compositeIdTwo: "two1", compositeIdThree: "three1", name: "Alice" }
+    response: { data: { aByIdAndCompositeId: { nameInB: "Name in B: Alice" } } }
+
+  - subgraph: b
+    operation: 'query ($id: ID!, $compositeIdTwo: ID!, $compositeIdThree: ID!, $name: String!) { aByIdAndCompositeId(id: $id, compositeIdTwo: $compositeIdTwo, compositeIdThree: $compositeIdThree) { nameInB(name: $name) } }'
+    variables: { id: "a2", compositeIdTwo: "two2", compositeIdThree: "three2", name: "Bob" }
+    response: { data: { aByIdAndCompositeId: { nameInB: "Name in B: Bob" } } }
+
+expectedResponse: {
+  data: {
+    b: {
+      a: [
+        { nameInB: "Name in B: Alice" },
+        { nameInB: "Name in B: Bob" }
+      ]
+    }
+  }
+}

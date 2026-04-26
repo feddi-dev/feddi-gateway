@@ -1,0 +1,30 @@
+name: "Mixed introspection and data query"
+description: "Tests that introspection and data fields are planned to different subgraphs"
+
+query: |
+  {
+    __schema {
+      queryType {
+        name
+      }
+    }
+    products {
+      id
+      name
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: $introspection
+      operation: "{ __schema { queryType { name } } }"
+      dependsOn: []
+      parallelWith: [2]
+      repeatedExecution: false
+    - id: 2
+      subgraph: products
+      operation: "{ products { id name } }"
+      dependsOn: []
+      parallelWith: [1]
+      repeatedExecution: false

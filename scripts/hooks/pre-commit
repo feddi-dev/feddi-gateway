@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+# Pre-commit hook to run checkstyle on both gateway and e2e-tests projects.
+# This ensures code style violations are caught before commit.
+#
+# To install this hook, run from the repository root:
+#   git config core.hooksPath scripts/hooks
+#
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+echo "Running checkstyle on gateway..."
+cd "$REPO_ROOT/gateway"
+./gradlew checkstyleMain checkstyleTest --quiet
+
+echo "Running checkstyle on e2e-tests..."
+cd "$REPO_ROOT/e2e-tests"
+./gradlew checkstyleMain checkstyleTest --quiet
+
+echo "Checkstyle passed!"

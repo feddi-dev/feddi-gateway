@@ -1,0 +1,15 @@
+name: "EXTERNAL_OVERRIDE_COLLISION - @external and @override on same field"
+description: "Spec: A field marked with @external cannot also have @override"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @external @override(from: "other")
+    }
+
+error: "EXTERNAL_OVERRIDE_COLLISION"

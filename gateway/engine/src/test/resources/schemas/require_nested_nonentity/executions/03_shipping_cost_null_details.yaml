@@ -1,0 +1,47 @@
+name: "Shipping cost with null details"
+description: |
+  Tests that when the nested details object is null,
+  the @require extraction passes null to the shipping subgraph.
+
+query: |
+  {
+    product(id: "3") {
+      id
+      shippingCost
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ product(id: "3") { id details { weight } } }'
+    variables: {}
+    response: {
+      data: {
+        product: {
+          id: "3",
+          details: null
+        }
+      }
+    }
+
+  - subgraph: shipping
+    operation: 'query ($id: ID!, $weight: Float) { productById(id: $id) { shippingCost(weight: $weight) } }'
+    variables: { id: "3", weight: null }
+    response: {
+      data: {
+        productById: {
+          shippingCost: null
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    product: {
+      id: "3",
+      shippingCost: null
+    }
+  }
+}

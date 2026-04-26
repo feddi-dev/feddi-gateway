@@ -1,0 +1,48 @@
+name: "@inaccessible on type - hide internal type"
+description: "Using @inaccessible on a type to hide it from the supergraph"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      price: Float
+      metrics: InternalMetrics @inaccessible
+    }
+
+    type InternalMetrics @inaccessible {
+      costPrice: Float
+      margin: Float
+      supplierId: String
+    }
+
+  inventory: |
+    type Query {
+      productByIdInventory(id: ID!): Product @lookup
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      inStock: Boolean
+      quantity: Int
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    productByIdInventory(id: ID!): Product
+  }
+  
+  type Product {
+    id: ID!
+    name: String
+    price: Float
+    inStock: Boolean
+    quantity: Int
+  }

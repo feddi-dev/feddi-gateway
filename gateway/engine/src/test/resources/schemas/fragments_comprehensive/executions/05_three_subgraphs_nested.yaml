@@ -1,0 +1,66 @@
+name: "Three subgraphs inline fragments execution"
+description: "Tests inline fragments with fields from content, analytics, and recommendations subgraphs (scalar fields only)"
+
+query: |
+  {
+    contents {
+      id
+      title
+      ... on Article {
+        body
+        views
+        shareCount
+      }
+      ... on Video {
+        url
+        views
+        watchTime
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { id title __typename ... on Article { body } ... on Video { url } } }'
+    variables: {}
+    response: {
+      data: {
+        contents: [
+          { __typename: "Article", id: "a1", title: "Main Article", body: "Main content" },
+          { __typename: "Video", id: "v1", title: "Video Content", url: "https://video.example/v1" }
+        ]
+      }
+    }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views shareCount } ... on Video { views watchTime } } }'
+    variables: { id: "a1" }
+    response: { data: { contentById: { __typename: "Article", views: 5000, shareCount: 120 } } }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views shareCount } ... on Video { views watchTime } } }'
+    variables: { id: "v1" }
+    response: { data: { contentById: { __typename: "Video", views: 8000, watchTime: 3600 } } }
+
+expectedResponse: {
+  data: {
+    contents: [
+      {
+        id: "a1",
+        title: "Main Article",
+        body: "Main content",
+        views: 5000,
+        shareCount: 120
+      },
+      {
+        id: "v1",
+        title: "Video Content",
+        url: "https://video.example/v1",
+        views: 8000,
+        watchTime: 3600
+      }
+    ]
+  }
+}

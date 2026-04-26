@@ -1,0 +1,49 @@
+name: "Full depth - orgs to tasks"
+description: "Deeply nested query spanning all subgraphs with priority filter"
+
+query: |
+  query($industry: String) {
+    organizations(industry: $industry) {
+      name
+      description
+      teams(active: true) {
+        teamName
+        projects(status: ACTIVE) {
+          projectName
+          budget
+          tasks(priority: HIGH) {
+            title
+            status
+            assignee {
+              username
+              email
+            }
+          }
+        }
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: orgs
+      operation: "query($industry: String) { organizations(industry: $industry) { name description teams(active: true) { teamName teamId } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: projects
+      operation: "query($teamId: ID!) { teamById(teamId: $teamId) { projects(status: ACTIVE) { projectName budget projectId } } }"
+      dependsOn: [1]
+      requirements:
+        teamId: "teamId"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: tasks
+      operation: "query($pid: ID!) { projectById(pid: $pid) { tasks(priority: HIGH) { title status assignee { username email } } } }"
+      dependsOn: [2]
+      requirements:
+        pid: "projectId"
+      repeatedExecution: true

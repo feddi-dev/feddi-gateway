@@ -1,0 +1,68 @@
+name: "Multiple fragments across subgraphs"
+description: "Tests execution with separate fragments for each subgraph's fields"
+
+query: |
+  query GetProductAllData {
+    products {
+      ...ProductBasics
+      ...ProductInventory
+      ...ProductReviews
+    }
+  }
+  fragment ProductBasics on Product {
+    id
+    name
+    price
+  }
+  fragment ProductInventory on Product {
+    stock
+    warehouse
+  }
+  fragment ProductReviews on Product {
+    rating
+    reviewCount
+  }
+
+variables: {}
+
+subgraphCalls:
+  - id: root
+    subgraph: products
+    operation: '{ products { id name price } }'
+    variables: {}
+    response: {
+      data: {
+        products: [
+          { id: "p1", name: "Laptop", price: 999.99 }
+        ]
+      }
+    }
+  # Repeated execution - one call per product per subgraph
+  - id: inventory
+    subgraph: inventory
+    operation: 'query ($id: ID!) { productById(id: $id) { stock warehouse } }'
+    variables: { id: "p1" }
+    response: {
+      data: {
+        productById: { stock: 50, warehouse: "NYC" }
+      }
+    }
+  - id: reviews
+    subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { rating reviewCount } }'
+    variables: { id: "p1" }
+    response: {
+      data: {
+        productById: { rating: 4.5, reviewCount: 128 }
+      }
+    }
+
+finishOrder: "root,inventory,reviews"
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", price: 999.99, stock: 50, warehouse: "NYC", rating: 4.5, reviewCount: 128 }
+    ]
+  }
+}

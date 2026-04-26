@@ -1,0 +1,41 @@
+name: "Final price with source fields included"
+description: |
+  Same as 01 but also selects the source fields (basePrice and discountPercent)
+  to verify they appear in the response.
+
+query: |
+  {
+    product {
+      basePrice
+      discountPercent
+      finalPrice
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{ product { id discountPercent } }'
+    variables: {}
+    response: { data: { product: { id: "p1", discountPercent: 15 } } }
+
+  - subgraph: a
+    operation: 'query($id: ID!) { productByIdA(id: $id) { basePrice } }'
+    variables: { id: "p1" }
+    response: { data: { productByIdA: { basePrice: 200.0 } } }
+
+  - subgraph: c
+    operation: 'query($id: ID!, $bp: Float, $dp: Int) { productByIdC(id: $id) { finalPrice(bp: $bp, dp: $dp) } }'
+    variables: { id: "p1", bp: 200.0, dp: 15 }
+    response: { data: { productByIdC: { finalPrice: 170.0 } } }
+
+expectedResponse: {
+  data: {
+    product: {
+      basePrice: 200.0,
+      discountPercent: 15,
+      finalPrice: 170.0
+    }
+  }
+}

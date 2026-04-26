@@ -1,0 +1,84 @@
+name: "Union Types"
+description: |
+  Tests union type querying and resolution.
+  Covers union queries within same subgraph and across subgraph boundaries.
+
+subgraphs:
+  search: |
+    type Query {
+      search(query: String!): [SearchResult]
+      productByIdSearch(id: ID!): Product @lookup
+      articleByIdSearch(id: ID!): Article @lookup
+      userByIdSearch(id: ID!): User @lookup
+    }
+    union SearchResult = Product | Article | User
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      price: Float
+    }
+    type Article @key(fields: "id") {
+      id: ID!
+      title: String
+      summary: String
+    }
+    type User @key(fields: "id") {
+      id: ID!
+      username: String
+      displayName: String
+    }
+
+  details: |
+    type Query {
+      productById(id: ID!): Product @lookup
+      articleById(id: ID!): Article @lookup
+      userById(id: ID!): User @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      description: String
+      category: String
+    }
+    type Article @key(fields: "id") {
+      id: ID!
+      body: String
+      author: String
+    }
+    type User @key(fields: "id") {
+      id: ID!
+      email: String
+      bio: String
+    }
+
+supergraph: |
+  type Query {
+    search(query: String!): [SearchResult]
+    productById(id: ID!): Product
+    productByIdSearch(id: ID!): Product
+    articleById(id: ID!): Article
+    articleByIdSearch(id: ID!): Article
+    userById(id: ID!): User
+    userByIdSearch(id: ID!): User
+  }
+  union SearchResult = Product | Article | User
+  type Product {
+    id: ID!
+    name: String
+    price: Float
+    description: String
+    category: String
+  }
+  type Article {
+    id: ID!
+    title: String
+    summary: String
+    body: String
+    author: String
+  }
+  type User {
+    id: ID!
+    username: String
+    displayName: String
+    email: String
+    bio: String
+  }

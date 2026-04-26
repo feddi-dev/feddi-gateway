@@ -1,0 +1,29 @@
+name: "Orders with status field"
+description: |
+  Fetches orders with their status. The status field works normally,
+  but ACTIVE value is not exposed in the supergraph schema.
+
+query: |
+  {
+    orders {
+      id
+      status
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ orders { id status } }'
+    variables: {}
+    response: { data: { orders: [{ id: "o1", status: "INACTIVE" }, { id: "o2", status: "INACTIVE" }] } }
+
+expectedResponse: {
+  data: {
+    orders: [
+      { id: "o1", status: "INACTIVE" },
+      { id: "o2", status: "INACTIVE" }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+name: "Simple mutation execution"
+description: "Execute createProduct mutation and verify response"
+
+query: |
+  mutation {
+    createProduct(name: "Desk", price: 599) {
+      id
+      name
+      price
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: 'mutation { createProduct(name: "Desk", price: 599) { id name price } }'
+    variables: {}
+    response: { data: { createProduct: { id: "p10", name: "Desk", price: 599 } } }
+
+expectedResponse: {
+  data: {
+    createProduct: { id: "p10", name: "Desk", price: 599 }
+  }
+}

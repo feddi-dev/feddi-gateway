@@ -1,0 +1,77 @@
+name: "Interface - merge fields from different subgraphs"
+description: "Spec 3.3.2: Interface fields from all source schemas are combined"
+
+subgraphs:
+  core: |
+    type Query {
+      nodes: [Node]
+      userById(id: ID!): User @lookup
+      postById(id: ID!): Post @lookup
+    }
+
+    interface Node {
+      id: ID!
+      createdAt: String
+    }
+
+    type User implements Node @key(fields: "id") {
+      id: ID!
+      createdAt: String
+      name: String
+    }
+
+    type Post implements Node @key(fields: "id") {
+      id: ID!
+      createdAt: String
+      title: String
+    }
+
+  timestamps: |
+    type Query {
+      userByIdTimestamps(id: ID!): User @lookup
+      postByIdTimestamps(id: ID!): Post @lookup
+    }
+    
+    interface Node {
+      id: ID!
+      updatedAt: String
+    }
+    
+    type User implements Node @key(fields: "id") {
+      id: ID!
+      updatedAt: String
+    }
+    
+    type Post implements Node @key(fields: "id") {
+      id: ID!
+      updatedAt: String
+    }
+
+supergraph: |
+  type Query {
+    nodes: [Node]
+    userById(id: ID!): User
+    postById(id: ID!): Post
+    userByIdTimestamps(id: ID!): User
+    postByIdTimestamps(id: ID!): Post
+  }
+  
+  interface Node {
+    id: ID!
+    createdAt: String
+    updatedAt: String
+  }
+  
+  type User implements Node {
+    id: ID!
+    createdAt: String
+    name: String
+    updatedAt: String
+  }
+  
+  type Post implements Node {
+    id: ID!
+    createdAt: String
+    title: String
+    updatedAt: String
+  }

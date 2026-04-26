@@ -1,0 +1,44 @@
+name: "Type condition in @is for lookup"
+description: |
+  Tests @is directive with type conditions (<Book>.isbn syntax).
+
+  Uses the bookByIsbn lookup which has @is(field: "<Book>.isbn") to demonstrate
+  that type-qualified field references work correctly in @is directives.
+
+query: |
+  {
+    bookByIsbn(isbn: "978-1234567890") {
+      id
+      title
+      isbn
+      author
+      rating
+      reviewCount
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: ratings
+    operation: '{ bookByIsbn(isbn: "978-1234567890") { id isbn rating reviewCount } }'
+    variables: {}
+    response: { data: { bookByIsbn: { id: "b1", isbn: "978-1234567890", rating: 4.8, reviewCount: 250 } } }
+
+  - subgraph: media
+    operation: 'query ($id: ID!) { bookById(id: $id) { title author } }'
+    variables: { id: "b1" }
+    response: { data: { bookById: { title: "GraphQL Guide", author: "John Smith" } } }
+
+expectedResponse: {
+  data: {
+    bookByIsbn: {
+      id: "b1",
+      title: "GraphQL Guide",
+      isbn: "978-1234567890",
+      author: "John Smith",
+      rating: 4.8,
+      reviewCount: 250
+    }
+  }
+}

@@ -1,0 +1,111 @@
+name: "Requires With Fragments"
+description: |
+  Tests @require with inline fragments on interface types.
+  Subgraph a has Entity with data: Foo (interface hierarchy Foo -> Bar -> Baz/Qux).
+  Subgraph b requires data fields using inline fragments on Bar, Baz, and Qux.
+  Baz is @inaccessible in subgraph b and excluded from the supergraph.
+
+subgraphs:
+  a: |
+    type Query {
+      a: Entity
+      entityById(id: ID!): Entity @lookup
+    }
+
+    type Entity @key(fields: "id") {
+      id: ID!
+      data: Foo @shareable
+    }
+
+    interface Foo {
+      foo: String!
+    }
+
+    interface Bar implements Foo {
+      foo: String!
+      bar: String!
+    }
+
+    type Baz implements Foo & Bar @shareable {
+      foo: String! @shareable
+      bar: String! @shareable
+      baz: String! @shareable
+    }
+
+    type Qux implements Foo & Bar @shareable {
+      foo: String! @shareable
+      bar: String! @shareable
+      qux: String! @shareable
+    }
+
+  b: |
+    type Query {
+      b: Entity
+      bb: Entity
+      entityById(id: ID!): Entity @lookup
+    }
+
+    type Entity @key(fields: "id") {
+      id: ID!
+      data: Foo @shareable
+      requirer(
+        dataFoo: String @require(field: "data.foo")
+        dataBar: String @require(field: "data.bar")
+        dataBaz: String @require(field: "data.baz")
+        dataQux: String @require(field: "data.qux")
+      ): String!
+      requirer2(
+        dataFoo: String @require(field: "data.foo")
+      ): String!
+    }
+
+    interface Foo {
+      foo: String!
+    }
+
+    interface Bar implements Foo {
+      foo: String!
+      bar: String!
+    }
+
+    type Baz implements Foo & Bar @shareable @inaccessible {
+      foo: String! @shareable
+      bar: String! @shareable
+      baz: String! @shareable
+    }
+
+    type Qux implements Foo & Bar @shareable {
+      foo: String! @shareable
+      bar: String! @shareable
+      qux: String! @shareable
+    }
+
+supergraph: |
+  type Query {
+    a: Entity
+    b: Entity
+    bb: Entity
+    entityById(id: ID!): Entity
+  }
+
+  type Entity {
+    id: ID!
+    data: Foo
+    requirer: String!
+    requirer2: String!
+  }
+
+  interface Bar {
+    bar: String!
+    foo: String!
+  }
+
+  interface Foo {
+    foo: String!
+  }
+
+  type Qux implements Bar & Foo {
+    bar: String!
+    foo: String!
+    qux: String!
+  }

@@ -1,0 +1,32 @@
+name: "Key field can be selected from cross-subgraph"
+description: "Select key field (id) alongside cross-subgraph fields"
+
+# This tests that key fields can be selected from any subgraph that defines them.
+# When we go to analytics subgraph, Article.id is selectable because it's a
+# key field defined via @key(fields: "id").
+# The id is needed in the same response as the analytics fields.
+query: |
+  {
+    article(id: "123") {
+      id
+      title
+      views
+    }
+  }
+
+# id and title come from content, views comes from analytics.
+# The analytics lookup needs to be able to return id for entity correlation.
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: content
+      operation: '{ article(id: "123") { id title } }'
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: analytics
+      operation: "query($id: ID!) { articleById(id: $id) { views } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

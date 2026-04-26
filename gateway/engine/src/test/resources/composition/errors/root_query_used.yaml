@@ -1,0 +1,23 @@
+name: "ROOT_QUERY_USED - root query type not named Query"
+description: "Spec: The root query type must be named 'Query'"
+
+subgraphs:
+  products: |
+    schema {
+      query: RootQuery
+    }
+
+    type RootQuery {
+      products: [Product]
+    }
+
+    type Query {
+      deprecatedField: String
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "ROOT_QUERY_USED"

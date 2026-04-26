@@ -1,0 +1,31 @@
+name: "Cross-subgraph named fragment planning"
+description: "Tests planning with a fragment spanning multiple subgraphs"
+
+query: |
+  query GetProductWithInventory {
+    products {
+      ...ProductComplete
+    }
+  }
+  fragment ProductComplete on Product {
+    id
+    name
+    price
+    stock
+    warehouse
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "{ products { id name price } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: inventory
+      operation: "query($id: ID!) { productById(id: $id) { stock warehouse } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

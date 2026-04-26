@@ -1,0 +1,23 @@
+name: "Users from subgraph A with filter"
+description: "Fetches users from subgraph A using intersected input type"
+
+query: |
+  {
+    usersInA(filter: { first: 1 }) {
+      id
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ usersInA(filter: { first: 1 }) { id } }'
+    variables: {}
+    response: { data: { usersInA: [{ id: "u1" }, { id: "u2" }] } }
+
+expectedResponse: {
+  data: {
+    usersInA: [{ id: "u1" }, { id: "u2" }]
+  }
+}

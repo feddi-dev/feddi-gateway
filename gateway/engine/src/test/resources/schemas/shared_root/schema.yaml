@@ -1,0 +1,84 @@
+name: "Shared Root"
+description: "Multiple subgraphs with @shareable root Query fields, each contributing different fields to Product type"
+
+subgraphs:
+  name: |
+    type Query {
+      product: Product! @shareable
+      products: [Product!]! @shareable
+      productByIdName(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID! @shareable
+      name: Name!
+    }
+
+    type Name {
+      id: ID!
+      brand: String!
+      model: String!
+    }
+
+  price: |
+    type Query {
+      product: Product! @shareable
+      products: [Product!]! @shareable
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID! @shareable
+      price: Price!
+    }
+
+    type Price {
+      id: ID!
+      amount: Int!
+      currency: String!
+    }
+
+  category: |
+    type Query {
+      product: Product! @shareable
+      products: [Product!]! @shareable
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID! @shareable
+      category: Category!
+    }
+
+    type Category {
+      id: ID!
+      name: String!
+    }
+
+supergraph: |
+  type Query {
+    product: Product!
+    products: [Product!]!
+    productById(id: ID!): Product
+    productByIdName(id: ID!): Product
+  }
+  type Product {
+    id: ID!
+    name: Name!
+    price: Price!
+    category: Category!
+  }
+  type Name {
+    id: ID!
+    brand: String!
+    model: String!
+  }
+  type Price {
+    id: ID!
+    amount: Int!
+    currency: String!
+  }
+  type Category {
+    id: ID!
+    name: String!
+  }

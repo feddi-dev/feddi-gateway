@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<module name="Checker">
+    <property name="severity" value="error"/>
+
+    <module name="TreeWalker">
+        <!-- Disallow star imports, but allow static star imports for constants -->
+        <module name="AvoidStarImport">
+            <property name="allowStaticMemberImports" value="true"/>
+        </module>
+
+        <!-- Ban non-jspecify Nullable/NonNull annotations — use org.jspecify.annotations instead -->
+        <module name="IllegalImport">
+            <property name="id" value="NoNonJspecifyNullAnnotations"/>
+            <property name="illegalPkgs" value=""/>
+            <property name="illegalClasses"
+                value="org.springframework.lang.Nullable,org.springframework.lang.NonNull,javax.annotation.Nullable,javax.annotation.Nonnull,jakarta.annotation.Nullable,jakarta.annotation.Nonnull,org.jetbrains.annotations.Nullable,org.jetbrains.annotations.NotNull,edu.umd.cs.findbugs.annotations.Nullable,edu.umd.cs.findbugs.annotations.NonNull,android.support.annotation.Nullable,android.support.annotation.NonNull,androidx.annotation.Nullable,androidx.annotation.NonNull,lombok.NonNull"/>
+        </module>
+
+        <!-- Disallow federation directive string literals - use FederationDirectives constants -->
+        <module name="RegexpSinglelineJava">
+            <property name="id" value="NoFederationDirectiveLiterals"/>
+            <property name="format" value='"(internal|inaccessible|external|shareable|override|lookup|provides|require|key)"'/>
+            <property name="ignoreComments" value="true"/>
+            <property name="message" value="Use FederationDirectives constants instead of string literals"/>
+        </module>
+    </module>
+
+    <!-- Exclude FederationDirectives.java from the directive literals check -->
+    <module name="SuppressionSingleFilter">
+        <property name="checks" value="RegexpSinglelineJava"/>
+        <property name="id" value="NoFederationDirectiveLiterals"/>
+        <property name="files" value="FederationDirectives\.java"/>
+    </module>
+
+    <!-- Exclude test files from directive literals check (tests often contain test data) -->
+    <module name="SuppressionSingleFilter">
+        <property name="checks" value="RegexpSinglelineJava"/>
+        <property name="id" value="NoFederationDirectiveLiterals"/>
+        <property name="files" value="src[\\/]test[\\/]"/>
+    </module>
+</module>

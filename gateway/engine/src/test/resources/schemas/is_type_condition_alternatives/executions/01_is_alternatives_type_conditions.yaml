@@ -1,0 +1,59 @@
+name: "@is with type condition alternatives via interface"
+description: |
+  Tests @is(field: "<Book>.isbn | <Electronics>.sku") for a polymorphic lookup.
+  When querying products via the interface, the planner should:
+  - Fetch isbn for Books, sku for Electronics from the catalog
+  - Use productByCode with the appropriate code for each type
+  The lookup maps to isbn for Book entities and sku for Electronics entities.
+
+query: |
+  {
+    products {
+      id
+      name
+      ... on Book {
+        author
+        averageRating
+        reviewCount
+      }
+      ... on Electronics {
+        manufacturer
+        averageRating
+        reviewCount
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ products { id name __typename ... on Book { author isbn } ... on Electronics { sku manufacturer } } }'
+    variables: {}
+    response: {
+      data: {
+        products: [
+          { id: "b1", name: "GraphQL Guide", __typename: "Book", isbn: "978-1234567890", author: "John Smith" },
+          { id: "e1", name: "Laptop Pro", __typename: "Electronics", sku: "LP-2024-001", manufacturer: "TechCorp" }
+        ]
+      }
+    }
+
+  - subgraph: reviews
+    operation: 'query ($code: String!) { productByCode(code: $code) { ... on Book { averageRating reviewCount } ... on Electronics { averageRating reviewCount } } }'
+    variables: { code: "978-1234567890" }
+    response: { data: { productByCode: { __typename: "Book", averageRating: 4.8, reviewCount: 250 } } }
+
+  - subgraph: reviews
+    operation: 'query ($code: String!) { productByCode(code: $code) { ... on Book { averageRating reviewCount } ... on Electronics { averageRating reviewCount } } }'
+    variables: { code: "LP-2024-001" }
+    response: { data: { productByCode: { __typename: "Electronics", averageRating: 4.5, reviewCount: 1200 } } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "b1", name: "GraphQL Guide", author: "John Smith", averageRating: 4.8, reviewCount: 250 },
+      { id: "e1", name: "Laptop Pro", manufacturer: "TechCorp", averageRating: 4.5, reviewCount: 1200 }
+    ]
+  }
+}

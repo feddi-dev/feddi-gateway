@@ -1,0 +1,126 @@
+name: "Input types - across subgraphs"
+description: "Input types used in queries and mutations across subgraphs"
+
+subgraphs:
+  users: |
+    type Query {
+      users(filter: UserFilter): [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type Mutation {
+      createUser(input: CreateUserInput!): User
+      updateUser(id: ID!, input: UpdateUserInput!): User
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      email: String
+      role: UserRole
+    }
+
+    input UserFilter {
+      name: String
+      role: UserRole
+    }
+
+    input CreateUserInput {
+      name: String!
+      email: String!
+      role: UserRole
+    }
+
+    input UpdateUserInput {
+      name: String
+      email: String
+      role: UserRole
+    }
+
+    enum UserRole {
+      ADMIN
+      USER
+      GUEST
+    }
+
+  notifications: |
+    type Query {
+      userByIdNotifications(id: ID!): User @lookup
+    }
+    
+    type Mutation {
+      updateNotificationPreferences(userId: ID!, prefs: NotificationPrefsInput!): User
+    }
+    
+    type User @key(fields: "id") {
+      id: ID!
+      notificationPrefs: NotificationPrefs
+    }
+    
+    type NotificationPrefs {
+      email: Boolean
+      push: Boolean
+      sms: Boolean
+    }
+    
+    input NotificationPrefsInput {
+      email: Boolean
+      push: Boolean
+      sms: Boolean
+    }
+
+supergraph: |
+  type Query {
+    users(filter: UserFilter): [User]
+    userById(id: ID!): User
+    userByIdNotifications(id: ID!): User
+  }
+  
+  type Mutation {
+    createUser(input: CreateUserInput!): User
+    updateUser(id: ID!, input: UpdateUserInput!): User
+    updateNotificationPreferences(userId: ID!, prefs: NotificationPrefsInput!): User
+  }
+  
+  type User {
+    id: ID!
+    name: String
+    email: String
+    role: UserRole
+    notificationPrefs: NotificationPrefs
+  }
+  
+  input UserFilter {
+    name: String
+    role: UserRole
+  }
+  
+  input CreateUserInput {
+    name: String!
+    email: String!
+    role: UserRole
+  }
+  
+  input UpdateUserInput {
+    name: String
+    email: String
+    role: UserRole
+  }
+  
+  enum UserRole {
+    ADMIN
+    USER
+    GUEST
+  }
+  
+  type NotificationPrefs {
+    email: Boolean
+    push: Boolean
+    sms: Boolean
+  }
+  
+  input NotificationPrefsInput {
+    email: Boolean
+    push: Boolean
+    sms: Boolean
+  }

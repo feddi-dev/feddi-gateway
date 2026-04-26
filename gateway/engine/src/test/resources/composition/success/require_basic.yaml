@@ -1,0 +1,42 @@
+name: "@require basic - field dependency"
+description: "Using @require to specify field dependencies from sibling fields"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      weight: Float @shareable
+    }
+
+  shipping: |
+    type Query {
+      productByIdShipping(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      weight: Float @shareable
+      shippingCost(weightKg: Float @require(field: "weight")): Float
+      estimatedDelivery: String
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    productByIdShipping(id: ID!): Product
+  }
+
+  type Product {
+    id: ID!
+    name: String
+    weight: Float
+    shippingCost: Float
+    estimatedDelivery: String
+  }

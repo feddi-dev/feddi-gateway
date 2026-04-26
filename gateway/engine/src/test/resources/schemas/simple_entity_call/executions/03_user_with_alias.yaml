@@ -1,0 +1,31 @@
+name: "User with aliased fields"
+description: |
+  Tests that aliases are correctly handled in responses.
+  The user aliases 'id' to 'oderId' and 'nickname' to 'nick'.
+
+query: |
+  {
+    user {
+      userId: id
+      nick: nickname
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: email
+    operation: '{ user { userId: id email } }'
+    variables: {}
+    response: { data: { user: { userId: "1", email: "user1@gmail.com" } } }
+
+  - subgraph: nickname
+    operation: 'query ($email: String!) { userByEmail(email: $email) { nick: nickname } }'
+    variables: { email: "user1@gmail.com" }
+    response: { data: { userByEmail: { nick: "user1" } } }
+
+expectedResponse: {
+  data: {
+    user: { userId: "1", nick: "user1" }
+  }
+}

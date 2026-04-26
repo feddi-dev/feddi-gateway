@@ -1,0 +1,33 @@
+name: "Media with animal names from @provides"
+description: "The b subgraph @provides animals with id and name, so all data comes from a single subgraph call"
+
+query: |
+  {
+    media {
+      id
+      animals {
+        id
+        name
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{ media { id animals { id name } } }'
+    variables: {}
+    response: { data: { media: { __typename: "Book", id: "m1", animals: [{ __typename: "Dog", id: "a1", name: "Fido" }, { __typename: "Cat", id: "a2", name: "Whiskers" }] } } }
+
+expectedResponse: {
+  data: {
+    media: {
+      id: "m1",
+      animals: [
+        { id: "a1", name: "Fido" },
+        { id: "a2", name: "Whiskers" }
+      ]
+    }
+  }
+}

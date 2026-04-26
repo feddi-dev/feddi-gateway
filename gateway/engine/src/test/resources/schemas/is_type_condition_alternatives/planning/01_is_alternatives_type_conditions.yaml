@@ -1,0 +1,37 @@
+name: "@is with type condition alternatives via interface"
+description: |
+  Tests planning for @is(field: "<Book>.isbn | <Electronics>.sku").
+
+query: |
+  {
+    products {
+      id
+      name
+      ... on Book {
+        author
+        averageRating
+        reviewCount
+      }
+      ... on Electronics {
+        manufacturer
+        averageRating
+        reviewCount
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "{ products { id name __typename ... on Book { author isbn } ... on Electronics { sku manufacturer } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: reviews
+      operation: "query($code: String!) { productByCode(code: $code) { ... on Book { averageRating reviewCount } ... on Electronics { averageRating reviewCount } } }"
+      dependsOn: [1]
+      requirements:
+        code: "<Book>.isbn | <Electronics>.sku"
+      repeatedExecution: true

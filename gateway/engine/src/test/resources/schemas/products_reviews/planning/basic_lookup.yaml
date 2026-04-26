@@ -1,0 +1,30 @@
+name: "Basic lookup - fetch reviews"
+description: "Products with reviews from separate subgraph, with query arguments"
+
+query: |
+  {
+    products(category: "electronics", limit: 10) {
+      id
+      name
+      rating
+      reviews(first: 5) {
+        text
+        stars
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "{ products(category: \"electronics\", limit: 10) { id name } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: reviews
+      operation: "query($id: ID!) { productById(id: $id) { rating reviews(first: 5) { text stars } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

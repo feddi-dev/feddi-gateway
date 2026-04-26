@@ -1,0 +1,59 @@
+name: "Custom scalar - DateTime across subgraphs"
+description: "Custom scalar type used consistently across subgraphs"
+
+subgraphs:
+  events: |
+    type Query {
+      events: [Event]
+      eventById(id: ID!): Event @lookup
+    }
+
+    scalar DateTime
+
+    type Event @key(fields: "id") {
+      id: ID!
+      name: String
+      startTime: DateTime
+      endTime: DateTime
+    }
+
+  registrations: |
+    type Query {
+      eventByIdRegistrations(id: ID!): Event @lookup
+    }
+    
+    scalar DateTime
+    
+    type Event @key(fields: "id") {
+      id: ID!
+      registrations: [Registration]
+    }
+    
+    type Registration {
+      id: ID!
+      registeredAt: DateTime
+      attendeeName: String
+    }
+
+supergraph: |
+  type Query {
+    events: [Event]
+    eventById(id: ID!): Event
+    eventByIdRegistrations(id: ID!): Event
+  }
+  
+  scalar DateTime
+  
+  type Event {
+    id: ID!
+    name: String
+    startTime: DateTime
+    endTime: DateTime
+    registrations: [Registration]
+  }
+  
+  type Registration {
+    id: ID!
+    registeredAt: DateTime
+    attendeeName: String
+  }

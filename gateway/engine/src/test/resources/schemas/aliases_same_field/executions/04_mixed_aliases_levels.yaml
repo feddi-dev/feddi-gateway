@@ -1,0 +1,64 @@
+name: "Mixed aliases at root and nested levels"
+description: |
+  Tests aliases on the same field with different arguments at both root and nested levels.
+
+query: |
+  {
+    electronics: items(category: "electronics") {
+      id
+      name
+      hotTags: tags(filter: "hot")
+      newTags: tags(filter: "new")
+    }
+    clothing: items(category: "clothing") {
+      id
+      name
+      saleTags: tags(filter: "sale")
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: data
+    operation: '{ electronics: items(category: "electronics") { id name hotTags: tags(filter: "hot") newTags: tags(filter: "new") } clothing: items(category: "clothing") { id name saleTags: tags(filter: "sale") } }'
+    variables: {}
+    response: {
+      data: {
+        electronics: [
+          {
+            id: "e1",
+            name: "Laptop",
+            hotTags: ["trending", "popular"],
+            newTags: ["2024", "latest"]
+          }
+        ],
+        clothing: [
+          {
+            id: "c1",
+            name: "Shirt",
+            saleTags: ["50%-off", "clearance"]
+          }
+        ]
+      }
+    }
+
+expectedResponse: {
+  data: {
+    electronics: [
+      {
+        id: "e1",
+        name: "Laptop",
+        hotTags: ["trending", "popular"],
+        newTags: ["2024", "latest"]
+      }
+    ],
+    clothing: [
+      {
+        id: "c1",
+        name: "Shirt",
+        saleTags: ["50%-off", "clearance"]
+      }
+    ]
+  }
+}

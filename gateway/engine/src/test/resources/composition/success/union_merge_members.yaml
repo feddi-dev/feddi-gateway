@@ -1,0 +1,79 @@
+name: "Union - merge member types from different subgraphs"
+description: "Spec 3.3.4: Member types from all source schemas are combined"
+
+subgraphs:
+  content: |
+    type Query {
+      feed: [FeedItem]
+      postById(id: ID!): Post @lookup
+      articleById(id: ID!): Article @lookup
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      title: String
+      body: String
+    }
+
+    type Article @key(fields: "id") {
+      id: ID!
+      headline: String
+      content: String
+    }
+
+    union FeedItem = Post | Article
+
+  media: |
+    type Query {
+      mediaFeed: [FeedItem]
+      postByIdMedia(id: ID!): Post @lookup
+      articleByIdMedia(id: ID!): Article @lookup
+      videoByIdMedia(id: ID!): Video @lookup
+    }
+    
+    type Post @key(fields: "id") {
+      id: ID!
+    }
+    
+    type Article @key(fields: "id") {
+      id: ID!
+    }
+    
+    type Video @key(fields: "id") {
+      id: ID!
+      url: String
+      duration: Int
+    }
+    
+    union FeedItem = Post | Article | Video
+
+supergraph: |
+  type Query {
+    feed: [FeedItem]
+    postById(id: ID!): Post
+    articleById(id: ID!): Article
+    mediaFeed: [FeedItem]
+    postByIdMedia(id: ID!): Post
+    articleByIdMedia(id: ID!): Article
+    videoByIdMedia(id: ID!): Video
+  }
+  
+  type Post {
+    id: ID!
+    title: String
+    body: String
+  }
+  
+  type Article {
+    id: ID!
+    headline: String
+    content: String
+  }
+  
+  type Video {
+    id: ID!
+    url: String
+    duration: Int
+  }
+  
+  union FeedItem = Post | Article | Video

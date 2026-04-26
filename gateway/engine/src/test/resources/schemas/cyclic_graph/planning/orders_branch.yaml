@@ -1,0 +1,26 @@
+name: "Only orders branch"
+description: "Single branch with potential back-edge"
+
+query: |
+  {
+    users {
+      orders {
+        total
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: users
+      operation: "{ users { id } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: orders
+      operation: "query($id: ID!) { orderUserLookup(id: $id) { orders { total } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

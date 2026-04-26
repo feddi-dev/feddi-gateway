@@ -1,0 +1,29 @@
+name: "Users and orders only"
+description: "Two-hop query without fulfillment, with hardcoded status filter"
+
+query: |
+  {
+    users(limit: 100) {
+      name
+      email
+      orders(status: SHIPPED) {
+        total
+        currency
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: users
+      operation: "{ users(limit: 100) { name email id } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: orders
+      operation: "query($id: ID!) { userById(id: $id) { orders(status: SHIPPED) { total currency } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

@@ -1,0 +1,37 @@
+name: "Successful execution with short delay"
+description: "Tests that subgraphs with short delays complete successfully within the timeout window"
+
+query: |
+  {
+    products {
+      id
+      name
+      price
+    }
+  }
+
+variables: {}
+
+# Longer timeout to allow delays to complete
+timeoutMs: 5000
+
+subgraphCalls:
+  - id: products
+    subgraph: products
+    operation: '{ products { id name } }'
+    response: { data: { products: [{ id: "p1", name: "Laptop" }] } }
+
+  - id: pricing
+    subgraph: pricing
+    operation: 'query ($id: ID!) { productById(id: $id) { price } }'
+    variables: { id: "p1" }
+    delayMs: 100
+    response: { data: { productById: { price: 999 } } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", price: 999 }
+    ]
+  }
+}

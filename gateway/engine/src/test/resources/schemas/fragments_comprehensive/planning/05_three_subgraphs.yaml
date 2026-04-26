@@ -1,0 +1,32 @@
+name: "Inline fragment spanning three subgraphs"
+description: "Single inline fragment with fields from content, analytics, and recommendations"
+
+query: |
+  {
+    contents {
+      id
+      ... on Article {
+        body
+        views
+      }
+      ... on Video {
+        views
+        watchTime
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: content
+      operation: "{ contents { id __typename ... on Article { body } } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: analytics
+      operation: "query($id: ID!) { contentById(id: $id) { ... on Article { views } ... on Video { views watchTime } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true
