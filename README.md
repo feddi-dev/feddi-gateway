@@ -2,14 +2,14 @@
 
 feddi Gateway is a JVM-native GraphQL federation gateway, implementing the [GraphQL Composite Schemas Spec](https://github.com/graphql/composite-schemas-spec). It composes source schemas, plans cross-subgraph operations, and executes GraphQL requests against a unified schema.
 
-This repository is an open source project and can be used independently of the [feddi platform](https://feddi.dev). You can run it as a standalone gateway with your own gateway definition source, your own subgraph client integration, or the built-in ZIP upload flow.
+This repository is an open source project and can be used independently of the [feddi Platform](https://feddi.dev). You can run it as a standalone feddi Gateway with your own feddi Gateway definition source, your own subgraph client integration, or the built-in ZIP upload flow.
 
-It works best overall when used together with the feddi Platform. For full documentation on running the gateway with the feddi platform — including pre-built binaries — see [feddi.dev/get-started](https://feddi.dev/get-started).
+It works best overall when used together with the feddi Platform. For full documentation on running the feddi Gateway with the feddi Platform — including pre-built binaries — see [feddi.dev/get-started](https://feddi.dev/get-started).
 
 ## Repository Layout
 
 - `gateway/engine` - Composition, validation, query planning, and execution
-- `gateway/app` - Spring Boot application that serves the gateway over HTTP
+- `gateway/app` - Spring Boot application that serves the feddi Gateway over HTTP
 - `gateway/customization-api` - Public extension API for integrating custom behavior
 - `e2e-tests` - Docker-based end-to-end tests
 - `scripts` - Helper scripts for common local workflows
@@ -39,7 +39,7 @@ Build the distribution ZIP:
 
 ```bash
 cd gateway
-./gradlew :app:gatewayDistZip
+./gradlew :app:feddiGatewayDistZip
 ```
 
 The feddi Gateway application reads `feddi-gateway.yml` from the working directory and serves GraphQL requests at `POST /graphql`.
@@ -49,7 +49,7 @@ The feddi Gateway application reads `feddi-gateway.yml` from the working directo
 The feddi Gateway has three configuration surfaces:
 
 - `feddi-gateway.yml` in the working directory controls the feddi Gateway process itself.
-- `POST /admin/upload` accepts a ZIP file that defines the active gateway definition and subgraph settings.
+- `POST /admin/upload` accepts a ZIP file that defines the active feddi Gateway definition and subgraph settings.
 - The launcher script accepts a small set of environment variables for Java selection and JVM tuning.
 
 If `feddi-gateway.yml` is missing or cannot be parsed, the feddi Gateway starts with defaults. The loader only reads `feddi-gateway.yml` from the working directory.
@@ -70,17 +70,17 @@ logging:
 
 Supported top-level keys:
 
-| Key | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `port` | integer | `8080` | HTTP port for the gateway server |
-| `enable-introspection` | boolean | `true` | Whether GraphQL introspection is enabled. Set to `false` in production to prevent schema discovery |
-| `admin-port` | integer | `9091` | Port for the admin endpoint (`/admin/upload`) |
-| `admin-address` | string | `127.0.0.1` | Bind address for the admin server. Set to `0.0.0.0` if admin access is needed from outside the host (e.g. Docker) |
-| `management-port` | integer | `9090` | Port for the actuator endpoints (health, metrics, info) |
+| Key | Type | Default | Meaning                                                                                                                        |
+| --- | --- | --- |--------------------------------------------------------------------------------------------------------------------------------|
+| `port` | integer | `8080` | HTTP port for the feddi Gateway server                                                                                         |
+| `enable-introspection` | boolean | `true` | Whether GraphQL introspection is enabled. Set to `false` in production to prevent schema discovery                             |
+| `admin-port` | integer | `9091` | Port for the admin endpoint (`/admin/upload`)                                                                                  |
+| `admin-address` | string | `127.0.0.1` | Bind address for the admin server. Set to `0.0.0.0` if admin access is needed from outside the host (e.g. Docker)              |
+| `management-port` | integer | `9090` | Port for the actuator endpoints (health, metrics, info)                                                                        |
 | `management-address` | string | `127.0.0.1` | Bind address for the management server. Set to `0.0.0.0` if health checks come from outside the host (e.g. Docker, Kubernetes) |
-| `max-request-size-bytes` | long | `2097152` | Maximum GraphQL request body size in bytes; set to `0` to disable the limit |
-| `logging.dir` | string | `.` | Directory where rolling log files are written |
-| `extensions` | map | `{}` | Namespace-based configuration passed to installed extensions |
+| `max-request-size-bytes` | long | `2097152` | Maximum GraphQL request body size in bytes; set to `0` to disable the limit                                                    |
+| `logging.dir` | string | `.` | Directory where rolling log files are written                                                                                  |
+| `extensions` | map | `{}` | Namespace-based configuration passed to installed extensions                                                                   |
 
 Logging behavior is fixed by the application:
 
@@ -93,11 +93,11 @@ Logging behavior is fixed by the application:
 
 The `extensions` map is intentionally open-ended. Each installed extension JAR contributes its own namespace and supported keys. The distribution launcher adds all JARs in `libs/` to the runtime classpath, so extension configuration only becomes active when the corresponding extension JAR is present.
 
-The gateway itself recognizes the namespace and forwards its configuration, but it does not validate or consume arbitrary extension keys directly. Refer to your extension's documentation for the keys it accepts.
+The feddi Gateway itself recognizes the namespace and forwards its configuration, but it does not validate or consume arbitrary extension keys directly. Refer to your extension's documentation for the keys it accepts.
 
-### Gateway Definition Uploads
+### feddi Gateway Definition Uploads
 
-The default runtime source accepts gateway definitions through `POST /admin/upload` as multipart form data with a `file` part containing a ZIP archive.
+The default runtime source accepts feddi Gateway definitions through `POST /admin/upload` as multipart form data with a `file` part containing a ZIP archive.
 
 If a custom `GatewayDefinitionSource` extension is installed and active, ZIP uploads are disabled.
 
@@ -125,7 +125,7 @@ reviews/
   config.yaml
 ```
 
-Gateway-level ZIP config keys in the optional root `config.yaml` or `config.yml`:
+feddi Gateway-level ZIP config keys in the optional root `config.yaml` or `config.yml`:
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -148,11 +148,11 @@ For the built-in subgraph client, `url` is the only consumed subgraph config key
 
 The distribution launcher script supports these environment variables:
 
-| Variable | Meaning |
-| --- | --- |
-| `GATEWAY_JAVA_HOME` | Java installation to use for the gateway; takes precedence over `JAVA_HOME` |
-| `JAVA_HOME` | Fallback Java installation if `GATEWAY_JAVA_HOME` is not set |
-| `JAVA_OPTS` | Extra JVM options appended to the launch command |
+| Variable                  | Meaning                                                                            |
+|---------------------------|------------------------------------------------------------------------------------|
+| `FEDDI_GATEWAY_JAVA_HOME` | Java installation to use for the feddi Gateway; takes precedence over `JAVA_HOME` |
+| `JAVA_HOME`               | Fallback Java installation if `FEDDI_GATEWAY_JAVA_HOME` is not set                 |
+| `JAVA_OPTS`               | Extra JVM options appended to the launch command                                   |
 
 The launcher requires Java 25 or later.
 
@@ -179,7 +179,7 @@ cd gateway
 ./gradlew :app:integrationTest
 ```
 
-If you run `e2e-tests` directly (without `./scripts/run-e2e-tests.sh`) after changing `gateway/customization-api`, publish the API to your local Maven repository first so the e2e-tests subproject can resolve it:
+If you run `e2e-tests` directly (without `./scripts/run-e2e-tests.sh`) after changing `feddi-gateway/customization-api`, publish the API to your local Maven repository first so the e2e-tests subproject can resolve it:
 
 ```bash
 cd gateway

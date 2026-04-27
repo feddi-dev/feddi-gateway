@@ -92,7 +92,7 @@ tasks.named('processIntegrationTestResources') {
 }
 
 // Distribution ZIP: packages gateway + launcher scripts + sample config
-tasks.register('gatewayDistZip', Zip) {
+tasks.register('feddiGatewayDistZip', Zip) {
 	description = 'Creates the feddi-gateway.zip distribution'
 	group = 'distribution'
 

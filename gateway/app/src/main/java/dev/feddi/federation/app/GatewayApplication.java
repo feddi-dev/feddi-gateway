@@ -20,7 +20,7 @@ public class GatewayApplication {
     public static void main(String[] args) {
         // Log version before anything else
         String version = "dev";
-        try (var is = GatewayApplication.class.getResourceAsStream("/gateway-version.txt")) {
+        try (var is = GatewayApplication.class.getResourceAsStream("/feddi-gateway-version.txt")) {
             if (is != null) version = new String(is.readAllBytes()).trim();
         } catch (Exception ignored) {}
         org.slf4j.LoggerFactory.getLogger(GatewayApplication.class)

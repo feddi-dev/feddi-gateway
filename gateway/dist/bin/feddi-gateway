@@ -2,14 +2,14 @@
 
 ##############################################################################
 #
-#  feddi gateway launcher script for Linux/macOS
+#  feddi Gateway launcher script for Linux/macOS
 #
-#  Finds Java, validates version, and starts the gateway with tuned defaults.
+#  Finds Java, validates version, and starts the feddi Gateway with tuned defaults.
 #
 #  Environment variables:
-#    GATEWAY_JAVA_HOME - Java home for the gateway (takes priority over JAVA_HOME)
-#    JAVA_HOME         - Standard Java home
-#    JAVA_OPTS         - Additional JVM options (appended after defaults)
+#    FEDDI_GATEWAY_JAVA_HOME - Java home for the feddi Gateway (takes priority over JAVA_HOME)
+#    JAVA_HOME               - Standard Java home
+#    JAVA_OPTS               - Additional JVM options (appended after defaults)
 #
 ##############################################################################
 
@@ -32,8 +32,8 @@ APP_HOME=$(cd "$BIN_DIR/.." && pwd)
 # --------------------------------------------------------------------------
 # Find Java
 # --------------------------------------------------------------------------
-if [ -n "$GATEWAY_JAVA_HOME" ] && [ -x "$GATEWAY_JAVA_HOME/bin/java" ]; then
-    JAVA="$GATEWAY_JAVA_HOME/bin/java"
+if [ -n "$FEDDI_GATEWAY_JAVA_HOME" ] && [ -x "$FEDDI_GATEWAY_JAVA_HOME/bin/java" ]; then
+    JAVA="$FEDDI_GATEWAY_JAVA_HOME/bin/java"
 elif [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA="$JAVA_HOME/bin/java"
 elif command -v java > /dev/null 2>&1; then
@@ -42,8 +42,8 @@ else
     echo ""
     echo "ERROR: Java not found." >&2
     echo ""
-    echo "  Set JAVA_HOME or GATEWAY_JAVA_HOME, or add java to your PATH." >&2
-    echo "  feddi gateway requires Java 25 or later." >&2
+    echo "  Set JAVA_HOME or FEDDI_GATEWAY_JAVA_HOME, or add java to your PATH." >&2
+    echo "  feddi Gateway requires Java 25 or later." >&2
     echo ""
     exit 1
 fi
@@ -58,12 +58,12 @@ JAVA_MAJOR=$(echo "$JAVA_VERSION_OUTPUT" | head -1 | sed -E 's/.*version "([0-9]
 
 if [ -z "$JAVA_MAJOR" ] || [ "$JAVA_MAJOR" -lt 25 ] 2>/dev/null; then
     echo ""
-    echo "ERROR: feddi gateway requires Java 25 or later." >&2
+    echo "ERROR: feddi Gateway requires Java 25 or later." >&2
     echo ""
     echo "  Found: $(echo "$JAVA_VERSION_OUTPUT" | head -1)" >&2
     echo "  Java:  $JAVA" >&2
     echo ""
-    echo "  Set GATEWAY_JAVA_HOME or JAVA_HOME to a Java 25+ installation." >&2
+    echo "  Set FEDDI_GATEWAY_JAVA_HOME or JAVA_HOME to a Java 25+ installation." >&2
     echo ""
     exit 1
 fi
@@ -79,7 +79,7 @@ if [ ! -f "$APP_HOME/app.jar" ]; then
 fi
 
 # --------------------------------------------------------------------------
-# Default JVM options — tuned for the feddi gateway
+# Default JVM options — tuned for the feddi Gateway
 #
 # ZGC:                Sub-millisecond GC pauses for low tail latency
 # Heap:               256MB initial, 1GB max, 768MB soft target
@@ -106,7 +106,7 @@ DEFAULT_JVM_OPTS="\
  -XX:-OmitStackTraceInFastThrow"
 
 # --------------------------------------------------------------------------
-# Launch the gateway
+# Launch the feddi Gateway
 # --------------------------------------------------------------------------
 # Using exec replaces this shell with the Java process, so:
 # - Java gets PID 1 in containers (receives signals correctly)
