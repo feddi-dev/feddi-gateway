@@ -59,9 +59,9 @@ public class GatewayE2ETest {
     @Container
     private static final ComposeContainer environment = new ComposeContainer(
             getDockerComposeFile())
-        .withExposedService("gateway-1", 8080, Wait.forListeningPort()
+        .withExposedService("feddi-gateway-1", 8080, Wait.forListeningPort()
             .withStartupTimeout(Duration.ofMinutes(3)))
-        .withExposedService("gateway-1", 9091)
+        .withExposedService("feddi-gateway-1", 9091)
         .withExposedService("products-1", 4001, Wait.forListeningPort()
             .withStartupTimeout(Duration.ofMinutes(2)))
         .withExposedService("reviews-1", 4002, Wait.forListeningPort()
@@ -72,9 +72,9 @@ public class GatewayE2ETest {
 
     @BeforeAll
     void setup() {
-        String gatewayHost = environment.getServiceHost("gateway-1", 8080);
-        int gatewayPort = environment.getServicePort("gateway-1", 8080);
-        int adminPort = environment.getServicePort("gateway-1", 9091);
+        String gatewayHost = environment.getServiceHost("feddi-gateway-1", 8080);
+        int gatewayPort = environment.getServicePort("feddi-gateway-1", 8080);
+        int adminPort = environment.getServicePort("feddi-gateway-1", 9091);
 
         gatewayClient = WebClient.builder()
             .baseUrl("http://" + gatewayHost + ":" + gatewayPort)

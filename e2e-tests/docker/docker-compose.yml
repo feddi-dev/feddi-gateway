@@ -1,7 +1,7 @@
 services:
-  gateway:
+  feddi-gateway:
     build:
-      context: ./gateway
+      context: ./feddi-gateway
       dockerfile: Dockerfile
     depends_on:
       products:

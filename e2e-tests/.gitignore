@@ -5,7 +5,7 @@
 build
 
 # Ignore copied gateway JAR (build artifact)
-docker/gateway/*.jar
+docker/feddi-gateway/*.jar
 
 # Ignore copied customizations JARs (build artifacts)
-docker/gateway/libs/
+docker/feddi-gateway/libs/
