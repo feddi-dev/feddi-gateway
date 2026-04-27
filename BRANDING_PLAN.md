@@ -23,8 +23,6 @@ it contains branding strings.
 Hard-cut: `gateway.yml` is no longer accepted as a config filename.
 No fallback or backward-compatibility shim.
 
-`/gateway` subdirectory should be `feddi-gateway` 
-
 ---
 
 ## Phase 1 — Config & runtime artifacts
@@ -172,5 +170,6 @@ appropriate.
 
 - `settings.gradle` filename — unchanged
 - `build.gradle` filename — unchanged
+- `/gateway` subdirectory name — unchanged (IntelliJ module naming conflict: the outer repo already owns the `feddi-gateway` module name, so `feddi-gateway/feddi-gateway` is not possible)
 - Gradle wrapper files
 - Third-party dependency names or Spring Boot internals

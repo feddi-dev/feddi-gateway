@@ -14,11 +14,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Programmatically configures Logback file logging based on gateway.yml settings.
+ * Programmatically configures Logback file logging based on feddi-gateway.yml settings.
  * <p>
  * Creates a rolling file appender with:
  * - Daily rotation: one log file per day
- * - Size-based splitting: if a file exceeds 100MB, a new file is created (gateway-2026-03-22.0.log, .1.log, etc.)
+ * - Size-based splitting: if a file exceeds 100MB, a new file is created (feddi-gateway-2026-03-22.0.log, .1.log, etc.)
  * - Retention: 30 days of history
  * - Total size cap: 1GB
  */
@@ -26,8 +26,8 @@ public class LoggingConfigurer {
 
     private static final String APPENDER_NAME = "FILE";
     private static final String LOG_PATTERN = "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n";
-    private static final String FILE_NAME = "gateway.log";
-    private static final String ROLLING_PATTERN = "gateway-%d{yyyy-MM-dd}.%i.log";
+    private static final String FILE_NAME = "feddi-gateway.log";
+    private static final String ROLLING_PATTERN = "feddi-gateway-%d{yyyy-MM-dd}.%i.log";
     private static final String MAX_FILE_SIZE = "100MB";
     private static final int MAX_HISTORY_DAYS = 30;
     private static final String TOTAL_SIZE_CAP = "1GB";

@@ -3,7 +3,7 @@ package dev.feddi.federation.customization;
 import java.util.Optional;
 
 /**
- * Provides typed access to extension configuration from gateway.yml.
+ * Provides typed access to extension configuration from feddi-gateway.yml.
  *
  * <p>Extensions inject this to read their configuration at bean creation time:
  * <pre>

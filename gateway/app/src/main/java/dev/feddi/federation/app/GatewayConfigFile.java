@@ -6,7 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Schema for the gateway.yml configuration file.
+ * Schema for the feddi-gateway.yml configuration file.
  * Parsed from YAML by Jackson. All fields have sensible defaults.
  */
 public class GatewayConfigFile {

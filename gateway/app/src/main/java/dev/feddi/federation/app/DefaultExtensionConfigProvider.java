@@ -11,7 +11,7 @@ import java.util.Optional;
 
 /**
  * Default implementation of {@link ExtensionConfigProvider} backed by
- * the extensions map from gateway.yml.
+ * the extensions map from feddi-gateway.yml.
  */
 public class DefaultExtensionConfigProvider implements ExtensionConfigProvider {
 

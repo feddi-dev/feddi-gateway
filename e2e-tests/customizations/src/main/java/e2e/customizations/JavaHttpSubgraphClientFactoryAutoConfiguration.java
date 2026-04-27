@@ -16,7 +16,7 @@ import java.time.Duration;
 
 /**
  * Auto-configuration for the custom Java HttpClient-based SubgraphClientFactory.
- * Implements {@link ConfigurableExtension} to receive timeout configuration from gateway.yml.
+ * Implements {@link ConfigurableExtension} to receive timeout configuration from feddi-gateway.yml.
  */
 @AutoConfiguration
 public class JavaHttpSubgraphClientFactoryAutoConfiguration implements ConfigurableExtension<E2eCustomizationConfig> {
@@ -38,7 +38,7 @@ public class JavaHttpSubgraphClientFactoryAutoConfiguration implements Configura
     @Override
     public void onConfigLoaded(E2eCustomizationConfig config) {
         this.timeoutSeconds = config.getTimeoutSeconds();
-        logger.info("[CUSTOM FACTORY] Configured from gateway.yml: timeout={}s", timeoutSeconds);
+        logger.info("[CUSTOM FACTORY] Configured from feddi-gateway.yml: timeout={}s", timeoutSeconds);
     }
 
     @Bean

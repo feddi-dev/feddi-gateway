@@ -6,7 +6,7 @@ plugins {
 
 group = 'dev.feddi.federation'
 version = '0.0.1-SNAPSHOT'
-description = 'feddi gateway - GraphQL federation gateway'
+description = 'feddi Gateway - GraphQL federation gateway'
 
 java {
 	toolchain {
@@ -117,7 +117,7 @@ tasks.register('gatewayDistZip', Zip) {
 			}
 		}
 		// Sample config
-		from("${rootProject.projectDir}/dist/gateway.yml.sample")
+		from("${rootProject.projectDir}/dist/feddi-gateway.yml.sample")
 	}
 }
 

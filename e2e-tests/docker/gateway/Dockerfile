@@ -8,8 +8,8 @@ COPY app.jar app.jar
 # Copy customizations JAR (if present)
 COPY libs/ libs/
 
-# Copy gateway configuration
-COPY gateway.yml gateway.yml
+# Copy feddi-gateway configuration
+COPY feddi-gateway.yml feddi-gateway.yml
 
 EXPOSE 8080 9090 9091
 

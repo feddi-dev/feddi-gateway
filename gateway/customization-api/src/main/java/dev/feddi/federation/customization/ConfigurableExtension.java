@@ -1,17 +1,17 @@
 package dev.feddi.federation.customization;
 
 /**
- * Interface for extensions that receive configuration from gateway.yml.
+ * Interface for extensions that receive configuration from feddi-gateway.yml.
  *
  * <p>Extensions implement this interface with their typed config POJO.
  * The gateway will:
  * <ol>
- *   <li>Parse gateway.yml and find the {@code extensions.<namespace>} section</li>
+ *   <li>Parse feddi-gateway.yml and find the {@code extensions.<namespace>} section</li>
  *   <li>Deserialize it into the type returned by {@link #configType()}</li>
  *   <li>Call {@link #onConfigLoaded(Object)} with the typed config</li>
  * </ol>
  *
- * <p>Example gateway.yml — replace {@code my-extension} with the namespace
+ * <p>Example feddi-gateway.yml — replace {@code my-extension} with the namespace
  * your implementation returns from {@link #configNamespace()} and the keys
  * with whatever your config POJO declares:
  * <pre>
@@ -26,7 +26,7 @@ package dev.feddi.federation.customization;
 public interface ConfigurableExtension<T> {
 
     /**
-     * The namespace key under {@code extensions:} in gateway.yml.
+     * The namespace key under {@code extensions:} in feddi-gateway.yml.
      */
     String configNamespace();
 

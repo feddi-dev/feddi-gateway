@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Configuration for the e2e test customization.
- * Deserialized from the {@code extensions.e2e} section of gateway.yml.
+ * Deserialized from the {@code extensions.e2e} section of feddi-gateway.yml.
  */
 public class E2eCustomizationConfig {
 

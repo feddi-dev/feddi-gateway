@@ -10,17 +10,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Loads the gateway.yml configuration file from the working directory.
+ * Loads the feddi-gateway.yml configuration file from the working directory.
  * This is loaded early in startup, before the Spring context, so it
  * cannot depend on any Spring beans.
  */
 public class GatewayConfigLoader {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayConfigLoader.class);
-    private static final String CONFIG_FILE_NAME = "gateway.yml";
+    private static final String CONFIG_FILE_NAME = "feddi-gateway.yml";
 
     /**
-     * Load gateway.yml from the current working directory.
+     * Load feddi-gateway.yml from the current working directory.
      * Returns defaults if the file doesn't exist or can't be parsed.
      */
     public static GatewayConfigFile load() {
@@ -28,7 +28,7 @@ public class GatewayConfigLoader {
     }
 
     /**
-     * Load gateway config from the specified path.
+     * Load feddi-gateway config from the specified path.
      */
     public static GatewayConfigFile load(Path path) {
         if (!Files.exists(path)) {

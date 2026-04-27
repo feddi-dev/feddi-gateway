@@ -1,5 +1,5 @@
 # feddi gateway configuration
-# Copy this file to gateway.yml and adjust for your environment.
+# Copy this file to feddi-gateway.yml and adjust for your environment.
 
 # Server port (default: 8080)
 port: 8080

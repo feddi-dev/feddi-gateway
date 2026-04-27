@@ -1,10 +1,10 @@
 # Feddi Gateway
 
-Feddi Gateway is a JVM-native GraphQL federation gateway, implementing the [GraphQL Composite Schemas Spec](https://github.com/graphql/composite-schemas-spec). It composes source schemas, plans cross-subgraph operations, and executes GraphQL requests against a unified schema.
+feddi Gateway is a JVM-native GraphQL federation gateway, implementing the [GraphQL Composite Schemas Spec](https://github.com/graphql/composite-schemas-spec). It composes source schemas, plans cross-subgraph operations, and executes GraphQL requests against a unified schema.
 
 This repository is an open source project and can be used independently of the [feddi platform](https://feddi.dev). You can run it as a standalone gateway with your own gateway definition source, your own subgraph client integration, or the built-in ZIP upload flow.
 
-It works best overall when used together with the feddi platform. For full documentation on running the gateway with the feddi platform — including pre-built binaries — see [feddi.dev/get-started](https://feddi.dev/get-started).
+It works best overall when used together with the feddi Platform. For full documentation on running the gateway with the feddi platform — including pre-built binaries — see [feddi.dev/get-started](https://feddi.dev/get-started).
 
 ## Repository Layout
 
@@ -42,19 +42,19 @@ cd gateway
 ./gradlew :app:gatewayDistZip
 ```
 
-The gateway application reads `gateway.yml` from the working directory and serves GraphQL requests at `POST /graphql`.
+The feddi Gateway application reads `feddi-gateway.yml` from the working directory and serves GraphQL requests at `POST /graphql`.
 
 ## Configuration
 
-The gateway has three configuration surfaces:
+The feddi Gateway has three configuration surfaces:
 
-- `gateway.yml` in the working directory controls the gateway process itself.
+- `feddi-gateway.yml` in the working directory controls the feddi Gateway process itself.
 - `POST /admin/upload` accepts a ZIP file that defines the active gateway definition and subgraph settings.
 - The launcher script accepts a small set of environment variables for Java selection and JVM tuning.
 
-If `gateway.yml` is missing or cannot be parsed, the gateway starts with defaults. The loader only reads `gateway.yml` from the working directory.
+If `feddi-gateway.yml` is missing or cannot be parsed, the feddi Gateway starts with defaults. The loader only reads `feddi-gateway.yml` from the working directory.
 
-### `gateway.yml`
+### `feddi-gateway.yml`
 
 The `extensions` section is optional. A standalone deployment can omit it entirely.
 
@@ -84,7 +84,7 @@ Supported top-level keys:
 
 Logging behavior is fixed by the application:
 
-- Current log file: `gateway.log`
+- Current log file: `feddi-gateway.log`
 - Rotation: daily, with additional rollover at `100MB`
 - Retention: `30` days
 - Total retained size cap: `1GB`

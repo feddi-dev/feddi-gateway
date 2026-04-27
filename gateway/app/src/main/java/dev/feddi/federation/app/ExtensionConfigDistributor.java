@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Distributes configuration from gateway.yml to extensions that implement
+ * Distributes configuration from feddi-gateway.yml to extensions that implement
  * {@link ConfigurableExtension}. Runs early in startup (before
  * {@link GatewayDefinitionSourceManager}) so extensions are configured
  * before the gateway attempts to load definitions.
@@ -44,14 +44,14 @@ public class ExtensionConfigDistributor implements ApplicationRunner {
             Object rawConfig = extensionsConfig.get(namespace);
 
             if (rawConfig == null) {
-                log.info("No configuration for extension '{}' in gateway.yml", namespace);
+                log.info("No configuration for extension '{}' in feddi-gateway.yml", namespace);
                 continue;
             }
 
             try {
                 Object typedConfig = objectMapper.convertValue(rawConfig, extension.configType());
                 deliverConfig(extension, typedConfig);
-                log.info("Configured extension '{}' from gateway.yml", namespace);
+                log.info("Configured extension '{}' from feddi-gateway.yml", namespace);
             } catch (Exception e) {
                 log.error("Failed to parse configuration for extension '{}': {}", namespace, e.getMessage());
             }
@@ -62,7 +62,7 @@ public class ExtensionConfigDistributor implements ApplicationRunner {
             boolean known = extensions.stream()
                     .anyMatch(ext -> ext.configNamespace().equals(namespace));
             if (!known) {
-                log.warn("Unknown extension namespace '{}' in gateway.yml — no extension registered for it", namespace);
+                log.warn("Unknown extension namespace '{}' in feddi-gateway.yml — no extension registered for it", namespace);
             }
         }
     }

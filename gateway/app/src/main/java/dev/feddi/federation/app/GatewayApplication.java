@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 /**
  * Spring Boot application for the GraphQL Federation Gateway.
  *
- * Configuration is loaded from gateway.yml in the working directory.
+ * Configuration is loaded from feddi-gateway.yml in the working directory.
  * The config file is parsed before the Spring context starts, so logging
  * is set up early.
  */
@@ -24,15 +24,15 @@ public class GatewayApplication {
             if (is != null) version = new String(is.readAllBytes()).trim();
         } catch (Exception ignored) {}
         org.slf4j.LoggerFactory.getLogger(GatewayApplication.class)
-            .info("Feddi Gateway version: {}", version);
+            .info("feddi Gateway version: {}", version);
 
-        // Load gateway.yml before Spring context starts
+        // Load feddi-gateway.yml before Spring context starts
         gatewayConfig = GatewayConfigLoader.load();
 
-        // Configure file logging based on gateway.yml
+        // Configure file logging based on feddi-gateway.yml
         LoggingConfigurer.configure(gatewayConfig.getLogging().getDir());
 
-        // Set server port from gateway.yml
+        // Set server port from feddi-gateway.yml
         System.setProperty("server.port", String.valueOf(gatewayConfig.getPort()));
 
         // Introspection toggle
