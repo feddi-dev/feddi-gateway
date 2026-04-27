@@ -125,7 +125,7 @@ be updated in the same step.
 | Test classes (e.g. `GatewayApplicationTests`) | `FeddiGatewayApplicationTests` | [ ] |
 
 ### 4.1 Spring application name
-- [ ] `spring.application.name=feddi-gateway` in `gateway/app/src/main/resources/application.properties`
+- [x] `spring.application.name=feddi-gateway` in `gateway/app/src/main/resources/application.properties`
 
 ---
 
