@@ -1,6 +1,6 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.GatewayRequestContext;
+import dev.feddi.federation.customization.FeddiGatewayRequestContext;
 import dev.feddi.federation.customization.SubgraphClient;
 import dev.feddi.federation.engine.executor.SubgraphTimeoutException;
 import graphql.ExecutionResult;
@@ -29,7 +29,7 @@ public class TimeoutAwareSubgraphClient implements SubgraphClient {
     }
 
     @Override
-    public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, GatewayRequestContext context) {
+    public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, FeddiGatewayRequestContext context) {
         return delegate.execute(operation, variables, context)
             .timeout(timeout)
             .onErrorMap(TimeoutException.class,

@@ -44,7 +44,7 @@ class ZipUploadServiceTest {
             "subgraphs/main/config.yaml", mainConfig
         );
 
-        GatewayHolder holder = new GatewayHolder();
+        FeddiGatewayHolder holder = new FeddiGatewayHolder();
         SubgraphClientFactory factory = (subgraphName, config) -> (op, vars, ctx) ->
             reactor.core.publisher.Mono.just(ExecutionResultImpl.newExecutionResult()
                 .data(Map.of("products", List.of(
@@ -52,9 +52,9 @@ class ZipUploadServiceTest {
                 )))
                 .build());
 
-        DefaultGatewayDefinitionSource source = new DefaultGatewayDefinitionSource();
-        GatewayReloadService reloadService = new GatewayReloadService(holder, factory, new GatewayMetrics(new SimpleMeterRegistry()), null, new GatewayConfigFile());
-        GatewayDefinitionSourceManager manager = new GatewayDefinitionSourceManager(source, reloadService);
+        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
+        FeddiGatewayReloadService reloadService = new FeddiGatewayReloadService(holder, factory, new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
+        FeddiGatewayDefinitionSourceManager manager = new FeddiGatewayDefinitionSourceManager(source, reloadService);
         manager.run(new DefaultApplicationArguments(new String[0]));
         ZipUploadService service = new ZipUploadService(source);
 

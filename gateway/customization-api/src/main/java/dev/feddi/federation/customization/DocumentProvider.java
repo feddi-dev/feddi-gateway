@@ -16,5 +16,5 @@ import reactor.core.publisher.Mono;
  * <p>Return Mono.empty() to fall through to normal ParseAndValidate.
  */
 public interface DocumentProvider {
-    Mono<PreparsedDocumentEntry> getDocument(ExecutionInput executionInput, GatewayRequestContext context);
+    Mono<PreparsedDocumentEntry> getDocument(ExecutionInput executionInput, FeddiGatewayRequestContext context);
 }

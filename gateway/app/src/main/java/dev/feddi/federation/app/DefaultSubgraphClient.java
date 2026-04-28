@@ -1,6 +1,6 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.GatewayRequestContext;
+import dev.feddi.federation.customization.FeddiGatewayRequestContext;
 import dev.feddi.federation.customization.SubgraphClient;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
@@ -32,7 +32,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
     }
 
     @Override
-    public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, GatewayRequestContext context) {
+    public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, FeddiGatewayRequestContext context) {
         String query = AstPrinter.printAst(operation);
 
         log.debug("[{}] Executing subgraph query: {}", subgraphName, query);

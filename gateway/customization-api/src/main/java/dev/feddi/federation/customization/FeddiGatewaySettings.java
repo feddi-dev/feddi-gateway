@@ -7,14 +7,14 @@ import java.time.Duration;
  *
  * @param timeoutMs timeout in milliseconds for subgraph calls (null = use default)
  */
-public record GatewaySettings(Long timeoutMs) {
+public record FeddiGatewaySettings(Long timeoutMs) {
     public static final long DEFAULT_TIMEOUT_MS = 30000;
 
     /**
      * Creates settings with default values.
      */
-    public static GatewaySettings defaults() {
-        return new GatewaySettings(DEFAULT_TIMEOUT_MS);
+    public static FeddiGatewaySettings defaults() {
+        return new FeddiGatewaySettings(DEFAULT_TIMEOUT_MS);
     }
 
     /**

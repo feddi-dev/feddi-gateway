@@ -1,8 +1,6 @@
 package dev.feddi.federation.app;
 
 import dev.feddi.federation.customization.DocumentProvider;
-import dev.feddi.federation.customization.GatewayRequestContext;
-import graphql.ExecutionInput;
 import graphql.GraphqlErrorBuilder;
 import graphql.execution.preparsed.PreparsedDocumentEntry;
 import graphql.language.Document;

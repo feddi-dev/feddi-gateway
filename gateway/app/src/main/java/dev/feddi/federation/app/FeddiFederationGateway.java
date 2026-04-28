@@ -1,6 +1,7 @@
 package dev.feddi.federation.app;
 
 import dev.feddi.federation.customization.DocumentProvider;
+import dev.feddi.federation.customization.FeddiGatewayRequestContext;
 import dev.feddi.federation.customization.SubgraphClient;
 import dev.feddi.federation.engine.compose.Composer;
 import dev.feddi.federation.engine.compose.Composer.SubgraphInput;
@@ -24,7 +25,6 @@ import graphql.ParseAndValidate;
 import graphql.language.Document;
 import graphql.language.OperationDefinition;
 import graphql.schema.GraphQLSchema;
-import graphql.schema.idl.RuntimeWiring;
 import graphql.schema.idl.SchemaGenerator;
 import graphql.schema.idl.SchemaParser;
 import org.slf4j.Logger;
@@ -40,9 +40,9 @@ import java.util.Map;
  *
  * This is the main entry point for federated query execution.
  */
-public final class FederationGateway {
+public final class FeddiFederationGateway {
 
-    private static final Logger log = LoggerFactory.getLogger(FederationGateway.class);
+    private static final Logger log = LoggerFactory.getLogger(FeddiFederationGateway.class);
 
     private final Graph graph;
     private final GraphQLSchema supergraph;
@@ -51,29 +51,29 @@ public final class FederationGateway {
     private final OperationNormalizer normalizer;
     private final Map<String, SubgraphClient> customizationClients;
     private final ExecutionListener executionListener;
-    private final GatewayMetrics gatewayMetrics;
+    private final FeddiGatewayMetrics gatewayMetrics;
     private final DocumentProvider documentProvider;
 
-    private FederationGateway(Graph graph, GraphQLSchema supergraph,
-                              Map<String, SubgraphClient> subgraphClients,
-                              ExecutionListener executionListener) {
+    private FeddiFederationGateway(Graph graph, GraphQLSchema supergraph,
+                                   Map<String, SubgraphClient> subgraphClients,
+                                   ExecutionListener executionListener) {
         this(graph, supergraph, subgraphClients, executionListener, null, null, true);
     }
 
-    private FederationGateway(Graph graph, GraphQLSchema supergraph,
-                              Map<String, SubgraphClient> subgraphClients,
-                              ExecutionListener executionListener,
-                              GatewayMetrics gatewayMetrics,
-                              DocumentProvider documentProvider) {
+    private FeddiFederationGateway(Graph graph, GraphQLSchema supergraph,
+                                   Map<String, SubgraphClient> subgraphClients,
+                                   ExecutionListener executionListener,
+                                   FeddiGatewayMetrics gatewayMetrics,
+                                   DocumentProvider documentProvider) {
         this(graph, supergraph, subgraphClients, executionListener, gatewayMetrics, documentProvider, true);
     }
 
-    private FederationGateway(Graph graph, GraphQLSchema supergraph,
-                              Map<String, SubgraphClient> subgraphClients,
-                              ExecutionListener executionListener,
-                              GatewayMetrics gatewayMetrics,
-                              DocumentProvider documentProvider,
-                              boolean introspectionEnabled) {
+    private FeddiFederationGateway(Graph graph, GraphQLSchema supergraph,
+                                   Map<String, SubgraphClient> subgraphClients,
+                                   ExecutionListener executionListener,
+                                   FeddiGatewayMetrics gatewayMetrics,
+                                   DocumentProvider documentProvider,
+                                   boolean introspectionEnabled) {
         this.graph = graph;
         this.supergraph = supergraph;
         this.introspectionEnabled = introspectionEnabled;
@@ -93,20 +93,20 @@ public final class FederationGateway {
     }
     
     /**
-     * Creates a new FederationGateway from subgraph inputs and clients.
+     * Creates a new FeddiFederationGateway from subgraph inputs and clients.
      *
      * @param subgraphInputs the subgraph schemas to compose
      * @param subgraphClients map of subgraph name to client
      * @return the configured gateway
      * @throws CompositionException if schema composition fails
      */
-    public static FederationGateway create(List<SubgraphInput> subgraphInputs,
-                                           Map<String, SubgraphClient> subgraphClients) {
+    public static FeddiFederationGateway create(List<SubgraphInput> subgraphInputs,
+                                                Map<String, SubgraphClient> subgraphClients) {
         return create(subgraphInputs, subgraphClients, ExecutionListener.NOOP);
     }
 
     /**
-     * Creates a new FederationGateway from subgraph inputs, clients, and an execution listener.
+     * Creates a new FeddiFederationGateway from subgraph inputs, clients, and an execution listener.
      *
      * @param subgraphInputs the subgraph schemas to compose
      * @param subgraphClients map of subgraph name to client
@@ -114,14 +114,14 @@ public final class FederationGateway {
      * @return the configured gateway
      * @throws CompositionException if schema composition fails
      */
-    public static FederationGateway create(List<SubgraphInput> subgraphInputs,
-                                           Map<String, SubgraphClient> subgraphClients,
-                                           ExecutionListener executionListener) {
+    public static FeddiFederationGateway create(List<SubgraphInput> subgraphInputs,
+                                                Map<String, SubgraphClient> subgraphClients,
+                                                ExecutionListener executionListener) {
         return create(subgraphInputs, subgraphClients, executionListener, null);
     }
 
     /**
-     * Creates a new FederationGateway from subgraph inputs, clients, execution listener, and gateway metrics.
+     * Creates a new FeddiFederationGateway from subgraph inputs, clients, execution listener, and gateway metrics.
      *
      * @param subgraphInputs the subgraph schemas to compose
      * @param subgraphClients map of subgraph name to client
@@ -130,15 +130,15 @@ public final class FederationGateway {
      * @return the configured gateway
      * @throws CompositionException if schema composition fails
      */
-    public static FederationGateway create(List<SubgraphInput> subgraphInputs,
-                                           Map<String, SubgraphClient> subgraphClients,
-                                           ExecutionListener executionListener,
-                                           GatewayMetrics gatewayMetrics) {
+    public static FeddiFederationGateway create(List<SubgraphInput> subgraphInputs,
+                                                Map<String, SubgraphClient> subgraphClients,
+                                                ExecutionListener executionListener,
+                                                FeddiGatewayMetrics gatewayMetrics) {
         return create(subgraphInputs, subgraphClients, executionListener, gatewayMetrics, null);
     }
 
     /**
-     * Creates a new FederationGateway from subgraph inputs, clients, execution listener, gateway metrics,
+     * Creates a new FeddiFederationGateway from subgraph inputs, clients, execution listener, gateway metrics,
      * and an optional document provider.
      *
      * @param subgraphInputs the subgraph schemas to compose
@@ -149,20 +149,20 @@ public final class FederationGateway {
      * @return the configured gateway
      * @throws CompositionException if schema composition fails
      */
-    public static FederationGateway create(List<SubgraphInput> subgraphInputs,
-                                           Map<String, SubgraphClient> subgraphClients,
-                                           ExecutionListener executionListener,
-                                           GatewayMetrics gatewayMetrics,
-                                           DocumentProvider documentProvider) {
+    public static FeddiFederationGateway create(List<SubgraphInput> subgraphInputs,
+                                                Map<String, SubgraphClient> subgraphClients,
+                                                ExecutionListener executionListener,
+                                                FeddiGatewayMetrics gatewayMetrics,
+                                                DocumentProvider documentProvider) {
         return create(subgraphInputs, subgraphClients, executionListener, gatewayMetrics, documentProvider, true);
     }
 
-    public static FederationGateway create(List<SubgraphInput> subgraphInputs,
-                                           Map<String, SubgraphClient> subgraphClients,
-                                           ExecutionListener executionListener,
-                                           GatewayMetrics gatewayMetrics,
-                                           DocumentProvider documentProvider,
-                                           boolean introspectionEnabled) {
+    public static FeddiFederationGateway create(List<SubgraphInput> subgraphInputs,
+                                                Map<String, SubgraphClient> subgraphClients,
+                                                ExecutionListener executionListener,
+                                                FeddiGatewayMetrics gatewayMetrics,
+                                                DocumentProvider documentProvider,
+                                                boolean introspectionEnabled) {
         Composer composer = new Composer();
         CompositionResult result = composer.compose(subgraphInputs);
 
@@ -171,12 +171,12 @@ public final class FederationGateway {
                 result.validationResult().diagnostics());
         }
 
-        return new FederationGateway(result.graph(), result.supergraph(), subgraphClients,
+        return new FeddiFederationGateway(result.graph(), result.supergraph(), subgraphClients,
             executionListener, gatewayMetrics, documentProvider, introspectionEnabled);
     }
     
     /**
-     * Creates a new FederationGateway using a pre-composed supergraph SDL from the control plane.
+     * Creates a new FeddiFederationGateway using a pre-composed supergraph SDL from the control plane.
      * Skips schema merging and validation (already done by the control plane), but still builds
      * the planning graph from subgraph schemas.
      *
@@ -185,7 +185,7 @@ public final class FederationGateway {
      * @param subgraphClients map of subgraph name to client
      * @return the configured gateway
      */
-    public static FederationGateway createWithPreComposedSupergraph(
+    public static FeddiFederationGateway createWithPreComposedSupergraph(
             String supergraphSdl,
             List<SubgraphInput> subgraphInputs,
             Map<String, SubgraphClient> subgraphClients) {
@@ -193,7 +193,7 @@ public final class FederationGateway {
     }
 
     /**
-     * Creates a new FederationGateway using a pre-composed supergraph SDL from the control plane,
+     * Creates a new FeddiFederationGateway using a pre-composed supergraph SDL from the control plane,
      * with an execution listener for metrics.
      *
      * @param supergraphSdl the pre-composed supergraph SDL
@@ -203,18 +203,18 @@ public final class FederationGateway {
      * @param gatewayMetrics gateway metrics for planning duration recording (may be null)
      * @return the configured gateway
      */
-    public static FederationGateway createWithPreComposedSupergraph(
+    public static FeddiFederationGateway createWithPreComposedSupergraph(
             String supergraphSdl,
             List<SubgraphInput> subgraphInputs,
             Map<String, SubgraphClient> subgraphClients,
             ExecutionListener executionListener,
-            GatewayMetrics gatewayMetrics) {
+            FeddiGatewayMetrics gatewayMetrics) {
         return createWithPreComposedSupergraph(supergraphSdl, subgraphInputs, subgraphClients,
             executionListener, gatewayMetrics, null);
     }
 
     /**
-     * Creates a new FederationGateway using a pre-composed supergraph SDL from the control plane,
+     * Creates a new FeddiFederationGateway using a pre-composed supergraph SDL from the control plane,
      * with an execution listener, metrics, and an optional document provider.
      *
      * @param supergraphSdl the pre-composed supergraph SDL
@@ -225,12 +225,12 @@ public final class FederationGateway {
      * @param documentProvider optional provider for pre-parsed documents (may be null)
      * @return the configured gateway
      */
-    public static FederationGateway createWithPreComposedSupergraph(
+    public static FeddiFederationGateway createWithPreComposedSupergraph(
             String supergraphSdl,
             List<SubgraphInput> subgraphInputs,
             Map<String, SubgraphClient> subgraphClients,
             ExecutionListener executionListener,
-            GatewayMetrics gatewayMetrics,
+            FeddiGatewayMetrics gatewayMetrics,
             DocumentProvider documentProvider) {
 
         log.info("Creating gateway from pre-composed supergraph ({} subgraphs)", subgraphInputs.size());
@@ -250,16 +250,16 @@ public final class FederationGateway {
         var graph = new GraphBuilder().build(subgraphs);
 
         log.info("Gateway created from pre-composed supergraph with {} subgraphs", subgraphs.size());
-        return new FederationGateway(graph, supergraph, subgraphClients, executionListener,
+        return new FeddiFederationGateway(graph, supergraph, subgraphClients, executionListener,
             gatewayMetrics, documentProvider);
     }
 
-    public static FederationGateway createWithPreComposedSupergraph(
+    public static FeddiFederationGateway createWithPreComposedSupergraph(
             String supergraphSdl,
             List<SubgraphInput> subgraphInputs,
             Map<String, SubgraphClient> subgraphClients,
             ExecutionListener executionListener,
-            GatewayMetrics gatewayMetrics,
+            FeddiGatewayMetrics gatewayMetrics,
             DocumentProvider documentProvider,
             boolean introspectionEnabled) {
 
@@ -278,7 +278,7 @@ public final class FederationGateway {
         var graph = new GraphBuilder().build(subgraphs);
 
         log.info("Gateway created from pre-composed supergraph with {} subgraphs", subgraphs.size());
-        return new FederationGateway(graph, supergraph, subgraphClients, executionListener,
+        return new FeddiFederationGateway(graph, supergraph, subgraphClients, executionListener,
             gatewayMetrics, documentProvider, introspectionEnabled);
     }
 
@@ -294,10 +294,10 @@ public final class FederationGateway {
      * @return the gateway result wrapped in a Mono
      */
     public Mono<GatewayResult> execute(ExecutionInput executionInput) {
-        return execute(executionInput, dev.feddi.federation.customization.GatewayRequestContext.empty());
+        return execute(executionInput, FeddiGatewayRequestContext.empty());
     }
 
-    public Mono<GatewayResult> execute(ExecutionInput executionInput, dev.feddi.federation.customization.GatewayRequestContext requestContext) {
+    public Mono<GatewayResult> execute(ExecutionInput executionInput, FeddiGatewayRequestContext requestContext) {
         Map<String, Object> variables = executionInput.getVariables();
 
         // Resolve document: try provider first, fall back to ParseAndValidate

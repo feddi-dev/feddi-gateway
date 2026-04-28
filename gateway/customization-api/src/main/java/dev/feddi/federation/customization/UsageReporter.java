@@ -3,7 +3,7 @@ package dev.feddi.federation.customization;
 /**
  * Reports usage data for executed GraphQL operations.
  *
- * <p>Implementations receive the {@link GatewayRequestContext} (request-side: document,
+ * <p>Implementations receive the {@link FeddiGatewayRequestContext} (request-side: document,
  * schema, headers, client info) and the {@link ExecutionOutcome} (response-side: duration,
  * errors). The implementation is responsible for extracting field coordinates, computing
  * operation hashes, batching, and delivering usage data.
@@ -20,5 +20,5 @@ public interface UsageReporter {
      * @param context the request context with document, schema, client info
      * @param outcome the execution result with duration and error info
      */
-    void report(GatewayRequestContext context, ExecutionOutcome outcome);
+    void report(FeddiGatewayRequestContext context, ExecutionOutcome outcome);
 }

@@ -11,7 +11,7 @@ import java.util.Optional;
  * Created before execution. Use the builder-style setters to configure, then pass to the gateway.
  * The document is NOT part of the context — it's a result of execution and lives in {@link ExecutionOutcome}.
  */
-public class GatewayRequestContext {
+public class FeddiGatewayRequestContext {
 
     private final Map<String, String> requestHeaders;
     private final GraphQLSchema schema;
@@ -20,9 +20,9 @@ public class GatewayRequestContext {
     private final String clientName;
     private final String clientVersion;
 
-    private GatewayRequestContext(Map<String, String> requestHeaders, GraphQLSchema schema,
-                                  String operationName, Map<String, Object> variables,
-                                  String clientName, String clientVersion) {
+    private FeddiGatewayRequestContext(Map<String, String> requestHeaders, GraphQLSchema schema,
+                                       String operationName, Map<String, Object> variables,
+                                       String clientName, String clientVersion) {
         var normalized = new LinkedHashMap<String, String>();
         requestHeaders.forEach((k, v) -> normalized.put(k.toLowerCase(), v));
         this.requestHeaders = Map.copyOf(normalized);
@@ -45,7 +45,7 @@ public class GatewayRequestContext {
     public String clientName() { return clientName; }
     public String clientVersion() { return clientVersion; }
 
-    public static GatewayRequestContext empty() {
+    public static FeddiGatewayRequestContext empty() {
         return new Builder(Map.of()).build();
     }
 
@@ -71,8 +71,8 @@ public class GatewayRequestContext {
         public Builder clientName(String clientName) { this.clientName = clientName; return this; }
         public Builder clientVersion(String clientVersion) { this.clientVersion = clientVersion; return this; }
 
-        public GatewayRequestContext build() {
-            return new GatewayRequestContext(requestHeaders, schema, operationName, variables, clientName, clientVersion);
+        public FeddiGatewayRequestContext build() {
+            return new FeddiGatewayRequestContext(requestHeaders, schema, operationName, variables, clientName, clientVersion);
         }
     }
 }

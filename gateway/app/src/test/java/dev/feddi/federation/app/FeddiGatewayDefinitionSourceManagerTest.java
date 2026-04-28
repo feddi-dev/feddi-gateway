@@ -1,7 +1,7 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.GatewayDefinition;
-import dev.feddi.federation.customization.GatewaySettings;
+import dev.feddi.federation.customization.FeddiGatewayDefinition;
+import dev.feddi.federation.customization.FeddiGatewaySettings;
 import dev.feddi.federation.customization.SubgraphClientFactory;
 import dev.feddi.federation.customization.SubgraphDefinition;
 import dev.feddi.federation.customization.SubgraphSettings;
@@ -18,16 +18,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class GatewayDefinitionSourceManagerTest {
+class FeddiGatewayDefinitionSourceManagerTest {
 
     @Test
     void initializesGatewayFromSourceAtStartup() {
-        DefaultGatewayDefinitionSource source = new DefaultGatewayDefinitionSource();
+        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
         source.replace(gatewayDefinition("startup"));
 
-        GatewayHolder holder = new GatewayHolder();
-        GatewayReloadService reloadService = new GatewayReloadService(holder, subgraphClientFactory(), new GatewayMetrics(new SimpleMeterRegistry()), null, new GatewayConfigFile());
-        GatewayDefinitionSourceManager manager = new GatewayDefinitionSourceManager(source, reloadService);
+        FeddiGatewayHolder holder = new FeddiGatewayHolder();
+        FeddiGatewayReloadService reloadService = new FeddiGatewayReloadService(holder, subgraphClientFactory(), new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
+        FeddiGatewayDefinitionSourceManager manager = new FeddiGatewayDefinitionSourceManager(source, reloadService);
 
         manager.run(new DefaultApplicationArguments(new String[0]));
 
@@ -37,11 +37,11 @@ class GatewayDefinitionSourceManagerTest {
 
     @Test
     void refreshesGatewayWhenSourcePublishesUpdate() {
-        DefaultGatewayDefinitionSource source = new DefaultGatewayDefinitionSource();
+        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
 
-        GatewayHolder holder = new GatewayHolder();
-        GatewayReloadService reloadService = new GatewayReloadService(holder, subgraphClientFactory(), new GatewayMetrics(new SimpleMeterRegistry()), null, new GatewayConfigFile());
-        GatewayDefinitionSourceManager manager = new GatewayDefinitionSourceManager(source, reloadService);
+        FeddiGatewayHolder holder = new FeddiGatewayHolder();
+        FeddiGatewayReloadService reloadService = new FeddiGatewayReloadService(holder, subgraphClientFactory(), new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
+        FeddiGatewayDefinitionSourceManager manager = new FeddiGatewayDefinitionSourceManager(source, reloadService);
 
         manager.run(new DefaultApplicationArguments(new String[0]));
         source.replace(gatewayDefinition("update"));
@@ -100,22 +100,22 @@ class GatewayDefinitionSourceManagerTest {
                                 .build()
                 );
 
-        DefaultGatewayDefinitionSource source = new DefaultGatewayDefinitionSource();
-        source.replace(new GatewayDefinition(
+        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
+        source.replace(new FeddiGatewayDefinition(
                 Map.of(
                         "attractions", new SubgraphDefinition(
                                 subgraphSdl,
                                 new SubgraphSettings(Map.of("url", "http://attractions.local/graphql"))
                         )
                 ),
-                GatewaySettings.defaults(),
+                FeddiGatewaySettings.defaults(),
                 supergraphSdl
         ));
 
-        GatewayHolder holder = new GatewayHolder();
-        GatewayReloadService reloadService = new GatewayReloadService(
-                holder, factory, new GatewayMetrics(new SimpleMeterRegistry()), null, new GatewayConfigFile());
-        GatewayDefinitionSourceManager manager = new GatewayDefinitionSourceManager(source, reloadService);
+        FeddiGatewayHolder holder = new FeddiGatewayHolder();
+        FeddiGatewayReloadService reloadService = new FeddiGatewayReloadService(
+                holder, factory, new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
+        FeddiGatewayDefinitionSourceManager manager = new FeddiGatewayDefinitionSourceManager(source, reloadService);
 
         manager.run(new DefaultApplicationArguments(new String[0]));
 
@@ -146,8 +146,8 @@ class GatewayDefinitionSourceManagerTest {
         assertEquals(openingHours, attraction.get("openingHours"));
     }
 
-    private GatewayDefinition gatewayDefinition(String key) {
-        return new GatewayDefinition(
+    private FeddiGatewayDefinition gatewayDefinition(String key) {
+        return new FeddiGatewayDefinition(
             Map.of(
                 "catalog", new SubgraphDefinition(
                     """
@@ -163,7 +163,7 @@ class GatewayDefinitionSourceManagerTest {
                     new SubgraphSettings(Map.of("url", "http://catalog.local/graphql/" + key))
                 )
             ),
-            GatewaySettings.defaults()
+            FeddiGatewaySettings.defaults()
         );
     }
 
@@ -181,16 +181,16 @@ class GatewayDefinitionSourceManagerTest {
 
     @Test
     void introspectionDisabledReturnsError() {
-        DefaultGatewayDefinitionSource source = new DefaultGatewayDefinitionSource();
+        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
         source.replace(gatewayDefinition("introspection-test"));
 
-        GatewayConfigFile config = new GatewayConfigFile();
+        FeddiGatewayConfigFile config = new FeddiGatewayConfigFile();
         config.setEnableIntrospection(false);
 
-        GatewayHolder holder = new GatewayHolder();
-        GatewayReloadService reloadService = new GatewayReloadService(
-                holder, subgraphClientFactory(), new GatewayMetrics(new SimpleMeterRegistry()), null, config);
-        GatewayDefinitionSourceManager manager = new GatewayDefinitionSourceManager(source, reloadService);
+        FeddiGatewayHolder holder = new FeddiGatewayHolder();
+        FeddiGatewayReloadService reloadService = new FeddiGatewayReloadService(
+                holder, subgraphClientFactory(), new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, config);
+        FeddiGatewayDefinitionSourceManager manager = new FeddiGatewayDefinitionSourceManager(source, reloadService);
         manager.run(new DefaultApplicationArguments(new String[0]));
 
         assertTrue(holder.isInitialized());
@@ -214,13 +214,13 @@ class GatewayDefinitionSourceManagerTest {
 
     @Test
     void introspectionEnabledByDefaultReturnsSchema() {
-        DefaultGatewayDefinitionSource source = new DefaultGatewayDefinitionSource();
+        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
         source.replace(gatewayDefinition("introspection-enabled"));
 
-        GatewayHolder holder = new GatewayHolder();
-        GatewayReloadService reloadService = new GatewayReloadService(
-                holder, subgraphClientFactory(), new GatewayMetrics(new SimpleMeterRegistry()), null, new GatewayConfigFile());
-        GatewayDefinitionSourceManager manager = new GatewayDefinitionSourceManager(source, reloadService);
+        FeddiGatewayHolder holder = new FeddiGatewayHolder();
+        FeddiGatewayReloadService reloadService = new FeddiGatewayReloadService(
+                holder, subgraphClientFactory(), new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
+        FeddiGatewayDefinitionSourceManager manager = new FeddiGatewayDefinitionSourceManager(source, reloadService);
         manager.run(new DefaultApplicationArguments(new String[0]));
 
         assertTrue(holder.isInitialized());
@@ -240,7 +240,7 @@ class GatewayDefinitionSourceManagerTest {
         assertNotNull(data.get("__schema"), "Should have __schema: " + spec);
     }
 
-    private void assertQueryResult(GatewayHolder holder, String expectedName) {
+    private void assertQueryResult(FeddiGatewayHolder holder, String expectedName) {
         var gatewayResult = holder.get().execute(
             ExecutionInput.newExecutionInput().query("{ products { id name } }").build()
         ).block();

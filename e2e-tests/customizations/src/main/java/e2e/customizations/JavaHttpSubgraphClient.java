@@ -1,7 +1,7 @@
 package e2e.customizations;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.feddi.federation.customization.FeddiGatewayRequestContext;
 import dev.feddi.federation.customization.SubgraphClient;
 import graphql.ErrorClassification;
 import graphql.ErrorType;
@@ -42,7 +42,7 @@ public class JavaHttpSubgraphClient implements SubgraphClient {
     }
 
     @Override
-    public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, dev.feddi.federation.customization.GatewayRequestContext context) {
+    public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, FeddiGatewayRequestContext context) {
         String query = AstPrinter.printAst(operation);
 
         logger.info("[JavaHttpSubgraphClient] Executing query on subgraph '{}': {}", subgraphName, query);

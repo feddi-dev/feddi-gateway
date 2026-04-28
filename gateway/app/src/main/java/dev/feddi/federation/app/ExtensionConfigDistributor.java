@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * Distributes configuration from feddi-gateway.yml to extensions that implement
  * {@link ConfigurableExtension}. Runs early in startup (before
- * {@link GatewayDefinitionSourceManager}) so extensions are configured
+ * {@link FeddiGatewayDefinitionSourceManager}) so extensions are configured
  * before the gateway attempts to load definitions.
  */
 @Component
@@ -25,11 +25,11 @@ public class ExtensionConfigDistributor implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(ExtensionConfigDistributor.class);
 
-    private final GatewayConfigFile config;
+    private final FeddiGatewayConfigFile config;
     private final List<ConfigurableExtension<?>> extensions;
     private final ObjectMapper objectMapper;
 
-    public ExtensionConfigDistributor(GatewayConfigFile config, List<ConfigurableExtension<?>> extensions) {
+    public ExtensionConfigDistributor(FeddiGatewayConfigFile config, List<ConfigurableExtension<?>> extensions) {
         this.config = config;
         this.extensions = extensions;
         this.objectMapper = new ObjectMapper();

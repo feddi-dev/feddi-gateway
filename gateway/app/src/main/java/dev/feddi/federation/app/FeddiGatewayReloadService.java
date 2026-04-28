@@ -1,7 +1,7 @@
 package dev.feddi.federation.app;
 
 import dev.feddi.federation.customization.DocumentProvider;
-import dev.feddi.federation.customization.GatewayDefinition;
+import dev.feddi.federation.customization.FeddiGatewayDefinition;
 import dev.feddi.federation.customization.SubgraphClient;
 import dev.feddi.federation.customization.SubgraphClientFactory;
 import dev.feddi.federation.customization.SubgraphDefinition;
@@ -20,18 +20,18 @@ import java.util.Map;
  * Rebuilds the gateway from a logical gateway definition.
  */
 @Service
-public class GatewayReloadService {
+public class FeddiGatewayReloadService {
 
-    private final GatewayHolder gatewayHolder;
+    private final FeddiGatewayHolder gatewayHolder;
     private final SubgraphClientFactory clientFactory;
-    private final GatewayMetrics gatewayMetrics;
+    private final FeddiGatewayMetrics gatewayMetrics;
     private final DocumentProvider documentProvider;
     private final boolean introspectionEnabled;
 
-    public GatewayReloadService(GatewayHolder gatewayHolder, SubgraphClientFactory clientFactory,
-                                GatewayMetrics gatewayMetrics,
-                                @Nullable DocumentProvider documentProvider,
-                                GatewayConfigFile gatewayConfigFile) {
+    public FeddiGatewayReloadService(FeddiGatewayHolder gatewayHolder, SubgraphClientFactory clientFactory,
+                                     FeddiGatewayMetrics gatewayMetrics,
+                                     @Nullable DocumentProvider documentProvider,
+                                     FeddiGatewayConfigFile gatewayConfigFile) {
         this.gatewayHolder = gatewayHolder;
         this.clientFactory = clientFactory;
         this.gatewayMetrics = gatewayMetrics;
@@ -44,12 +44,12 @@ public class GatewayReloadService {
      *
      * @param gatewayDefinition logical gateway definition
      */
-    public void reload(GatewayDefinition gatewayDefinition) {
+    public void reload(FeddiGatewayDefinition gatewayDefinition) {
         if (gatewayDefinition == null) {
-            throw new GatewayDefinitionException("Gateway definition must not be null");
+            throw new FeddiGatewayDefinitionException("Gateway definition must not be null");
         }
         if (gatewayDefinition.subgraphs().isEmpty()) {
-            throw new GatewayDefinitionException("No subgraphs defined");
+            throw new FeddiGatewayDefinitionException("No subgraphs defined");
         }
 
         List<SubgraphInput> inputs = new ArrayList<>();
@@ -69,15 +69,15 @@ public class GatewayReloadService {
             clients.put(name, new TimeoutAwareSubgraphClient(baseClient, name, timeout));
         }
 
-        FederationGateway gateway;
+        FeddiFederationGateway gateway;
         if (gatewayDefinition.supergraphSdl() != null) {
             // Pre-composed supergraph from control plane — skip composition
-            gateway = FederationGateway.createWithPreComposedSupergraph(
+            gateway = FeddiFederationGateway.createWithPreComposedSupergraph(
                     gatewayDefinition.supergraphSdl(), inputs, clients,
                     gatewayMetrics, gatewayMetrics, documentProvider, introspectionEnabled);
         } else {
             // No pre-composed supergraph — compose from subgraph schemas
-            gateway = FederationGateway.create(inputs, clients, gatewayMetrics,
+            gateway = FeddiFederationGateway.create(inputs, clients, gatewayMetrics,
                     gatewayMetrics, documentProvider, introspectionEnabled);
         }
         gatewayHolder.set(gateway);
@@ -85,17 +85,17 @@ public class GatewayReloadService {
 
     private void validateSubgraph(String name, SubgraphDefinition subgraphDefinition) {
         if (subgraphDefinition == null) {
-            throw new GatewayDefinitionException("Missing definition for subgraph: " + name);
+            throw new FeddiGatewayDefinitionException("Missing definition for subgraph: " + name);
         }
         if (subgraphDefinition.sdl().isBlank()) {
-            throw new GatewayDefinitionException("Missing SDL for subgraph: " + name);
+            throw new FeddiGatewayDefinitionException("Missing SDL for subgraph: " + name);
         }
         if (subgraphDefinition.settings() == null) {
-            throw new GatewayDefinitionException("Missing settings for subgraph: " + name);
+            throw new FeddiGatewayDefinitionException("Missing settings for subgraph: " + name);
         }
         Object url = subgraphDefinition.settings().config().get("url");
         if (url == null || url.toString().isBlank()) {
-            throw new GatewayDefinitionException("Missing URL in config for subgraph: " + name);
+            throw new FeddiGatewayDefinitionException("Missing URL in config for subgraph: " + name);
         }
     }
 }

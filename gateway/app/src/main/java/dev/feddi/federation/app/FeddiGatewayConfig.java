@@ -13,9 +13,9 @@ import org.springframework.web.reactive.function.client.WebClient;
  * Spring configuration for the gateway.
  */
 @Configuration
-public class GatewayConfig {
+public class FeddiGatewayConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(GatewayConfig.class);
+    private static final Logger log = LoggerFactory.getLogger(FeddiGatewayConfig.class);
 
     @Bean
     public WebClient.Builder webClientBuilder() {
@@ -28,7 +28,7 @@ public class GatewayConfig {
      * chunked requests and ignores Content-Length headers.
      */
     @Bean
-    public CodecCustomizer maxRequestSizeCodecCustomizer(GatewayConfigFile config) {
+    public CodecCustomizer maxRequestSizeCodecCustomizer(FeddiGatewayConfigFile config) {
         return configurer -> {
             long maxBytes = config.getMaxRequestSizeBytes();
             if (maxBytes > 0) {

@@ -22,5 +22,5 @@ public interface SubgraphClient {
      * @param variables the variables for the operation (may be empty)
      * @return a Mono containing the GraphQL execution result
      */
-    Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, GatewayRequestContext context);
+    Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, FeddiGatewayRequestContext context);
 }

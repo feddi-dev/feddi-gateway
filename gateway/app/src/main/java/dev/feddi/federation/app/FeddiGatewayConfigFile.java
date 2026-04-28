@@ -9,7 +9,7 @@ import java.util.Map;
  * Schema for the feddi-gateway.yml configuration file.
  * Parsed from YAML by Jackson. All fields have sensible defaults.
  */
-public class GatewayConfigFile {
+public class FeddiGatewayConfigFile {
 
     /**
      * Server port. Defaults to 8080.

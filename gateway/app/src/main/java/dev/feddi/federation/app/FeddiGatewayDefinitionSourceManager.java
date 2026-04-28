@@ -1,7 +1,7 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.GatewayDefinition;
-import dev.feddi.federation.customization.GatewayDefinitionSource;
+import dev.feddi.federation.customization.FeddiGatewayDefinition;
+import dev.feddi.federation.customization.FeddiGatewayDefinitionSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -13,15 +13,15 @@ import reactor.core.publisher.Mono;
  * Loads the initial gateway definition and applies subsequent updates from the active source.
  */
 @Component
-public class GatewayDefinitionSourceManager implements ApplicationRunner {
+public class FeddiGatewayDefinitionSourceManager implements ApplicationRunner {
 
-    private static final Logger log = LoggerFactory.getLogger(GatewayDefinitionSourceManager.class);
+    private static final Logger log = LoggerFactory.getLogger(FeddiGatewayDefinitionSourceManager.class);
 
-    private final GatewayDefinitionSource gatewayDefinitionSource;
-    private final GatewayReloadService gatewayReloadService;
+    private final FeddiGatewayDefinitionSource gatewayDefinitionSource;
+    private final FeddiGatewayReloadService gatewayReloadService;
 
-    public GatewayDefinitionSourceManager(GatewayDefinitionSource gatewayDefinitionSource,
-                                          GatewayReloadService gatewayReloadService) {
+    public FeddiGatewayDefinitionSourceManager(FeddiGatewayDefinitionSource gatewayDefinitionSource,
+                                               FeddiGatewayReloadService gatewayReloadService) {
         this.gatewayDefinitionSource = gatewayDefinitionSource;
         this.gatewayReloadService = gatewayReloadService;
     }
@@ -41,13 +41,13 @@ public class GatewayDefinitionSourceManager implements ApplicationRunner {
             );
     }
 
-    private void reloadInitialDefinition(GatewayDefinition gatewayDefinition) {
+    private void reloadInitialDefinition(FeddiGatewayDefinition gatewayDefinition) {
         log.info("Loading gateway definition from {}", gatewayDefinitionSource.getClass().getName());
         gatewayReloadService.reload(gatewayDefinition);
         log.info("Gateway initialized with {} subgraph(s)", gatewayDefinition.subgraphs().size());
     }
 
-    private Mono<Void> reloadUpdatedDefinition(GatewayDefinition gatewayDefinition) {
+    private Mono<Void> reloadUpdatedDefinition(FeddiGatewayDefinition gatewayDefinition) {
         return Mono.fromRunnable(() -> {
                 log.info("Refreshing gateway definition from {}", gatewayDefinitionSource.getClass().getName());
                 gatewayReloadService.reload(gatewayDefinition);

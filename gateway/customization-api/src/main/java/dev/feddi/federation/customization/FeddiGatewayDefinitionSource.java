@@ -19,19 +19,19 @@ import java.util.Optional;
  *
  * <p>The gateway provides a default in-memory implementation.
  */
-public interface GatewayDefinitionSource {
+public interface FeddiGatewayDefinitionSource {
 
     /**
      * Loads the gateway definition to use at startup.
      *
      * @return the gateway definition, or empty if startup should leave the gateway uninitialized
      */
-    Optional<GatewayDefinition> load();
+    Optional<FeddiGatewayDefinition> load();
 
     /**
      * Publishes updated gateway definitions over time.
      *
      * @return a stream of definition updates
      */
-    Flux<GatewayDefinition> updates();
+    Flux<FeddiGatewayDefinition> updates();
 }

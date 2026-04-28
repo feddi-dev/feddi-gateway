@@ -1,7 +1,7 @@
 package e2e.customizations;
 
 import dev.feddi.federation.customization.DocumentProvider;
-import dev.feddi.federation.customization.GatewayRequestContext;
+import dev.feddi.federation.customization.FeddiGatewayRequestContext;
 import graphql.ExecutionInput;
 import graphql.GraphqlErrorBuilder;
 import graphql.execution.preparsed.PreparsedDocumentEntry;
@@ -39,7 +39,7 @@ public class TestDocumentProvider implements DocumentProvider {
     }
 
     @Override
-    public Mono<PreparsedDocumentEntry> getDocument(ExecutionInput executionInput, GatewayRequestContext context) {
+    public Mono<PreparsedDocumentEntry> getDocument(ExecutionInput executionInput, FeddiGatewayRequestContext context) {
         var ext = executionInput.getExtensions();
         if (ext != null && ext.get("persistedQuery") instanceof Map<?, ?> pq) {
             if (pq.get("sha256Hash") instanceof String hash) {

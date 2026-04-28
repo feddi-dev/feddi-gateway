@@ -1,6 +1,6 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.GatewayDefinitionSource;
+import dev.feddi.federation.customization.FeddiGatewayDefinitionSource;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 /**
  * Auto-configuration for the default gateway definition source and admin upload.
  *
- * <p>When no custom {@link GatewayDefinitionSource} is registered by an extension,
+ * <p>When no custom {@link FeddiGatewayDefinitionSource} is registered by an extension,
  * this creates the default in-memory source and the admin upload infrastructure
  * (ZIP upload service, controller, and admin HTTP server).
  *
@@ -16,16 +16,16 @@ import org.springframework.context.annotation.Bean;
  * none of these beans are created — the admin upload endpoint is not started.
  */
 @AutoConfiguration
-@ConditionalOnMissingBean(GatewayDefinitionSource.class)
-public class GatewayDefinitionSourceConfiguration {
+@ConditionalOnMissingBean(FeddiGatewayDefinitionSource.class)
+public class FeddiGatewayDefinitionSourceConfiguration {
 
     @Bean
-    public DefaultGatewayDefinitionSource gatewayDefinitionSource() {
-        return new DefaultGatewayDefinitionSource();
+    public DefaultFeddiGatewayDefinitionSource gatewayDefinitionSource() {
+        return new DefaultFeddiGatewayDefinitionSource();
     }
 
     @Bean
-    public ZipUploadService zipUploadService(DefaultGatewayDefinitionSource source) {
+    public ZipUploadService zipUploadService(DefaultFeddiGatewayDefinitionSource source) {
         return new ZipUploadService(source);
     }
 
@@ -35,7 +35,7 @@ public class GatewayDefinitionSourceConfiguration {
     }
 
     @Bean
-    public AdminServer adminServer(ZipUploadController controller, GatewayConfigFile config) {
+    public AdminServer adminServer(ZipUploadController controller, FeddiGatewayConfigFile config) {
         return new AdminServer(controller, config);
     }
 }

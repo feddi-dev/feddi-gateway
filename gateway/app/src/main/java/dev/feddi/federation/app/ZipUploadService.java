@@ -2,8 +2,8 @@ package dev.feddi.federation.app;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import dev.feddi.federation.customization.GatewayDefinition;
-import dev.feddi.federation.customization.GatewaySettings;
+import dev.feddi.federation.customization.FeddiGatewayDefinition;
+import dev.feddi.federation.customization.FeddiGatewaySettings;
 import dev.feddi.federation.customization.SubgraphDefinition;
 import dev.feddi.federation.customization.SubgraphSettings;
 
@@ -18,8 +18,8 @@ import java.util.zip.ZipInputStream;
 /**
  * Service for processing zip uploads containing subgraph configurations.
  *
- * <p>Only created when no custom {@link dev.feddi.federation.customization.GatewayDefinitionSource}
- * is registered (see {@link GatewayDefinitionSourceConfiguration}).
+ * <p>Only created when no custom {@link FeddiGatewayDefinitionSource}
+ * is registered (see {@link FeddiGatewayDefinitionSourceConfiguration}).
  *
  * Expected zip structure:
  * <pre>
@@ -34,10 +34,10 @@ import java.util.zip.ZipInputStream;
  */
 public class ZipUploadService {
 
-    private final DefaultGatewayDefinitionSource gatewayDefinitionSource;
+    private final DefaultFeddiGatewayDefinitionSource gatewayDefinitionSource;
     private final ObjectMapper yamlMapper;
 
-    public ZipUploadService(DefaultGatewayDefinitionSource gatewayDefinitionSource) {
+    public ZipUploadService(DefaultFeddiGatewayDefinitionSource gatewayDefinitionSource) {
         this.gatewayDefinitionSource = gatewayDefinitionSource;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
     }
@@ -46,15 +46,15 @@ public class ZipUploadService {
      * Processes a zip file containing subgraph configurations and refreshes the gateway.
      *
      * @param zipBytes the zip file contents
-     * @throws GatewayDefinitionException if parsing or validation fails
+     * @throws FeddiGatewayDefinitionException if parsing or validation fails
      */
     public void processZip(byte[] zipBytes) {
         gatewayDefinitionSource.replace(parseZip(zipBytes));
     }
 
-    private GatewayDefinition parseZip(byte[] zipBytes) {
+    private FeddiGatewayDefinition parseZip(byte[] zipBytes) {
         Map<String, MutableSubgraphDefinition> subgraphs = new LinkedHashMap<>();
-        GatewaySettings gatewaySettings = GatewaySettings.defaults();
+        FeddiGatewaySettings gatewaySettings = FeddiGatewaySettings.defaults();
 
         try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
             ZipEntry entry;
@@ -73,7 +73,7 @@ public class ZipUploadService {
 
                 // Check for root config.yaml (gateway-level configuration)
                 if (path.equals("config.yaml") || path.equals("config.yml")) {
-                    gatewaySettings = yamlMapper.readValue(content, GatewaySettings.class);
+                    gatewaySettings = yamlMapper.readValue(content, FeddiGatewaySettings.class);
                     zis.closeEntry();
                     continue;
                 }
@@ -113,11 +113,11 @@ public class ZipUploadService {
                 zis.closeEntry();
             }
         } catch (IOException e) {
-            throw new GatewayDefinitionException("Failed to parse zip file: " + e.getMessage(), e);
+            throw new FeddiGatewayDefinitionException("Failed to parse zip file: " + e.getMessage(), e);
         }
 
         if (subgraphs.isEmpty()) {
-            throw new GatewayDefinitionException("No valid subgraphs found in zip");
+            throw new FeddiGatewayDefinitionException("No valid subgraphs found in zip");
         }
 
         Map<String, SubgraphDefinition> definitions = new LinkedHashMap<>();
@@ -125,15 +125,15 @@ public class ZipUploadService {
             String name = entry.getKey();
             MutableSubgraphDefinition data = entry.getValue();
             if (data.sdl == null) {
-                throw new GatewayDefinitionException("Missing schema.graphqls for subgraph: " + name);
+                throw new FeddiGatewayDefinitionException("Missing schema.graphqls for subgraph: " + name);
             }
             if (data.settings == null) {
-                throw new GatewayDefinitionException("Missing config.yaml for subgraph: " + name);
+                throw new FeddiGatewayDefinitionException("Missing config.yaml for subgraph: " + name);
             }
             definitions.put(name, new SubgraphDefinition(data.sdl, data.settings));
         }
 
-        return new GatewayDefinition(definitions, gatewaySettings);
+        return new FeddiGatewayDefinition(definitions, gatewaySettings);
     }
 
     private String normalizePath(String rawPath) {
@@ -148,7 +148,7 @@ public class ZipUploadService {
                 continue;
             }
             if (part.equals("..")) {
-                throw new GatewayDefinitionException("Invalid zip entry path: " + rawPath);
+                throw new FeddiGatewayDefinitionException("Invalid zip entry path: " + rawPath);
             }
             if (normalized.length() > 0) {
                 normalized.append('/');

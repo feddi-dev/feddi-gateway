@@ -1,7 +1,7 @@
 package dev.feddi.federation.app;
 
 import dev.feddi.federation.customization.ExecutionOutcome;
-import dev.feddi.federation.customization.GatewayRequestContext;
+import dev.feddi.federation.customization.FeddiGatewayRequestContext;
 import dev.feddi.federation.customization.UsageReporter;
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
@@ -30,11 +30,11 @@ public class GraphQLController {
 
     private static final Logger log = LoggerFactory.getLogger(GraphQLController.class);
 
-    private final GatewayHolder gatewayHolder;
+    private final FeddiGatewayHolder gatewayHolder;
     private final UsageReporter usageReporter;
-    private final GatewayMetrics gatewayMetrics;
+    private final FeddiGatewayMetrics gatewayMetrics;
 
-    public GraphQLController(GatewayHolder gatewayHolder, UsageReporter usageReporter, GatewayMetrics gatewayMetrics) {
+    public GraphQLController(FeddiGatewayHolder gatewayHolder, UsageReporter usageReporter, FeddiGatewayMetrics gatewayMetrics) {
         this.gatewayHolder = gatewayHolder;
         this.usageReporter = usageReporter;
         this.gatewayMetrics = gatewayMetrics;
@@ -47,7 +47,7 @@ public class GraphQLController {
             @RequestHeader(value = "graphql-client-version", required = false) String clientVersion,
             org.springframework.http.server.reactive.ServerHttpRequest httpRequest) {
 
-        FederationGateway gateway = gatewayHolder.get();
+        FeddiFederationGateway gateway = gatewayHolder.get();
         if (gateway == null) {
             log.warn("GraphQL request received but gateway not initialized");
             return Mono.error(new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
@@ -72,7 +72,7 @@ public class GraphQLController {
                 headerMap.put(name, values.getFirst());
             }
         });
-        var requestContext = GatewayRequestContext.builder(headerMap)
+        var requestContext = FeddiGatewayRequestContext.builder(headerMap)
             .schema(gateway.supergraph())
             .operationName(request.operationName())
             .variables(request.variables())

@@ -13,21 +13,21 @@ import org.springframework.context.annotation.Bean;
  * is set up early.
  */
 @SpringBootApplication
-public class GatewayApplication {
+public class FeddiGatewayApplication {
 
-    private static GatewayConfigFile gatewayConfig;
+    private static FeddiGatewayConfigFile gatewayConfig;
 
     public static void main(String[] args) {
         // Log version before anything else
         String version = "dev";
-        try (var is = GatewayApplication.class.getResourceAsStream("/feddi-gateway-version.txt")) {
+        try (var is = FeddiGatewayApplication.class.getResourceAsStream("/feddi-gateway-version.txt")) {
             if (is != null) version = new String(is.readAllBytes()).trim();
         } catch (Exception ignored) {}
-        org.slf4j.LoggerFactory.getLogger(GatewayApplication.class)
+        org.slf4j.LoggerFactory.getLogger(FeddiGatewayApplication.class)
             .info("feddi Gateway version: {}", version);
 
         // Load feddi-gateway.yml before Spring context starts
-        gatewayConfig = GatewayConfigLoader.load();
+        gatewayConfig = FeddiGatewayConfigLoader.load();
 
         // Configure file logging based on feddi-gateway.yml
         LoggingConfigurer.configure(gatewayConfig.getLogging().getDir());
@@ -49,19 +49,19 @@ public class GatewayApplication {
             System.setProperty("gateway.extensions." + namespace, "true");
         }
 
-        SpringApplication.run(GatewayApplication.class, args);
+        SpringApplication.run(FeddiGatewayApplication.class, args);
     }
 
-    private static GatewayConfigFile getOrLoadConfig() {
+    private static FeddiGatewayConfigFile getOrLoadConfig() {
         if (gatewayConfig == null) {
             // @SpringBootTest doesn't call main() — load config on demand
-            gatewayConfig = GatewayConfigLoader.load();
+            gatewayConfig = FeddiGatewayConfigLoader.load();
         }
         return gatewayConfig;
     }
 
     @Bean
-    public GatewayConfigFile gatewayConfigFile() {
+    public FeddiGatewayConfigFile gatewayConfigFile() {
         return getOrLoadConfig();
     }
 

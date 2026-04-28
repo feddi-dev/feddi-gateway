@@ -1,6 +1,6 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.GatewayRequestContext;
+import dev.feddi.federation.customization.FeddiGatewayRequestContext;
 import dev.feddi.federation.customization.SubgraphClient;
 import graphql.ExecutionResult;
 import graphql.language.OperationDefinition;
@@ -11,16 +11,16 @@ import java.util.Map;
 /**
  * Adapts a customization-api SubgraphClient to the engine's SubgraphClient interface.
  *
- * <p>Captures the {@link GatewayRequestContext} at creation time (per-request)
+ * <p>Captures the {@link FeddiGatewayRequestContext} at creation time (per-request)
  * and passes it to the delegate on every execute call. The engine's interface
  * stays unchanged — it doesn't know about the request context.
  */
 public class SubgraphClientAdapter implements dev.feddi.federation.engine.executor.SubgraphClient {
 
     private final SubgraphClient delegate;
-    private final GatewayRequestContext context;
+    private final FeddiGatewayRequestContext context;
 
-    public SubgraphClientAdapter(SubgraphClient delegate, GatewayRequestContext context) {
+    public SubgraphClientAdapter(SubgraphClient delegate, FeddiGatewayRequestContext context) {
         this.delegate = delegate;
         this.context = context;
     }

@@ -13,14 +13,14 @@ import java.util.concurrent.TimeUnit;
  * and dynamic per-subgraph meters.
  */
 @Component
-public class GatewayMetrics implements ExecutionListener {
+public class FeddiGatewayMetrics implements ExecutionListener {
 
     private final MeterRegistry registry;
     private final Timer requestDuration;
     private final Counter requestErrors;
     private final Timer planningDuration;
 
-    public GatewayMetrics(MeterRegistry registry) {
+    public FeddiGatewayMetrics(MeterRegistry registry) {
         this.registry = registry;
 
         this.requestDuration = Timer.builder("gateway.request.duration")

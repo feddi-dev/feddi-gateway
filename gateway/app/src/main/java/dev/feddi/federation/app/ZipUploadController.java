@@ -1,13 +1,15 @@
 package dev.feddi.federation.app;
 
+import dev.feddi.federation.customization.FeddiGatewayDefinitionSource;
+
 import java.util.Map;
 
 /**
  * Handles schema upload requests. Not a Spring controller — served by {@link AdminServer}
  * on a dedicated admin port bound to localhost.
  *
- * <p>Only created when no custom {@link dev.feddi.federation.customization.GatewayDefinitionSource}
- * is registered (see {@link GatewayDefinitionSourceConfiguration}).
+ * <p>Only created when no custom {@link FeddiGatewayDefinitionSource}
+ * is registered (see {@link FeddiGatewayDefinitionSourceConfiguration}).
  */
 public class ZipUploadController {
 
@@ -30,9 +32,9 @@ public class ZipUploadController {
                 "success", true,
                 "message", "Gateway configuration updated successfully"
             );
-        } catch (GatewayDefinitionException e) {
+        } catch (FeddiGatewayDefinitionException e) {
             return Map.of("success", false, "error", e.getMessage());
-        } catch (FederationGateway.CompositionException e) {
+        } catch (FeddiFederationGateway.CompositionException e) {
             return Map.of("success", false, "error", "Schema composition failed: " + e.getMessage());
         }
     }
