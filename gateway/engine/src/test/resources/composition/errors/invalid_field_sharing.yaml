@@ -1,0 +1,27 @@
+name: "INVALID_FIELD_SHARING - field defined in multiple subgraphs without @shareable"
+description: "Spec 3.2.7.1: Fields defined in multiple subgraphs must be marked as @shareable"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      price: Float
+    }
+
+  inventory: |
+    type Query {
+      productByIdInventory(id: ID!): Product @lookup
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      stock: Int
+    }
+
+error: "INVALID_FIELD_SHARING"

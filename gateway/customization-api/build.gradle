@@ -1,0 +1,32 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'dev.feddi.federation'
+version = '1.0-SNAPSHOT'
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            pom {
+                name = 'feddi Gateway customization API'
+                description = 'API for customizing the feddi Gateway'
+            }
+        }
+    }
+}
+
+dependencies {
+    // Reactive programming
+    api libs.reactor.core
+
+    // GraphQL Java for ExecutionResult and OperationDefinition types
+    api libs.graphql.java
+
+    // Spring context for bean annotations (@Component, @Service, @Primary, etc.)
+    // This allows custom SubgraphClientFactory implementations to use Spring annotations
+    api libs.spring.context
+}

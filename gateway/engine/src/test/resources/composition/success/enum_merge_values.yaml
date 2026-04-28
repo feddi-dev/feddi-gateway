@@ -1,0 +1,58 @@
+name: "Enum - merge values from different subgraphs"
+description: "Spec 3.3.3: Enum values from all source schemas are combined"
+
+subgraphs:
+  orders: |
+    type Query {
+      orders(status: OrderStatus): [Order]
+      orderById(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      status: OrderStatus @shareable
+    }
+
+    enum OrderStatus {
+      PENDING
+      PROCESSING
+      SHIPPED
+    }
+
+  fulfillment: |
+    type Query {
+      orderByIdFulfillment(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      status: OrderStatus @shareable
+      trackingNumber: String
+    }
+
+    enum OrderStatus {
+      SHIPPED
+      DELIVERED
+      RETURNED
+    }
+
+supergraph: |
+  type Query {
+    orders(status: OrderStatus): [Order]
+    orderById(id: ID!): Order
+    orderByIdFulfillment(id: ID!): Order
+  }
+  
+  type Order {
+    id: ID!
+    status: OrderStatus
+    trackingNumber: String
+  }
+  
+  enum OrderStatus {
+    PENDING
+    PROCESSING
+    SHIPPED
+    DELIVERED
+    RETURNED
+  }

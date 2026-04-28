@@ -1,0 +1,114 @@
+name: "Interface Types"
+description: |
+  Tests interface querying and implementing types.
+  Covers interfaces with multiple implementations across subgraphs.
+
+subgraphs:
+  nodes: |
+    type Query {
+      nodes: [Node]
+      node(id: ID!): Node
+      nodeById(id: ID!): Node @lookup
+      productByIdNodes(id: ID!): Product @lookup
+      orderByIdNodes(id: ID!): Order @lookup
+      categoryByIdNodes(id: ID!): Category @lookup
+    }
+    interface Node @key(fields: "id") {
+      id: ID!
+      createdAt: String
+      updatedAt: String
+    }
+    interface Timestamped {
+      createdAt: String
+      updatedAt: String
+    }
+    type Product implements Node & Timestamped @key(fields: "id") {
+      id: ID!
+      createdAt: String
+      updatedAt: String
+      name: String
+      sku: String
+    }
+    type Order implements Node & Timestamped @key(fields: "id") {
+      id: ID!
+      createdAt: String
+      updatedAt: String
+      orderNumber: String
+      status: String
+    }
+    type Category implements Node @key(fields: "id") {
+      id: ID!
+      createdAt: String
+      updatedAt: String
+      name: String
+      slug: String
+    }
+
+  extensions: |
+    type Query {
+      productById(id: ID!): Product @lookup
+      orderById(id: ID!): Order @lookup
+      categoryById(id: ID!): Category @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float
+      stock: Int
+    }
+    type Order @key(fields: "id") {
+      id: ID!
+      total: Float
+      itemCount: Int
+    }
+    type Category @key(fields: "id") {
+      id: ID!
+      productCount: Int
+    }
+
+supergraph: |
+  type Query {
+    nodes: [Node]
+    node(id: ID!): Node
+    nodeById(id: ID!): Node
+    productById(id: ID!): Product
+    productByIdNodes(id: ID!): Product
+    orderById(id: ID!): Order
+    orderByIdNodes(id: ID!): Order
+    categoryById(id: ID!): Category
+    categoryByIdNodes(id: ID!): Category
+  }
+  interface Node {
+    id: ID!
+    createdAt: String
+    updatedAt: String
+  }
+  interface Timestamped {
+    createdAt: String
+    updatedAt: String
+  }
+  type Product implements Node & Timestamped {
+    id: ID!
+    createdAt: String
+    updatedAt: String
+    name: String
+    sku: String
+    price: Float
+    stock: Int
+  }
+  type Order implements Node & Timestamped {
+    id: ID!
+    createdAt: String
+    updatedAt: String
+    orderNumber: String
+    status: String
+    total: Float
+    itemCount: Int
+  }
+  type Category implements Node {
+    id: ID!
+    createdAt: String
+    updatedAt: String
+    name: String
+    slug: String
+    productCount: Int
+  }

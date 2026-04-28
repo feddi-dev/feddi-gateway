@@ -1,0 +1,29 @@
+name: "Is expensive via requires"
+description: "Tests requires chain: feddi Gateway fetches hasDiscount from b, price from a via lookup, then passes both to c for isExpensive"
+
+query: |
+  {
+    product {
+      isExpensive
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{ product { id } }'
+    variables: {}
+    response: { data: { product: { id: "p1" } } }
+
+  - subgraph: a
+    operation: 'query($id: ID!) { productByIdA(id: $id) { price } }'
+    variables: { id: "p1" }
+    response: { data: { productByIdA: { price: 699.99 } } }
+
+  - subgraph: c
+    operation: 'query($id: ID!, $p: Float) { productByIdC(id: $id) { isExpensive(p: $p) } }'
+    variables: { id: "p1", p: 699.99 }
+    response: { data: { productByIdC: { isExpensive: true } } }
+
+expectedResponse: { data: { product: { isExpensive: true } } }

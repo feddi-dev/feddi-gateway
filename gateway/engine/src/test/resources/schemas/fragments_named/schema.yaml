@@ -1,0 +1,55 @@
+name: "Named Fragments"
+description: |
+  Tests named fragment definitions and spreads.
+  Covers fragment reuse, nesting, and cross-subgraph scenarios.
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      product(id: ID!): Product
+      productById(id: ID!): Product @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      price: Float
+      category: String
+    }
+
+  inventory: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      stock: Int
+      warehouse: String
+    }
+
+  reviews: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      rating: Float
+      reviewCount: Int
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    product(id: ID!): Product
+    productById(id: ID!): Product
+  }
+  type Product {
+    id: ID!
+    name: String
+    price: Float
+    category: String
+    stock: Int
+    warehouse: String
+    rating: Float
+    reviewCount: Int
+  }

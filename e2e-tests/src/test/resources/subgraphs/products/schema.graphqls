@@ -1,0 +1,16 @@
+scalar DateTime
+scalar URL
+
+type Query {
+  products: [Product]
+  productById(id: ID!): Product @lookup
+  productsSince(since: DateTime!): [Product]
+}
+
+type Product @key(fields: "id") {
+  id: ID!
+  name: String
+  price: Int
+  createdAt: DateTime
+  imageUrl: URL
+}

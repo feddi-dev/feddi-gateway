@@ -1,0 +1,30 @@
+name: "PROVIDES_INVALID_SYNTAX - invalid FieldSelectionSet in @provides"
+description: "Validates that invalid FieldSelectionSet syntax in @provides is rejected"
+
+subgraphs:
+  users: |
+    type Query {
+      me: User
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      username: String @shareable
+    }
+
+  reviews: |
+    type Query {
+      review: Review
+    }
+
+    type Review @key(fields: "id") {
+      id: ID!
+      author: User @provides(fields: "...User")
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      username: String @external
+    }
+
+error: "PROVIDES_INVALID_SYNTAX"

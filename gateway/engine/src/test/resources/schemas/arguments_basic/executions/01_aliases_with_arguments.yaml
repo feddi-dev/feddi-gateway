@@ -1,0 +1,116 @@
+name: "Aliases combined with field arguments"
+description: |
+  Tests aliases on fields that have arguments, including root query arguments
+  and nested field arguments across subgraphs.
+
+query: |
+  {
+    items: products(category: "electronics", minPrice: 100.0, sortBy: "price") {
+      productId: id
+      productName: name
+      productPrice: price
+      productCategory: category
+      colorVariants: variants(color: "blue", size: "M") {
+        variantId: id
+        variantColor: color
+        variantSize: size
+        variantSku: sku
+      }
+      topReviews: reviews(limit: 2, minStars: 4, verified: true) {
+        reviewId: id
+        reviewStars: stars
+        reviewComment: comment
+        reviewVerified: verified
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ items: products(category: "electronics", minPrice: 100.0, sortBy: "price") { productId: id productName: name productPrice: price productCategory: category colorVariants: variants(color: "blue", size: "M") { variantId: id variantColor: color variantSize: size variantSku: sku } } }'
+    variables: {}
+    response: {
+      data: {
+        items: [
+          {
+            productId: "p1",
+            productName: "Laptop",
+            productPrice: 999.99,
+            productCategory: "electronics",
+            colorVariants: [
+              { variantId: "v1", variantColor: "blue", variantSize: "M", variantSku: "LPT-BLU-M" }
+            ]
+          },
+          {
+            productId: "p2",
+            productName: "Tablet",
+            productPrice: 499.99,
+            productCategory: "electronics",
+            colorVariants: [
+              { variantId: "v2", variantColor: "blue", variantSize: "M", variantSku: "TBL-BLU-M" }
+            ]
+          }
+        ]
+      }
+    }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { topReviews: reviews(limit: 2, minStars: 4, verified: true) { reviewId: id reviewStars: stars reviewComment: comment reviewVerified: verified } } }'
+    variables: { id: "p1" }
+    response: {
+      data: {
+        productById: {
+          topReviews: [
+            { reviewId: "r1", reviewStars: 5, reviewComment: "Excellent laptop!", reviewVerified: true },
+            { reviewId: "r2", reviewStars: 4, reviewComment: "Great value", reviewVerified: true }
+          ]
+        }
+      }
+    }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { topReviews: reviews(limit: 2, minStars: 4, verified: true) { reviewId: id reviewStars: stars reviewComment: comment reviewVerified: verified } } }'
+    variables: { id: "p2" }
+    response: {
+      data: {
+        productById: {
+          topReviews: [
+            { reviewId: "r3", reviewStars: 5, reviewComment: "Perfect tablet", reviewVerified: true }
+          ]
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    items: [
+      {
+        productId: "p1",
+        productName: "Laptop",
+        productPrice: 999.99,
+        productCategory: "electronics",
+        colorVariants: [
+          { variantId: "v1", variantColor: "blue", variantSize: "M", variantSku: "LPT-BLU-M" }
+        ],
+        topReviews: [
+          { reviewId: "r1", reviewStars: 5, reviewComment: "Excellent laptop!", reviewVerified: true },
+          { reviewId: "r2", reviewStars: 4, reviewComment: "Great value", reviewVerified: true }
+        ]
+      },
+      {
+        productId: "p2",
+        productName: "Tablet",
+        productPrice: 499.99,
+        productCategory: "electronics",
+        colorVariants: [
+          { variantId: "v2", variantColor: "blue", variantSize: "M", variantSku: "TBL-BLU-M" }
+        ],
+        topReviews: [
+          { reviewId: "r3", reviewStars: 5, reviewComment: "Perfect tablet", reviewVerified: true }
+        ]
+      }
+    ]
+  }
+}

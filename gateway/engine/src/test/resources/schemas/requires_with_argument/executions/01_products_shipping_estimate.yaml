@@ -1,0 +1,41 @@
+name: "Products with shippingEstimate and isExpensiveCategory"
+description: |
+  Tests @require with simple field arguments. Fetches products from subgraph b with price,
+  weight, and category.averagePrice, then resolves shippingEstimate (price * weight * 10)
+  and isExpensiveCategory (averagePrice > 11) from subgraph a.
+
+query: |
+  {
+    products {
+      upc
+      name
+      shippingEstimate
+      isExpensiveCategory
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{products{upc name price weight category{averagePrice}}}'
+    variables: {}
+    response: { data: { products: [
+      { upc: "p1", name: "p-name-1", price: 11, weight: 1, category: { averagePrice: 11 } },
+      { upc: "p2", name: "p-name-2", price: 22, weight: 2, category: { averagePrice: 22 } }
+    ] } }
+
+  - subgraph: a
+    operation: 'query ($upc:String!,$price:Int,$weight:Int,$averagePrice:Int){productByUpc(upc:$upc){shippingEstimate(price:$price,weight:$weight) isExpensiveCategory(averagePrice:$averagePrice)}}'
+    variables: { upc: "p1", price: 11, weight: 1, averagePrice: 11 }
+    response: { data: { productByUpc: { shippingEstimate: 110, isExpensiveCategory: false } } }
+
+  - subgraph: a
+    operation: 'query ($upc:String!,$price:Int,$weight:Int,$averagePrice:Int){productByUpc(upc:$upc){shippingEstimate(price:$price,weight:$weight) isExpensiveCategory(averagePrice:$averagePrice)}}'
+    variables: { upc: "p2", price: 22, weight: 2, averagePrice: 22 }
+    response: { data: { productByUpc: { shippingEstimate: 440, isExpensiveCategory: true } } }
+
+expectedResponse: { data: { products: [
+  { upc: "p1", name: "p-name-1", shippingEstimate: 110, isExpensiveCategory: false },
+  { upc: "p2", name: "p-name-2", shippingEstimate: 440, isExpensiveCategory: true }
+] } }

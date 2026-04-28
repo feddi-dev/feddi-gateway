@@ -1,0 +1,30 @@
+name: "Aliases on Same Field with Different Arguments"
+description: |
+  Tests the scenario where the same field is queried multiple times with different
+  aliases and different arguments. Each alias should be treated as a separate field
+  and execute independently with its own arguments.
+
+subgraphs:
+  data: |
+    type Query {
+      items(category: String!): [Item]
+      itemById(id: ID!): Item
+    }
+    type Item @key(fields: "id") {
+      id: ID!
+      name: String
+      category: String
+      tags(filter: String): [String]
+    }
+
+supergraph: |
+  type Query {
+    items(category: String!): [Item]
+    itemById(id: ID!): Item
+  }
+  type Item {
+    id: ID!
+    name: String
+    category: String
+    tags(filter: String): [String]
+  }

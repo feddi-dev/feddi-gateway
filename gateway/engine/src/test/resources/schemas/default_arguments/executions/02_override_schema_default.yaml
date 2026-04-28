@@ -1,0 +1,24 @@
+name: "Override schema default"
+description: "Tests execution when overriding schema-defined default with explicit value"
+
+query: |
+  query Search($q: String!) {
+    search(query: $q, limit: 5) {
+      id
+      title
+    }
+  }
+
+variables: { q: "graphql" }
+
+subgraphCalls:
+  - subgraph: search
+    operation: 'query($q: String!) { search(query: $q, limit: 5) { id title } }'
+    variables: { q: "graphql" }
+    response: { data: { search: [{ id: "s1", title: "GraphQL Basics" }] } }
+
+expectedResponse: {
+  data: {
+    search: [{ id: "s1", title: "GraphQL Basics" }]
+  }
+}

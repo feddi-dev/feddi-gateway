@@ -1,0 +1,26 @@
+name: "Interface fields with multiple type-specific fragments"
+description: "Tests planning interface fields combined with inline fragments for each implementing type"
+
+query: |
+  {
+    contents {
+      id
+      createdAt
+      ... on Article {
+        body
+        wordCount
+      }
+      ... on Video {
+        url
+        duration
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: content
+      operation: "{ contents { id createdAt __typename ... on Article { body wordCount } ... on Video { url duration } } }"
+      dependsOn: []
+      repeatedExecution: false

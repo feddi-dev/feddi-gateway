@@ -1,0 +1,60 @@
+name: "Deep path alternatives - fallback to second path"
+description: |
+  Tests @require(field: "primary.contact.email | backup.contact.email")
+  when primary.contact is null. Should fall back to backup.contact.email.
+
+query: |
+  {
+    customerById(id: "c2") {
+      id
+      name
+      notificationPreference {
+        channel
+        address
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: customers
+    operation: '{ customerById(id: "c2") { id name primary { contact { email } } backup { contact { email } } } }'
+    variables: {}
+    response: {
+      data: {
+        customerById: {
+          id: "c2",
+          name: "Bob",
+          primary: { contact: null },
+          backup: { contact: { email: "bob@backup.com" } }
+        }
+      }
+    }
+
+  - subgraph: notifications
+    operation: 'query($id:ID!,$email:String){customerById(id:$id){notificationPreference(email:$email){channel address}}}'
+    variables: { id: "c2", email: "bob@backup.com" }
+    response: {
+      data: {
+        customerById: {
+          notificationPreference: {
+            channel: "email",
+            address: "bob@backup.com"
+          }
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    customerById: {
+      id: "c2",
+      name: "Bob",
+      notificationPreference: {
+        channel: "email",
+        address: "bob@backup.com"
+      }
+    }
+  }
+}

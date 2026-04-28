@@ -1,0 +1,26 @@
+name: "Similar products"
+description: "Queries similar products by id, resolving interface fields from the products subgraph"
+
+query: |
+  {
+    similar(id: "p1") {
+      id
+      sku
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ similar(id: "p1") { id sku } }'
+    variables: {}
+    response: { data: { similar: [{ __typename: "Book", id: "p3", sku: "sku-3" }] } }
+
+expectedResponse: {
+  data: {
+    similar: [
+      { id: "p3", sku: "sku-3" }
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+name: "Null Keys"
+description: "Tests null key handling in entity resolution. Book entity spans 3 subgraphs with different keys (upc, id). When a subgraph returns null for an entity, downstream fields become null."
+
+subgraphs:
+  a: |
+    type Query {
+      bookContainers: [BookContainer]
+    }
+
+    type BookContainer {
+      book: Book
+    }
+
+    type Book @key(fields: "upc") {
+      upc: ID!
+    }
+
+  b: |
+    type Query {
+      bookByUpc(upc: ID!): Book @lookup
+      bookByIdB(id: ID!): Book @lookup
+    }
+
+    type Book @key(fields: "id") @key(fields: "upc") {
+      id: ID!
+      upc: ID!
+    }
+
+  c: |
+    type Query {
+      bookById(id: ID!): Book @lookup
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      author: Author
+    }
+
+    type Author {
+      id: ID!
+      name: String
+    }
+
+supergraph: |
+  type Query {
+    bookContainers: [BookContainer]
+    bookByUpc(upc: ID!): Book
+    bookById(id: ID!): Book
+    bookByIdB(id: ID!): Book
+  }
+  type BookContainer {
+    book: Book
+  }
+  type Book {
+    id: ID!
+    upc: ID!
+    author: Author
+  }
+  type Author {
+    id: ID!
+    name: String
+  }

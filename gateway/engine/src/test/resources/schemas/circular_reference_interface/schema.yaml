@@ -1,0 +1,44 @@
+name: "Circular Reference Interface"
+description: "Tests circular references through an interface type with @provides on samePriceProduct"
+
+subgraphs:
+  a: |
+    type Query {
+      product: Product
+      bookByIdFromA(id: ID!): Book @lookup
+    }
+
+    interface Product {
+      samePriceProduct: Product
+    }
+
+    type Book implements Product @key(fields: "id") {
+      id: ID!
+      samePriceProduct: Book @provides(fields: "price")
+      price: Float @external
+    }
+
+  b: |
+    type Query {
+      bookById(id: ID!): Book @lookup
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      price: Float @shareable
+    }
+
+supergraph: |
+  type Query {
+    product: Product
+    bookById(id: ID!): Book
+    bookByIdFromA(id: ID!): Book
+  }
+  interface Product {
+    samePriceProduct: Product
+  }
+  type Book implements Product {
+    id: ID!
+    samePriceProduct: Book
+    price: Float
+  }

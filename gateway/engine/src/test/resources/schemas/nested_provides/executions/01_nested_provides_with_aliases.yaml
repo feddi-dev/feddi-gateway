@@ -1,0 +1,67 @@
+name: "Nested provides with aliases"
+description: |
+  Tests aliases when fetching nested entities through @provides.
+  The categories are fetched via subcategories subgraph lookup.
+
+query: |
+  {
+    items: products {
+      productId: id
+      productCategories: categories {
+        catId: id
+        catName: name
+        subCats: subCategories {
+          subCatId: id
+          subCatName: name
+        }
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  # Step 1: Just fetch product id (provides only adds external fields)
+  - subgraph: category
+    operation: '{items:products{productId:id}}'
+    variables: {}
+    response: {
+      data: {
+        items: [{ productId: "p1" }]
+      }
+    }
+
+  # Step 2: Fetch categories from subcategories subgraph
+  - subgraph: subcategories
+    operation: 'query ($id:ID!){productById(id:$id){productCategories:categories{catId:id catName:name subCats:subCategories{subCatId:id subCatName:name}}}}'
+    variables: { id: "p1" }
+    response: {
+      data: {
+        productById: {
+          productCategories: [
+            {
+              catId: "c1",
+              catName: "Electronics",
+              subCats: [{ subCatId: "sc1", subCatName: "Laptops" }]
+            }
+          ]
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    items: [
+      {
+        productId: "p1",
+        productCategories: [
+          {
+            catId: "c1",
+            catName: "Electronics",
+            subCats: [{ subCatId: "sc1", subCatName: "Laptops" }]
+          }
+        ]
+      }
+    ]
+  }
+}

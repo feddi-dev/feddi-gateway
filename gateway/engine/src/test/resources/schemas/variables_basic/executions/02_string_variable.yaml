@@ -1,0 +1,24 @@
+name: "String variable execution"
+description: "Tests passing a String type variable (ID is used as string)"
+
+query: |
+  query GetUser($userId: ID!) {
+    user(id: $userId) {
+      id
+      name
+    }
+  }
+
+variables: { userId: "alice-string-id" }
+
+subgraphCalls:
+  - subgraph: users
+    operation: 'query($userId: ID!) { user(id: $userId) { id name } }'
+    variables: { userId: "alice-string-id" }
+    response: { data: { user: { id: "alice-string-id", name: "Alice" } } }
+
+expectedResponse: {
+  data: {
+    user: { id: "alice-string-id", name: "Alice" }
+  }
+}

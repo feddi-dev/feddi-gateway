@@ -1,0 +1,18 @@
+name: "__typename on interface type"
+description: "Tests that __typename can be resolved on an interface type"
+
+query: |
+  {
+    interface {
+      __typename
+      id
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: a
+      operation: "{ interface { __typename id } }"
+      dependsOn: []
+      repeatedExecution: false

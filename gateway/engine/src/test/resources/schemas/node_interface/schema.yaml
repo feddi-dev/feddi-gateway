@@ -1,0 +1,62 @@
+name: "Node Interface"
+description: "Interface Node with entity implementations. Product and Category implement Node across subgraphs."
+
+subgraphs:
+  node: |
+    type Query {
+      productNode: Node
+      categoryNode: Node
+    }
+
+    interface Node {
+      id: ID!
+    }
+
+    type Product implements Node @key(fields: "id") {
+      id: ID!
+    }
+
+    type Category implements Node @key(fields: "id") {
+      id: ID!
+    }
+
+  types: |
+    type Query {
+      productById(id: ID!): Product @lookup
+      categoryById(id: ID!): Category @lookup
+    }
+
+    interface Node {
+      id: ID!
+    }
+
+    type Product implements Node @key(fields: "id") @shareable {
+      id: ID!
+      name: String!
+      price: Float!
+    }
+
+    type Category implements Node @key(fields: "id") {
+      id: ID!
+      name: String!
+    }
+
+supergraph: |
+  type Query {
+    productNode: Node
+    categoryNode: Node
+    productById(id: ID!): Product
+    categoryById(id: ID!): Category
+  }
+  interface Node {
+    id: ID!
+  }
+  type Product implements Node {
+    id: ID!
+    name: String!
+    price: Float!
+  }
+  type Category implements Node {
+    id: ID!
+    name: String!
+  }

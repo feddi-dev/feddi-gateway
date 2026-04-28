@@ -1,0 +1,36 @@
+name: "SATISFIABILITY_ERROR - Mutation return type fields unreachable"
+description: "Mutation returns Order but Order fields in shipping subgraph are unreachable"
+
+subgraphs:
+  orders: |
+    type Query {
+      orders: [Order]
+    }
+
+    type Mutation {
+      createOrder(input: OrderInput!): Order
+    }
+
+    input OrderInput {
+      productId: ID!
+      quantity: Int!
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      status: String
+      createdAt: String
+    }
+
+  shipping: |
+    type Query {
+      shippingInfo(orderId: ID!): Order
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      trackingNumber: String
+      estimatedDelivery: String
+    }
+
+error: "SATISFIABILITY_ERROR"

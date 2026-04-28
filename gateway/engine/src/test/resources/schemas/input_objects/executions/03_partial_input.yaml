@@ -1,0 +1,24 @@
+name: "Partial input object"
+description: "Tests passing a partial input object with only some fields"
+
+query: |
+  query GetOrders($filter: OrderFilter) {
+    orders(filter: $filter) {
+      id
+      total
+    }
+  }
+
+variables: { filter: { minTotal: 100.0 } }
+
+subgraphCalls:
+  - subgraph: orders
+    operation: 'query($filter: OrderFilter) { orders(filter: $filter) { id total } }'
+    variables: { filter: { minTotal: 100.0 } }
+    response: { data: { orders: [{ id: "o1", total: 150.0 }, { id: "o2", total: 200.0 }] } }
+
+expectedResponse: {
+  data: {
+    orders: [{ id: "o1", total: 150.0 }, { id: "o2", total: 200.0 }]
+  }
+}

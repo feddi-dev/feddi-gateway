@@ -1,0 +1,31 @@
+name: "Single subgraph union query"
+description: |
+  Tests that a query with inline fragments on a union type works
+  within a single subgraph (no cross-subgraph lookups).
+
+query: |
+  {
+    mediaById(id: "b1") {
+      ... on Book {
+        id
+        title
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ mediaById(id: "b1") { __typename ... on Book { id title } } }'
+    variables: {}
+    response: { data: { mediaById: { __typename: "Book", id: "b1", title: "GraphQL Guide" } } }
+
+expectedResponse: {
+  data: {
+    mediaById: {
+      id: "b1",
+      title: "GraphQL Guide"
+    }
+  }
+}

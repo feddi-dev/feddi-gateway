@@ -1,0 +1,72 @@
+name: "Multiple infix type conditions on same base field"
+description: |
+  Tests multiple @require arguments that use infix type conditions on the same base field.
+  relatedContent requires both imdbCode and internalCode from relatedMedia<Movie>.
+
+query: |
+  {
+    tvShowById(id: "t1") {
+      id
+      title
+      relatedMedia {
+        id
+        title
+      }
+      relatedContent {
+        id
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ tvShowById(id: "t1") { id title relatedMedia { id title __typename ... on Movie { imdbCode internalCode } } } }'
+    variables: {}
+    response: {
+      data: {
+        tvShowById: {
+          id: "t1",
+          title: "Breaking Bad",
+          relatedMedia: {
+            id: "m1",
+            title: "El Camino",
+            __typename: "Movie",
+            imdbCode: "tt9243946",
+            internalCode: "INT_ELCAMINO"
+          }
+        }
+      }
+    }
+
+  - subgraph: discovery
+    operation: 'query($id:ID!,$imdbCode:String,$internalCode:String){tvShowById(id:$id){relatedContent(imdbCode:$imdbCode,internalCode:$internalCode){id}}}'
+    variables: { id: "t1", imdbCode: "tt9243946", internalCode: "INT_ELCAMINO" }
+    response: {
+      data: {
+        tvShowById: {
+          relatedContent: [
+            { id: "m2", __typename: "Movie" },
+            { id: "m3", __typename: "Movie" }
+          ]
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    tvShowById: {
+      id: "t1",
+      title: "Breaking Bad",
+      relatedMedia: {
+        id: "m1",
+        title: "El Camino"
+      },
+      relatedContent: [
+        { id: "m2" },
+        { id: "m3" }
+      ]
+    }
+  }
+}

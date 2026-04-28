@@ -1,0 +1,35 @@
+name: "Cross-subgraph default arguments"
+description: "Tests execution with defaults in nested subgraph field"
+
+query: |
+  query SearchWithAnalytics($q: String!) {
+    search(query: $q) {
+      id
+      title
+      analytics {
+        views
+        clicks
+      }
+    }
+  }
+
+variables: { q: "graphql" }
+
+subgraphCalls:
+  - subgraph: search
+    operation: 'query($q: String!) { search(query: $q) { id title } }'
+    variables: { q: "graphql" }
+    response: { data: { search: [{ id: "s1", title: "GraphQL Basics" }] } }
+
+  - subgraph: analytics
+    operation: 'query($id: ID!) { searchResultById(id: $id) { analytics { views clicks } } }'
+    variables: { id: "s1" }
+    response: { data: { searchResultById: { analytics: { views: 1500, clicks: 120 } } } }
+
+expectedResponse: {
+  data: {
+    search: [
+      { id: "s1", title: "GraphQL Basics", analytics: { views: 1500, clicks: 120 } }
+    ]
+  }
+}

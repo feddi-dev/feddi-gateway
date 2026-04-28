@@ -1,0 +1,25 @@
+name: "Simple filter input"
+description: "Tests passing a simple input object as filter"
+
+query: |
+  query GetUsers($filter: UserFilter) {
+    users(filter: $filter) {
+      id
+      name
+      email
+    }
+  }
+
+variables: { filter: { nameContains: "Alice", active: true } }
+
+subgraphCalls:
+  - subgraph: users
+    operation: 'query($filter: UserFilter) { users(filter: $filter) { id name email } }'
+    variables: { filter: { nameContains: "Alice", active: true } }
+    response: { data: { users: [{ id: "u1", name: "Alice Smith", email: "alice@example.com" }] } }
+
+expectedResponse: {
+  data: {
+    users: [{ id: "u1", name: "Alice Smith", email: "alice@example.com" }]
+  }
+}

@@ -1,0 +1,35 @@
+name: "Both can afford fields via combined requires chains"
+description: "Tests both requires chains combined"
+
+query: |
+  {
+    product {
+      canAfford
+      canAffordWithDiscount
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{ product { id hasDiscount } }'
+    variables: {}
+    response: { data: { product: { id: "p1", hasDiscount: true } } }
+
+  - subgraph: a
+    operation: 'query($id: ID!) { productByIdA(id: $id) { price } }'
+    variables: { id: "p1" }
+    response: { data: { productByIdA: { price: 699.99 } } }
+
+  - subgraph: c
+    operation: 'query($id: ID!, $p: Float, $hd: Boolean) { productByIdC(id: $id) { isExpensive(p: $p) isExpensiveWithDiscount(hd: $hd) } }'
+    variables: { id: "p1", p: 699.99, hd: true }
+    response: { data: { productByIdC: { isExpensive: true, isExpensiveWithDiscount: false } } }
+
+  - subgraph: d
+    operation: 'query($id: ID!, $ie: Boolean, $iewd: Boolean) { productByIdD(id: $id) { canAfford(ie: $ie) canAffordWithDiscount(iewd: $iewd) } }'
+    variables: { id: "p1", ie: true, iewd: false }
+    response: { data: { productByIdD: { canAfford: false, canAffordWithDiscount: true } } }
+
+expectedResponse: { data: { product: { canAfford: false, canAffordWithDiscount: true } } }

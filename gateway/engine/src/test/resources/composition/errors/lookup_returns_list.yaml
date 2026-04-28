@@ -1,0 +1,15 @@
+name: "LOOKUP_RETURNS_LIST - lookup field returns list type"
+description: "Spec 3.1.5.2: A @lookup field must not return a list type"
+
+subgraphs:
+  products: |
+    type Query {
+      productsByIds(ids: [ID!]!): [Product] @lookup
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "LOOKUP_RETURNS_LIST"

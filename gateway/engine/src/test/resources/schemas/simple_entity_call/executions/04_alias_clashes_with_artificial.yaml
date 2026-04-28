@@ -1,0 +1,35 @@
+name: "Alias clashes with artificial field name"
+description: |
+  Tests the edge case where a user's alias has the same name as an artificial
+  field that would be added by the planner.
+  Here, the user aliases 'id' to 'email', but 'email' is also needed as an
+  artificial key field for the nickname lookup.
+  The response should contain the aliased field (email: id value) and the
+  artificial 'email' field should be filtered out.
+
+query: |
+  {
+    user {
+      email: id
+      nickname
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: email
+    operation: '{ user { email: id __gql_email: email } }'
+    variables: {}
+    response: { data: { user: { email: "1", __gql_email: "user1@gmail.com" } } }
+
+  - subgraph: nickname
+    operation: 'query ($email: String!) { userByEmail(email: $email) { nickname } }'
+    variables: { email: "user1@gmail.com" }
+    response: { data: { userByEmail: { nickname: "user1" } } }
+
+expectedResponse: {
+  data: {
+    user: { email: "1", nickname: "user1" }
+  }
+}

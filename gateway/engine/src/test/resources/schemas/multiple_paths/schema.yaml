@@ -1,0 +1,56 @@
+name: "Multiple Paths"
+description: "Graph with multiple paths to the same destination for cost comparison"
+
+subgraphs:
+  catalog: |
+    type Query {
+      products(brand: String): [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      brand: String
+    }
+
+  inventory: |
+    type Query {
+      productByIdInventory(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      stock: Int
+      warehouse: String
+    }
+
+  pricing: |
+    type Query {
+      productByIdPricing(pid: ID! @is(field: "id")): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float
+      currency: String
+      taxRate: Float
+    }
+
+supergraph: |
+  type Query {
+    products(brand: String): [Product]
+    productById(id: ID!): Product
+    productByIdInventory(id: ID!): Product
+    productByIdPricing(pid: ID!): Product
+  }
+  type Product {
+    id: ID!
+    name: String
+    brand: String
+    stock: Int
+    warehouse: String
+    price: Float
+    currency: String
+    taxRate: Float
+  }

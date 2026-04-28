@@ -1,0 +1,56 @@
+name: "Requires Cross Subgraph"
+description: |
+  Tests @requires that depends on fields from TWO different subgraphs.
+  Subgraph A has basePrice, B has discountPercent and root query,
+  C requires BOTH basePrice (from A) and discountPercent (from B) to compute finalPrice.
+
+subgraphs:
+  a: |
+    type Query {
+      productByIdA(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      basePrice: Float! @shareable
+    }
+
+  b: |
+    type Query {
+      product(category: String): Product
+      productByIdB(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      discountPercent: Int! @shareable
+    }
+
+  c: |
+    type Query {
+      productByIdC(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      basePrice: Float! @shareable
+      discountPercent: Int! @shareable
+      finalPrice(bp: Float @require(field: "basePrice"), dp: Int @require(field: "discountPercent")): Float!
+      finalPriceWithTax(bp: Float @require(field: "basePrice"), dp: Int @require(field: "discountPercent"), taxRate: Float!): Float!
+    }
+
+supergraph: |
+  type Product {
+    id: ID!
+    basePrice: Float!
+    discountPercent: Int!
+    finalPrice: Float!
+    finalPriceWithTax(taxRate: Float!): Float!
+  }
+
+  type Query {
+    product(category: String): Product
+    productByIdA(id: ID!): Product
+    productByIdB(id: ID!): Product
+    productByIdC(id: ID!): Product
+  }

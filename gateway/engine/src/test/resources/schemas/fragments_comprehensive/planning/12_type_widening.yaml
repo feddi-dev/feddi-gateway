@@ -1,0 +1,24 @@
+name: "Type widening - fragment on interface from concrete type"
+description: |
+  Starting from concrete Article, inline fragment on interface Content.
+  The widening is simplified away by the normalizer since Article implements Content.
+
+query: |
+  {
+    article(id: "1") {
+      id
+      body
+      ... on Content {
+        title
+        createdAt
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: content
+      operation: '{ article(id: "1") { id body title createdAt } }'
+      dependsOn: []
+      repeatedExecution: false

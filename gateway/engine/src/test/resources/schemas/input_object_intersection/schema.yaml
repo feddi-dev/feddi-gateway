@@ -1,0 +1,52 @@
+name: "Input Object Intersection"
+description: "Input objects shared across subgraphs with different fields. Supergraph uses intersection of input fields."
+
+subgraphs:
+  a: |
+    type Query {
+      usersInA(filter: UsersFilter!): [User!]
+      userByIdFromA(id: ID!): User @lookup
+    }
+
+    input UsersFilter {
+      first: Int!
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String! @shareable
+    }
+
+  b: |
+    type Query {
+      usersInB(filter: UsersFilter!): [User!]
+      userById(id: ID!): User @lookup
+    }
+
+    input UsersFilter {
+      offset: Int
+      first: Int!
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String! @shareable
+    }
+
+supergraph: |
+  type Query {
+    userById(id: ID!): User
+    userByIdFromA(id: ID!): User
+    usersInA(filter: UsersFilter!): [User!]
+    usersInB(filter: UsersFilter!): [User!]
+  }
+
+  type User {
+    id: ID!
+    name: String!
+  }
+
+  input UsersFilter {
+    first: Int!
+    offset: Int
+  }

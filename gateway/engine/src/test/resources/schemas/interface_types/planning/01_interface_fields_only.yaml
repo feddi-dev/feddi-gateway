@@ -1,0 +1,19 @@
+name: "Interface fields only"
+description: "Tests planning query that only selects interface fields"
+
+query: |
+  query GetNodes {
+    nodes {
+      id
+      createdAt
+      updatedAt
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: nodes
+      operation: "{ nodes { id createdAt updatedAt } }"
+      dependsOn: []
+      repeatedExecution: false

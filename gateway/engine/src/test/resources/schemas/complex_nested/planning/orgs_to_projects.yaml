@@ -1,0 +1,32 @@
+name: "Orgs to projects"
+description: "Two hops - orgs to projects subgraph with status filter"
+
+query: |
+  {
+    organizations {
+      name
+      teams {
+        teamName
+        projects(status: ACTIVE) {
+          projectName
+          deadline
+        }
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: orgs
+      operation: "{ organizations { name teams { teamName teamId } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: projects
+      operation: "query($teamId: ID!) { teamById(teamId: $teamId) { projects(status: ACTIVE) { projectName deadline } } }"
+      dependsOn: [1]
+      requirements:
+        teamId: "teamId"
+      repeatedExecution: true

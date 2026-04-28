@@ -1,0 +1,27 @@
+name: "Widening type condition inside narrowing"
+description: |
+  Narrows from Node interface to Product, then widens back to Node.
+  nodes returns [Node], ... on Product narrows, ... on Node widens.
+  Since Product implements Node, the widening is simplified away by the normalizer.
+  All fields end up inside ... on Product. Single step expected.
+
+query: |
+  {
+    nodes {
+      ... on Product {
+        name
+        ... on Node {
+          id
+          createdAt
+        }
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: nodes
+      operation: '{ nodes { __typename ... on Product { name id createdAt } } }'
+      dependsOn: []
+      repeatedExecution: false

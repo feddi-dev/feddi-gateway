@@ -1,0 +1,28 @@
+name: "Multiple inline fragments on interface"
+description: "Tests planning of multiple inline fragments with different type conditions"
+
+query: |
+  {
+    contents {
+      id
+      title
+      ... on Article {
+        body
+      }
+      ... on Video {
+        url
+        duration
+      }
+      ... on Podcast {
+        audioUrl
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: content
+      operation: "{ contents { id title __typename ... on Article { body } ... on Video { url duration } ... on Podcast { audioUrl } } }"
+      dependsOn: []
+      repeatedExecution: false

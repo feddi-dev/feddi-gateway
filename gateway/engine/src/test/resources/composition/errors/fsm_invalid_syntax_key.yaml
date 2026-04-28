@@ -1,0 +1,15 @@
+name: "KEY_INVALID_SYNTAX - invalid FieldSelectionMap in @key"
+description: "Validates that invalid FSM syntax in @key is rejected"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "...Product") {
+      id: ID!
+      name: String
+    }
+
+error: "KEY_INVALID_SYNTAX"

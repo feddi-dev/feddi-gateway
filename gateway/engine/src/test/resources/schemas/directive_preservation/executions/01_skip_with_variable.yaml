@@ -1,0 +1,21 @@
+name: "@skip directive with variable - skip true"
+description: "Tests execution when @skip(if: true) excludes the email field"
+
+query: |
+  query GetUser($skipEmail: Boolean!) {
+    user {
+      id
+      name
+      email @skip(if: $skipEmail)
+    }
+  }
+
+variables: { skipEmail: true }
+
+subgraphCalls:
+  - subgraph: a
+    operation: 'query ($skipEmail: Boolean!) { user { id name email @skip(if: $skipEmail) } }'
+    variables: { skipEmail: true }
+    response: { data: { user: { id: "u1", name: "Alice" } } }
+
+expectedResponse: { data: { user: { id: "u1", name: "Alice" } } }

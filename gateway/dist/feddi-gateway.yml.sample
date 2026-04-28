@@ -1,0 +1,34 @@
+# feddi Gateway configuration
+# Copy this file to feddi-gateway.yml and adjust for your environment.
+
+# Server port (default: 8080)
+port: 8080
+
+# Disable GraphQL introspection for production (default: true)
+# enable-introspection: false
+
+# Admin port for schema upload endpoint — localhost only (default: 9091)
+# admin-port: 9091
+
+# Admin bind address (default: 127.0.0.1)
+# Set to 0.0.0.0 if admin access is needed from outside the host (e.g. Docker).
+# admin-address: 127.0.0.1
+
+# Management port for actuator endpoints (health, metrics) (default: 9090)
+# management-port: 9090
+
+# Management bind address — localhost only by default.
+# Set to 0.0.0.0 if health checks come from outside the host (e.g. Docker, K8s).
+# management-address: 127.0.0.1
+
+# Maximum request body size in bytes (default: 2MB)
+# max-request-size-bytes: 2097152
+
+# Log file directory (default: current directory)
+# logging:
+#   dir: ./logs
+
+# Metrics
+# Prometheus metrics are available at http://localhost:9090/actuator/prometheus
+# (on the management port, not the main server port).
+# Scrape this endpoint with Prometheus for JVM, HTTP, and feddi Gateway metrics.

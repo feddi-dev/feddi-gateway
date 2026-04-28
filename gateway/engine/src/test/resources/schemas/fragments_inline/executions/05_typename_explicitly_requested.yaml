@@ -1,0 +1,35 @@
+name: "__typename explicitly requested with inline fragments"
+description: |
+  Tests that __typename is included in the response when explicitly requested,
+  even when it might also be needed internally for type discrimination.
+
+query: |
+  {
+    contents {
+      __typename
+      id
+      title
+      ... on Article {
+        body
+      }
+      ... on Video {
+        url
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { __typename id title ... on Article { body } ... on Video { url } } }'
+    variables: {}
+    response: { data: { contents: [
+      { __typename: "Article", id: "a1", title: "First Article", body: "Article content" },
+      { __typename: "Video", id: "v1", title: "First Video", url: "https://video.example/1" }
+    ] } }
+
+expectedResponse: { data: { contents: [
+  { __typename: "Article", id: "a1", title: "First Article", body: "Article content" },
+  { __typename: "Video", id: "v1", title: "First Video", url: "https://video.example/1" }
+] } }

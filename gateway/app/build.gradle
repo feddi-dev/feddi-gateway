@@ -1,0 +1,136 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.0.2'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'dev.feddi.federation'
+version = '0.0.1-SNAPSHOT'
+description = 'feddi Gateway - GraphQL federation gateway'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+// Integration test source set (runs with @SpringBootTest in same JVM)
+sourceSets {
+	integrationTest {
+		java {
+			srcDir 'src/integrationTest/java'
+		}
+		resources {
+			srcDir 'src/integrationTest/resources'
+		}
+		compileClasspath += sourceSets.main.output
+		runtimeClasspath += sourceSets.main.output
+	}
+}
+
+configurations {
+	integrationTestImplementation.extendsFrom testImplementation
+	integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
+dependencies {
+	// Project dependencies
+	implementation project(':engine')
+	implementation project(':customization-api')
+
+	// GraphQL Java (version managed in gradle/libs.versions.toml)
+	implementation libs.graphql.java
+
+	// Spring Boot
+	implementation 'org.springframework.boot:spring-boot-starter-webflux'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+	// YAML parsing for config files
+	implementation libs.jackson.dataformat.yaml
+
+	// Prometheus metrics
+	runtimeOnly libs.micrometer.registry.prometheus
+
+	// Testing
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation libs.reactor.test
+	testRuntimeOnly libs.junit.platform.launcher
+
+	// Integration Testing
+	integrationTestImplementation libs.testcontainers
+	integrationTestImplementation libs.testcontainers.junit.jupiter
+
+	// Engine test classes (for TestCaseLoader, etc.)
+	integrationTestImplementation project(':engine').sourceSets.test.output
+}
+
+// Copy engine test resources for integration tests
+tasks.named('processIntegrationTestResources') {
+	from("${project(':engine').projectDir}/src/test/resources") {
+		include '**/*'
+	}
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+// Configure Spring Boot JAR to use PropertiesLauncher for loader.path support
+tasks.named('bootJar') {
+	manifest {
+		attributes 'Main-Class': 'org.springframework.boot.loader.launch.PropertiesLauncher'
+	}
+}
+
+// Handle duplicate resources in integration tests
+tasks.named('processIntegrationTestResources') {
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+// Distribution ZIP: packages feddi Gateway + launcher scripts + sample config
+tasks.register('feddiGatewayDistZip', Zip) {
+	description = 'Creates the feddi-gateway.zip distribution'
+	group = 'distribution'
+
+	dependsOn bootJar
+
+	archiveFileName = 'feddi-gateway.zip'
+	destinationDirectory = layout.buildDirectory.dir('distributions')
+
+	into('feddi-gateway') {
+		// feddi Gateway app JAR
+		from(bootJar) {
+			rename { 'app.jar' }
+		}
+		// Libs directory for extensions (populated externally)
+		into('libs') {}
+		// Launcher scripts
+		into('bin') {
+			from("${rootProject.projectDir}/dist/bin/feddi-gateway")
+			from("${rootProject.projectDir}/dist/bin/feddi-gateway.bat")
+			filePermissions {
+				unix('rwxr-xr-x')
+			}
+		}
+		// Sample config
+		from("${rootProject.projectDir}/dist/feddi-gateway.yml.sample")
+	}
+}
+
+// Integration test task (runs with @SpringBootTest, same JVM as test runner)
+tasks.register('integrationTest', Test) {
+	description = 'Runs integration tests with GraphQL-executing subgraph servers'
+	group = 'verification'
+
+	testClassesDirs = sourceSets.integrationTest.output.classesDirs
+	classpath = sourceSets.integrationTest.runtimeClasspath
+
+	useJUnitPlatform()
+
+	// Ensure the app is built before running integration tests
+	dependsOn bootJar
+}

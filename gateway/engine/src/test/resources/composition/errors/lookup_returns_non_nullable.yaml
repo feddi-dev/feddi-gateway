@@ -1,0 +1,15 @@
+name: "LOOKUP_RETURNS_NON_NULLABLE_TYPE - lookup field returns non-nullable type"
+description: "Spec 3.1.5.1: A @lookup field should return a nullable type to indicate entity not found"
+
+subgraphs:
+  products: |
+    type Query {
+      productById(id: ID!): Product! @lookup
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "LOOKUP_RETURNS_NON_NULLABLE_TYPE"

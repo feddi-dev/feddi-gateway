@@ -1,0 +1,41 @@
+name: "Feed with author via @require on comments"
+description: |
+  Tests @require with list selection. The feddi Gateway fetches feed from subgraph c, then
+  fetches comments with authorId for each post, and passes commentAuthorIds to subgraph d
+  to resolve the author. Post p1 comments all have authorId "a2", post p2 comments all
+  have authorId "a1".
+
+query: |
+  {
+    feed {
+      author {
+        id
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: c
+    operation: '{feed{id comments{authorId}}}'
+    variables: {}
+    response: { data: { feed: [
+      { id: "p1", comments: [{ authorId: "a2" }, { authorId: "a2" }, { authorId: "a2" }] },
+      { id: "p2", comments: [{ authorId: "a1" }, { authorId: "a1" }, { authorId: "a1" }] }
+    ] } }
+
+  - subgraph: d
+    operation: 'query ($id:ID!,$commentAuthorIds:[ID]){postById(id:$id){author(commentAuthorIds:$commentAuthorIds){id}}}'
+    variables: { id: "p1", commentAuthorIds: ["a2", "a2", "a2"] }
+    response: { data: { postById: { author: { id: "a2" } } } }
+
+  - subgraph: d
+    operation: 'query ($id:ID!,$commentAuthorIds:[ID]){postById(id:$id){author(commentAuthorIds:$commentAuthorIds){id}}}'
+    variables: { id: "p2", commentAuthorIds: ["a1", "a1", "a1"] }
+    response: { data: { postById: { author: { id: "a1" } } } }
+
+expectedResponse: { data: { feed: [
+  { author: { id: "a2" } },
+  { author: { id: "a1" } }
+] } }

@@ -1,0 +1,49 @@
+name: "Internal No Name Clash"
+description: |
+  Tests that @internal fields do not participate in schema merging and therefore
+  do not cause name clash errors even when they have incompatible signatures.
+
+  Both subgraphs define productBySku with DIFFERENT argument types:
+  - Subgraph A: productBySku(sku: ID!) @internal
+  - Subgraph B: productBySku(sku: String!, name: String!) @internal
+
+  Since both are @internal, there is no conflict and neither appears in supergraph.
+
+subgraphs:
+  a: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+      # Internal lookup with ID type
+      productBySku(sku: ID!): Product @internal @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+    }
+
+  b: |
+    type Query {
+      productById(id: ID!): Product @lookup
+      # Internal lookup with DIFFERENT signature - no conflict because @internal
+      productBySku(sku: String!, name: String!): Product @internal @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      price: Int
+    }
+
+supergraph: |
+  type Query {
+    productById(id: ID!): Product
+    products: [Product]
+  }
+
+  type Product {
+    id: ID!
+    name: String
+    price: Int
+  }

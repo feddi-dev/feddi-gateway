@@ -1,0 +1,58 @@
+name: "Variables with comprehensive aliases"
+description: |
+  Tests aliases combined with query variables across subgraph boundaries.
+
+query: |
+  query GetUser($userId: ID!, $orderLimit: Int) {
+    person: user(id: $userId) {
+      oderId: id
+      userName: name
+      userAge: age
+      userOrders: recentOrders(limit: $orderLimit) {
+        orderId: id
+        orderTotal: total
+      }
+    }
+  }
+
+variables: { userId: "u1", orderLimit: 3 }
+
+subgraphCalls:
+  # Step 1: Gets only variables defined in its operation
+  - subgraph: users
+    operation: 'query ($userId:ID!) { person:user(id:$userId) { oderId:id userName:name userAge:age } }'
+    variables: { userId: "u1" }
+    response: {
+      data: {
+        person: { oderId: "u1", userName: "Alice", userAge: 30 }
+      }
+    }
+
+  # Step 2: Gets variables defined in its operation (query vars + requirement vars)
+  - subgraph: orders
+    operation: 'query ($id:ID!,$orderLimit:Int) { userById(id:$id) { userOrders:recentOrders(limit:$orderLimit) { orderId:id orderTotal:total } } }'
+    variables: { orderLimit: 3, id: "u1" }
+    response: {
+      data: {
+        userById: {
+          userOrders: [
+            { orderId: "o1", orderTotal: 150.00 },
+            { orderId: "o2", orderTotal: 89.99 }
+          ]
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    person: {
+      oderId: "u1",
+      userName: "Alice",
+      userAge: 30,
+      userOrders: [
+        { orderId: "o1", orderTotal: 150.00 },
+        { orderId: "o2", orderTotal: 89.99 }
+      ]
+    }
+  }
+}

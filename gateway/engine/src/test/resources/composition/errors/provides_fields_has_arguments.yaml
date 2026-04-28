@@ -1,0 +1,20 @@
+name: "PROVIDES_FIELDS_HAS_ARGUMENTS - @provides references field with arguments"
+description: "Spec: Fields referenced by @provides cannot have arguments"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      details: ProductDetails @provides(fields: "name")
+    }
+
+    type ProductDetails {
+      name(locale: String): String @external
+      description: String @external
+    }
+
+error: "PROVIDES_FIELDS_HAS_ARGUMENTS"

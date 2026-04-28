@@ -1,0 +1,59 @@
+name: "Input type - @inaccessible field should be excluded"
+description: "Input fields marked @inaccessible should be excluded from the supergraph"
+
+subgraphs:
+  search: |
+    type Query {
+      search(filter: SearchInput): [Result]
+    }
+
+    input SearchInput {
+      query: String
+      internalDebug: Boolean @inaccessible
+    }
+
+    type Result {
+      id: ID!
+      title: String
+    }
+
+  advanced: |
+    type Query {
+      advancedSearch(filter: AdvancedInput): [AdvancedResult]
+    }
+
+    input AdvancedInput {
+      query: String
+      debugMode: String @inaccessible
+      limit: Int
+    }
+
+    type AdvancedResult {
+      id: ID!
+      score: Float
+    }
+
+supergraph: |
+  type Query {
+    search(filter: SearchInput): [Result]
+    advancedSearch(filter: AdvancedInput): [AdvancedResult]
+  }
+
+  input SearchInput {
+    query: String
+  }
+
+  input AdvancedInput {
+    query: String
+    limit: Int
+  }
+
+  type Result {
+    id: ID!
+    title: String
+  }
+
+  type AdvancedResult {
+    id: ID!
+    score: Float
+  }

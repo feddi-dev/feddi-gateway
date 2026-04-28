@@ -1,0 +1,42 @@
+name: "@shareable basic - shared fields"
+description: "Multiple subgraphs providing the same field marked as @shareable"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      description: String
+    }
+
+  catalog: |
+    type Query {
+      productByIdCatalog(id: ID!): Product @lookup
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      category: String
+      brand: String
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    productByIdCatalog(id: ID!): Product
+  }
+  
+  type Product {
+    id: ID!
+    name: String
+    description: String
+    category: String
+    brand: String
+  }

@@ -1,0 +1,30 @@
+name: "Cheapest product with cross-subgraph name"
+description: "Fetches cheapestProduct from price subgraph, resolves name from product subgraph"
+
+query: |
+  {
+    cheapestProduct {
+      id
+      price
+      name
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: price
+    operation: '{ cheapestProduct { id price } }'
+    variables: {}
+    response: { data: { cheapestProduct: { id: "1", price: 100.0 } } }
+
+  - subgraph: product
+    operation: 'query ($id: ID!) { productById(id: $id) { name } }'
+    variables: { id: "1" }
+    response: { data: { productById: { name: "name-1" } } }
+
+expectedResponse: {
+  data: {
+    cheapestProduct: { id: "1", price: 100.0, name: "name-1" }
+  }
+}

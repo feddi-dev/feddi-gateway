@@ -1,0 +1,44 @@
+name: "Fragment reuse in multiple locations"
+description: "Tests execution with the same fragment used multiple times in a query"
+
+query: |
+  query GetProductAndList {
+    product(id: "p1") {
+      ...ProductFields
+    }
+    products {
+      ...ProductFields
+    }
+  }
+  fragment ProductFields on Product {
+    id
+    name
+    price
+    category
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ product(id: "p1") { id name price category } products { id name price category } }'
+    variables: {}
+    response: {
+      data: {
+        product: { id: "p1", name: "Laptop", price: 999.99, category: "Electronics" },
+        products: [
+          { id: "p1", name: "Laptop", price: 999.99, category: "Electronics" },
+          { id: "p2", name: "Phone", price: 599.99, category: "Electronics" }
+        ]
+      }
+    }
+
+expectedResponse: {
+  data: {
+    product: { id: "p1", name: "Laptop", price: 999.99, category: "Electronics" },
+    products: [
+      { id: "p1", name: "Laptop", price: 999.99, category: "Electronics" },
+      { id: "p2", name: "Phone", price: 599.99, category: "Electronics" }
+    ]
+  }
+}

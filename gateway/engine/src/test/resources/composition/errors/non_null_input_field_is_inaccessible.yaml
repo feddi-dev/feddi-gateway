@@ -1,0 +1,20 @@
+name: "NON_NULL_INPUT_FIELD_IS_INACCESSIBLE - required input field marked inaccessible"
+description: "Spec: Non-null input fields cannot be marked @inaccessible"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      books(filter: BookFilter): [Book]
+    }
+
+    input BookFilter {
+      title: String!  @inaccessible
+      author: String
+    }
+
+    type Book {
+      id: ID!
+      title: String
+    }
+
+error: "NON_NULL_INPUT_FIELD_IS_INACCESSIBLE"

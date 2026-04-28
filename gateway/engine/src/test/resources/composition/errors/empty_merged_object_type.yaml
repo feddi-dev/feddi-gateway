@@ -1,0 +1,21 @@
+name: "EMPTY_MERGED_OBJECT_TYPE - object type with all fields inaccessible"
+description: "Spec 3.4.2.1: Object types must have at least one accessible field after merging"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      internalData: String @inaccessible
+      internal: InternalType @inaccessible
+    }
+
+    type InternalType {
+      secret: String @inaccessible
+      hidden: String @internal
+    }
+
+error: "EMPTY_MERGED_OBJECT_TYPE"

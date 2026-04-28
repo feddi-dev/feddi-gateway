@@ -1,0 +1,24 @@
+name: "Default variable override"
+description: "Tests overriding a variable that has a default value"
+
+query: |
+  query GetOrders($userId: ID!, $limit: Int = 10) {
+    orders(userId: $userId, limit: $limit) {
+      id
+      total
+    }
+  }
+
+variables: { userId: "user-1", limit: 3 }
+
+subgraphCalls:
+  - subgraph: orders
+    operation: 'query($userId: ID!, $limit: Int = 10) { orders(userId: $userId, limit: $limit) { id total } }'
+    variables: { userId: "user-1", limit: 3 }
+    response: { data: { orders: [{ id: "o1", total: 100.0 }, { id: "o2", total: 50.0 }, { id: "o3", total: 75.0 }] } }
+
+expectedResponse: {
+  data: {
+    orders: [{ id: "o1", total: 100.0 }, { id: "o2", total: 50.0 }, { id: "o3", total: 75.0 }]
+  }
+}

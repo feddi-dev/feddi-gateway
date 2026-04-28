@@ -1,0 +1,93 @@
+name: "@require with list selection execution"
+description: |
+  Tests execution with @require using list selection pattern: items[productId]
+  The analytics subgraph requires extracting all productIds from the items list.
+
+query: |
+  {
+    orders {
+      id
+      items {
+        productName
+        quantity
+      }
+      itemAnalytics {
+        productId
+        views
+        conversionRate
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: orders
+    operation: '{orders{id items{productName quantity productId}}}'
+    variables: {}
+    response:
+      data:
+        orders:
+          - id: "order-1"
+            items:
+              - productName: "Widget A"
+                quantity: 2
+                productId: "prod-101"
+              - productName: "Widget B"
+                quantity: 1
+                productId: "prod-102"
+          - id: "order-2"
+            items:
+              - productName: "Gadget X"
+                quantity: 3
+                productId: "prod-201"
+
+  - subgraph: analytics
+    operation: 'query($id:ID!,$productIds:[ID!]!){orderByIdAnalytics(id:$id){itemAnalytics(productIds:$productIds){productId views conversionRate}}}'
+    variables: { id: "order-1", productIds: ["prod-101", "prod-102"] }
+    response:
+      data:
+        orderByIdAnalytics:
+          itemAnalytics:
+            - productId: "prod-101"
+              views: 1500
+              conversionRate: 0.12
+            - productId: "prod-102"
+              views: 800
+              conversionRate: 0.08
+
+  - subgraph: analytics
+    operation: 'query($id:ID!,$productIds:[ID!]!){orderByIdAnalytics(id:$id){itemAnalytics(productIds:$productIds){productId views conversionRate}}}'
+    variables: { id: "order-2", productIds: ["prod-201"] }
+    response:
+      data:
+        orderByIdAnalytics:
+          itemAnalytics:
+            - productId: "prod-201"
+              views: 2200
+              conversionRate: 0.15
+
+expectedResponse:
+  data:
+    orders:
+      - id: "order-1"
+        items:
+          - productName: "Widget A"
+            quantity: 2
+          - productName: "Widget B"
+            quantity: 1
+        itemAnalytics:
+          - productId: "prod-101"
+            views: 1500
+            conversionRate: 0.12
+          - productId: "prod-102"
+            views: 800
+            conversionRate: 0.08
+      - id: "order-2"
+        items:
+          - productName: "Gadget X"
+            quantity: 3
+        itemAnalytics:
+          - productId: "prod-201"
+            views: 2200
+            conversionRate: 0.15

@@ -1,0 +1,100 @@
+name: "@is Big Selection Set"
+description: |
+  Tests @is directive with large object selections containing many fields:
+  @is(field: "{ sku category brand model color size weight }")
+
+  This demonstrates composite keys with many fields being used for lookups
+  via object selection syntax in the @is directive.
+
+  Note: Simple lookups like productById(id) don't need @is because the
+  argument name matches the field name. @is is only needed for complex
+  mappings like the object selection syntax.
+
+subgraphs:
+  catalog: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      sku: String @shareable
+      category: String @shareable
+      brand: String @shareable
+      model: String @shareable
+      color: String @shareable
+      size: String @shareable
+      weight: Float @shareable
+      description: String
+      imageUrl: String
+    }
+
+  inventory: |
+    type Query {
+      productById(id: ID!): Product @lookup
+      productByDetails(
+        details: ProductDetailsInput! @is(field: "{ sku category brand model color size weight }")
+      ): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      sku: String @shareable
+      category: String @shareable
+      brand: String @shareable
+      model: String @shareable
+      color: String @shareable
+      size: String @shareable
+      weight: Float @shareable
+      inStock: Int
+      warehouse: String
+      reorderLevel: Int
+      lastRestocked: String
+    }
+
+    input ProductDetailsInput {
+      sku: String
+      category: String
+      brand: String
+      model: String
+      color: String
+      size: String
+      weight: Float
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    productByDetails(details: ProductDetailsInput!): Product
+  }
+
+  type Product {
+    id: ID!
+    name: String
+    sku: String
+    category: String
+    brand: String
+    model: String
+    color: String
+    size: String
+    weight: Float
+    description: String
+    imageUrl: String
+    inStock: Int
+    warehouse: String
+    reorderLevel: Int
+    lastRestocked: String
+  }
+
+  input ProductDetailsInput {
+    sku: String
+    category: String
+    brand: String
+    model: String
+    color: String
+    size: String
+    weight: Float
+  }

@@ -1,0 +1,42 @@
+name: "Basic lookup - fetch reviews execution"
+description: "Tests execution of products with reviews lookup, verifying data merging from two subgraphs"
+
+query: |
+  {
+    products(category: "electronics", limit: 10) {
+      id
+      name
+      rating
+      reviews(first: 5) {
+        text
+        stars
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products(category: "electronics", limit: 10) { id name } }'
+    variables: {}
+    response: { data: { products: [{ id: "p1", name: "Laptop" }, { id: "p2", name: "Phone" }] } }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { rating reviews(first: 5) { text stars } } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { rating: 4.8, reviews: [{ text: "Great laptop!", stars: 5 }] } } }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { rating reviews(first: 5) { text stars } } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { rating: 4.2, reviews: [{ text: "Nice phone", stars: 4 }] } } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", rating: 4.8, reviews: [{ text: "Great laptop!", stars: 5 }] },
+      { id: "p2", name: "Phone", rating: 4.2, reviews: [{ text: "Nice phone", stars: 4 }] }
+    ]
+  }
+}

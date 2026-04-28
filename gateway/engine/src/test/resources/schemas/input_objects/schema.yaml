@@ -1,0 +1,139 @@
+name: "Input Object Types"
+description: |
+  Tests input object types - simple and nested.
+  Covers input objects in queries, mutations, and across subgraph boundaries.
+
+subgraphs:
+  users: |
+    type Query {
+      users(filter: UserFilter): [User]
+      userById(id: ID!): User @lookup
+    }
+    type Mutation {
+      createUser(input: CreateUserInput!): User
+      updateUser(id: ID!, input: UpdateUserInput!): User
+    }
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      email: String
+      profile: Profile
+    }
+    type Profile {
+      bio: String
+      avatar: String
+    }
+    input UserFilter {
+      nameContains: String
+      emailDomain: String
+      active: Boolean
+    }
+    input CreateUserInput {
+      name: String!
+      email: String!
+      profile: ProfileInput
+    }
+    input UpdateUserInput {
+      name: String
+      email: String
+      profile: ProfileInput
+    }
+    input ProfileInput {
+      bio: String
+      avatar: String
+    }
+
+  orders: |
+    type Query {
+      orders(filter: OrderFilter): [Order]
+      userById(id: ID!): User @lookup
+    }
+    type User @key(fields: "id") {
+      id: ID!
+      orderHistory(filter: OrderFilter): [Order]
+    }
+    type Order {
+      id: ID!
+      total: Float
+      status: OrderStatus
+      createdAt: String
+    }
+    enum OrderStatus {
+      PENDING
+      SHIPPED
+      DELIVERED
+      CANCELLED
+    }
+    input OrderFilter {
+      userId: ID
+      status: OrderStatus
+      minTotal: Float
+      dateRange: DateRangeInput
+    }
+    input DateRangeInput {
+      start: String
+      end: String
+    }
+
+supergraph: |
+  type Query {
+    users(filter: UserFilter): [User]
+    userById(id: ID!): User
+    orders(filter: OrderFilter): [Order]
+  }
+  type Mutation {
+    createUser(input: CreateUserInput!): User
+    updateUser(id: ID!, input: UpdateUserInput!): User
+  }
+  type User {
+    id: ID!
+    name: String
+    email: String
+    profile: Profile
+    orderHistory(filter: OrderFilter): [Order]
+  }
+  type Profile {
+    bio: String
+    avatar: String
+  }
+  type Order {
+    id: ID!
+    total: Float
+    status: OrderStatus
+    createdAt: String
+  }
+  enum OrderStatus {
+    PENDING
+    SHIPPED
+    DELIVERED
+    CANCELLED
+  }
+  input UserFilter {
+    nameContains: String
+    emailDomain: String
+    active: Boolean
+  }
+  input CreateUserInput {
+    name: String!
+    email: String!
+    profile: ProfileInput
+  }
+  input UpdateUserInput {
+    name: String
+    email: String
+    profile: ProfileInput
+  }
+  input ProfileInput {
+    bio: String
+    avatar: String
+  }
+  input OrderFilter {
+    userId: ID
+    status: OrderStatus
+    minTotal: Float
+    dateRange: DateRangeInput
+  }
+  input DateRangeInput {
+    start: String
+    end: String
+  }

@@ -1,0 +1,56 @@
+name: "Require with data also requested"
+description: |
+  Tests @require when the client also requests the data field directly.
+  The artificial fields for @require should not leak into the response.
+
+query: |
+  {
+    a {
+      id
+      data {
+        foo
+      }
+      requirer2
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ a { id data { foo } } }'
+    variables: {}
+    response: {
+      data: {
+        a: {
+          id: "e3",
+          data: {
+            __typename: "Qux",
+            foo: "client-foo"
+          }
+        }
+      }
+    }
+
+  - subgraph: b
+    operation: 'query ($id: ID!, $dataFoo: String) { entityById(id: $id) { requirer2(dataFoo: $dataFoo) } }'
+    variables: { id: "e3", dataFoo: "client-foo" }
+    response: {
+      data: {
+        entityById: {
+          requirer2: "got: client-foo"
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    a: {
+      id: "e3",
+      data: {
+        foo: "client-foo"
+      },
+      requirer2: "got: client-foo"
+    }
+  }
+}

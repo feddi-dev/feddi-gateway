@@ -1,0 +1,43 @@
+name: "__typename with cross-subgraph inline fragment resolution"
+description: |
+  Tests that __typename is correctly handled when explicitly requested in a
+  cross-subgraph scenario with inline fragments. The __typename might be needed
+  internally for type discrimination but is also explicitly requested.
+
+query: |
+  {
+    contents {
+      __typename
+      id
+      title
+      ... on Article {
+        views
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { __typename id title } }'
+    variables: {}
+    response: { data: { contents: [
+      { __typename: "Article", id: "a1", title: "First Article" },
+      { __typename: "Video", id: "v1", title: "First Video" }
+    ] } }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views } } }'
+    variables: { id: "a1" }
+    response: { data: { contentById: { __typename: "Article", views: 1500 } } }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views } } }'
+    variables: { id: "v1" }
+    response: { data: { contentById: { __typename: "Video" } } }
+
+expectedResponse: { data: { contents: [
+  { __typename: "Article", id: "a1", title: "First Article", views: 1500 },
+  { __typename: "Video", id: "v1", title: "First Video" }
+] } }

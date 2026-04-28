@@ -1,0 +1,17 @@
+name: "__typename on union type"
+description: "Tests that __typename can be resolved on a union type"
+
+query: |
+  {
+    union {
+      __typename
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: a
+      operation: "{ union { __typename } }"
+      dependsOn: []
+      repeatedExecution: false

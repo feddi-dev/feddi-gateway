@@ -1,0 +1,43 @@
+name: "Inaccessible lookup used for entity resolution"
+description: |
+  Query products from subgraph A, then resolve price/inventory from subgraph B.
+  The query planner uses the @inaccessible productByInternalId from subgraph B to
+  resolve additional fields. This demonstrates that @inaccessible lookups ARE used
+  for entity resolution even though they're hidden from the public API.
+
+query: |
+  {
+    products {
+      id
+      name
+      price
+      inventory
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ products { id name } }'
+    variables: {}
+    response: { data: { products: [{ id: "p1", name: "Laptop" }, { id: "p2", name: "Phone" }] } }
+
+  - subgraph: b
+    operation: 'query ($internalId: ID!) { productByInternalId(internalId: $internalId) { price inventory } }'
+    variables: { internalId: "p1" }
+    response: { data: { productByInternalId: { price: 999, inventory: 50 } } }
+
+  - subgraph: b
+    operation: 'query ($internalId: ID!) { productByInternalId(internalId: $internalId) { price inventory } }'
+    variables: { internalId: "p2" }
+    response: { data: { productByInternalId: { price: 599, inventory: 120 } } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", price: 999, inventory: 50 },
+      { id: "p2", name: "Phone", price: 599, inventory: 120 }
+    ]
+  }
+}

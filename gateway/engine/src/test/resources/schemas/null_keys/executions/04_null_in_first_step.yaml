@@ -1,0 +1,33 @@
+name: "Null entity in first step"
+description: "When root query returns null for an entity, lookups for that entity should be skipped"
+
+query: |
+  {
+    bookContainers {
+      book {
+        id
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ bookContainers { book { upc } } }'
+    variables: {}
+    response: { data: { bookContainers: [{ book: { upc: "upc1" } }, { book: null }] } }
+
+  - subgraph: b
+    operation: 'query ($upc: ID!) { bookByUpc(upc: $upc) { id } }'
+    variables: { upc: "upc1" }
+    response: { data: { bookByUpc: { id: "id1" } } }
+
+expectedResponse: {
+  data: {
+    bookContainers: [
+      { book: { id: "id1" } },
+      { book: null }
+    ]
+  }
+}

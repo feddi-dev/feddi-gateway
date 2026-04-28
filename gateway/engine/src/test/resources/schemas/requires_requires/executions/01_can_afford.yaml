@@ -1,0 +1,34 @@
+name: "Can afford via chained requires"
+description: "Tests chained requires: feddi Gateway fetches id from b, price from a, isExpensive from c, then passes to d"
+
+query: |
+  {
+    product {
+      canAfford
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{ product { id } }'
+    variables: {}
+    response: { data: { product: { id: "p1" } } }
+
+  - subgraph: a
+    operation: 'query($id: ID!) { productByIdA(id: $id) { price } }'
+    variables: { id: "p1" }
+    response: { data: { productByIdA: { price: 699.99 } } }
+
+  - subgraph: c
+    operation: 'query($id: ID!, $p: Float) { productByIdC(id: $id) { isExpensive(p: $p) } }'
+    variables: { id: "p1", p: 699.99 }
+    response: { data: { productByIdC: { isExpensive: true } } }
+
+  - subgraph: d
+    operation: 'query($id: ID!, $ie: Boolean) { productByIdD(id: $id) { canAfford(ie: $ie) } }'
+    variables: { id: "p1", ie: true }
+    response: { data: { productByIdD: { canAfford: false } } }
+
+expectedResponse: { data: { product: { canAfford: false } } }

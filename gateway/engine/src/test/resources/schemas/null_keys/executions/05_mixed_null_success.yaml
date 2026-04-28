@@ -1,0 +1,39 @@
+name: "Mixed null and success with local fields"
+description: "When some entities have null lookups, successful ones should still return data for local fields"
+
+query: |
+  {
+    bookContainers {
+      book {
+        upc
+        id
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ bookContainers { book { upc } } }'
+    variables: {}
+    response: { data: { bookContainers: [{ book: { upc: "upc1" } }, { book: { upc: "upc2" } }] } }
+
+  - subgraph: b
+    operation: 'query ($upc: ID!) { bookByUpc(upc: $upc) { id } }'
+    variables: { upc: "upc1" }
+    response: { data: { bookByUpc: { id: "id1" } } }
+
+  - subgraph: b
+    operation: 'query ($upc: ID!) { bookByUpc(upc: $upc) { id } }'
+    variables: { upc: "upc2" }
+    response: { data: { bookByUpc: null } }
+
+expectedResponse: {
+  data: {
+    bookContainers: [
+      { book: { upc: "upc1", id: "id1" } },
+      { book: { upc: "upc2", id: null } }
+    ]
+  }
+}

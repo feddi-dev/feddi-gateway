@@ -1,0 +1,50 @@
+name: "Partial failure on timeout"
+description: "Tests that when one subgraph times out, partial results from successful subgraphs are returned along with an error"
+
+query: |
+  {
+    products {
+      id
+      name
+      price
+      stock
+    }
+  }
+
+variables: {}
+
+# Short timeout to trigger timeout for delayed subgraph
+timeoutMs: 500
+
+subgraphCalls:
+  - id: products
+    subgraph: products
+    operation: '{ products { id name } }'
+    response: { data: { products: [{ id: "p1", name: "Laptop" }] } }
+
+  - id: pricing
+    subgraph: pricing
+    operation: 'query ($id: ID!) { productById(id: $id) { price } }'
+    variables: { id: "p1" }
+    delayMs: infinite
+    response: { data: { productById: { price: 999 } } }
+
+  - id: inventory
+    subgraph: inventory
+    operation: 'query ($id: ID!) { productById(id: $id) { stock } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { stock: 50 } } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", price: null, stock: 50 }
+    ]
+  },
+  errors: [
+    {
+      message: "Subgraph 'pricing' timed out",
+      extensions: { code: "SUBGRAPH_TIMEOUT", subgraph: "pricing" }
+    }
+  ]
+}

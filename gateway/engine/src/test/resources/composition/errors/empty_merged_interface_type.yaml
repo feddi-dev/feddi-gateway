@@ -1,0 +1,20 @@
+name: "EMPTY_MERGED_INTERFACE_TYPE - interface with all fields inaccessible"
+description: "Spec 3.4.2.2: Interface types must have at least one accessible field after merging"
+
+subgraphs:
+  content: |
+    type Query {
+      content: [Node]
+    }
+    
+    interface Node {
+      internalId: ID! @inaccessible
+    }
+    
+    type Article implements Node @key(fields: "id") {
+      id: ID!
+      internalId: ID! @inaccessible
+      title: String
+    }
+
+error: "EMPTY_MERGED_INTERFACE_TYPE"

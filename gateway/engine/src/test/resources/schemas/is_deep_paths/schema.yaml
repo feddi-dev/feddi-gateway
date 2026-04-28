@@ -1,0 +1,127 @@
+name: "@is Deep Paths"
+description: |
+  Tests @is directive with deeply nested paths like:
+  headquarters.building.address.city.name
+
+  This demonstrates that @is can reference fields several levels deep
+  in an entity's structure to use as lookup keys.
+
+  Note: @is is only needed when the argument name doesn't match a direct
+  field name, or when mapping to nested fields. Simple lookups like
+  organizationById(id) don't need @is because "id" matches the field name.
+
+subgraphs:
+  organizations: |
+    type Query {
+      organizations: [Organization]
+      organizationById(id: ID!): Organization @lookup
+    }
+
+    type Organization @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      headquarters: Headquarters @shareable
+    }
+
+    type Headquarters @shareable {
+      name: String @shareable
+      building: Building @shareable
+    }
+
+    type Building @shareable {
+      name: String @shareable
+      address: Address @shareable
+    }
+
+    type Address @shareable {
+      street: String @shareable
+      city: City @shareable
+    }
+
+    type City @shareable {
+      name: String @shareable
+      country: String @shareable
+    }
+
+  local_services: |
+    type Query {
+      organizationById(id: ID!): Organization @lookup
+      organizationByCity(
+        cityName: String! @is(field: "headquarters.building.address.city.name")
+        country: String! @is(field: "headquarters.building.address.city.country")
+      ): Organization @lookup
+    }
+
+    type Organization @key(fields: "id") {
+      id: ID!
+      headquarters: Headquarters @shareable
+      localServices: [LocalService]
+      deliveryZones: [String]
+    }
+
+    type Headquarters @shareable {
+      name: String @shareable
+      building: Building @shareable
+    }
+
+    type Building @shareable {
+      name: String @shareable
+      address: Address @shareable
+    }
+
+    type Address @shareable {
+      street: String @shareable
+      city: City @shareable
+    }
+
+    type City @shareable {
+      name: String @shareable
+      country: String @shareable
+    }
+
+    type LocalService {
+      name: String
+      type: String
+      available: Boolean
+    }
+
+supergraph: |
+  type Query {
+    organizations: [Organization]
+    organizationById(id: ID!): Organization
+    organizationByCity(cityName: String!, country: String!): Organization
+  }
+
+  type Organization {
+    id: ID!
+    name: String
+    headquarters: Headquarters
+    localServices: [LocalService]
+    deliveryZones: [String]
+  }
+
+  type Headquarters {
+    name: String
+    building: Building
+  }
+
+  type Building {
+    name: String
+    address: Address
+  }
+
+  type Address {
+    street: String
+    city: City
+  }
+
+  type City {
+    name: String
+    country: String
+  }
+
+  type LocalService {
+    name: String
+    type: String
+    available: Boolean
+  }

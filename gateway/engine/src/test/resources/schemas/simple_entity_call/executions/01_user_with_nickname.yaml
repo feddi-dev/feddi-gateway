@@ -1,0 +1,29 @@
+name: "User with nickname from different subgraph"
+description: "Fetches user id from email subgraph, then resolves nickname via @lookup on nickname subgraph using email as key"
+
+query: |
+  {
+    user {
+      id
+      nickname
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: email
+    operation: '{ user { id email } }'
+    variables: {}
+    response: { data: { user: { id: "1", email: "user1@gmail.com" } } }
+
+  - subgraph: nickname
+    operation: 'query ($email: String!) { userByEmail(email: $email) { nickname } }'
+    variables: { email: "user1@gmail.com" }
+    response: { data: { userByEmail: { nickname: "user1" } } }
+
+expectedResponse: {
+  data: {
+    user: { id: "1", nickname: "user1" }
+  }
+}

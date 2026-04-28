@@ -1,0 +1,15 @@
+name: "REQUIRE_INVALID_USAGE - @require directive on @lookup field argument"
+description: "@require cannot be used on @lookup field arguments. @lookup fields use @is to map arguments."
+
+subgraphs:
+  products: |
+    type Query {
+      productById(id: ID!, extra: String @require(field: "name")): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "REQUIRE_INVALID_USAGE"

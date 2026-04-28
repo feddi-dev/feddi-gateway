@@ -1,0 +1,25 @@
+name: "EXTERNAL_FIELD_HAS_ARGUMENTS - external field cannot have arguments"
+description: "Extension: @external fields cannot have arguments because they must be usable in @provides, and @provides cannot reference fields with arguments"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      description(locale: String): String
+    }
+
+  schemaB: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      description(locale: String): String @external
+    }
+
+error: "EXTERNAL_FIELD_HAS_ARGUMENTS"

@@ -1,0 +1,24 @@
+name: "Enum field in input object"
+description: "Tests input object with enum field value"
+
+query: |
+  query GetOrders($filter: OrderFilter) {
+    orders(filter: $filter) {
+      id
+      status
+    }
+  }
+
+variables: { filter: { status: "PENDING" } }
+
+subgraphCalls:
+  - subgraph: orders
+    operation: 'query($filter: OrderFilter) { orders(filter: $filter) { id status } }'
+    variables: { filter: { status: "PENDING" } }
+    response: { data: { orders: [{ id: "o1", status: "PENDING" }, { id: "o2", status: "PENDING" }] } }
+
+expectedResponse: {
+  data: {
+    orders: [{ id: "o1", status: "PENDING" }, { id: "o2", status: "PENDING" }]
+  }
+}

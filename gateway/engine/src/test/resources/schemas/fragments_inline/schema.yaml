@@ -1,0 +1,112 @@
+name: "Inline Fragments"
+description: |
+  Tests inline fragments with type conditions on interfaces.
+  Covers inline fragments with and without type conditions across subgraphs.
+
+subgraphs:
+  content: |
+    type Query {
+      contents: [Content]
+      content(id: ID!): Content
+      contentById(id: ID!): Content @lookup
+      articleById(id: ID!): Article @lookup
+      videoById(id: ID!): Video @lookup
+      podcastById(id: ID!): Podcast @lookup
+    }
+    interface Content @key(fields: "id") {
+      id: ID!
+      title: String
+      createdAt: String
+    }
+    type Article implements Content @key(fields: "id") {
+      id: ID!
+      title: String
+      createdAt: String
+      body: String
+      wordCount: Int
+    }
+    type Video implements Content @key(fields: "id") {
+      id: ID!
+      title: String
+      createdAt: String
+      url: String
+      duration: Int
+    }
+    type Podcast implements Content @key(fields: "id") {
+      id: ID!
+      title: String
+      createdAt: String
+      audioUrl: String
+      episodeNumber: Int
+    }
+
+  analytics: |
+    type Query {
+      contentById(id: ID!): Content @lookup
+      articleByIdAnalytics(id: ID!): Article @lookup
+      videoByIdAnalytics(id: ID!): Video @lookup
+      podcastByIdAnalytics(id: ID!): Podcast @lookup
+    }
+    interface Content @key(fields: "id") {
+      id: ID!
+    }
+    type Article implements Content @key(fields: "id") {
+      id: ID!
+      views: Int
+      readTime: Int
+    }
+    type Video implements Content @key(fields: "id") {
+      id: ID!
+      views: Int
+      watchTime: Int
+    }
+    type Podcast implements Content @key(fields: "id") {
+      id: ID!
+      plays: Int
+      listenTime: Int
+    }
+
+supergraph: |
+  type Query {
+    contents: [Content]
+    content(id: ID!): Content
+    contentById(id: ID!): Content
+    articleById(id: ID!): Article
+    articleByIdAnalytics(id: ID!): Article
+    videoById(id: ID!): Video
+    videoByIdAnalytics(id: ID!): Video
+    podcastById(id: ID!): Podcast
+    podcastByIdAnalytics(id: ID!): Podcast
+  }
+  interface Content {
+    id: ID!
+    title: String
+    createdAt: String
+  }
+  type Article implements Content {
+    id: ID!
+    title: String
+    createdAt: String
+    body: String
+    wordCount: Int
+    views: Int
+    readTime: Int
+  }
+  type Video implements Content {
+    id: ID!
+    title: String
+    createdAt: String
+    url: String
+    duration: Int
+    views: Int
+    watchTime: Int
+  }
+  type Podcast implements Content {
+    id: ID!
+    title: String
+    createdAt: String
+    audioUrl: String
+    episodeNumber: Int
+    plays: Int
+    listenTime: Int
+  }

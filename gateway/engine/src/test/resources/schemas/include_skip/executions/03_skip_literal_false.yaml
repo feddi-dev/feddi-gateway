@@ -1,0 +1,36 @@
+name: "@skip(if: false) includes field and requires chain"
+description: "When @skip(if: false) is used, the field is included and the full @require chain is executed"
+
+query: |
+  {
+    product {
+      id
+      skip @skip(if: false)
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - id: step1
+    subgraph: a
+    operation: '{ product { id price } }'
+    response: { data: { product: { id: "p1", price: 100.0 } } }
+
+  - id: step3
+    subgraph: b
+    operation: 'query ($id: ID!, $price: Float!) { productById(id: $id) { isExpensive(price: $price) } }'
+    variables: { id: "p1", price: 100.0 }
+    response: { data: { productById: { isExpensive: true } } }
+
+  - id: step2
+    subgraph: c
+    operation: 'query ($id: ID!, $isExpensive: Boolean!) { productById(id: $id) { skip(isExpensive: $isExpensive) } }'
+    variables: { id: "p1", isExpensive: true }
+    response: { data: { productById: { skip: false } } }
+
+expectedResponse: {
+  data: {
+    product: { id: "p1", skip: false }
+  }
+}

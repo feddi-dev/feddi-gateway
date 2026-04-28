@@ -1,0 +1,19 @@
+name: "Schema introspection"
+description: "Tests that __schema queries are routed to the $introspection subgraph"
+
+query: |
+  {
+    __schema {
+      queryType {
+        name
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: $introspection
+      operation: "{ __schema { queryType { name } } }"
+      dependsOn: []
+      repeatedExecution: false

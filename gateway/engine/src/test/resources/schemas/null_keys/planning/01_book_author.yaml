@@ -1,0 +1,13 @@
+name: "Book with author via multiple key hops"
+description: "Planning test for query that requires upc->id key translation via subgraph b"
+
+query: |
+  {
+    bookContainers {
+      book {
+        author {
+          name
+        }
+      }
+    }
+  }

@@ -1,0 +1,54 @@
+name: "Products list with all fields from three subgraphs"
+description: "Fetches products list from name subgraph, then resolves price and category via @lookup for each product"
+
+query: |
+  {
+    products {
+      id
+      name {
+        id
+        brand
+        model
+      }
+      category {
+        id
+        name
+      }
+      price {
+        id
+        amount
+        currency
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: name
+    operation: '{ products { id name { id brand model } } }'
+    variables: {}
+    response: { data: { products: [{ id: "1", name: { id: "1", brand: "Brand 1", model: "Model 1" } }] } }
+
+  - subgraph: price
+    operation: 'query ($id: ID!) { productById(id: $id) { price { id amount currency } } }'
+    variables: { id: "1" }
+    response: { data: { productById: { price: { id: "1", amount: 1000, currency: "USD" } } } }
+
+  - subgraph: category
+    operation: 'query ($id: ID!) { productById(id: $id) { category { id name } } }'
+    variables: { id: "1" }
+    response: { data: { productById: { category: { id: "1", name: "Category 1" } } } }
+
+expectedResponse: {
+  data: {
+    products: [
+      {
+        id: "1",
+        name: { id: "1", brand: "Brand 1", model: "Model 1" },
+        category: { id: "1", name: "Category 1" },
+        price: { id: "1", amount: 1000, currency: "USD" }
+      }
+    ]
+  }
+}

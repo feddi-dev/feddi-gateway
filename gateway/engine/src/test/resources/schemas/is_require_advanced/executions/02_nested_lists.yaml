@@ -1,0 +1,59 @@
+name: "Nested list extraction via @require"
+description: |
+  Tests @require directive with nested list field [[ID!]!]!.
+  The Podcast.nestedStats field requires the episodeIds field which is a nested list.
+
+query: |
+  {
+    podcastById(id: "pod1") {
+      id
+      title
+      nestedStats {
+        totalGroups
+        totalEpisodes
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ podcastById(id: "pod1") { id title episodeIds } }'
+    variables: {}
+    response: {
+      data: {
+        podcastById: {
+          id: "pod1",
+          title: "Tech Talk",
+          episodeIds: [["ep1", "ep2"], ["ep3", "ep4", "ep5"]]
+        }
+      }
+    }
+
+  - subgraph: analytics
+    operation: 'query($id:ID!,$ids:[[ID!]!]!){podcastById(id:$id){nestedStats(ids:$ids){totalGroups totalEpisodes}}}'
+    variables: { id: "pod1", ids: [["ep1", "ep2"], ["ep3", "ep4", "ep5"]] }
+    response: {
+      data: {
+        podcastById: {
+          nestedStats: {
+            totalGroups: 2,
+            totalEpisodes: 5
+          }
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    podcastById: {
+      id: "pod1",
+      title: "Tech Talk",
+      nestedStats: {
+        totalGroups: 2,
+        totalEpisodes: 5
+      }
+    }
+  }
+}

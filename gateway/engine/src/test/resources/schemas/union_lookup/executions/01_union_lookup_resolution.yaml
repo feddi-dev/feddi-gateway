@@ -1,0 +1,43 @@
+name: "Union lookup used for entity resolution"
+description: |
+  Tests that a lookup returning a union (mediaById: Media @lookup)
+  can be used for entity resolution across subgraphs.
+
+  This test queries the root-level mediaById which returns Media union,
+  then resolves rating fields from the ratings subgraph via the union lookup.
+
+query: |
+  {
+    mediaById(id: "b1") {
+      ... on Book {
+        id
+        title
+        rating
+        reviewCount
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ mediaById(id: "b1") { __typename ... on Book { id title } } }'
+    variables: {}
+    response: { data: { mediaById: { __typename: "Book", id: "b1", title: "GraphQL Guide" } } }
+
+  - subgraph: ratings
+    operation: 'query ($id: ID!) { mediaById(id: $id) { ... on Book { rating reviewCount } } }'
+    variables: { id: "b1" }
+    response: { data: { mediaById: { __typename: "Book", rating: 4.8, reviewCount: 250 } } }
+
+expectedResponse: {
+  data: {
+    mediaById: {
+      id: "b1",
+      title: "GraphQL Guide",
+      rating: 4.8,
+      reviewCount: 250
+    }
+  }
+}

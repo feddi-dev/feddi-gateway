@@ -1,0 +1,31 @@
+name: "@require on entity field referencing nested non-entity data"
+description: |
+  Tests that @require on an entity field can reference data from nested non-entity types.
+  This pattern keeps the requirement on Product.shippingCost while reading the value
+  from the nested details.weight field:
+  - @require is ON Product.shippingCost (entity field)
+  - @require REFERENCES details.weight (nested ProductDetails field)
+
+query: |
+  {
+    product(id: "1") {
+      shippingCost
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "{ product(id: \"1\") { id details { weight } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: shipping
+      operation: "query ($id: ID!, $weight: Float) { productById(id: $id) { shippingCost(weight: $weight) } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+        weight: "details.weight"
+      repeatedExecution: true

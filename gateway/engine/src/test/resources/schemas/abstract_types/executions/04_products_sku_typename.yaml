@@ -1,0 +1,28 @@
+name: "Products with sku"
+description: "Queries products with sku field directly on the interface without inline fragments or __typename"
+
+query: |
+  {
+    products {
+      sku
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { sku } }'
+    variables: {}
+    response: { data: { products: [{ __typename: "Book", sku: "sku-1" }, { __typename: "Book", sku: "sku-3" }, { __typename: "Magazine", sku: "sku-2" }, { __typename: "Magazine", sku: "sku-4" }] } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { sku: "sku-1" },
+      { sku: "sku-3" },
+      { sku: "sku-2" },
+      { sku: "sku-4" }
+    ]
+  }
+}

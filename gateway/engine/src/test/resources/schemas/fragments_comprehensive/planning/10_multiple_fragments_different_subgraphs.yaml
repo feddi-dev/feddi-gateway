@@ -1,0 +1,34 @@
+name: "Multiple fragments to different subgraphs"
+description: "Different type fragments go to different subgraphs for their specific fields"
+
+query: |
+  {
+    contents {
+      id
+      title
+      ... on Article {
+        views
+      }
+      ... on Video {
+        watchTime
+      }
+      ... on Podcast {
+        plays
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: content
+      operation: "{ contents { id title __typename } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: analytics
+      operation: "query($id: ID!) { contentById(id: $id) { ... on Article { views } ... on Video { watchTime } ... on Podcast { plays } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

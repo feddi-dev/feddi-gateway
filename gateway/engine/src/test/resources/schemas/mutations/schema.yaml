@@ -1,0 +1,97 @@
+name: "Mutations"
+description: "Tests mutation support with three subgraphs - cross-subgraph mutation resolution, @require on mutation results, and @shareable mutations"
+
+subgraphs:
+  a: |
+    type Query {
+      product(id: ID!): Product!
+      products: [Product!]!
+      productByIdA(id: ID!): Product @lookup
+      categoryById(id: ID!): Category @lookup
+    }
+
+    type Mutation {
+      addProduct(input: AddProductInput!): Product!
+      addCategory(name: String!, requestId: String!): Category! @shareable
+      multiply(by: Int!, requestId: String!): Int!
+    }
+
+    input AddProductInput {
+      name: String!
+      price: Float!
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String!
+      price: Float! @shareable
+    }
+
+    type Category @key(fields: "id") {
+      id: ID!
+    }
+
+  b: |
+    type Query {
+      productById(id: ID!): Product @lookup
+      categoryByIdB(id: ID!): Category @lookup
+    }
+
+    type Mutation {
+      delete(requestId: String!): Int!
+      addCategory(name: String!, requestId: String!): Category! @shareable
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float! @shareable
+      isExpensive(price: Float! @require(field: "price")): Boolean!
+      isAvailable: Boolean!
+    }
+
+    type Category @key(fields: "id") {
+      id: ID!
+      name: String!
+    }
+
+  c: |
+    type Mutation {
+      add(num: Int!, requestId: String!): Int!
+    }
+
+supergraph: |
+  type Category {
+    id: ID!
+    name: String!
+  }
+
+  type Mutation {
+    add(num: Int!, requestId: String!): Int!
+    addCategory(name: String!, requestId: String!): Category!
+    addProduct(input: AddProductInput!): Product!
+    delete(requestId: String!): Int!
+    multiply(by: Int!, requestId: String!): Int!
+  }
+
+  type Product {
+    id: ID!
+    isAvailable: Boolean!
+    isExpensive: Boolean!
+    name: String!
+    price: Float!
+  }
+
+  type Query {
+    _placeholder: String
+    product(id: ID!): Product!
+    productById(id: ID!): Product
+    productByIdA(id: ID!): Product
+    categoryById(id: ID!): Category
+    categoryByIdB(id: ID!): Category
+    products: [Product!]!
+  }
+
+  input AddProductInput {
+    name: String!
+    price: Float!
+  }

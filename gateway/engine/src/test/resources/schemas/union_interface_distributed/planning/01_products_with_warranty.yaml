@@ -1,0 +1,20 @@
+name: "Products with warranty via inline fragments"
+description: "Query union type with inline fragments - Oven.warranty needs subgraph b, Toaster.warranty in subgraph a"
+
+query: |
+  {
+    products {
+      ... on Oven {
+        id
+        warranty
+      }
+      ... on Toaster {
+        id
+        warranty
+      }
+    }
+  }
+
+# Expected: 2 steps
+# Step 1: subgraph a - get products with inline fragments for id fields
+# Step 2: subgraph b - lookup Oven to get warranty

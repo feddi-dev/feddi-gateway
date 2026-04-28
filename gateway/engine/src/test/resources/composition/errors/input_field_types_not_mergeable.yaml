@@ -1,0 +1,35 @@
+name: "INPUT_FIELD_TYPES_NOT_MERGEABLE - same input field with different types"
+description: "Spec: Input fields with the same name must have mergeable types"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      createUser(input: UserInput): User
+    }
+
+    input UserInput {
+      name: String
+      age: Int
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  schemaB: |
+    type Query {
+      updateUser(input: UserInput): User
+    }
+
+    input UserInput {
+      name: String
+      age: String
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      email: String
+    }
+
+error: "INPUT_FIELD_TYPES_NOT_MERGEABLE"

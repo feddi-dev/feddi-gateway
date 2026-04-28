@@ -1,0 +1,100 @@
+plugins {
+    id 'java'
+    id 'checkstyle'
+}
+
+group = 'dev.feddi.federation'
+version = '1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+checkstyle {
+    toolVersion = '10.21.4'
+    configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+    maxWarnings = 0
+    maxErrors = 0
+}
+
+dependencies {
+    // JUnit 5
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+
+    // Testcontainers
+    testImplementation libs.testcontainers
+    testImplementation libs.testcontainers.junit.jupiter
+
+    // Spring WebFlux for WebClient (HTTP client only, no server)
+    testImplementation libs.spring.webflux
+    testImplementation libs.spring.context
+    testImplementation libs.reactor.netty.http
+
+    // Jackson for JSON serialization
+    testImplementation libs.jackson.databind
+}
+
+test {
+    useJUnitPlatform()
+
+    // Increase timeout for Docker operations
+    systemProperty 'junit.jupiter.execution.timeout.default', '10m'
+
+    testLogging {
+        events "passed", "skipped", "failed"
+        showStandardStreams = true
+    }
+}
+
+// Task to copy the feddi Gateway JAR from the gateway project
+tasks.register('copyFeddiGatewayJar', Copy) {
+    description = 'Copies the feddi Gateway Spring Boot JAR for Docker build'
+
+    def gatewayJarDir = file("${projectDir}/../gateway/app/build/libs")
+
+    from(gatewayJarDir) {
+        include '*.jar'
+        exclude '*-plain.jar'
+        rename { 'app.jar' }
+    }
+    into file("${projectDir}/docker/feddi-gateway")
+
+    doFirst {
+        if (!gatewayJarDir.exists()) {
+            throw new GradleException("""
+                feddi Gateway JAR not found. Please build the feddi Gateway first:
+                  cd ../gateway && ./gradlew :app:bootJar
+            """.stripIndent())
+        }
+    }
+}
+
+// Task to copy the customizations JAR for Docker build
+tasks.register('copyCustomizationsJar', Copy) {
+    description = 'Copies the customizations JAR for Docker build'
+    dependsOn ':customizations:jar'
+
+    def customizationsJarDir = file("${projectDir}/customizations/build/libs")
+    def libsDir = file("${projectDir}/docker/feddi-gateway/libs")
+
+    from(customizationsJarDir) {
+        include '*.jar'
+    }
+    into libsDir
+
+    doFirst {
+        // Ensure libs directory exists
+        libsDir.mkdirs()
+    }
+}
+
+// Ensure JARs are copied before running tests
+test.dependsOn copyFeddiGatewayJar, copyCustomizationsJar

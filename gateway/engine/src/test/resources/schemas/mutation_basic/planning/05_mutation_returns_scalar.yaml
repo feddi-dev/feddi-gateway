@@ -1,0 +1,15 @@
+name: "Mutation returns scalar"
+description: "Delete mutation returns Boolean, no entity lookup needed"
+
+query: |
+  mutation {
+    deleteProduct(id: "p1")
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "mutation { deleteProduct(id: \"p1\") }"
+      dependsOn: []
+      repeatedExecution: false

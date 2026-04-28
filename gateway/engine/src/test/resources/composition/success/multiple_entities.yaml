@@ -1,0 +1,95 @@
+name: "Multiple entities - complex relationships"
+description: "Multiple entity types with cross-references between subgraphs"
+
+subgraphs:
+  users: |
+    type Query {
+      users: [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      email: String
+    }
+
+  products: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+      userByIdProducts(id: ID!): User @lookup
+    }
+    
+    type User @key(fields: "id") {
+      id: ID!
+      wishlist: [Product]
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      price: Float
+    }
+
+  reviews: |
+    type Query {
+      reviews: [Review]
+      userByIdReviews(id: ID!): User @lookup
+      productByIdReviews(id: ID!): Product @lookup
+    }
+    
+    type User @key(fields: "id") {
+      id: ID!
+      reviews: [Review]
+    }
+    
+    type Product @key(fields: "id") {
+      id: ID!
+      reviews: [Review]
+      averageRating: Float
+    }
+    
+    type Review {
+      id: ID!
+      text: String
+      rating: Int
+      author: User
+      product: Product
+    }
+
+supergraph: |
+  type Query {
+    users: [User]
+    userById(id: ID!): User
+    products: [Product]
+    productById(id: ID!): Product
+    userByIdProducts(id: ID!): User
+    reviews: [Review]
+    userByIdReviews(id: ID!): User
+    productByIdReviews(id: ID!): Product
+  }
+  
+  type User {
+    id: ID!
+    name: String
+    email: String
+    wishlist: [Product]
+    reviews: [Review]
+  }
+  
+  type Product {
+    id: ID!
+    name: String
+    price: Float
+    reviews: [Review]
+    averageRating: Float
+  }
+  
+  type Review {
+    id: ID!
+    text: String
+    rating: Int
+    author: User
+    product: Product
+  }

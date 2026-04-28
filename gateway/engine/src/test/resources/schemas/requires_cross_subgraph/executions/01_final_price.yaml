@@ -1,0 +1,31 @@
+name: "Final price requiring fields from two subgraphs"
+description: |
+  Tests that finalPrice in subgraph C can get its @require dependencies from two different subgraphs:
+  basePrice from A and discountPercent from B.
+
+query: |
+  {
+    product {
+      finalPrice
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{ product { id discountPercent } }'
+    variables: {}
+    response: { data: { product: { id: "p1", discountPercent: 20 } } }
+
+  - subgraph: a
+    operation: 'query($id: ID!) { productByIdA(id: $id) { basePrice } }'
+    variables: { id: "p1" }
+    response: { data: { productByIdA: { basePrice: 100.0 } } }
+
+  - subgraph: c
+    operation: 'query($id: ID!, $bp: Float, $dp: Int) { productByIdC(id: $id) { finalPrice(bp: $bp, dp: $dp) } }'
+    variables: { id: "p1", bp: 100.0, dp: 20 }
+    response: { data: { productByIdC: { finalPrice: 80.0 } } }
+
+expectedResponse: { data: { product: { finalPrice: 80.0 } } }

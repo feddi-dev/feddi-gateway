@@ -1,0 +1,20 @@
+name: "Single subgraph union inline fragment"
+description: "Inline fragment on union type, all fields in same subgraph"
+
+query: |
+  {
+    mediaById(id: "b1") {
+      ... on Book {
+        id
+        title
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: content
+      operation: '{ mediaById(id: "b1") { __typename ... on Book { id title } } }'
+      dependsOn: []
+      repeatedExecution: false

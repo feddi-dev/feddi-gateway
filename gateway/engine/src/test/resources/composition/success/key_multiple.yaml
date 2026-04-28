@@ -1,0 +1,44 @@
+name: "@key multiple - entity with multiple keys"
+description: "Entity that can be looked up by different keys"
+
+subgraphs:
+  users: |
+    type Query {
+      userById(id: ID!): User @lookup
+      userByEmail(email: String!): User @lookup
+    }
+
+    type User @key(fields: "id") @key(fields: "email") {
+      id: ID!
+      email: String!
+      name: String
+    }
+
+  accounts: |
+    type Query {
+      userByIdAccounts(id: ID!): User @lookup
+      userByEmailAccounts(email: String!): User @lookup
+    }
+    
+    type User @key(fields: "id") @key(fields: "email") {
+      id: ID!
+      email: String!
+      accountStatus: String
+      lastLogin: String
+    }
+
+supergraph: |
+  type Query {
+    userById(id: ID!): User
+    userByEmail(email: String!): User
+    userByIdAccounts(id: ID!): User
+    userByEmailAccounts(email: String!): User
+  }
+  
+  type User {
+    id: ID!
+    email: String!
+    name: String
+    accountStatus: String
+    lastLogin: String
+  }

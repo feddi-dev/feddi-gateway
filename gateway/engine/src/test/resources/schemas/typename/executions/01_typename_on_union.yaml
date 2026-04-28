@@ -1,0 +1,19 @@
+name: "__typename on union type execution"
+description: "Tests execution of __typename on a union type"
+
+query: |
+  {
+    union {
+      __typename
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ union { __typename } }'
+    variables: {}
+    response: { data: { union: { __typename: "Oven" } } }
+
+expectedResponse: { data: { union: { __typename: "Oven" } } }

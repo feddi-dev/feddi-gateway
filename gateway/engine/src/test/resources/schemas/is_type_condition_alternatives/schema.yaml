@@ -1,0 +1,91 @@
+name: "@is Type Condition Alternatives"
+description: |
+  Tests @is directive with alternatives using different type conditions:
+  @is(field: "<Book>.isbn | <Electronics>.sku")
+
+  This enables a single @lookup to resolve different implementing types
+  using type-specific key fields. The planner must determine which key
+  field to use based on the entity's __typename.
+
+subgraphs:
+  catalog: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+      bookById(id: ID!): Book @lookup
+      electronicsById(id: ID!): Electronics @lookup
+    }
+
+    interface Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+    type Book implements Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      isbn: String @shareable
+      author: String
+    }
+
+    type Electronics implements Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      sku: String @shareable
+      manufacturer: String
+    }
+
+  reviews: |
+    type Query {
+      productByCode(code: String! @is(field: "<Book>.isbn | <Electronics>.sku")): Product @lookup
+    }
+
+    interface Product @key(fields: "id") {
+      id: ID!
+    }
+
+    type Book implements Product @key(fields: "id") {
+      id: ID!
+      isbn: String @shareable
+      averageRating: Float
+      reviewCount: Int
+    }
+
+    type Electronics implements Product @key(fields: "id") {
+      id: ID!
+      sku: String @shareable
+      averageRating: Float
+      reviewCount: Int
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    bookById(id: ID!): Book
+    electronicsById(id: ID!): Electronics
+    productByCode(code: String!): Product
+  }
+
+  interface Product {
+    id: ID!
+    name: String
+  }
+
+  type Book implements Product {
+    id: ID!
+    name: String
+    isbn: String
+    author: String
+    averageRating: Float
+    reviewCount: Int
+  }
+
+  type Electronics implements Product {
+    id: ID!
+    name: String
+    sku: String
+    manufacturer: String
+    averageRating: Float
+    reviewCount: Int
+  }

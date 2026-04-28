@@ -1,0 +1,128 @@
+name: "Complex multi-dependency execution"
+description: "Execution test spanning 5 subgraphs with nested users lookup from reviews"
+
+query: |
+  {
+    products(category: "electronics", limit: 2) {
+      id
+      name
+      rating
+      reviews(first: 2) {
+        id
+        text
+        stars
+        author {
+          name
+          avatar
+        }
+      }
+      inStock
+      quantity
+      warehouse {
+        name
+        location
+      }
+      price
+      discount
+      finalPrice
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  # Step 1: Products subgraph - get product list
+  - subgraph: products
+    operation: '{ products(category: "electronics", limit: 2) { id name } }'
+    variables: {}
+    response: { data: { products: [{ id: "p1", name: "Laptop Pro" }, { id: "p2", name: "Smart Phone X" }] } }
+
+  # Step 2: Reviews subgraph - get reviews for product p1
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { rating reviews(first: 2) { id text stars } } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { rating: 4.8, reviews: [{ id: "r1", text: "Amazing laptop!", stars: 5 }, { id: "r2", text: "Good value", stars: 4 }] } } }
+
+  # Step 2: Reviews subgraph - get reviews for product p2
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { rating reviews(first: 2) { id text stars } } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { rating: 4.5, reviews: [{ id: "r3", text: "Great phone!", stars: 5 }] } } }
+
+  # Step 3: Inventory subgraph - get inventory for product p1
+  - subgraph: inventory
+    operation: 'query ($id: ID!) { productById(id: $id) { inStock quantity warehouse { name location } } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { inStock: true, quantity: 50, warehouse: { name: "West Coast DC", location: "Los Angeles, CA" } } } }
+
+  # Step 3: Inventory subgraph - get inventory for product p2
+  - subgraph: inventory
+    operation: 'query ($id: ID!) { productById(id: $id) { inStock quantity warehouse { name location } } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { inStock: true, quantity: 200, warehouse: { name: "East Coast DC", location: "New York, NY" } } } }
+
+  # Step 4: Pricing subgraph - get pricing for product p1
+  - subgraph: pricing
+    operation: 'query ($id: ID!) { productById(id: $id) { price discount finalPrice } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { price: 1299.99, discount: 100.0, finalPrice: 1199.99 } } }
+
+  # Step 4: Pricing subgraph - get pricing for product p2
+  - subgraph: pricing
+    operation: 'query ($id: ID!) { productById(id: $id) { price discount finalPrice } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { price: 899.99, discount: 50.0, finalPrice: 849.99 } } }
+
+  # Step 5: Users subgraph - get author for review r1 (nested in product p1)
+  - subgraph: users
+    operation: 'query ($id: ID!) { reviewById(id: $id) { author { name avatar } } }'
+    variables: { id: "r1" }
+    response: { data: { reviewById: { author: { name: "Alice Johnson", avatar: "https://example.com/alice.jpg" } } } }
+
+  # Step 5: Users subgraph - get author for review r2 (nested in product p1)
+  - subgraph: users
+    operation: 'query ($id: ID!) { reviewById(id: $id) { author { name avatar } } }'
+    variables: { id: "r2" }
+    response: { data: { reviewById: { author: { name: "Bob Smith", avatar: "https://example.com/bob.jpg" } } } }
+
+  # Step 5: Users subgraph - get author for review r3 (nested in product p2)
+  - subgraph: users
+    operation: 'query ($id: ID!) { reviewById(id: $id) { author { name avatar } } }'
+    variables: { id: "r3" }
+    response: { data: { reviewById: { author: { name: "Carol White", avatar: "https://example.com/carol.jpg" } } } }
+
+expectedResponse: {
+  data: {
+    products: [
+      {
+        id: "p1",
+        name: "Laptop Pro",
+        rating: 4.8,
+        reviews: [
+          { id: "r1", text: "Amazing laptop!", stars: 5, author: { name: "Alice Johnson", avatar: "https://example.com/alice.jpg" } },
+          { id: "r2", text: "Good value", stars: 4, author: { name: "Bob Smith", avatar: "https://example.com/bob.jpg" } }
+        ],
+        inStock: true,
+        quantity: 50,
+        warehouse: { name: "West Coast DC", location: "Los Angeles, CA" },
+        price: 1299.99,
+        discount: 100.0,
+        finalPrice: 1199.99
+      },
+      {
+        id: "p2",
+        name: "Smart Phone X",
+        rating: 4.5,
+        reviews: [
+          { id: "r3", text: "Great phone!", stars: 5, author: { name: "Carol White", avatar: "https://example.com/carol.jpg" } }
+        ],
+        inStock: true,
+        quantity: 200,
+        warehouse: { name: "East Coast DC", location: "New York, NY" },
+        price: 899.99,
+        discount: 50.0,
+        finalPrice: 849.99
+      }
+    ]
+  }
+}

@@ -1,0 +1,74 @@
+name: "Parent Entity Call Complex"
+description: "Tests complex cross-subgraph resolution with 4 subgraphs. Product fields come from subgraph d, category is resolved via product lookups in subgraphs a and b, and category name requires a separate category lookup in subgraph c."
+
+subgraphs:
+  d: |
+    type Query {
+      productFromD(id: ID!): Product
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  a: |
+    type Query {
+      productById(id: ID!): Product @lookup
+      categoryByIdA(id: ID!): Category @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      category: Category @shareable
+    }
+
+    type Category @key(fields: "id") {
+      id: ID! @shareable
+      details: String
+    }
+
+  b: |
+    type Query {
+      productById(id: ID!): Product @lookup
+      categoryByIdB(id: ID!): Category @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      category: Category @shareable
+    }
+
+    type Category @key(fields: "id") {
+      id: ID! @shareable
+    }
+
+  c: |
+    type Query {
+      categoryById(id: ID!): Category @lookup
+    }
+
+    type Category @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+supergraph: |
+  type Query {
+    productFromD(id: ID!): Product
+    productById(id: ID!): Product
+    categoryById(id: ID!): Category
+    categoryByIdA(id: ID!): Category
+    categoryByIdB(id: ID!): Category
+  }
+  type Product {
+    id: ID!
+    name: String
+    category: Category
+  }
+  type Category {
+    id: ID!
+    name: String
+    details: String
+  }

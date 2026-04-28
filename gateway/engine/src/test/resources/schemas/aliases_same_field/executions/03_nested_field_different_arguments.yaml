@@ -1,0 +1,41 @@
+name: "Nested field with different aliases and arguments"
+description: |
+  Tests that nested fields with different aliases and arguments are handled correctly.
+
+query: |
+  {
+    itemById(id: "1") {
+      id
+      name
+      importantTags: tags(filter: "important")
+      recentTags: tags(filter: "recent")
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: data
+    operation: '{ itemById(id: "1") { id name importantTags: tags(filter: "important") recentTags: tags(filter: "recent") } }'
+    variables: {}
+    response: {
+      data: {
+        itemById: {
+          id: "1",
+          name: "Product",
+          importantTags: ["featured", "bestseller"],
+          recentTags: ["new", "2024"]
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    itemById: {
+      id: "1",
+      name: "Product",
+      importantTags: ["featured", "bestseller"],
+      recentTags: ["new", "2024"]
+    }
+  }
+}

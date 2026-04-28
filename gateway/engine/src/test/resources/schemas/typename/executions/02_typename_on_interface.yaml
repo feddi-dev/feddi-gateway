@@ -1,0 +1,20 @@
+name: "__typename on interface type execution"
+description: "Tests execution of __typename on an interface type"
+
+query: |
+  {
+    interface {
+      __typename
+      id
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ interface { __typename id } }'
+    variables: {}
+    response: { data: { interface: { __typename: "Toaster", id: "t1" } } }
+
+expectedResponse: { data: { interface: { __typename: "Toaster", id: "t1" } } }

@@ -1,0 +1,25 @@
+name: "SATISFIABILITY_ERROR - Orphan type extension without lookup"
+description: "Type extension in subgraph B is unreachable because no @lookup exists to reach it from subgraph A"
+
+subgraphs:
+  a: |
+    type Query {
+      getFoo: Foo
+    }
+
+    type Foo @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  b: |
+    type Query {
+      fooExtra(id: ID!): Foo
+    }
+
+    type Foo @key(fields: "id") {
+      id: ID!
+      extra: String
+    }
+
+error: "SATISFIABILITY_ERROR"

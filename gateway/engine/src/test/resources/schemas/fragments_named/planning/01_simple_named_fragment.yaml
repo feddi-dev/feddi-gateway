@@ -1,0 +1,22 @@
+name: "Simple named fragment planning"
+description: "Tests planning of query with a simple named fragment - fragment should be inlined"
+
+query: |
+  query GetProducts {
+    products {
+      ...ProductBasics
+    }
+  }
+  fragment ProductBasics on Product {
+    id
+    name
+    price
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "{ products { id name price } }"
+      dependsOn: []
+      repeatedExecution: false

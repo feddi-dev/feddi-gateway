@@ -1,0 +1,21 @@
+name: "ENUM_TYPE_DEFAULT_VALUE_INACCESSIBLE - default value uses inaccessible enum"
+description: "Spec: Default values must not reference inaccessible enum values"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      search(status: ProductStatus = DRAFT): [Product]
+    }
+
+    enum ProductStatus {
+      DRAFT @inaccessible
+      PUBLISHED
+      ARCHIVED
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "ENUM_TYPE_DEFAULT_VALUE_INACCESSIBLE"

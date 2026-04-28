@@ -1,0 +1,53 @@
+name: "Recursive @require chain - 4 levels deep"
+description: |
+  Documents that @require resolution is recursive and works at arbitrary depth.
+
+  The requirement chain for canAfford:
+    canAfford (in d)
+      → requires isExpensive (must fetch from c)
+        → isExpensive requires price (must fetch from a)
+          → price is a leaf field
+
+  The planner resolves dependencies recursively. Execution order based on
+  dependencies: Step 1 → Step 4 → Step 3 → Step 2
+
+query: |
+  {
+    product {
+      canAfford
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: b
+      operation: "{ product { id } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: d
+      operation: "query ($id: ID!, $ie: Boolean) { productByIdD(id: $id) { canAfford(ie: $ie) } }"
+      dependsOn: [1, 3]
+      requirements:
+        id: "id"
+        ie: "isExpensive"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: c
+      operation: "query ($id: ID!, $p: Float) { productByIdC(id: $id) { isExpensive(p: $p) } }"
+      dependsOn: [1, 4]
+      requirements:
+        id: "id"
+        p: "price"
+      repeatedExecution: true
+
+    - id: 4
+      subgraph: a
+      operation: "query ($id: ID!) { productByIdA(id: $id) { price } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

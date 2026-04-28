@@ -1,0 +1,32 @@
+name: "Final price for list of products"
+description: |
+  Tests cross-subgraph requires with a list of products, ensuring each item
+  gets its own basePrice from A and discountPercent from B.
+
+query: |
+  {
+    product {
+      id
+      finalPrice
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{ product { id discountPercent } }'
+    variables: {}
+    response: { data: { product: { id: "p1", discountPercent: 10 } } }
+
+  - subgraph: a
+    operation: 'query($id: ID!) { productByIdA(id: $id) { basePrice } }'
+    variables: { id: "p1" }
+    response: { data: { productByIdA: { basePrice: 50.0 } } }
+
+  - subgraph: c
+    operation: 'query($id: ID!, $bp: Float, $dp: Int) { productByIdC(id: $id) { finalPrice(bp: $bp, dp: $dp) } }'
+    variables: { id: "p1", bp: 50.0, dp: 10 }
+    response: { data: { productByIdC: { finalPrice: 45.0 } } }
+
+expectedResponse: { data: { product: { id: "p1", finalPrice: 45.0 } } }

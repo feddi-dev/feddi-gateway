@@ -1,0 +1,32 @@
+name: "SATISFIABILITY_ERROR - Interface implementing type fields unreachable"
+description: "Query returns Content interface, but Article-specific fields in analytics subgraph are unreachable"
+
+subgraphs:
+  content: |
+    type Query {
+      content: [Content]
+    }
+
+    interface Content {
+      id: ID!
+      title: String
+    }
+
+    type Article implements Content @key(fields: "id") {
+      id: ID!
+      title: String
+      body: String
+    }
+
+  analytics: |
+    type Query {
+      articleStats(id: ID!): Article
+    }
+
+    type Article @key(fields: "id") {
+      id: ID!
+      viewCount: Int
+      shareCount: Int
+    }
+
+error: "SATISFIABILITY_ERROR"

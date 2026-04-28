@@ -1,0 +1,83 @@
+name: "Interface extension - extending interfaces"
+description: "Extending interfaces with additional fields across subgraphs"
+
+subgraphs:
+  core: |
+    type Query {
+      nodes: [Node]
+      articleById(id: ID!): Article @lookup
+      commentById(id: ID!): Comment @lookup
+    }
+
+    interface Node {
+      id: ID!
+      createdAt: String
+    }
+
+    type Article implements Node @key(fields: "id") {
+      id: ID!
+      createdAt: String
+      title: String
+      content: String
+    }
+
+    type Comment implements Node @key(fields: "id") {
+      id: ID!
+      createdAt: String
+      text: String
+    }
+
+  moderation: |
+    type Query {
+      articleByIdMod(id: ID!): Article @lookup
+      commentByIdMod(id: ID!): Comment @lookup
+    }
+    
+    interface Node {
+      id: ID!
+      moderationStatus: String
+    }
+    
+    type Article implements Node @key(fields: "id") {
+      id: ID!
+      moderationStatus: String
+      flagCount: Int
+    }
+    
+    type Comment implements Node @key(fields: "id") {
+      id: ID!
+      moderationStatus: String
+      reportedBy: [String]
+    }
+
+supergraph: |
+  type Query {
+    nodes: [Node]
+    articleById(id: ID!): Article
+    commentById(id: ID!): Comment
+    articleByIdMod(id: ID!): Article
+    commentByIdMod(id: ID!): Comment
+  }
+  
+  interface Node {
+    id: ID!
+    createdAt: String
+    moderationStatus: String
+  }
+  
+  type Article implements Node {
+    id: ID!
+    createdAt: String
+    title: String
+    content: String
+    moderationStatus: String
+    flagCount: Int
+  }
+  
+  type Comment implements Node {
+    id: ID!
+    createdAt: String
+    text: String
+    moderationStatus: String
+    reportedBy: [String]
+  }

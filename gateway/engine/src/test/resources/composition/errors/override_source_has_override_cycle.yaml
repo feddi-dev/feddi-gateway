@@ -1,0 +1,25 @@
+name: "OVERRIDE_SOURCE_HAS_OVERRIDE - circular override chain"
+description: "Spec: @override directives cannot form cycles"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      bills: [Bill]
+    }
+
+    type Bill @key(fields: "id") {
+      id: ID!
+      amount: Int @override(from: "schemaB")
+    }
+
+  schemaB: |
+    type Query {
+      billById(id: ID!): Bill @lookup
+    }
+
+    type Bill @key(fields: "id") {
+      id: ID!
+      amount: Int @override(from: "schemaA")
+    }
+
+error: "OVERRIDE_SOURCE_HAS_OVERRIDE"

@@ -1,0 +1,21 @@
+name: "TYPE_DEFINITION_INVALID - FieldSelectionMap defined as input"
+description: "Spec: Built-in type FieldSelectionMap must be a scalar, not input object"
+
+subgraphs:
+  schemaA: |
+    input FieldSelectionMap {
+      fields: [String!]!
+    }
+
+    directive @require(field: FieldSelectionMap!) on ARGUMENT_DEFINITION
+
+    type Query {
+      books: [Book]
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      title: String
+    }
+
+error: "TYPE_DEFINITION_INVALID"

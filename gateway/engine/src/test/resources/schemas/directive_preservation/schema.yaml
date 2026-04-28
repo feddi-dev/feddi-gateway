@@ -1,0 +1,23 @@
+name: "Directive Preservation"
+description: "Tests that @skip and @include directives with variables are preserved in subgraph operations"
+
+subgraphs:
+  a: |
+    type Query {
+      user: User
+    }
+    type User {
+      id: ID!
+      name: String!
+      email: String!
+    }
+
+supergraph: |
+  type Query {
+    user: User
+  }
+  type User {
+    id: ID!
+    name: String!
+    email: String!
+  }

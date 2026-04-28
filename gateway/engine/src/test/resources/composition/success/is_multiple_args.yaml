@@ -1,0 +1,65 @@
+name: "@is with multiple arguments - complex mapping"
+description: |
+  Using @is to map multiple lookup arguments to entity key fields.
+
+  The @is directive is only needed when argument names differ from field names.
+
+  In this example:
+  - shipmentById: No @is needed, argument names match field names
+  - shipmentByTracking: @is IS needed because "tracking" != "trackingNumber"
+    and "shippingCarrier" != "carrier"
+
+subgraphs:
+  shipping: |
+    type Query {
+      shipments: [Shipment]
+      shipmentById(trackingNumber: String!, carrier: String!): Shipment @lookup
+    }
+
+    type Shipment @key(fields: "trackingNumber carrier") {
+      trackingNumber: String!
+      carrier: String!
+      status: String
+      estimatedDelivery: String
+    }
+
+  notifications: |
+    type Query {
+      shipmentByTracking(
+        tracking: String! @is(field: "trackingNumber")
+        shippingCarrier: String! @is(field: "carrier")
+      ): Shipment @lookup
+    }
+
+    type Shipment @key(fields: "trackingNumber carrier") {
+      trackingNumber: String!
+      carrier: String!
+      notifications: [Notification]
+    }
+    
+    type Notification {
+      id: ID!
+      message: String
+      sentAt: String
+    }
+
+supergraph: |
+  type Query {
+    shipments: [Shipment]
+    shipmentById(trackingNumber: String!, carrier: String!): Shipment
+    shipmentByTracking(tracking: String!, shippingCarrier: String!): Shipment
+  }
+  
+  type Shipment {
+    trackingNumber: String!
+    carrier: String!
+    status: String
+    estimatedDelivery: String
+    notifications: [Notification]
+  }
+  
+  type Notification {
+    id: ID!
+    message: String
+    sentAt: String
+  }

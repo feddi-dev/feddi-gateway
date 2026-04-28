@@ -1,0 +1,61 @@
+name: "Cross-subgraph named fragment"
+description: "Tests execution with a fragment that spans fields from multiple subgraphs"
+
+query: |
+  query GetProductWithInventory {
+    products {
+      ...ProductComplete
+    }
+  }
+  fragment ProductComplete on Product {
+    id
+    name
+    price
+    stock
+    warehouse
+  }
+
+variables: {}
+
+subgraphCalls:
+  - id: root
+    subgraph: products
+    operation: '{ products { id name price } }'
+    variables: {}
+    response: {
+      data: {
+        products: [
+          { id: "p1", name: "Laptop", price: 999.99 },
+          { id: "p2", name: "Phone", price: 599.99 }
+        ]
+      }
+    }
+  # Repeated execution - one call per product
+  - id: inventory
+    subgraph: inventory
+    operation: 'query ($id: ID!) { productById(id: $id) { stock warehouse } }'
+    variables: { id: "p1" }
+    response: {
+      data: {
+        productById: { stock: 50, warehouse: "NYC" }
+      }
+    }
+  - subgraph: inventory
+    operation: 'query ($id: ID!) { productById(id: $id) { stock warehouse } }'
+    variables: { id: "p2" }
+    response: {
+      data: {
+        productById: { stock: 120, warehouse: "LA" }
+      }
+    }
+
+finishOrder: "root,inventory"
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", price: 999.99, stock: 50, warehouse: "NYC" },
+      { id: "p2", name: "Phone", price: 599.99, stock: 120, warehouse: "LA" }
+    ]
+  }
+}

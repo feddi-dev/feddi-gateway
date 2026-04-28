@@ -1,0 +1,103 @@
+name: "Multi subgraph - basic separation"
+description: "Multiple subgraphs with clean separation of concerns"
+
+subgraphs:
+  users: |
+    type Query {
+      users: [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      email: String
+    }
+
+  orders: |
+    type Query {
+      orders: [Order]
+      userByIdOrders(userId: ID! @is(field: "id")): User @lookup
+    }
+    
+    type User @key(fields: "id") {
+      id: ID!
+      orders: [Order]
+    }
+    
+    type Order @key(fields: "id") {
+      id: ID!
+      total: Float
+      status: OrderStatus
+      items: [OrderItem]
+    }
+    
+    type OrderItem {
+      productId: ID!
+      quantity: Int
+      price: Float
+    }
+    
+    enum OrderStatus {
+      PENDING
+      SHIPPED
+      DELIVERED
+      CANCELLED
+    }
+
+  products: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      price: Float
+      category: String
+    }
+
+supergraph: |
+  type Query {
+    users: [User]
+    userById(id: ID!): User
+    orders: [Order]
+    userByIdOrders(userId: ID!): User
+    products: [Product]
+    productById(id: ID!): Product
+  }
+  
+  type User {
+    id: ID!
+    name: String
+    email: String
+    orders: [Order]
+  }
+  
+  type Order {
+    id: ID!
+    total: Float
+    status: OrderStatus
+    items: [OrderItem]
+  }
+  
+  type OrderItem {
+    productId: ID!
+    quantity: Int
+    price: Float
+  }
+  
+  enum OrderStatus {
+    PENDING
+    SHIPPED
+    DELIVERED
+    CANCELLED
+  }
+  
+  type Product {
+    id: ID!
+    name: String
+    price: Float
+    category: String
+  }

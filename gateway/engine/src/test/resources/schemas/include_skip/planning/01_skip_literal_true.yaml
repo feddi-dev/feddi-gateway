@@ -1,0 +1,18 @@
+name: "@skip(if: true) literal removes field from plan"
+description: "When @skip(if: true) is used with a literal boolean, the field should be completely removed from the plan and no downstream subgraph calls should be made for its @require chain"
+
+query: |
+  {
+    product {
+      id
+      neverCalledSkip @skip(if: true)
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: a
+      operation: "{ product { id } }"
+      dependsOn: []
+      repeatedExecution: false

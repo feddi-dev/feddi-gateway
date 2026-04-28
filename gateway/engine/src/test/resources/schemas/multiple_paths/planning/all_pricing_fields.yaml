@@ -1,0 +1,26 @@
+name: "All pricing fields"
+description: "Price and currency from pricing subgraph"
+
+query: |
+  {
+    products {
+      price
+      currency
+      taxRate
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "{ products { id } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: pricing
+      operation: "query($pid: ID!) { productByIdPricing(pid: $pid) { price currency taxRate } }"
+      dependsOn: [1]
+      requirements:
+        pid: "id"
+      repeatedExecution: true

@@ -1,0 +1,101 @@
+name: "Provides on Interface"
+description: "Tests @provides with interface types - media query provides animal names through interface fields"
+
+subgraphs:
+  b: |
+    type Query {
+      media: Media @shareable @provides(fields: "animals { id name }")
+      bookByIdFromB(id: ID!): Book @lookup
+    }
+
+    interface Media {
+      id: ID!
+      animals: [Animal]
+    }
+
+    interface Animal {
+      id: ID!
+      name: String
+    }
+
+    type Book implements Media @key(fields: "id") {
+      id: ID! @shareable
+      animals: [Animal] @external
+    }
+
+    type Dog implements Animal @key(fields: "id") {
+      id: ID! @shareable
+      name: String @shareable
+      age: Int @shareable
+    }
+
+    type Cat implements Animal @key(fields: "id") {
+      id: ID! @shareable
+      name: String @shareable
+      age: Int @shareable
+    }
+
+  c: |
+    type Query {
+      bookById(id: ID!): Book @lookup
+      dogById(id: ID!): Dog @lookup
+      catById(id: ID!): Cat @lookup
+    }
+
+    interface Media {
+      id: ID!
+      animals: [Animal]
+    }
+
+    interface Animal {
+      id: ID!
+      name: String
+    }
+
+    type Book implements Media @key(fields: "id") {
+      id: ID!
+      animals: [Animal] @shareable
+    }
+
+    type Dog implements Animal @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      age: Int @shareable
+    }
+
+    type Cat implements Animal @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      age: Int @shareable
+    }
+
+supergraph: |
+  type Query {
+    media: Media
+    bookById(id: ID!): Book
+    bookByIdFromB(id: ID!): Book
+    dogById(id: ID!): Dog
+    catById(id: ID!): Cat
+  }
+  interface Media {
+    id: ID!
+    animals: [Animal]
+  }
+  interface Animal {
+    id: ID!
+    name: String
+  }
+  type Book implements Media {
+    id: ID!
+    animals: [Animal]
+  }
+  type Dog implements Animal {
+    id: ID!
+    name: String
+    age: Int
+  }
+  type Cat implements Animal {
+    id: ID!
+    name: String
+    age: Int
+  }

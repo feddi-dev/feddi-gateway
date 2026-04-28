@@ -1,0 +1,58 @@
+name: "Inline fragment with all fields from different subgraph"
+description: |
+  Tests the case where an inline fragment's fields are ALL from a different subgraph.
+
+  Query products (interface) with ... on Book { reviewsCount } where reviewsCount is only
+  available in the reviews subgraph, not the products subgraph.
+
+  The planner flattens the inline fragment and fetches id at interface level for entity
+  resolution. The executor correctly resolves only Book entities (not Magazines).
+
+query: |
+  {
+    products {
+      ... on Book {
+        reviewsCount
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  # Step 1: Fetch products from products subgraph
+  # Planner fetches __typename and id at interface level (flattens the fragment)
+  - subgraph: products
+    operation: '{ products { __typename id } }'
+    variables: {}
+    response: { data: { products: [
+      { __typename: "Book", id: "b1" },
+      { __typename: "Book", id: "b2" },
+      { __typename: "Magazine", id: "m1" }
+    ] } }
+
+  # Step 2: Look up each entity in reviews subgraph to get reviewsCount
+  # Note: The planner preserves the inline fragment from the original query.
+  # Currently the executor looks up ALL entities, including Magazine.
+  # The bookById lookup returns null for non-existent Magazines.
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { bookById(id: $id) { ... on Book { reviewsCount } } }'
+    variables: { id: "b1" }
+    response: { data: { bookById: { reviewsCount: 10 } } }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { bookById(id: $id) { ... on Book { reviewsCount } } }'
+    variables: { id: "b2" }
+    response: { data: { bookById: { reviewsCount: 25 } } }
+
+  # Magazine lookup returns null (bookById doesn't find a Magazine)
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { bookById(id: $id) { ... on Book { reviewsCount } } }'
+    variables: { id: "m1" }
+    response: { data: { bookById: null } }
+
+expectedResponse: { data: { products: [
+  { reviewsCount: 10 },
+  { reviewsCount: 25 },
+  {}
+] } }

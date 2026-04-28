@@ -1,0 +1,32 @@
+name: "Nested field arguments execution"
+description: "Tests arguments on nested object fields"
+
+query: |
+  query GetProductVariants($category: String, $color: String, $size: String) {
+    products(category: $category) {
+      id
+      name
+      variants(color: $color, size: $size) {
+        id
+        color
+        size
+        sku
+      }
+    }
+  }
+
+variables: { category: "apparel", color: "blue", size: "M" }
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: 'query($category: String, $color: String, $size: String) { products(category: $category) { id name variants(color: $color, size: $size) { id color size sku } } }'
+    variables: { category: "apparel", color: "blue", size: "M" }
+    response: { data: { products: [{ id: "p1", name: "T-Shirt", variants: [{ id: "v1", color: "blue", size: "M", sku: "TS-BLU-M" }] }] } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "T-Shirt", variants: [{ id: "v1", color: "blue", size: "M", sku: "TS-BLU-M" }] }
+    ]
+  }
+}

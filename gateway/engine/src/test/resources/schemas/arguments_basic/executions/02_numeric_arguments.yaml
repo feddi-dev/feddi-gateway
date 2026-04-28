@@ -1,0 +1,28 @@
+name: "Numeric arguments execution"
+description: "Tests passing int and float arguments"
+
+query: |
+  query GetProducts($minPrice: Float) {
+    products(minPrice: $minPrice) {
+      id
+      name
+      price
+    }
+  }
+
+variables: { minPrice: 100.0 }
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: 'query($minPrice: Float) { products(minPrice: $minPrice) { id name price } }'
+    variables: { minPrice: 100.0 }
+    response: { data: { products: [{ id: "p1", name: "Laptop", price: 999.99 }, { id: "p2", name: "Phone", price: 599.99 }] } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", price: 999.99 },
+      { id: "p2", name: "Phone", price: 599.99 }
+    ]
+  }
+}

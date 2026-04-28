@@ -1,0 +1,23 @@
+name: "Provides avoids extra lookup"
+description: "When fetching price through relatedProduct, @provides allows getting it without additional lookup to pricing subgraph"
+
+query: |
+  {
+    topProducts {
+      id
+      name
+      relatedProduct {
+        id
+        name
+        price
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "{ topProducts { id name relatedProduct { id name price } } }"
+      dependsOn: []
+      repeatedExecution: false

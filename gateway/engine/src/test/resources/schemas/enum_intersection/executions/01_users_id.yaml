@@ -1,0 +1,23 @@
+name: "Simple users query from subgraph a"
+description: "Fetches user ids from subgraph a"
+
+query: |
+  {
+    users {
+      id
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ users { id } }'
+    variables: {}
+    response: { data: { users: [{ id: "u1" }, { id: "u2" }] } }
+
+expectedResponse: {
+  data: {
+    users: [{ id: "u1" }, { id: "u2" }]
+  }
+}

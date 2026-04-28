@@ -1,0 +1,75 @@
+name: "Product details with pricing, shipping and delivery"
+description: |
+  A realistic e-commerce query that fetches products with:
+  - Basic product info from catalog
+  - Pricing from pricing subgraph (uses productId arg via @is)
+  - Shipping cost (requires weight) from shipping subgraph
+  - Delivery estimates (requires dimension) from delivery subgraph
+
+query: |
+  query($zip: String!, $category: String) {
+    products(category: $category, inStock: true) {
+      id
+      name
+      description
+      category
+
+      # From pricing subgraph
+      price
+      currency
+      discount
+
+      # From shipping subgraph (requires weight from catalog)
+      shippingCost
+      estimatedDays
+      carrier
+
+      # From delivery subgraph (requires dimension.size and dimension.weight)
+      delivery(zip: $zip) {
+        estimatedDays
+        carrier
+        cost
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    # Step 1: Fetch base product data from catalog
+    # Also fetches 'weight' (needed by shipping) and 'dimension' (needed by delivery)
+    - id: 1
+      subgraph: catalog
+      operation: "query($category: String) { products(category: $category, inStock: true) { id name description category weight dimension { size weight } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    # Steps 2, 3, 4 can run in parallel - all depend only on step 1
+    - parallel:
+        # Step 2: Fetch pricing data (uses productId arg via @is)
+        - id: 2
+          subgraph: pricing
+          operation: "query($productId: ID!) { productByIdPricing(productId: $productId) { price currency discount } }"
+          dependsOn: [1]
+          requirements:
+            productId: "id"
+          repeatedExecution: true
+
+        # Step 3: Fetch shipping data (needs id + weight via @require)
+        - id: 3
+          subgraph: shipping
+          operation: "query($id: ID!, $w: Int) { productByIdShipping(id: $id) { shippingCost(w: $w) estimatedDays carrier } }"
+          dependsOn: [1]
+          requirements:
+            id: "id"
+            w: "weight"
+          repeatedExecution: true
+
+        # Step 4: Fetch delivery estimates (needs id + dimension via @require)
+        - id: 4
+          subgraph: delivery
+          operation: "query($id: ID!, $dim: ProductDimensionInput!, $zip: String!) { productByIdDelivery(id: $id) { delivery(zip: $zip, dim: $dim) { estimatedDays carrier cost } } }"
+          dependsOn: [1]
+          requirements:
+            id: "id"
+            dim: "{ productSize: dimension.size, productWeight: dimension.weight }"
+          repeatedExecution: true

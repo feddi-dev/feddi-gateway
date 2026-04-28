@@ -1,0 +1,55 @@
+name: "Deep path alternatives - both null"
+description: |
+  Tests @require(field: "primary.contact.email | backup.contact.email")
+  when both alternatives resolve to null (both contacts are null).
+  The email argument (String, nullable) should receive null.
+
+query: |
+  {
+    customerById(id: "c3") {
+      id
+      name
+      notificationPreference {
+        channel
+        address
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: customers
+    operation: '{ customerById(id: "c3") { id name primary { contact { email } } backup { contact { email } } } }'
+    variables: {}
+    response: {
+      data: {
+        customerById: {
+          id: "c3",
+          name: "Charlie",
+          primary: null,
+          backup: { contact: null }
+        }
+      }
+    }
+
+  - subgraph: notifications
+    operation: 'query($id:ID!,$email:String){customerById(id:$id){notificationPreference(email:$email){channel address}}}'
+    variables: { id: "c3", email: null }
+    response: {
+      data: {
+        customerById: {
+          notificationPreference: null
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    customerById: {
+      id: "c3",
+      name: "Charlie",
+      notificationPreference: null
+    }
+  }
+}

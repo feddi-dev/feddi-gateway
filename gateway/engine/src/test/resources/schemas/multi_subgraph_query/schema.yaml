@@ -1,0 +1,64 @@
+name: "Multi-Subgraph Query Fields"
+description: "Tests that Query fields from multiple subgraphs are all reachable via unified root"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product {
+      id: ID!
+      name: String
+      price: Int
+    }
+
+  reviews: |
+    type Query {
+      reviews: [Review]
+      reviewById(id: ID!): Review @lookup
+    }
+
+    type Review {
+      id: ID!
+      text: String
+      stars: Int
+    }
+
+  users: |
+    type Query {
+      users: [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type User {
+      id: ID!
+      name: String
+      email: String
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    reviews: [Review]
+    reviewById(id: ID!): Review
+    users: [User]
+    userById(id: ID!): User
+  }
+  type Product {
+    id: ID!
+    name: String
+    price: Int
+  }
+  type Review {
+    id: ID!
+    text: String
+    stars: Int
+  }
+  type User {
+    id: ID!
+    name: String
+    email: String
+  }

@@ -1,0 +1,23 @@
+name: "@skip(if: true) prevents downstream calls"
+description: "When @skip(if: true) is used, the field is excluded and no downstream subgraph calls are made for its @require chain"
+
+query: |
+  {
+    product {
+      id
+      neverCalledSkip @skip(if: true)
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ product { id } }'
+    response: { data: { product: { id: "p1" } } }
+
+expectedResponse: {
+  data: {
+    product: { id: "p1" }
+  }
+}

@@ -1,0 +1,41 @@
+name: "Interface lookup used for entity resolution"
+description: |
+  Tests that a lookup returning an interface (contentById: Content @lookup)
+  can be used for entity resolution across subgraphs.
+
+  This test queries the root-level contentById which returns Content interface,
+  then resolves rating fields from the ratings subgraph via the interface lookup.
+
+query: |
+  {
+    contentById(id: "b1") {
+      id
+      title
+      rating
+      reviewCount
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contentById(id: "b1") { id title } }'
+    variables: {}
+    response: { data: { contentById: { __typename: "Book", id: "b1", title: "GraphQL Guide" } } }
+
+  - subgraph: ratings
+    operation: 'query ($id: ID!) { contentById(id: $id) { rating reviewCount } }'
+    variables: { id: "b1" }
+    response: { data: { contentById: { __typename: "Book", rating: 4.8, reviewCount: 250 } } }
+
+expectedResponse: {
+  data: {
+    contentById: {
+      id: "b1",
+      title: "GraphQL Guide",
+      rating: 4.8,
+      reviewCount: 250
+    }
+  }
+}

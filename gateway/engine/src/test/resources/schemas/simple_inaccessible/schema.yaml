@@ -1,0 +1,49 @@
+name: "Simple Inaccessible"
+description: "Tests @inaccessible directive on enum values. The FriendType enum has FAMILY marked @inaccessible, so it is removed from the supergraph."
+
+subgraphs:
+  age: |
+    type Query {
+      usersInAge: [User!]! @shareable
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID
+      age: Int
+    }
+
+  friends: |
+    type Query {
+      usersInFriends: [User!]!
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID
+      friends: [User!]!
+      type: FriendType
+    }
+
+    enum FriendType {
+      FAMILY @inaccessible
+      FRIEND
+    }
+
+supergraph: |
+  type Query {
+    userById(id: ID!): User
+    usersInAge: [User!]!
+    usersInFriends: [User!]!
+  }
+
+  type User {
+    age: Int
+    friends: [User!]!
+    id: ID
+    type: FriendType
+  }
+
+  enum FriendType {
+    FRIEND
+  }

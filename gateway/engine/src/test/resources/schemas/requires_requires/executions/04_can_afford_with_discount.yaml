@@ -1,0 +1,29 @@
+name: "Can afford with discount via chained requires"
+description: "Tests requires chain: canAffordWithDiscount requires isExpensiveWithDiscount requires hasDiscount"
+
+query: |
+  {
+    product {
+      canAffordWithDiscount
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{ product { id hasDiscount } }'
+    variables: {}
+    response: { data: { product: { id: "p1", hasDiscount: true } } }
+
+  - subgraph: c
+    operation: 'query($id: ID!, $hd: Boolean) { productByIdC(id: $id) { isExpensiveWithDiscount(hd: $hd) } }'
+    variables: { id: "p1", hd: true }
+    response: { data: { productByIdC: { isExpensiveWithDiscount: false } } }
+
+  - subgraph: d
+    operation: 'query($id: ID!, $iewd: Boolean) { productByIdD(id: $id) { canAffordWithDiscount(iewd: $iewd) } }'
+    variables: { id: "p1", iewd: false }
+    response: { data: { productByIdD: { canAffordWithDiscount: true } } }
+
+expectedResponse: { data: { product: { canAffordWithDiscount: true } } }

@@ -1,0 +1,56 @@
+name: "Simple @require execution"
+description: "Tests execution of shippingCost which requires weight field"
+
+query: |
+  {
+    products {
+      id
+      name
+      weight
+      shippingCost
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ products { id name weight } }'
+    variables: {}
+    response:
+      data:
+        products:
+          - id: "p1"
+            name: "Heavy Item"
+            weight: 50
+          - id: "p2"
+            name: "Light Item"
+            weight: 5
+
+  - subgraph: shipping
+    operation: 'query($id: ID!, $w: Int) { productByIdShipping(id: $id) { shippingCost(w: $w) } }'
+    variables: { id: "p1", w: 50 }
+    response:
+      data:
+        productByIdShipping:
+          shippingCost: 25.00
+
+  - subgraph: shipping
+    operation: 'query($id: ID!, $w: Int) { productByIdShipping(id: $id) { shippingCost(w: $w) } }'
+    variables: { id: "p2", w: 5 }
+    response:
+      data:
+        productByIdShipping:
+          shippingCost: 5.99
+
+expectedResponse:
+  data:
+    products:
+      - id: "p1"
+        name: "Heavy Item"
+        weight: 50
+        shippingCost: 25.00
+      - id: "p2"
+        name: "Light Item"
+        weight: 5
+        shippingCost: 5.99

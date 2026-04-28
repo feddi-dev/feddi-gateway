@@ -1,0 +1,19 @@
+name: "Multiple arguments"
+description: "Tests planning with multiple field arguments of different types"
+
+query: |
+  query GetProducts($category: String, $minPrice: Float, $sortBy: String) {
+    products(category: $category, minPrice: $minPrice, sortBy: $sortBy) {
+      id
+      name
+      price
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "query($category: String, $minPrice: Float, $sortBy: String) { products(category: $category, minPrice: $minPrice, sortBy: $sortBy) { id name price } }"
+      dependsOn: []
+      repeatedExecution: false

@@ -1,0 +1,102 @@
+name: "Simple Requires Provides"
+description: "Federation schema with @requires and @provides directives. Reviews subgraph @provides username on User, inventory subgraph @requires price and weight for shipping estimate."
+
+subgraphs:
+  accounts: |
+    type Query {
+      me: User
+      userByIdAccounts(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      username: String @shareable
+    }
+
+  products: |
+    type Query {
+      products: [Product]
+      productByUpcCatalog(upc: String!): Product @lookup
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      name: String
+      price: Int @shareable
+      weight: Int @shareable
+    }
+
+  reviews: |
+    type Query {
+      userById(id: ID!): User @lookup
+      productByUpc(upc: String!): Product @lookup
+    }
+
+    type Review {
+      id: ID!
+      body: String
+      author: User @provides(fields: "username")
+      product: Product
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      username: String @external
+      reviews: [Review]
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      reviews: [Review]
+    }
+
+  inventory: |
+    type Query {
+      productByUpcInventory(upc: String!): Product @lookup
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      price: Int @shareable
+      weight: Int @shareable
+      inStock: Boolean
+      shippingEstimate(p: Int @require(field: "price"), w: Int @require(field: "weight")): Int
+      shippingEstimateTag(p: Int @require(field: "price"), w: Int @require(field: "weight")): String
+    }
+
+supergraph: |
+  type Product {
+    inStock: Boolean
+    name: String
+    price: Int
+    reviews: [Review]
+    shippingEstimate: Int
+    shippingEstimateTag: String
+    upc: String!
+    weight: Int
+  }
+
+  type Query {
+    me: User
+    productByUpc(upc: String!): Product
+    productByUpcCatalog(upc: String!): Product
+    productByUpcInventory(upc: String!): Product
+    products: [Product]
+    userById(id: ID!): User
+    userByIdAccounts(id: ID!): User
+  }
+
+  type Review {
+    author: User
+    body: String
+    id: ID!
+    product: Product
+  }
+
+  type User {
+    id: ID!
+    name: String
+    reviews: [Review]
+    username: String
+  }

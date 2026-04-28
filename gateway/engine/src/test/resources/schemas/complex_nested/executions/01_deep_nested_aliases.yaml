@@ -1,0 +1,52 @@
+name: "Aliases at multiple levels"
+description: |
+  Tests aliases at root and nested levels within a single subgraph hop,
+  plus cross-subgraph lookup with aliases.
+
+query: |
+  {
+    orgs: organizations(industry: "tech") {
+      orgId: id
+      orgName: name
+      orgTeams: teams(active: true) {
+        tid: teamId
+        tname: teamName
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: orgs
+    operation: '{orgs:organizations(industry:"tech"){orgId:id orgName:name orgTeams:teams(active:true){tid:teamId tname:teamName}}}'
+    variables: {}
+    response: {
+      data: {
+        orgs: [
+          {
+            orgId: "o1",
+            orgName: "TechCorp",
+            orgTeams: [
+              { tid: "t1", tname: "Engineering" },
+              { tid: "t2", tname: "Design" }
+            ]
+          }
+        ]
+      }
+    }
+
+expectedResponse: {
+  data: {
+    orgs: [
+      {
+        orgId: "o1",
+        orgName: "TechCorp",
+        orgTeams: [
+          { tid: "t1", tname: "Engineering" },
+          { tid: "t2", tname: "Design" }
+        ]
+      }
+    ]
+  }
+}

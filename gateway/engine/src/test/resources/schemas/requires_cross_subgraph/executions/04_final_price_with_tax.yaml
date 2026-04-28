@@ -1,0 +1,39 @@
+name: "Final price with tax (extra argument)"
+description: |
+  Tests finalPriceWithTax which has both @require dependencies AND a regular argument.
+  This is the same as test 01 but uses finalPriceWithTax instead of finalPrice.
+
+query: |
+  {
+    product {
+      id
+      finalPriceWithTax(taxRate: 0.15)
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: b
+    operation: '{ product { id discountPercent } }'
+    variables: {}
+    response: { data: { product: { id: "p1", discountPercent: 25 } } }
+
+  - subgraph: a
+    operation: 'query($id: ID!) { productByIdA(id: $id) { basePrice } }'
+    variables: { id: "p1" }
+    response: { data: { productByIdA: { basePrice: 200.0 } } }
+
+  - subgraph: c
+    operation: 'query($id: ID!, $bp: Float, $dp: Int) { productByIdC(id: $id) { finalPriceWithTax(taxRate: 0.15, bp: $bp, dp: $dp) } }'
+    variables: { id: "p1", bp: 200.0, dp: 25 }
+    response: { data: { productByIdC: { finalPriceWithTax: 172.5 } } }
+
+expectedResponse: {
+  data: {
+    product: {
+      id: "p1",
+      finalPriceWithTax: 172.5
+    }
+  }
+}

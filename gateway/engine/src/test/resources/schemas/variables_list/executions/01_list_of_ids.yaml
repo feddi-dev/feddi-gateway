@@ -1,0 +1,24 @@
+name: "List of IDs execution"
+description: "Tests passing a list of ID values"
+
+query: |
+  query GetProducts($ids: [ID!]!) {
+    productsByIds(ids: $ids) {
+      id
+      name
+    }
+  }
+
+variables: { ids: ["p1", "p2", "p3"] }
+
+subgraphCalls:
+  - subgraph: products
+    operation: 'query($ids: [ID!]!) { productsByIds(ids: $ids) { id name } }'
+    variables: { ids: ["p1", "p2", "p3"] }
+    response: { data: { productsByIds: [{ id: "p1", name: "Laptop" }, { id: "p2", name: "Phone" }, { id: "p3", name: "Tablet" }] } }
+
+expectedResponse: {
+  data: {
+    productsByIds: [{ id: "p1", name: "Laptop" }, { id: "p2", name: "Phone" }, { id: "p3", name: "Tablet" }]
+  }
+}

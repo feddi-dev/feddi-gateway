@@ -1,0 +1,62 @@
+name: "Mixed named and inline fragments execution"
+description: "Tests combination of named fragments and inline fragments with cross-subgraph fields"
+
+query: |
+  {
+    contents {
+      id
+      title
+      ...AnalyticsData
+      ... on Article {
+        body
+      }
+      ... on Video {
+        url
+        duration
+      }
+    }
+  }
+  fragment AnalyticsData on Content {
+    ... on Article {
+      views
+      shareCount
+    }
+    ... on Video {
+      views
+      completionRate
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { id title __typename ... on Article { body } ... on Video { url duration } } }'
+    variables: {}
+    response: {
+      data: {
+        contents: [
+          { __typename: "Article", id: "a1", title: "Tech Article", body: "Tech content here" },
+          { __typename: "Video", id: "v1", title: "Demo Video", url: "https://demo.example", duration: 600 }
+        ]
+      }
+    }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views shareCount } ... on Video { views completionRate } } }'
+    variables: { id: "a1" }
+    response: { data: { contentById: { __typename: "Article", views: 2500, shareCount: 100 } } }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views shareCount } ... on Video { views completionRate } } }'
+    variables: { id: "v1" }
+    response: { data: { contentById: { __typename: "Video", views: 10000, completionRate: 0.72 } } }
+
+expectedResponse: {
+  data: {
+    contents: [
+      { id: "a1", title: "Tech Article", body: "Tech content here", views: 2500, shareCount: 100 },
+      { id: "v1", title: "Demo Video", url: "https://demo.example", duration: 600, views: 10000, completionRate: 0.72 }
+    ]
+  }
+}

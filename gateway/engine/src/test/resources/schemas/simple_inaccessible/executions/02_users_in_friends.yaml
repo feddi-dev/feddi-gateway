@@ -1,0 +1,29 @@
+name: "Users in friends with friend ids from single subgraph"
+description: "Fetches users and their friends entirely from the friends subgraph, no cross-subgraph lookup needed"
+
+query: |
+  {
+    usersInFriends {
+      id
+      friends {
+        id
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: friends
+    operation: '{ usersInFriends { id friends { id } } }'
+    variables: {}
+    response: { data: { usersInFriends: [{ id: "u1", friends: [{ id: "u2" }] }, { id: "u2", friends: [{ id: "u1" }] }] } }
+
+expectedResponse: {
+  data: {
+    usersInFriends: [
+      { id: "u1", friends: [{ id: "u2" }] },
+      { id: "u2", friends: [{ id: "u1" }] }
+    ]
+  }
+}

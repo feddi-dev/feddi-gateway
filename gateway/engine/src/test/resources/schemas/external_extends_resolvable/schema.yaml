@@ -1,0 +1,39 @@
+name: "External Extends Compatibility (Resolvable)"
+description: "Resolvable external declaration style. Product data is extended across subgraphs with price resolved through a composite lookup."
+
+subgraphs:
+  a: |
+    type Query {
+      productInA: Product
+      productByIdA(id: ID!): Product @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      pid: ID
+    }
+
+  b: |
+    type Query {
+      productByIdName(id: ID!, name: String): Product @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+      price: Float!
+      upc: String
+    }
+
+supergraph: |
+  type Query {
+    productInA: Product
+    productByIdA(id: ID!): Product
+    productByIdName(id: ID!, name: String): Product
+  }
+  type Product {
+    id: ID!
+    name: String
+    pid: ID
+    price: Float!
+    upc: String
+  }

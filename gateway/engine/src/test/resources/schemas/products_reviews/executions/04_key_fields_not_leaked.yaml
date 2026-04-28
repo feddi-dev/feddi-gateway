@@ -1,0 +1,53 @@
+name: "Key fields not leaked in nested entities"
+description: "Verifies that key fields used for entity resolution are not included in nested entity responses when not explicitly requested"
+
+query: |
+  {
+    products(category: "electronics", limit: 2) {
+      name
+      rating
+      reviews(first: 1) {
+        text
+        author {
+          name
+        }
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products(category: "electronics", limit: 2) { name id } }'
+    variables: {}
+    response: { data: { products: [{ name: "Laptop", id: "p1" }, { name: "Phone", id: "p2" }] } }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { rating reviews(first: 1) { text id } } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { rating: 4.8, reviews: [{ text: "Great!", id: "r1" }] } } }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { rating reviews(first: 1) { text id } } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { rating: 4.2, reviews: [{ text: "Nice!", id: "r2" }] } } }
+
+  - subgraph: users
+    operation: 'query ($id: ID!) { reviewById(id: $id) { author { name } } }'
+    variables: { id: "r1" }
+    response: { data: { reviewById: { author: { name: "Alice" } } } }
+
+  - subgraph: users
+    operation: 'query ($id: ID!) { reviewById(id: $id) { author { name } } }'
+    variables: { id: "r2" }
+    response: { data: { reviewById: { author: { name: "Bob" } } } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { name: "Laptop", rating: 4.8, reviews: [{ text: "Great!", author: { name: "Alice" } }] },
+      { name: "Phone", rating: 4.2, reviews: [{ text: "Nice!", author: { name: "Bob" } }] }
+    ]
+  }
+}

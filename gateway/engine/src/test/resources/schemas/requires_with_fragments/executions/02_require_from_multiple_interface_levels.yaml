@@ -1,0 +1,54 @@
+name: "Require fields from multiple interface levels"
+description: |
+  Tests @require on fields from different levels of interface hierarchy.
+  The requirer field needs data.foo (Foo interface), data.bar (Bar interface),
+  data.baz (Baz type), and data.qux (Qux type).
+  When data is Qux type, baz will be null since Qux doesn't have that field.
+
+query: |
+  {
+    a {
+      id
+      requirer
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ a { id data { foo __typename ... on Bar { bar } ... on Baz { baz } ... on Qux { qux } } } }'
+    variables: {}
+    response: {
+      data: {
+        a: {
+          id: "e1",
+          data: {
+            __typename: "Qux",
+            foo: "foo-val",
+            bar: "bar-val",
+            qux: "qux-val"
+          }
+        }
+      }
+    }
+
+  - subgraph: b
+    operation: 'query ($id: ID!, $dataFoo: String, $dataBar: String, $dataBaz: String, $dataQux: String) { entityById(id: $id) { requirer(dataFoo: $dataFoo, dataBar: $dataBar, dataBaz: $dataBaz, dataQux: $dataQux) } }'
+    variables: { id: "e1", dataFoo: "foo-val", dataBar: "bar-val", dataBaz: null, dataQux: "qux-val" }
+    response: {
+      data: {
+        entityById: {
+          requirer: "foo:foo-val,bar:bar-val,qux:qux-val"
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    a: {
+      id: "e1",
+      requirer: "foo:foo-val,bar:bar-val,qux:qux-val"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+name: "@inaccessible on field - hide internal field"
+description: "Using @inaccessible to hide internal fields from the supergraph"
+
+subgraphs:
+  users: |
+    type Query {
+      users: [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      email: String
+      internalScore: Int @inaccessible @shareable
+    }
+
+  analytics: |
+    type Query {
+      userByIdAnalytics(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      internalScore: Int @shareable
+      publicRank: Int
+      engagementLevel(score: Int @require(field: "internalScore")): String
+    }
+
+supergraph: |
+  type Query {
+    users: [User]
+    userById(id: ID!): User
+    userByIdAnalytics(id: ID!): User
+  }
+
+  type User {
+    id: ID!
+    name: String
+    email: String
+    publicRank: Int
+    engagementLevel: String
+  }

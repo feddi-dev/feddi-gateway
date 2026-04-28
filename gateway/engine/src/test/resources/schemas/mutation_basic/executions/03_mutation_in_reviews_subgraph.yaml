@@ -1,0 +1,31 @@
+name: "Mutation in reviews subgraph execution"
+description: "Execute createReview mutation - tests unified Mutation root reaches all subgraphs"
+
+query: |
+  mutation {
+    createReview(productId: "p1", text: "Great product!", stars: 5) {
+      id
+      text
+      stars
+      productId
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: reviews
+    operation: 'mutation { createReview(productId: "p1", text: "Great product!", stars: 5) { id text stars productId } }'
+    variables: {}
+    response: { data: { createReview: { id: "r100", text: "Great product!", stars: 5, productId: "p1" } } }
+
+expectedResponse: {
+  data: {
+    createReview: {
+      id: "r100",
+      text: "Great product!",
+      stars: 5,
+      productId: "p1"
+    }
+  }
+}

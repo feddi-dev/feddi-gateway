@@ -1,0 +1,28 @@
+name: "ROOT_MUTATION_USED - root mutation type not named Mutation"
+description: "Spec: The root mutation type must be named 'Mutation'"
+
+subgraphs:
+  products: |
+    schema {
+      query: Query
+      mutation: RootMutation
+    }
+
+    type Query {
+      products: [Product]
+    }
+
+    type RootMutation {
+      createProduct(name: String): Product
+    }
+
+    type Mutation {
+      deprecatedField: String
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "ROOT_MUTATION_USED"

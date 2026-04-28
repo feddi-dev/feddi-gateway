@@ -1,0 +1,72 @@
+name: "Requires Requires"
+description: |
+  Tests chained @requires: A has price (@inaccessible), B has root query + hasDiscount,
+  C requires price from A for isExpensive + requires hasDiscount from B for isExpensiveWithDiscount,
+  D requires isExpensive from C for canAfford + requires isExpensiveWithDiscount from C for canAffordWithDiscount.
+
+subgraphs:
+  a: |
+    type Query {
+      productByIdA(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float! @inaccessible @shareable
+    }
+
+  b: |
+    type Query {
+      product: Product
+      productByIdB(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      hasDiscount: Boolean! @shareable
+    }
+
+  c: |
+    type Query {
+      productByIdC(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float! @shareable
+      isExpensive(p: Float @require(field: "price")): Boolean! @shareable
+      hasDiscount: Boolean! @shareable
+      isExpensiveWithDiscount(hd: Boolean @require(field: "hasDiscount")): Boolean! @shareable
+    }
+
+  d: |
+    type Query {
+      productByIdD(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      isExpensive: Boolean! @shareable
+      canAfford(ie: Boolean @require(field: "isExpensive")): Boolean!
+      isExpensiveWithDiscount: Boolean! @shareable
+      canAffordWithDiscount(iewd: Boolean @require(field: "isExpensiveWithDiscount")): Boolean!
+    }
+
+supergraph: |
+  type Product {
+    canAfford: Boolean!
+    canAffordWithDiscount: Boolean!
+    hasDiscount: Boolean!
+    id: ID!
+    isExpensive: Boolean!
+    isExpensiveWithDiscount: Boolean!
+    price: Float!
+  }
+
+  type Query {
+    product: Product
+    productByIdA(id: ID!): Product
+    productByIdB(id: ID!): Product
+    productByIdC(id: ID!): Product
+    productByIdD(id: ID!): Product
+  }

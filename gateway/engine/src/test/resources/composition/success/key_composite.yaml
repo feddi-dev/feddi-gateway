@@ -1,0 +1,48 @@
+name: "@key composite - multiple field key"
+description: |
+  Entity with a composite key using multiple fields.
+
+  Note: @is is omitted because argument names match field names.
+
+subgraphs:
+  inventory: |
+    type Query {
+      inventory(warehouseId: ID!, productId: ID!): InventoryItem @lookup
+    }
+
+    type InventoryItem @key(fields: "warehouseId productId") {
+      warehouseId: ID!
+      productId: ID!
+      quantity: Int
+      location: String
+    }
+
+  shipping: |
+    type Query {
+      inventoryShipping(
+        warehouseId: ID!
+        productId: ID!
+      ): InventoryItem @lookup
+    }
+    
+    type InventoryItem @key(fields: "warehouseId productId") {
+      warehouseId: ID!
+      productId: ID!
+      shippingWeight: Float
+      shippingClass: String
+    }
+
+supergraph: |
+  type Query {
+    inventory(warehouseId: ID!, productId: ID!): InventoryItem
+    inventoryShipping(warehouseId: ID!, productId: ID!): InventoryItem
+  }
+  
+  type InventoryItem {
+    warehouseId: ID!
+    productId: ID!
+    quantity: Int
+    location: String
+    shippingWeight: Float
+    shippingClass: String
+  }

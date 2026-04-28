@@ -1,0 +1,47 @@
+name: "Timeout Handling"
+description: "Tests timeout configuration and partial failure handling when subgraphs timeout"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      productByIdCatalog(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  pricing: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Int
+    }
+
+  inventory: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      stock: Int
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    productByIdCatalog(id: ID!): Product
+  }
+  type Product {
+    id: ID!
+    name: String
+    price: Int
+    stock: Int
+  }

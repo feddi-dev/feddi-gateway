@@ -1,0 +1,22 @@
+name: "Simple inline fragment on interface"
+description: "Tests planning of inline fragment with type condition on interface type"
+
+query: |
+  {
+    contents {
+      id
+      title
+      ... on Article {
+        body
+        wordCount
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: content
+      operation: "{ contents { id title __typename ... on Article { body wordCount } } }"
+      dependsOn: []
+      repeatedExecution: false

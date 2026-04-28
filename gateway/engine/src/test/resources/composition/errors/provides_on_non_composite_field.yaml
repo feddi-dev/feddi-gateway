@@ -1,0 +1,15 @@
+name: "PROVIDES_ON_NON_COMPOSITE_FIELD - @provides on scalar return type"
+description: "Spec: @provides can only be used on fields returning composite types"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @provides(fields: "something")
+    }
+
+error: "PROVIDES_ON_NON_COMPOSITE_FIELD"

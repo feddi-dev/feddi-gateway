@@ -1,0 +1,39 @@
+name: "Root query and entity lookup to same subgraph"
+description: "Tests that root query and entity lookup to the same subgraph are handled correctly (Bug #3)"
+
+query: |
+  {
+    randomUser {
+      id
+      name
+    }
+    userById(id: "u2") {
+      id
+      name
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ randomUser { id } }'
+    variables: {}
+    response: { data: { randomUser: { id: "u1" } } }
+
+  - subgraph: b
+    operation: 'query ($id: ID!) { userById(id: $id) { name } }'
+    variables: { id: "u1" }
+    response: { data: { userById: { name: "User One" } } }
+
+  - subgraph: b
+    operation: '{ userById(id: "u2") { id name } }'
+    variables: {}
+    response: { data: { userById: { id: "u2", name: "User Two" } } }
+
+expectedResponse: {
+  data: {
+    randomUser: { id: "u1", name: "User One" },
+    userById: { id: "u2", name: "User Two" }
+  }
+}

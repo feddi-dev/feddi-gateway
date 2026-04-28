@@ -1,0 +1,53 @@
+name: "Child Type Mismatch"
+description: "Tests @shareable with different type shapes across subgraphs, union types, and deeply nested recursive fields"
+
+subgraphs:
+  a: |
+    type Query {
+      users: [User!]!
+    }
+
+    type User {
+      id: ID @shareable
+    }
+
+  b: |
+    type Query {
+      accounts: [Account!]!
+      userById(id: ID!): User @lookup
+    }
+
+    union Account = User | Admin
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      similarAccounts: [Account!]!
+    }
+
+    type Admin {
+      id: ID
+      name: String @shareable
+      similarAccounts: [Account!]!
+    }
+
+supergraph: |
+  union Account = Admin | User
+
+  type Admin {
+    id: ID
+    name: String
+    similarAccounts: [Account!]!
+  }
+
+  type Query {
+    accounts: [Account!]!
+    userById(id: ID!): User
+    users: [User!]!
+  }
+
+  type User {
+    id: ID
+    name: String
+    similarAccounts: [Account!]!
+  }

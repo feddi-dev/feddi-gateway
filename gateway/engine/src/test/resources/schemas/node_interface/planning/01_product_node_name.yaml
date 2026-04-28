@@ -1,0 +1,35 @@
+name: "Product node with name from different subgraph"
+description: |
+  Tests the case where a Node interface field returns a Product,
+  and we request the name field via inline fragment.
+
+  The name field is only in the types subgraph, so we need to:
+  1. Query productNode in node subgraph to get __typename and id
+  2. Look up the Product in types subgraph to get name
+
+query: |
+  {
+    productNode {
+      ... on Product {
+        name
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    # Step 1: Query productNode in node subgraph
+    - id: 1
+      subgraph: node
+      operation: "{ productNode { __typename id } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    # Step 2: Look up Product in types subgraph
+    - id: 2
+      subgraph: types
+      operation: "query($id: ID!) { productById(id: $id) { ... on Product { name } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

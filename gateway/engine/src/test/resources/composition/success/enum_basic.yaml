@@ -1,0 +1,60 @@
+name: "Enum - shared across subgraphs"
+description: "Enum type used consistently across multiple subgraphs"
+
+subgraphs:
+  products: |
+    type Query {
+      products(status: ProductStatus): [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      status: ProductStatus @shareable
+    }
+
+    enum ProductStatus {
+      DRAFT
+      ACTIVE
+      DISCONTINUED
+    }
+
+  inventory: |
+    type Query {
+      productByIdInventory(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      status: ProductStatus @shareable
+      stock: Int
+      canOrder(currentStatus: ProductStatus @require(field: "status")): Boolean
+    }
+
+    enum ProductStatus {
+      DRAFT
+      ACTIVE
+      DISCONTINUED
+    }
+
+supergraph: |
+  type Query {
+    products(status: ProductStatus): [Product]
+    productById(id: ID!): Product
+    productByIdInventory(id: ID!): Product
+  }
+
+  type Product {
+    id: ID!
+    name: String
+    status: ProductStatus
+    stock: Int
+    canOrder: Boolean
+  }
+
+  enum ProductStatus {
+    DRAFT
+    ACTIVE
+    DISCONTINUED
+  }

@@ -1,0 +1,25 @@
+name: "Update mutation with input"
+description: "Tests update mutation with partial input object"
+
+query: |
+  mutation UpdateUser($id: ID!, $input: UpdateUserInput!) {
+    updateUser(id: $id, input: $input) {
+      id
+      name
+      email
+    }
+  }
+
+variables: { id: "u1", input: { name: "Alice Updated" } }
+
+subgraphCalls:
+  - subgraph: users
+    operation: 'mutation($id: ID!, $input: UpdateUserInput!) { updateUser(id: $id, input: $input) { id name email } }'
+    variables: { id: "u1", input: { name: "Alice Updated" } }
+    response: { data: { updateUser: { id: "u1", name: "Alice Updated", email: "alice@example.com" } } }
+
+expectedResponse: {
+  data: {
+    updateUser: { id: "u1", name: "Alice Updated", email: "alice@example.com" }
+  }
+}

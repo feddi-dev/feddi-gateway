@@ -1,0 +1,34 @@
+name: "Widening type condition on concrete type field"
+description: |
+  productByIdNodes returns Product (concrete), ... on Node widens to interface.
+  The normalizer simplifies away the widening since Product implements Node.
+  All fields become direct on the concrete type.
+
+query: |
+  {
+    productByIdNodes(id: "p1") {
+      name
+      ... on Node {
+        id
+        createdAt
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: nodes
+    operation: '{ productByIdNodes(id: "p1") { name id createdAt } }'
+    variables: {}
+    response: { data: { productByIdNodes: { name: "Laptop", id: "p1", createdAt: "2024-01-01" } } }
+
+expectedResponse: {
+  data: {
+    productByIdNodes: {
+      name: "Laptop",
+      id: "p1",
+      createdAt: "2024-01-01"
+    }
+  }
+}

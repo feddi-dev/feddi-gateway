@@ -1,0 +1,72 @@
+name: "Input types - merge fields from different subgraphs"
+description: "Spec 3.3.5: Input fields from all source schemas are combined"
+
+subgraphs:
+  users: |
+    type Query {
+      users(filter: UserSearchInput): [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type Mutation {
+      searchUsers(input: UserSearchInput!): [User]
+    }
+
+    type User @key(fields: "id") @shareable {
+      id: ID!
+      name: String
+      email: String
+    }
+
+    input UserSearchInput {
+      name: String
+      email: String
+      limit: Int
+    }
+
+  profiles: |
+    type Query {
+      userByIdProfiles(id: ID!): User @lookup
+      searchProfiles(filter: UserSearchInput): [User]
+    }
+    
+    type User @key(fields: "id") @shareable {
+      id: ID!
+      age: Int
+      country: String
+    }
+    
+    input UserSearchInput {
+      age: Int
+      country: String
+      offset: Int
+    }
+
+supergraph: |
+  type Query {
+    users(filter: UserSearchInput): [User]
+    userById(id: ID!): User
+    userByIdProfiles(id: ID!): User
+    searchProfiles(filter: UserSearchInput): [User]
+  }
+  
+  type Mutation {
+    searchUsers(input: UserSearchInput!): [User]
+  }
+  
+  type User {
+    id: ID!
+    name: String
+    email: String
+    age: Int
+    country: String
+  }
+  
+  input UserSearchInput {
+    name: String
+    email: String
+    limit: Int
+    age: Int
+    country: String
+    offset: Int
+  }

@@ -1,0 +1,69 @@
+name: "Multiple @is args execution"
+description: "Tests execution with composite key lookup requiring multiple @is arguments"
+
+query: |
+  {
+    orders(customerId: "cust123") {
+      id
+      status
+      shipment {
+        trackingNumber
+        carrier
+        status
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: orders
+    operation: '{orders(customerId:"cust123"){id status customerId}}'
+    variables: {}
+    response:
+      data:
+        orders:
+          - id: "order-1"
+            status: "PROCESSING"
+            customerId: "cust123"
+          - id: "order-2"
+            status: "SHIPPED"
+            customerId: "cust123"
+
+  - subgraph: tracking
+    operation: 'query($orderId:ID!,$customerId:ID!){orderByIdTracking(orderId:$orderId,customerId:$customerId){shipment{trackingNumber carrier status}}}'
+    variables: { orderId: "order-1", customerId: "cust123" }
+    response:
+      data:
+        orderByIdTracking:
+          shipment:
+            trackingNumber: "TRK-001"
+            carrier: "FedEx"
+            status: "In Transit"
+
+  - subgraph: tracking
+    operation: 'query($orderId:ID!,$customerId:ID!){orderByIdTracking(orderId:$orderId,customerId:$customerId){shipment{trackingNumber carrier status}}}'
+    variables: { orderId: "order-2", customerId: "cust123" }
+    response:
+      data:
+        orderByIdTracking:
+          shipment:
+            trackingNumber: "TRK-002"
+            carrier: "UPS"
+            status: "Delivered"
+
+expectedResponse:
+  data:
+    orders:
+      - id: "order-1"
+        status: "PROCESSING"
+        shipment:
+          trackingNumber: "TRK-001"
+          carrier: "FedEx"
+          status: "In Transit"
+      - id: "order-2"
+        status: "SHIPPED"
+        shipment:
+          trackingNumber: "TRK-002"
+          carrier: "UPS"
+          status: "Delivered"

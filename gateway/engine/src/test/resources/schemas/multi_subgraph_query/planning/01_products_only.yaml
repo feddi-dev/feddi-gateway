@@ -1,0 +1,19 @@
+name: "Products only"
+description: "Query only products field from products subgraph"
+
+query: |
+  {
+    products {
+      id
+      name
+      price
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "{ products { id name price } }"
+      dependsOn: []
+      repeatedExecution: false

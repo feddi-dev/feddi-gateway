@@ -1,0 +1,89 @@
+name: "@require complex - nested field mapping"
+description: "Using @require with nested field selections and aliasing"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      dimensions: ProductDimensions @shareable
+    }
+
+    type ProductDimensions @shareable {
+      length: Float @shareable
+      width: Float @shareable
+      height: Float @shareable
+      weight: Float @shareable
+    }
+
+  shipping: |
+    type Query {
+      productByIdShipping(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      dimensions: ProductDimensions @shareable
+      calculateShipping(
+        dim: DimensionInput! @require(field: "{ l: dimensions.length, w: dimensions.width, h: dimensions.height, wt: dimensions.weight }")
+      ): ShippingQuote
+    }
+
+    type ProductDimensions @shareable {
+      length: Float @shareable
+      width: Float @shareable
+      height: Float @shareable
+      weight: Float @shareable
+    }
+    
+    input DimensionInput {
+      l: Float!
+      w: Float!
+      h: Float!
+      wt: Float!
+    }
+    
+    type ShippingQuote {
+      cost: Float
+      carrier: String
+      days: Int
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    productByIdShipping(id: ID!): Product
+  }
+
+  type Product {
+    id: ID!
+    name: String
+    dimensions: ProductDimensions
+    calculateShipping: ShippingQuote
+  }
+
+  type ProductDimensions {
+    length: Float
+    width: Float
+    height: Float
+    weight: Float
+  }
+
+  input DimensionInput {
+    l: Float!
+    w: Float!
+    h: Float!
+    wt: Float!
+  }
+
+  type ShippingQuote {
+    cost: Float
+    carrier: String
+    days: Int
+  }

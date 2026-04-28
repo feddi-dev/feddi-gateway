@@ -1,0 +1,20 @@
+name: "Mutation in reviews subgraph"
+description: "Create review mutation - tests unified Mutation root reaches all subgraphs"
+
+query: |
+  mutation {
+    createReview(productId: "p1", text: "Great product!", stars: 5) {
+      id
+      text
+      stars
+      productId
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: reviews
+      operation: "mutation { createReview(productId: \"p1\", text: \"Great product!\", stars: 5) { id text stars productId } }"
+      dependsOn: []
+      repeatedExecution: false

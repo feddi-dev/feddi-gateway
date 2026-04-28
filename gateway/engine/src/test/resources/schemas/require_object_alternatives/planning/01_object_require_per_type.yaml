@@ -1,0 +1,41 @@
+name: "Plan for @require with type-specific object selection"
+description: |
+  Check what plan the planner generates for Book.similar with @require.
+
+query: |
+  {
+    bookById(id: "b1") {
+      id
+      title
+      isbn
+      similar {
+        id
+        title
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "{ bookById(id: \"b1\") { id title isbn } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: recommendations
+      operation: "query($id: ID!, $ref: BookRefInput!) { bookById(id: $id) { similar(ref: $ref) { id } } }"
+      dependsOn: [1]
+      requirements:
+        ref: "{ bookId: id, isbn }"
+        id: "id"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: catalog
+      operation: "query($id: ID!) { bookById(id: $id) { title } }"
+      dependsOn: [2]
+      requirements:
+        id: "id"
+      repeatedExecution: true

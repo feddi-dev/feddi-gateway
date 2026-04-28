@@ -1,0 +1,35 @@
+name: "Single Subgraph"
+description: "All types in one subgraph - no lookups needed"
+
+subgraphs:
+  main: |
+    type Query {
+      users: [User]
+    }
+    
+    type User {
+      id: ID!
+      name: String
+      email: String
+      profile: Profile
+    }
+    
+    type Profile {
+      bio: String
+      avatar: String
+    }
+
+supergraph: |
+  type Query {
+    users: [User]
+  }
+  type Profile {
+    bio: String
+    avatar: String
+  }
+  type User {
+    id: ID!
+    name: String
+    email: String
+    profile: Profile
+  }

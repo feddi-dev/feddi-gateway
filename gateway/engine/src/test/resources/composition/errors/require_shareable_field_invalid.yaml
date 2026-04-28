@@ -1,0 +1,25 @@
+name: "REQUIRE_INVALID_FIELDS - @shareable field only in same schema"
+description: |
+  Even if a field is marked @shareable, if it ONLY exists in the same schema as the
+  @require directive, this is INVALID. The field must exist in at least one OTHER
+  subgraph for @require resolution.
+
+  @require field dependencies MUST be resolvable from another subgraph.
+
+subgraphs:
+  shipping: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      # weight is @shareable but ONLY exists in this schema - no other subgraph has it
+      weight: Float @shareable
+      # This @require is INVALID because weight cannot be resolved from another subgraph
+      shippingCost(weightKg: Float @require(field: "weight")): Float
+    }
+
+error: "REQUIRE_INVALID_FIELDS"

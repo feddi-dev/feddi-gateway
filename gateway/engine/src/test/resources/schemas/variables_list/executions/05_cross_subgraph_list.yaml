@@ -1,0 +1,38 @@
+name: "Cross-subgraph with list variable"
+description: "Tests list variable that spans multiple subgraphs"
+
+query: |
+  query GetProductsWithStock($ids: [ID!]!) {
+    productsByIds(ids: $ids) {
+      id
+      name
+      inStock
+    }
+  }
+
+variables: { ids: ["p1", "p2"] }
+
+subgraphCalls:
+  - subgraph: products
+    operation: 'query($ids: [ID!]!) { productsByIds(ids: $ids) { id name } }'
+    variables: { ids: ["p1", "p2"] }
+    response: { data: { productsByIds: [{ id: "p1", name: "Laptop" }, { id: "p2", name: "Phone" }] } }
+
+  - subgraph: inventory
+    operation: 'query($id: ID!) { productById(id: $id) { inStock } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { inStock: true } } }
+
+  - subgraph: inventory
+    operation: 'query($id: ID!) { productById(id: $id) { inStock } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { inStock: false } } }
+
+expectedResponse: {
+  data: {
+    productsByIds: [
+      { id: "p1", name: "Laptop", inStock: true },
+      { id: "p2", name: "Phone", inStock: false }
+    ]
+  }
+}

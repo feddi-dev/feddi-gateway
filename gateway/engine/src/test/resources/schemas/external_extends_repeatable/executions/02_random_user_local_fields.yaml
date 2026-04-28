@@ -1,0 +1,24 @@
+name: "Random user with local fields only"
+description: "Fetches randomUser requesting only fields from subgraph a, no cross-subgraph call needed"
+
+query: |
+  {
+    randomUser {
+      id
+      rid
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ randomUser { id rid } }'
+    variables: {}
+    response: { data: { randomUser: { id: "u1", rid: "u1-rid" } } }
+
+expectedResponse: {
+  data: {
+    randomUser: { id: "u1", rid: "u1-rid" }
+  }
+}

@@ -1,0 +1,40 @@
+name: "Skip to tasks"
+description: "Minimal path through all hops to reach tasks"
+
+query: |
+  {
+    organizations {
+      teams {
+        projects {
+          tasks {
+            title
+            priority
+          }
+        }
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: orgs
+      operation: "{ organizations { teams { teamId } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: projects
+      operation: "query($teamId: ID!) { teamById(teamId: $teamId) { projects { projectId } } }"
+      dependsOn: [1]
+      requirements:
+        teamId: "teamId"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: tasks
+      operation: "query($pid: ID!) { projectById(pid: $pid) { tasks { title priority } } }"
+      dependsOn: [2]
+      requirements:
+        pid: "projectId"
+      repeatedExecution: true

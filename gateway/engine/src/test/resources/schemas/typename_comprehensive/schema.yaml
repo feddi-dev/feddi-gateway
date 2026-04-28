@@ -1,0 +1,114 @@
+name: "Typename Comprehensive"
+description: |
+  Tests __typename on objects, unions, and interfaces comprehensively.
+  Covers various scenarios including aliases and cross-subgraph cases.
+
+subgraphs:
+  types: |
+    type Query {
+      simple: SimpleObject
+      media: [MediaUnion]
+      nodes: [NodeInterface]
+      mediaById(id: ID!): MediaUnion
+      nodeById(id: ID!): NodeInterface @lookup
+      bookByIdTypes(id: ID!): Book @lookup
+      movieByIdTypes(id: ID!): Movie @lookup
+      songByIdTypes(id: ID!): Song @lookup
+    }
+    type SimpleObject {
+      id: ID!
+      value: String
+    }
+    union MediaUnion = Book | Movie | Song
+    interface NodeInterface @key(fields: "id") {
+      id: ID!
+      createdAt: String
+    }
+    type Book implements NodeInterface @key(fields: "id") {
+      id: ID!
+      createdAt: String
+      title: String
+      author: String
+    }
+    type Movie implements NodeInterface @key(fields: "id") {
+      id: ID!
+      createdAt: String
+      title: String
+      director: String
+    }
+    type Song implements NodeInterface @key(fields: "id") {
+      id: ID!
+      createdAt: String
+      title: String
+      artist: String
+    }
+
+  extended: |
+    type Query {
+      bookById(id: ID!): Book @lookup
+      movieById(id: ID!): Movie @lookup
+      songById(id: ID!): Song @lookup
+    }
+    type Book @key(fields: "id") {
+      id: ID!
+      isbn: String
+      pageCount: Int
+    }
+    type Movie @key(fields: "id") {
+      id: ID!
+      rating: String
+      runtime: Int
+    }
+    type Song @key(fields: "id") {
+      id: ID!
+      duration: Int
+      album: String
+    }
+
+supergraph: |
+  type Query {
+    simple: SimpleObject
+    media: [MediaUnion]
+    nodes: [NodeInterface]
+    mediaById(id: ID!): MediaUnion
+    nodeById(id: ID!): NodeInterface
+    bookById(id: ID!): Book
+    bookByIdTypes(id: ID!): Book
+    movieById(id: ID!): Movie
+    movieByIdTypes(id: ID!): Movie
+    songById(id: ID!): Song
+    songByIdTypes(id: ID!): Song
+  }
+  type SimpleObject {
+    id: ID!
+    value: String
+  }
+  union MediaUnion = Book | Movie | Song
+  interface NodeInterface {
+    id: ID!
+    createdAt: String
+  }
+  type Book implements NodeInterface {
+    id: ID!
+    createdAt: String
+    title: String
+    author: String
+    isbn: String
+    pageCount: Int
+  }
+  type Movie implements NodeInterface {
+    id: ID!
+    createdAt: String
+    title: String
+    director: String
+    rating: String
+    runtime: Int
+  }
+  type Song implements NodeInterface {
+    id: ID!
+    createdAt: String
+    title: String
+    artist: String
+    duration: Int
+    album: String
+  }

@@ -1,0 +1,40 @@
+name: "Variables passed to different subgraphs"
+description: |
+  Tests that client query variables are correctly passed to their respective subgraphs:
+  - $category goes to subgraph B (root query)
+  - $taxRate goes to subgraph C (field argument)
+
+query: |
+  query GetProductPrice($category: String, $taxRate: Float!) {
+    product(category: $category) {
+      id
+      finalPriceWithTax(taxRate: $taxRate)
+    }
+  }
+
+variables: { category: "electronics", taxRate: 0.20 }
+
+subgraphCalls:
+  - subgraph: b
+    operation: 'query($category: String) { product(category: $category) { id discountPercent } }'
+    variables: { category: "electronics" }
+    response: { data: { product: { id: "p1", discountPercent: 25 } } }
+
+  - subgraph: a
+    operation: 'query($id: ID!) { productByIdA(id: $id) { basePrice } }'
+    variables: { id: "p1" }
+    response: { data: { productByIdA: { basePrice: 200.0 } } }
+
+  - subgraph: c
+    operation: 'query($id: ID!, $bp: Float, $dp: Int, $taxRate: Float!) { productByIdC(id: $id) { finalPriceWithTax(taxRate: $taxRate, bp: $bp, dp: $dp) } }'
+    variables: { taxRate: 0.20, id: "p1", bp: 200.0, dp: 25 }
+    response: { data: { productByIdC: { finalPriceWithTax: 180.0 } } }
+
+expectedResponse: {
+  data: {
+    product: {
+      id: "p1",
+      finalPriceWithTax: 180.0
+    }
+  }
+}

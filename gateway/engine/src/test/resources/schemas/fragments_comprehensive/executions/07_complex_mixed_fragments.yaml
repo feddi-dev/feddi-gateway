@@ -1,0 +1,89 @@
+name: "Complex mixed named and inline fragments execution"
+description: "Tests combination of named and inline fragments across content and analytics subgraphs"
+
+query: |
+  {
+    contents {
+      id
+      ...ContentWithAnalytics
+      ... on Article {
+        wordCount
+      }
+      ... on Podcast {
+        episodeNumber
+      }
+    }
+  }
+  fragment ContentWithAnalytics on Content {
+    title
+    ... on Article {
+      body
+      views
+    }
+    ... on Video {
+      url
+      views
+    }
+    ... on Podcast {
+      audioUrl
+      plays
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { id title __typename ... on Article { body wordCount } ... on Video { url } ... on Podcast { audioUrl episodeNumber } } }'
+    variables: {}
+    response: {
+      data: {
+        contents: [
+          { __typename: "Article", id: "a1", title: "Main Article", body: "Main body", wordCount: 1500 },
+          { __typename: "Video", id: "v1", title: "Main Video", url: "https://video.example/main" },
+          { __typename: "Podcast", id: "p1", title: "Main Podcast", audioUrl: "https://audio.example/p1", episodeNumber: 42 }
+        ]
+      }
+    }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views } ... on Video { views } ... on Podcast { plays } } }'
+    variables: { id: "a1" }
+    response: { data: { contentById: { __typename: "Article", views: 3000 } } }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views } ... on Video { views } ... on Podcast { plays } } }'
+    variables: { id: "v1" }
+    response: { data: { contentById: { __typename: "Video", views: 8000 } } }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views } ... on Video { views } ... on Podcast { plays } } }'
+    variables: { id: "p1" }
+    response: { data: { contentById: { __typename: "Podcast", plays: 5000 } } }
+
+expectedResponse: {
+  data: {
+    contents: [
+      {
+        id: "a1",
+        title: "Main Article",
+        body: "Main body",
+        wordCount: 1500,
+        views: 3000
+      },
+      {
+        id: "v1",
+        title: "Main Video",
+        url: "https://video.example/main",
+        views: 8000
+      },
+      {
+        id: "p1",
+        title: "Main Podcast",
+        audioUrl: "https://audio.example/p1",
+        episodeNumber: 42,
+        plays: 5000
+      }
+    ]
+  }
+}

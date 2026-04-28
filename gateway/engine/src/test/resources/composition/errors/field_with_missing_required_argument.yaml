@@ -1,0 +1,25 @@
+name: "FIELD_WITH_MISSING_REQUIRED_ARGUMENT - required argument missing in one schema"
+description: "Spec: If a field argument is non-null in any schema, it must exist in all schemas"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      books(author: String!): [Book] @shareable
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      title: String
+    }
+
+  schemaB: |
+    type Query {
+      books: [Book] @shareable
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      author: String
+    }
+
+error: "FIELD_WITH_MISSING_REQUIRED_ARGUMENT"

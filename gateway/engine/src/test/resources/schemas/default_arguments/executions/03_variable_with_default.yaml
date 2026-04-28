@@ -1,0 +1,24 @@
+name: "Variable with default value"
+description: "Tests execution with variable that has its own default value"
+
+query: |
+  query Search($q: String!, $limit: Int = 20) {
+    search(query: $q, limit: $limit) {
+      id
+      title
+    }
+  }
+
+variables: { q: "federation" }
+
+subgraphCalls:
+  - subgraph: search
+    operation: 'query($q: String!, $limit: Int = 20) { search(query: $q, limit: $limit) { id title } }'
+    variables: { q: "federation" }
+    response: { data: { search: [{ id: "s1", title: "Federation Guide" }] } }
+
+expectedResponse: {
+  data: {
+    search: [{ id: "s1", title: "Federation Guide" }]
+  }
+}

@@ -1,0 +1,49 @@
+name: "Scalar - merge from different subgraphs"
+description: "Spec 3.3.1: Custom scalars with same name from different sources are merged"
+
+subgraphs:
+  events: |
+    scalar DateTime
+
+    type Query {
+      events: [Event]
+      eventById(id: ID!): Event @lookup
+    }
+
+    type Event @key(fields: "id") {
+      id: ID!
+      title: String
+      startDate: DateTime
+      endDate: DateTime
+    }
+
+  calendar: |
+    scalar DateTime
+    
+    type Query {
+      eventByIdCalendar(id: ID!): Event @lookup
+    }
+    
+    type Event @key(fields: "id") {
+      id: ID!
+      reminderAt: DateTime
+      createdAt: DateTime
+    }
+
+supergraph: |
+  scalar DateTime
+
+  type Query {
+    events: [Event]
+    eventById(id: ID!): Event
+    eventByIdCalendar(id: ID!): Event
+  }
+  
+  type Event {
+    id: ID!
+    title: String
+    startDate: DateTime
+    endDate: DateTime
+    reminderAt: DateTime
+    createdAt: DateTime
+  }

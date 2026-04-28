@@ -1,0 +1,136 @@
+name: "Big selection set in @is for composite key lookup"
+description: |
+  Query products and resolve inventory from a different subgraph.
+  The inventory subgraph has a lookup that uses a large object selection:
+  @is(field: "{ sku category brand model color size weight }")
+
+  This test verifies that @is works with composite keys containing many fields.
+
+query: |
+  {
+    products {
+      id
+      name
+      sku
+      category
+      brand
+      model
+      color
+      size
+      weight
+      description
+      imageUrl
+      inStock
+      warehouse
+      reorderLevel
+      lastRestocked
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ products { id name sku category brand model color size weight description imageUrl } }'
+    variables: {}
+    response: {
+      data: {
+        products: [
+          {
+            id: "prod1",
+            name: "Premium Laptop",
+            sku: "LAP-001",
+            category: "Electronics",
+            brand: "TechCorp",
+            model: "ProBook X1",
+            color: "Silver",
+            size: "15-inch",
+            weight: 2.1,
+            description: "High-performance laptop",
+            imageUrl: "https://example.com/laptop.jpg"
+          },
+          {
+            id: "prod2",
+            name: "Wireless Mouse",
+            sku: "MOU-002",
+            category: "Accessories",
+            brand: "PeripheralPro",
+            model: "ErgoClick",
+            color: "Black",
+            size: "Standard",
+            weight: 0.1,
+            description: "Ergonomic wireless mouse",
+            imageUrl: "https://example.com/mouse.jpg"
+          }
+        ]
+      }
+    }
+
+  - subgraph: inventory
+    operation: 'query ($id: ID!) { productById(id: $id) { inStock warehouse reorderLevel lastRestocked } }'
+    variables: { id: "prod1" }
+    response: {
+      data: {
+        productById: {
+          inStock: 45,
+          warehouse: "West Coast DC",
+          reorderLevel: 10,
+          lastRestocked: "2024-01-15"
+        }
+      }
+    }
+
+  - subgraph: inventory
+    operation: 'query ($id: ID!) { productById(id: $id) { inStock warehouse reorderLevel lastRestocked } }'
+    variables: { id: "prod2" }
+    response: {
+      data: {
+        productById: {
+          inStock: 500,
+          warehouse: "Central Hub",
+          reorderLevel: 50,
+          lastRestocked: "2024-01-20"
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    products: [
+      {
+        id: "prod1",
+        name: "Premium Laptop",
+        sku: "LAP-001",
+        category: "Electronics",
+        brand: "TechCorp",
+        model: "ProBook X1",
+        color: "Silver",
+        size: "15-inch",
+        weight: 2.1,
+        description: "High-performance laptop",
+        imageUrl: "https://example.com/laptop.jpg",
+        inStock: 45,
+        warehouse: "West Coast DC",
+        reorderLevel: 10,
+        lastRestocked: "2024-01-15"
+      },
+      {
+        id: "prod2",
+        name: "Wireless Mouse",
+        sku: "MOU-002",
+        category: "Accessories",
+        brand: "PeripheralPro",
+        model: "ErgoClick",
+        color: "Black",
+        size: "Standard",
+        weight: 0.1,
+        description: "Ergonomic wireless mouse",
+        imageUrl: "https://example.com/mouse.jpg",
+        inStock: 500,
+        warehouse: "Central Hub",
+        reorderLevel: 50,
+        lastRestocked: "2024-01-20"
+      }
+    ]
+  }
+}

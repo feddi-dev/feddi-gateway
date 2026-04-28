@@ -1,0 +1,25 @@
+name: "List of strings execution"
+description: "Tests passing a list of String values"
+
+query: |
+  query GetProductsByTags($tags: [String]) {
+    productsByTags(tags: $tags) {
+      id
+      name
+      tags
+    }
+  }
+
+variables: { tags: ["electronics", "sale"] }
+
+subgraphCalls:
+  - subgraph: products
+    operation: 'query($tags: [String]) { productsByTags(tags: $tags) { id name tags } }'
+    variables: { tags: ["electronics", "sale"] }
+    response: { data: { productsByTags: [{ id: "p1", name: "Laptop", tags: ["electronics", "sale"] }] } }
+
+expectedResponse: {
+  data: {
+    productsByTags: [{ id: "p1", name: "Laptop", tags: ["electronics", "sale"] }]
+  }
+}

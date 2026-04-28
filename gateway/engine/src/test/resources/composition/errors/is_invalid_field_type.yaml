@@ -1,0 +1,15 @@
+name: "IS_INVALID_FIELD_TYPE - @is field argument is not a string"
+description: "Spec: @is field argument must be a string"
+
+subgraphs:
+  schemaA: |
+    type Query {
+      userById(id: ID! @is(field: 123)): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "IS_INVALID_FIELD_TYPE"

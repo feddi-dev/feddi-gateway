@@ -1,0 +1,120 @@
+name: "Field Requirements"
+description: |
+  Schema with @require field dependencies on entity fields.
+
+  Note: @is is only used where the argument name differs from the field name.
+  Most lookups here use "id" as the argument name which matches the field,
+  so @is is omitted. Only productByIdPricing(productId) needs @is.
+
+subgraphs:
+  catalog: |
+    type Query {
+      products(category: String, inStock: Boolean): [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      description: String
+      weight: Int @shareable
+      category: String
+      dimension: ProductDimension @shareable
+    }
+
+    type ProductDimension @shareable {
+      size: Int @shareable
+      weight: Int @shareable
+    }
+
+  pricing: |
+    type Query {
+      productByIdPricing(productId: ID! @is(field: "id")): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float
+      currency: String
+      discount: Float
+    }
+
+  shipping: |
+    type Query {
+      productByIdShipping(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      weight: Int @shareable
+      shippingCost(w: Int @require(field: "weight")): Float
+      estimatedDays: Int
+      carrier: String
+    }
+
+  delivery: |
+    type Query {
+      productByIdDelivery(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      dimension: ProductDimension @shareable
+      delivery(
+        zip: String!
+        dim: ProductDimensionInput! @require(field: "{ productSize: dimension.size, productWeight: dimension.weight }")
+      ): DeliveryEstimates
+    }
+
+    type ProductDimension @shareable {
+      size: Int @shareable
+      weight: Int @shareable
+    }
+
+    input ProductDimensionInput {
+      productSize: Int!
+      productWeight: Int!
+    }
+
+    type DeliveryEstimates {
+      estimatedDays: Int
+      carrier: String
+      cost: Float
+    }
+
+supergraph: |
+  type Query {
+    products(category: String, inStock: Boolean): [Product]
+    productById(id: ID!): Product
+    productByIdPricing(productId: ID!): Product
+    productByIdShipping(id: ID!): Product
+    productByIdDelivery(id: ID!): Product
+  }
+  type Product {
+    id: ID!
+    name: String
+    description: String
+    weight: Int
+    category: String
+    dimension: ProductDimension
+    price: Float
+    currency: String
+    discount: Float
+    shippingCost: Float
+    estimatedDays: Int
+    carrier: String
+    delivery(zip: String!): DeliveryEstimates
+  }
+  type ProductDimension {
+    size: Int
+    weight: Int
+  }
+  type DeliveryEstimates {
+    estimatedDays: Int
+    carrier: String
+    cost: Float
+  }
+  input ProductDimensionInput {
+    productSize: Int!
+    productWeight: Int!
+  }

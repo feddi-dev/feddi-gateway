@@ -1,0 +1,56 @@
+name: "@require with aliased field"
+description: "Tests that @require correctly uses aliased field for extraction (Bug fix: aliased field paths)"
+
+query: |
+  {
+    products {
+      id
+      name
+      w: weight
+      shippingCost
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ products { id name w: weight } }'
+    variables: {}
+    response:
+      data:
+        products:
+          - id: "p1"
+            name: "Heavy Item"
+            w: 50
+          - id: "p2"
+            name: "Light Item"
+            w: 5
+
+  - subgraph: shipping
+    operation: 'query($id: ID!, $w: Int) { productByIdShipping(id: $id) { shippingCost(w: $w) } }'
+    variables: { id: "p1", w: 50 }
+    response:
+      data:
+        productByIdShipping:
+          shippingCost: 25.00
+
+  - subgraph: shipping
+    operation: 'query($id: ID!, $w: Int) { productByIdShipping(id: $id) { shippingCost(w: $w) } }'
+    variables: { id: "p2", w: 5 }
+    response:
+      data:
+        productByIdShipping:
+          shippingCost: 5.99
+
+expectedResponse:
+  data:
+    products:
+      - id: "p1"
+        name: "Heavy Item"
+        w: 50
+        shippingCost: 25.00
+      - id: "p2"
+        name: "Light Item"
+        w: 5
+        shippingCost: 5.99

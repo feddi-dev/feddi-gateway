@@ -1,0 +1,58 @@
+name: "Empty list with @require list selection"
+description: |
+  Tests @require(field: "items[productId]") when items is an empty list [].
+  The productIds argument should receive an empty list [].
+
+query: |
+  {
+    orderById(id: "empty-order") {
+      id
+      status
+      items {
+        productId
+        productName
+      }
+      itemAnalytics {
+        productId
+        views
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: orders
+    operation: '{ orderById(id: "empty-order") { id status items { productId productName } } }'
+    variables: {}
+    response: {
+      data: {
+        orderById: {
+          id: "empty-order",
+          status: "PENDING",
+          items: []
+        }
+      }
+    }
+
+  - subgraph: analytics
+    operation: 'query($id:ID!,$productIds:[ID!]!){orderByIdAnalytics(id:$id){itemAnalytics(productIds:$productIds){productId views}}}'
+    variables: { id: "empty-order", productIds: [] }
+    response: {
+      data: {
+        orderByIdAnalytics: {
+          itemAnalytics: []
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    orderById: {
+      id: "empty-order",
+      status: "PENDING",
+      items: [],
+      itemAnalytics: []
+    }
+  }
+}

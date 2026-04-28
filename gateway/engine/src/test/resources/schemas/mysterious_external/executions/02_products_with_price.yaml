@@ -1,0 +1,38 @@
+name: "Products list with price from different subgraph"
+description: "Fetches products from product subgraph, resolves price from price subgraph"
+
+query: |
+  {
+    products {
+      name
+      price
+      id
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: product
+    operation: '{ products { name id } }'
+    variables: {}
+    response: { data: { products: [{ id: "1", name: "name-1" }, { id: "2", name: "name-2" }] } }
+
+  - subgraph: price
+    operation: 'query ($id: ID!) { productByIdPrice(id: $id) { price } }'
+    variables: { id: "1" }
+    response: { data: { productByIdPrice: { price: 100.0 } } }
+
+  - subgraph: price
+    operation: 'query ($id: ID!) { productByIdPrice(id: $id) { price } }'
+    variables: { id: "2" }
+    response: { data: { productByIdPrice: { price: 200.0 } } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { name: "name-1", price: 100.0, id: "1" },
+      { name: "name-2", price: 200.0, id: "2" }
+    ]
+  }
+}

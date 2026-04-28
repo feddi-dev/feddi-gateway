@@ -1,0 +1,122 @@
+name: "Requires with Argument"
+description: |
+  Tests @requires with field arguments such as price(currency: "USD") and comments(limit: 3).
+  Subgraph a computes shippingEstimate from price and weight, and isExpensiveCategory from
+  category.averagePrice. Subgraph b owns products. Subgraph c owns posts and comments.
+  Subgraph d resolves author from post comments using @require with list selection.
+
+subgraphs:
+  a: |
+    type Query {
+      productByUpc(upc: String!): Product @lookup
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      weight: Int @shareable
+      price: Int @shareable
+      category: Category @shareable
+      shippingEstimate(price: Int @require(field: "price"), weight: Int @require(field: "weight")): Int
+      isExpensiveCategory(averagePrice: Int @require(field: "category.averagePrice")): Boolean
+    }
+
+    type Category @shareable {
+      averagePrice: Int @shareable
+    }
+
+  b: |
+    type Query {
+      products: [Product]
+      productByUpc(upc: String!): Product @lookup
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      name: String
+      price: Int @shareable
+      weight: Int @shareable
+      category: Category @shareable
+    }
+
+    type Category @shareable {
+      averagePrice: Int @shareable
+    }
+
+  c: |
+    type Query {
+      feed: [Post]
+      postById(id: ID!): Post @lookup
+      commentById(id: ID!): Comment @lookup
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      comments(limit: Int = 100): [Comment] @shareable
+    }
+
+    type Comment @key(fields: "id") {
+      id: ID!
+      authorId: ID @shareable
+      body: String!
+    }
+
+  d: |
+    type Query {
+      postById(id: ID!): Post @lookup
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      comments(limit: Int = 100): [Comment] @shareable
+      author(commentAuthorIds: [ID] @require(field: "comments[authorId]")): Author
+    }
+
+    type Comment @key(fields: "id") {
+      id: ID!
+      authorId: ID @shareable
+    }
+
+    type Author {
+      id: ID!
+      name: String
+    }
+
+supergraph: |
+  type Author {
+    id: ID!
+    name: String
+  }
+
+  type Category {
+    averagePrice: Int
+  }
+
+  type Comment {
+    authorId: ID
+    body: String!
+    id: ID!
+  }
+
+  type Post {
+    author: Author
+    comments(limit: Int = 100): [Comment]
+    id: ID!
+  }
+
+  type Product {
+    category: Category
+    isExpensiveCategory: Boolean
+    name: String
+    price: Int
+    shippingEstimate: Int
+    upc: String!
+    weight: Int
+  }
+
+  type Query {
+    commentById(id: ID!): Comment
+    feed: [Post]
+    postById(id: ID!): Post
+    productByUpc(upc: String!): Product
+    products: [Product]
+  }

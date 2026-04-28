@@ -1,0 +1,28 @@
+name: "Multiple arguments execution"
+description: "Tests passing multiple arguments of different types"
+
+query: |
+  query GetProducts($category: String, $minPrice: Float, $sortBy: String) {
+    products(category: $category, minPrice: $minPrice, sortBy: $sortBy) {
+      id
+      name
+      price
+    }
+  }
+
+variables: { category: "electronics", minPrice: 500.0, sortBy: "price" }
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: 'query($category: String, $minPrice: Float, $sortBy: String) { products(category: $category, minPrice: $minPrice, sortBy: $sortBy) { id name price } }'
+    variables: { category: "electronics", minPrice: 500.0, sortBy: "price" }
+    response: { data: { products: [{ id: "p2", name: "Phone", price: 599.99 }, { id: "p1", name: "Laptop", price: 999.99 }] } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p2", name: "Phone", price: 599.99 },
+      { id: "p1", name: "Laptop", price: 999.99 }
+    ]
+  }
+}

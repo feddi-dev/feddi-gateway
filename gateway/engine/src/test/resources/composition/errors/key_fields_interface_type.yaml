@@ -1,0 +1,19 @@
+name: "KEY_FIELDS_SELECT_INVALID_TYPE - @key references interface field"
+description: "Spec: @key fields cannot reference fields that return an interface type"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "node") {
+      id: ID!
+      node: Node
+    }
+
+    interface Node {
+      id: ID!
+    }
+
+error: "KEY_FIELDS_SELECT_INVALID_TYPE"

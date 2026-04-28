@@ -1,0 +1,53 @@
+name: "Require with Baz type (inaccessible in subgraph b)"
+description: |
+  Tests @require when data is of type Baz.
+  Baz is @inaccessible in subgraph b but the fields can still be fetched from subgraph a.
+  When data is Baz type, qux will be null since Baz doesn't have that field.
+
+query: |
+  {
+    a {
+      id
+      requirer
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ a { id data { foo __typename ... on Bar { bar } ... on Baz { baz } ... on Qux { qux } } } }'
+    variables: {}
+    response: {
+      data: {
+        a: {
+          id: "e2",
+          data: {
+            __typename: "Baz",
+            foo: "baz-foo",
+            bar: "baz-bar",
+            baz: "baz-val"
+          }
+        }
+      }
+    }
+
+  - subgraph: b
+    operation: 'query ($id: ID!, $dataFoo: String, $dataBar: String, $dataBaz: String, $dataQux: String) { entityById(id: $id) { requirer(dataFoo: $dataFoo, dataBar: $dataBar, dataBaz: $dataBaz, dataQux: $dataQux) } }'
+    variables: { id: "e2", dataFoo: "baz-foo", dataBar: "baz-bar", dataBaz: "baz-val", dataQux: null }
+    response: {
+      data: {
+        entityById: {
+          requirer: "foo:baz-foo,bar:baz-bar,baz:baz-val"
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    a: {
+      id: "e2",
+      requirer: "foo:baz-foo,bar:baz-bar,baz:baz-val"
+    }
+  }
+}

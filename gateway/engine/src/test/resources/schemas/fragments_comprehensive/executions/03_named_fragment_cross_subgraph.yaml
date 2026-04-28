@@ -1,0 +1,56 @@
+name: "Named fragment cross-subgraph execution"
+description: "Tests named fragment with fields spanning content and analytics subgraphs"
+
+query: |
+  {
+    contents {
+      id
+      ...ContentDetails
+    }
+  }
+  fragment ContentDetails on Content {
+    title
+    ... on Article {
+      body
+      views
+      readTime
+    }
+    ... on Video {
+      url
+      watchTime
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { id title __typename ... on Article { body } ... on Video { url } } }'
+    variables: {}
+    response: {
+      data: {
+        contents: [
+          { __typename: "Article", id: "a1", title: "Breaking News", body: "News content" },
+          { __typename: "Video", id: "v1", title: "How-to Guide", url: "https://video.example/howto" }
+        ]
+      }
+    }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views readTime } ... on Video { watchTime } } }'
+    variables: { id: "a1" }
+    response: { data: { contentById: { __typename: "Article", views: 5000, readTime: 240 } } }
+
+  - subgraph: analytics
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { views readTime } ... on Video { watchTime } } }'
+    variables: { id: "v1" }
+    response: { data: { contentById: { __typename: "Video", watchTime: 1800 } } }
+
+expectedResponse: {
+  data: {
+    contents: [
+      { id: "a1", title: "Breaking News", body: "News content", views: 5000, readTime: 240 },
+      { id: "v1", title: "How-to Guide", url: "https://video.example/howto", watchTime: 1800 }
+    ]
+  }
+}

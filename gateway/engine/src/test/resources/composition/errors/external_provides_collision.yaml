@@ -1,0 +1,19 @@
+name: "EXTERNAL_PROVIDES_COLLISION - @external and @provides on same field"
+description: "Spec: A field marked with @external cannot also have @provides"
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      details: ProductDetails @external @provides(fields: "sku")
+    }
+
+    type ProductDetails {
+      sku: String
+    }
+
+error: "EXTERNAL_PROVIDES_COLLISION"

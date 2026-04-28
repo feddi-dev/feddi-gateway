@@ -1,0 +1,49 @@
+name: "Same root field with different aliases and arguments"
+description: |
+  Tests that when the same field is queried with different aliases and different
+  arguments, both are executed separately and their results are returned under
+  the correct alias names.
+
+query: |
+  {
+    electronics: items(category: "electronics") {
+      id
+      name
+    }
+    clothing: items(category: "clothing") {
+      id
+      name
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: data
+    operation: '{ electronics: items(category: "electronics") { id name } clothing: items(category: "clothing") { id name } }'
+    variables: {}
+    response: {
+      data: {
+        electronics: [
+          { id: "e1", name: "Laptop" },
+          { id: "e2", name: "Phone" }
+        ],
+        clothing: [
+          { id: "c1", name: "Shirt" },
+          { id: "c2", name: "Pants" }
+        ]
+      }
+    }
+
+expectedResponse: {
+  data: {
+    electronics: [
+      { id: "e1", name: "Laptop" },
+      { id: "e2", name: "Phone" }
+    ],
+    clothing: [
+      { id: "c1", name: "Shirt" },
+      { id: "c2", name: "Pants" }
+    ]
+  }
+}

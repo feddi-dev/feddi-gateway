@@ -1,0 +1,40 @@
+name: "Mutation with cross-subgraph lookup execution"
+description: "Execute createProduct mutation, then fetch reviews from reviews subgraph"
+
+query: |
+  mutation {
+    createProduct(name: "Laptop", price: 1299) {
+      id
+      name
+      price
+      reviews {
+        id
+        text
+        stars
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: 'mutation { createProduct(name: "Laptop", price: 1299) { id name price } }'
+    variables: {}
+    response: { data: { createProduct: { id: "p20", name: "Laptop", price: 1299 } } }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { reviews { id text stars } } }'
+    variables: { id: "p20" }
+    response: { data: { productById: { reviews: [] } } }
+
+expectedResponse: {
+  data: {
+    createProduct: {
+      id: "p20",
+      name: "Laptop",
+      price: 1299,
+      reviews: []
+    }
+  }
+}

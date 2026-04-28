@@ -1,0 +1,30 @@
+name: "Starting from concrete type"
+description: "Query starts with concrete type field, cross-subgraph fields without inline fragment"
+
+# When starting from a concrete type (Article), we can directly access
+# cross-subgraph fields without needing an inline fragment.
+query: |
+  {
+    articles {
+      id
+      title
+      body
+      views
+      readTime
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: content
+      operation: "{ articles { id title body } }"
+      dependsOn: []
+      repeatedExecution: false
+    - id: 2
+      subgraph: analytics
+      operation: "query($id: ID!) { articleById(id: $id) { views readTime } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

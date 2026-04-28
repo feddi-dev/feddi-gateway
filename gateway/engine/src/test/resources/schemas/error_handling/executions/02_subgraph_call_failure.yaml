@@ -1,0 +1,49 @@
+name: "Subgraph call failure results in error"
+description: |
+  Verifies that when a subgraph call fails entirely (network error, timeout, etc.),
+  the error is captured and included in the final response.
+
+query: |
+  {
+    products {
+      id
+      name
+      reviews {
+        id
+        rating
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { id name } }'
+    variables: {}
+    response: {
+      data: {
+        products: [
+          { id: "p1", name: "Laptop" }
+        ]
+      }
+    }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { productById(id: $id) { reviews { id rating } } }'
+    variables: { id: "p1" }
+    failWithError: "Connection refused: reviews service unavailable"
+    response: {}
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: "Laptop", reviews: null }
+    ]
+  },
+  errors: [
+    {
+      message: "Subgraph 'reviews' execution failed: Subgraph call failed: Connection refused: reviews service unavailable"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+name: "@is with type conditions via interface query"
+description: |
+  Tests planning for @is directive with type conditions.
+
+query: |
+  {
+    media {
+      id
+      title
+      ... on Movie {
+        rating
+        reviewCount
+      }
+      ... on TVShow {
+        rating
+        reviewCount
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "{ media { id title __typename ... on Movie { imdbCode } ... on TVShow { tvdbCode } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: ratings
+      operation: "query($code: String!) { movieByImdb(code: $code) { ... on Movie { rating reviewCount } } }"
+      dependsOn: [1]
+      requirements:
+        code: "<Movie>.imdbCode"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: ratings
+      operation: "query($code: String!) { tvShowByTvdb(code: $code) { ... on TVShow { rating reviewCount } } }"
+      dependsOn: [1]
+      requirements:
+        code: "<TVShow>.tvdbCode"
+      repeatedExecution: true

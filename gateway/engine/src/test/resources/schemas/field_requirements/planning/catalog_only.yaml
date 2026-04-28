@@ -1,0 +1,20 @@
+name: "Catalog only"
+description: "No lookups needed - all fields in catalog"
+
+query: |
+  {
+    products {
+      id
+      name
+      weight
+      category
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "{ products { id name weight category } }"
+      dependsOn: []
+      repeatedExecution: false

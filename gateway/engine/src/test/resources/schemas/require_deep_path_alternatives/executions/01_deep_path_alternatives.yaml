@@ -1,0 +1,60 @@
+name: "Deep path alternatives - primary available"
+description: |
+  Tests @require(field: "primary.contact.email | backup.contact.email")
+  when the primary email is available. Should use primary.contact.email.
+
+query: |
+  {
+    customerById(id: "c1") {
+      id
+      name
+      notificationPreference {
+        channel
+        address
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: customers
+    operation: '{ customerById(id: "c1") { id name primary { contact { email } } backup { contact { email } } } }'
+    variables: {}
+    response: {
+      data: {
+        customerById: {
+          id: "c1",
+          name: "Alice",
+          primary: { contact: { email: "alice@primary.com" } },
+          backup: { contact: { email: "alice@backup.com" } }
+        }
+      }
+    }
+
+  - subgraph: notifications
+    operation: 'query($id:ID!,$email:String){customerById(id:$id){notificationPreference(email:$email){channel address}}}'
+    variables: { id: "c1", email: "alice@primary.com" }
+    response: {
+      data: {
+        customerById: {
+          notificationPreference: {
+            channel: "email",
+            address: "alice@primary.com"
+          }
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    customerById: {
+      id: "c1",
+      name: "Alice",
+      notificationPreference: {
+        channel: "email",
+        address: "alice@primary.com"
+      }
+    }
+  }
+}

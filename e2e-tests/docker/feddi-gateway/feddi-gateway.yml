@@ -1,0 +1,9 @@
+logging:
+  dir: ./logs
+
+management-address: 0.0.0.0
+admin-address: 0.0.0.0
+
+extensions:
+  e2e:
+    timeout-seconds: 15

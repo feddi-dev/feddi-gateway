@@ -1,0 +1,81 @@
+name: "Parent Entity Call"
+description: "Tests cross-subgraph parent entity resolution. Products have categories; category details are only available through the product entity in subgraph c, requiring parent entity traversal."
+
+subgraphs:
+  a: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+      categoryById(id: ID!): Category @lookup
+    }
+
+    type Product @key(fields: "id") @key(fields: "id pid") {
+      id: ID!
+      pid: ID!
+      category: Category @shareable
+    }
+
+    type Category @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+    }
+
+  b: |
+    type Query {
+      productByIdAndPid(id: ID!, pid: ID!): Product @lookup
+      categoryById(id: ID!): Category @lookup
+    }
+
+    type Product @key(fields: "id pid") {
+      id: ID!
+      pid: ID!
+      category: Category @shareable
+    }
+
+    type Category @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+    }
+
+  c: |
+    type Query {
+      productByIdAndPid(id: ID!, pid: ID!): Product @lookup
+      categoryByIdC(id: ID!): Category @lookup
+    }
+
+    type Product @key(fields: "id pid") {
+      id: ID!
+      pid: ID!
+      category: Category @shareable
+    }
+
+    type Category @key(fields: "id") {
+      id: ID!
+      details: CategoryDetails
+    }
+
+    type CategoryDetails {
+      products: Int
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    productByIdAndPid(id: ID!, pid: ID!): Product
+    categoryById(id: ID!): Category
+    categoryByIdC(id: ID!): Category
+  }
+  type Product {
+    id: ID!
+    pid: ID!
+    category: Category
+  }
+  type Category {
+    id: ID!
+    name: String
+    details: CategoryDetails
+  }
+  type CategoryDetails {
+    products: Int
+  }

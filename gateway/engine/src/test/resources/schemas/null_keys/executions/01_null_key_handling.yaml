@@ -1,0 +1,45 @@
+name: "Null key handling"
+description: "When subgraph b returns null for a book lookup, subgraph c should not be called with null id"
+
+query: |
+  {
+    bookContainers {
+      book {
+        author {
+          name
+        }
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ bookContainers { book { upc } } }'
+    variables: {}
+    response: { data: { bookContainers: [{ book: { upc: "upc1" } }, { book: { upc: "upc2" } }] } }
+
+  - subgraph: b
+    operation: 'query ($upc: ID!) { bookByUpc(upc: $upc) { id } }'
+    variables: { upc: "upc1" }
+    response: { data: { bookByUpc: { id: "id1" } } }
+
+  - subgraph: b
+    operation: 'query ($upc: ID!) { bookByUpc(upc: $upc) { id } }'
+    variables: { upc: "upc2" }
+    response: { data: { bookByUpc: null } }
+
+  - subgraph: c
+    operation: 'query ($id: ID!) { bookById(id: $id) { author { name } } }'
+    variables: { id: "id1" }
+    response: { data: { bookById: { author: { name: "Author One" } } } }
+
+expectedResponse: {
+  data: {
+    bookContainers: [
+      { book: { author: { name: "Author One" } } },
+      { book: { author: null } }
+    ]
+  }
+}

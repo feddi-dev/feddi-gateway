@@ -1,0 +1,51 @@
+name: "Multi subgraph - extending entity"
+description: "One subgraph extends an entity defined in another subgraph"
+
+subgraphs:
+  users_core: |
+    type Query {
+      users: [User]
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      email: String
+    }
+
+  users_extended: |
+    type Query {
+      userByIdExtended(id: ID!): User @lookup
+    }
+    
+    type User @key(fields: "id") {
+      id: ID!
+      phoneNumber: String
+      preferences: UserPreferences
+    }
+    
+    type UserPreferences {
+      newsletter: Boolean
+      language: String
+    }
+
+supergraph: |
+  type Query {
+    users: [User]
+    userById(id: ID!): User
+    userByIdExtended(id: ID!): User
+  }
+  
+  type User {
+    id: ID!
+    name: String
+    email: String
+    phoneNumber: String
+    preferences: UserPreferences
+  }
+  
+  type UserPreferences {
+    newsletter: Boolean
+    language: String
+  }

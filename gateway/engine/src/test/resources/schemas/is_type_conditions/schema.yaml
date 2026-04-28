@@ -1,0 +1,104 @@
+name: "@is Type Conditions"
+description: |
+  Tests @is directive with type conditions (<Type>.field syntax).
+
+  Type conditions allow different implementing types of an interface to use
+  different key fields for entity resolution. The syntax <Book>.isbn means
+  "when resolving a Book, use the isbn field as the key".
+
+  Note: @is is only needed when argument name differs from field name, or
+  when using advanced features like type conditions. Simple lookups like
+  bookById(id) don't need @is because "id" matches the field name.
+
+  This schema has:
+  - Subgraph A: Media interface with Book and Movie implementing types
+  - Subgraph B: Ratings via both id-based lookups AND type-specific lookups
+
+subgraphs:
+  media: |
+    type Query {
+      media: [Media]
+      bookById(id: ID!): Book @lookup
+      movieById(id: ID!): Movie @lookup
+    }
+
+    interface Media @key(fields: "id") {
+      id: ID!
+      title: String
+    }
+
+    type Book implements Media @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      isbn: String @shareable
+      author: String
+    }
+
+    type Movie implements Media @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+      code: String @shareable
+      director: String
+    }
+
+  ratings: |
+    type Query {
+      bookById(id: ID!): Book @lookup
+      movieById(id: ID!): Movie @lookup
+      bookByIsbn(isbn: String! @is(field: "<Book>.isbn")): Book @lookup
+      movieByCode(code: String! @is(field: "<Movie>.code")): Movie @lookup
+    }
+
+    interface Media @key(fields: "id") {
+      id: ID!
+      rating: Float
+      reviewCount: Int
+    }
+
+    type Book implements Media @key(fields: "id") {
+      id: ID!
+      isbn: String @shareable
+      rating: Float
+      reviewCount: Int
+    }
+
+    type Movie implements Media @key(fields: "id") {
+      id: ID!
+      code: String @shareable
+      rating: Float
+      reviewCount: Int
+    }
+
+supergraph: |
+  type Query {
+    media: [Media]
+    bookById(id: ID!): Book
+    movieById(id: ID!): Movie
+    bookByIsbn(isbn: String!): Book
+    movieByCode(code: String!): Movie
+  }
+
+  interface Media {
+    id: ID!
+    title: String
+    rating: Float
+    reviewCount: Int
+  }
+
+  type Book implements Media {
+    id: ID!
+    title: String
+    isbn: String
+    author: String
+    rating: Float
+    reviewCount: Int
+  }
+
+  type Movie implements Media {
+    id: ID!
+    title: String
+    code: String
+    director: String
+    rating: Float
+    reviewCount: Int
+  }

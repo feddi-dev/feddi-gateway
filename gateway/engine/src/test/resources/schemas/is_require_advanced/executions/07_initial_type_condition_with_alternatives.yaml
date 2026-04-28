@@ -1,0 +1,65 @@
+name: "Initial type condition combined with alternatives"
+description: |
+  Tests @require with initial type condition combined with alternatives:
+  <Movie>.imdbCode | internalCode
+
+  The type condition <Movie> applies only to the first alternative (imdbCode).
+  If the type matches Movie and imdbCode is present, use it.
+  Otherwise fall back to internalCode (no type condition).
+
+query: |
+  {
+    movieById(id: "m1") {
+      id
+      title
+      typeConditionedRecommendations {
+        id
+        title
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ movieById(id: "m1") { id title __typename imdbCode internalCode } }'
+    variables: {}
+    response: {
+      data: {
+        movieById: {
+          id: "m1",
+          title: "Inception",
+          __typename: "Movie",
+          imdbCode: "tt1375666",
+          internalCode: "INT001"
+        }
+      }
+    }
+
+  - subgraph: discovery
+    operation: 'query($id:ID!,$code:String){movieById(id:$id){typeConditionedRecommendations(code:$code){id title}}}'
+    variables: { id: "m1", code: "tt1375666" }
+    response: {
+      data: {
+        movieById: {
+          typeConditionedRecommendations: [
+            { id: "m2", title: "The Dark Knight" },
+            { id: "m3", title: "Interstellar" }
+          ]
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    movieById: {
+      id: "m1",
+      title: "Inception",
+      typeConditionedRecommendations: [
+        { id: "m2", title: "The Dark Knight" },
+        { id: "m3", title: "Interstellar" }
+      ]
+    }
+  }
+}

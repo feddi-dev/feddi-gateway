@@ -1,0 +1,19 @@
+name: "Reviews only"
+description: "Query only reviews field from reviews subgraph - tests unified root reaches all subgraphs"
+
+query: |
+  {
+    reviews {
+      id
+      text
+      stars
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: reviews
+      operation: "{ reviews { id text stars } }"
+      dependsOn: []
+      repeatedExecution: false

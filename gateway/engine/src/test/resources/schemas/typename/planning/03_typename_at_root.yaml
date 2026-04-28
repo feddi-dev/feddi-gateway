@@ -1,0 +1,15 @@
+name: "__typename at root level"
+description: "Tests that __typename can be resolved on the Query root type"
+
+query: |
+  {
+    __typename
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: a
+      operation: "{ __typename }"
+      dependsOn: []
+      repeatedExecution: false

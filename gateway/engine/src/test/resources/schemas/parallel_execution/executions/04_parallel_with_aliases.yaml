@@ -1,0 +1,66 @@
+name: "Parallel execution with aliases"
+description: |
+  Tests that aliases are preserved correctly when fields from different subgraphs
+  execute in parallel.
+
+query: |
+  {
+    items: products {
+      productId: id
+      productName: name
+      productPrice: price
+      productStock: stock
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - id: root
+    subgraph: products
+    operation: '{ items: products { productId: id productName: name } }'
+    variables: {}
+    response: {
+      data: {
+        items: [
+          { productId: "p1", productName: "Widget" },
+          { productId: "p2", productName: "Gadget" }
+        ]
+      }
+    }
+
+  - id: pricing-p1
+    subgraph: pricing
+    operation: 'query($id: ID!) { productById(id: $id) { productPrice: price } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { productPrice: 29 } } }
+
+  - id: pricing-p2
+    subgraph: pricing
+    operation: 'query($id: ID!) { productById(id: $id) { productPrice: price } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { productPrice: 49 } } }
+
+  - id: inventory-p1
+    subgraph: inventory
+    operation: 'query($id: ID!) { productById(id: $id) { productStock: stock } }'
+    variables: { id: "p1" }
+    response: { data: { productById: { productStock: 100 } } }
+
+  - id: inventory-p2
+    subgraph: inventory
+    operation: 'query($id: ID!) { productById(id: $id) { productStock: stock } }'
+    variables: { id: "p2" }
+    response: { data: { productById: { productStock: 50 } } }
+
+# Control finish order to make test deterministic (random delays otherwise)
+finishOrder: "root,pricing-p1,pricing-p2,inventory-p1,inventory-p2"
+
+expectedResponse: {
+  data: {
+    items: [
+      { productId: "p1", productName: "Widget", productPrice: 29, productStock: 100 },
+      { productId: "p2", productName: "Gadget", productPrice: 49, productStock: 50 }
+    ]
+  }
+}

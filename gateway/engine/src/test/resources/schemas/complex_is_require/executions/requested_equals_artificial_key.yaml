@@ -1,0 +1,48 @@
+name: "Requested field equals artificial @is key"
+description: |
+  Tests that when a field is both explicitly requested AND needed as an artificial
+  @is key field for lookup, it is correctly included in the response.
+  Here 'customerId' is requested AND used as @is(field: "customerId") for the tracking lookup.
+
+query: |
+  {
+    orders(customerId: "cust123") {
+      id
+      status
+      customerId
+      shipment {
+        trackingNumber
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: orders
+    operation: '{orders(customerId:"cust123"){id status customerId}}'
+    variables: {}
+    response:
+      data:
+        orders:
+          - id: "order-1"
+            status: "PROCESSING"
+            customerId: "cust123"
+
+  - subgraph: tracking
+    operation: 'query($orderId:ID!,$customerId:ID!){orderByIdTracking(orderId:$orderId,customerId:$customerId){shipment{trackingNumber}}}'
+    variables: { orderId: "order-1", customerId: "cust123" }
+    response:
+      data:
+        orderByIdTracking:
+          shipment:
+            trackingNumber: "TRK-001"
+
+expectedResponse:
+  data:
+    orders:
+      - id: "order-1"
+        status: "PROCESSING"
+        customerId: "cust123"
+        shipment:
+          trackingNumber: "TRK-001"

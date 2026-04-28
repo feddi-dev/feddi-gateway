@@ -1,0 +1,19 @@
+name: "Multiple directives with variables preserved"
+description: "Tests that multiple @skip and @include directives with variables are preserved"
+
+query: |
+  query GetUser($skipName: Boolean!, $showEmail: Boolean!) {
+    user {
+      id
+      name @skip(if: $skipName)
+      email @include(if: $showEmail)
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: a
+      operation: "query ($skipName: Boolean!, $showEmail: Boolean!) { user { id name @skip(if: $skipName) email @include(if: $showEmail) } }"
+      dependsOn: []
+      repeatedExecution: false

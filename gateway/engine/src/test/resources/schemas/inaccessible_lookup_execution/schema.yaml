@@ -1,0 +1,47 @@
+name: "Inaccessible Lookup Execution"
+description: |
+  Tests that @inaccessible lookup fields can be used for entity resolution during
+  query planning and execution, even though they're hidden from the public API.
+
+  Subgraph B only has an @inaccessible lookup (productByInternalId). The executor
+  MUST use this @inaccessible lookup to resolve price/inventory fields since there
+  is no other way to reach subgraph B for Product entities.
+
+  This demonstrates that @inaccessible affects API visibility but NOT the ability
+  to use the field for internal entity resolution.
+
+subgraphs:
+  a: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @shareable
+    }
+
+  b: |
+    type Query {
+      productByInternalId(internalId: ID! @is(field: "id")): Product @inaccessible @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Int
+      inventory: Int
+    }
+
+supergraph: |
+  type Query {
+    productById(id: ID!): Product
+    products: [Product]
+  }
+
+  type Product {
+    id: ID!
+    inventory: Int
+    name: String
+    price: Int
+  }

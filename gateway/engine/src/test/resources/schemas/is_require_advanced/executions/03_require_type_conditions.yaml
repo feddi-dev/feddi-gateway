@@ -1,0 +1,60 @@
+name: "@require with type conditions"
+description: |
+  Tests @require directive with type condition syntax <Movie>.imdbCode.
+  The Movie.similarMovies field requires the imdbCode which is type-conditional.
+
+query: |
+  {
+    movieById(id: "m1") {
+      id
+      title
+      similarMovies {
+        id
+        title
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{ movieById(id: "m1") { id title __typename imdbCode } }'
+    variables: {}
+    response: {
+      data: {
+        movieById: {
+          __typename: "Movie",
+          id: "m1",
+          title: "Inception",
+          imdbCode: "tt1375666"
+        }
+      }
+    }
+
+  - subgraph: recommendations
+    operation: 'query($id:ID!,$code:String!){movieById(id:$id){similarMovies(code:$code){id title}}}'
+    variables: { id: "m1", code: "tt1375666" }
+    response: {
+      data: {
+        movieById: {
+          similarMovies: [
+            { id: "m2", title: "The Dark Knight" },
+            { id: "m3", title: "Interstellar" }
+          ]
+        }
+      }
+    }
+
+expectedResponse: {
+  data: {
+    movieById: {
+      id: "m1",
+      title: "Inception",
+      similarMovies: [
+        { id: "m2", title: "The Dark Knight" },
+        { id: "m3", title: "Interstellar" }
+      ]
+    }
+  }
+}

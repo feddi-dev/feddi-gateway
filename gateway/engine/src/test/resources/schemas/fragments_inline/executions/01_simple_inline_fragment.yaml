@@ -1,0 +1,40 @@
+name: "Simple inline fragment execution"
+description: "Tests execution of inline fragment with type condition on interface"
+
+query: |
+  {
+    contents {
+      id
+      title
+      ... on Article {
+        body
+        wordCount
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { id title __typename ... on Article { body wordCount } } }'
+    variables: {}
+    response: {
+      data: {
+        contents: [
+          { __typename: "Article", id: "a1", title: "Tech News", body: "Article body here", wordCount: 500 },
+          { __typename: "Video", id: "v1", title: "Tutorial Video" },
+          { __typename: "Article", id: "a2", title: "Science Article", body: "Science content", wordCount: 1200 }
+        ]
+      }
+    }
+
+expectedResponse: {
+  data: {
+    contents: [
+      { id: "a1", title: "Tech News", body: "Article body here", wordCount: 500 },
+      { id: "v1", title: "Tutorial Video" },
+      { id: "a2", title: "Science Article", body: "Science content", wordCount: 1200 }
+    ]
+  }
+}

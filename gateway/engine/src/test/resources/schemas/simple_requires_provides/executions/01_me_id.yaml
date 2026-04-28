@@ -1,0 +1,23 @@
+name: "Simple me query returning id"
+description: "Fetches the current user id from the accounts subgraph"
+
+query: |
+  {
+    me {
+      id
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: accounts
+    operation: '{ me { id } }'
+    variables: {}
+    response: { data: { me: { id: "u1" } } }
+
+expectedResponse: {
+  data: {
+    me: { id: "u1" }
+  }
+}

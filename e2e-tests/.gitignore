@@ -1,0 +1,12 @@
+# Ignore Gradle project-specific cache directory
+.gradle
+
+# Ignore Gradle build output directory
+build
+
+# Ignore copied feddi Gateway JAR (build artifact)
+docker/feddi-gateway/*.jar
+
+# Ignore copied customizations JARs (build artifacts)
+docker/feddi-gateway/libs/
+docker/gateway/libs/

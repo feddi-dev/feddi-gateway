@@ -1,0 +1,32 @@
+name: "Orders only - no lookups needed"
+description: "Baseline test - all fields from orders subgraph, no cross-subgraph lookups"
+
+query: |
+  {
+    orders {
+      id
+      customerId
+      status
+      items {
+        productId
+        productName
+        quantity
+        unitPrice
+      }
+      shippingAddress {
+        street
+        city
+        state
+        zip
+        country
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: orders
+      operation: "{ orders { id customerId status items { productId productName quantity unitPrice } shippingAddress { street city state zip country } } }"
+      dependsOn: []
+      repeatedExecution: false

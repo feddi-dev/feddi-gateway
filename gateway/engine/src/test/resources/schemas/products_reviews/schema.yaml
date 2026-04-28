@@ -1,0 +1,130 @@
+name: "Products and Reviews"
+description: "Multi-subgraph e-commerce scenario: products, reviews, inventory, pricing, and users"
+
+subgraphs:
+  products: |
+    type Query {
+      products(category: String, limit: Int): [Product]
+      productByIdCatalog(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      categoryId: ID
+      category: Category
+    }
+
+    type Category {
+      id: ID!
+      name: String
+    }
+
+  reviews: |
+    type Query {
+      productById(id: ID!): Product @lookup
+      reviewByIdReviews(id: ID!): Review @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      rating: Float
+      reviews(first: Int): [Review]
+    }
+
+    type Review @key(fields: "id") {
+      id: ID!
+      text: String
+      stars: Int
+      authorId: ID!
+    }
+
+  inventory: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      inStock: Boolean
+      quantity: Int
+      warehouse: Warehouse
+    }
+
+    type Warehouse {
+      id: ID!
+      name: String
+      location: String
+    }
+
+  pricing: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float
+      discount: Float
+      finalPrice: Float
+    }
+
+  users: |
+    type Query {
+      reviewById(id: ID!): Review @lookup
+    }
+
+    type Review @key(fields: "id") {
+      id: ID!
+      author: User
+    }
+
+    type User {
+      id: ID!
+      name: String
+      avatar: String
+    }
+
+supergraph: |
+  type Query {
+    products(category: String, limit: Int): [Product]
+    productById(id: ID!): Product
+    productByIdCatalog(id: ID!): Product
+    reviewById(id: ID!): Review
+    reviewByIdReviews(id: ID!): Review
+  }
+  type Product {
+    id: ID!
+    name: String
+    categoryId: ID
+    category: Category
+    rating: Float
+    reviews(first: Int): [Review]
+    inStock: Boolean
+    quantity: Int
+    warehouse: Warehouse
+    price: Float
+    discount: Float
+    finalPrice: Float
+  }
+  type Category {
+    id: ID!
+    name: String
+  }
+  type Review {
+    id: ID!
+    text: String
+    stars: Int
+    authorId: ID!
+    author: User
+  }
+  type Warehouse {
+    id: ID!
+    name: String
+    location: String
+  }
+  type User {
+    id: ID!
+    name: String
+    avatar: String
+  }

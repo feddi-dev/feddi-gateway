@@ -1,0 +1,24 @@
+name: "Int variable execution"
+description: "Tests passing an Int type variable"
+
+query: |
+  query GetOrders($userId: ID!, $limit: Int) {
+    orders(userId: $userId, limit: $limit) {
+      id
+      items
+    }
+  }
+
+variables: { userId: "user-1", limit: 5 }
+
+subgraphCalls:
+  - subgraph: orders
+    operation: 'query($userId: ID!, $limit: Int) { orders(userId: $userId, limit: $limit) { id items } }'
+    variables: { userId: "user-1", limit: 5 }
+    response: { data: { orders: [{ id: "order-1", items: 3 }, { id: "order-2", items: 1 }] } }
+
+expectedResponse: {
+  data: {
+    orders: [{ id: "order-1", items: 3 }, { id: "order-2", items: 1 }]
+  }
+}

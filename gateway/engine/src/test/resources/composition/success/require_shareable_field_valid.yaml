@@ -1,0 +1,47 @@
+name: "@require with shareable field from other subgraph is valid"
+description: |
+  When @require references a field that exists in BOTH the same schema (with @shareable)
+  AND another subgraph, this is VALID because the field can be resolved via the other subgraph.
+
+  The @require field resolution always goes through another subgraph, even if the field
+  is also available locally with @shareable.
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      weight: Float @shareable
+    }
+
+  shipping: |
+    type Query {
+      productByIdShipping(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      # weight is @shareable and also exists in products subgraph
+      # This is valid because @require can resolve weight from products subgraph
+      weight: Float @shareable
+      shippingCost(weightKg: Float @require(field: "weight")): Float
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    productById(id: ID!): Product
+    productByIdShipping(id: ID!): Product
+  }
+
+  type Product {
+    id: ID!
+    name: String
+    weight: Float
+    shippingCost: Float
+  }

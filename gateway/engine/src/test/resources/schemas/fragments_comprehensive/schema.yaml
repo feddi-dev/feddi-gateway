@@ -1,0 +1,166 @@
+name: "Comprehensive Fragments"
+description: |
+  Comprehensive tests for inline fragments and named fragments.
+  Covers type narrowing, multiple subgraphs, nested fragments, and edge cases.
+
+subgraphs:
+  # Core content types - owns basic content info
+  content: |
+    type Query {
+      contents: [Content]
+      content(id: ID!): Content
+      articles: [Article]
+      article(id: ID!): Article
+      contentById(id: ID!): Content @lookup
+      articleById(id: ID!): Article @lookup
+      videoById(id: ID!): Video @lookup
+      podcastById(id: ID!): Podcast @lookup
+    }
+    interface Content @key(fields: "id") {
+      id: ID!
+      title: String
+      createdAt: String
+    }
+    type Article implements Content @key(fields: "id") {
+      id: ID!
+      title: String
+      createdAt: String
+      body: String
+      wordCount: Int
+    }
+    type Video implements Content @key(fields: "id") {
+      id: ID!
+      title: String
+      createdAt: String
+      url: String
+      duration: Int
+    }
+    type Podcast implements Content @key(fields: "id") {
+      id: ID!
+      title: String
+      createdAt: String
+      audioUrl: String
+      episodeNumber: Int
+    }
+
+  # Analytics - owns view/engagement metrics
+  analytics: |
+    type Query {
+      contentById(id: ID!): Content @lookup
+      articleById(id: ID!): Article @lookup
+      videoByIdAnalytics(id: ID!): Video @lookup
+      podcastByIdAnalytics(id: ID!): Podcast @lookup
+    }
+    interface Content @key(fields: "id") {
+      id: ID!
+    }
+    type Article implements Content @key(fields: "id") {
+      id: ID!
+      views: Int
+      readTime: Int
+      shareCount: Int
+    }
+    type Video implements Content @key(fields: "id") {
+      id: ID!
+      views: Int
+      watchTime: Int
+      completionRate: Float
+    }
+    type Podcast implements Content @key(fields: "id") {
+      id: ID!
+      plays: Int
+      listenTime: Int
+      dropOffRate: Float
+    }
+
+  # Recommendations - owns recommendation data
+  recommendations: |
+    type Query {
+      contentById(id: ID!): Content @lookup
+      articleById(id: ID!): Article @lookup
+      videoByIdRecommendations(id: ID!): Video @lookup
+      podcastByIdRecommendations(id: ID!): Podcast @lookup
+    }
+    interface Content @key(fields: "id") {
+      id: ID!
+      relatedContent: [Content]
+    }
+    type Article implements Content @key(fields: "id") {
+      id: ID!
+      relatedContent: [Content]
+      suggestedArticles: [Article]
+      readingList: [Article]
+    }
+    type Video implements Content @key(fields: "id") {
+      id: ID!
+      relatedContent: [Content]
+      suggestedVideos: [Video]
+      playlist: [Video]
+    }
+    type Podcast implements Content @key(fields: "id") {
+      id: ID!
+      relatedContent: [Content]
+      suggestedPodcasts: [Podcast]
+      seriesEpisodes: [Podcast]
+    }
+
+supergraph: |
+  type Query {
+    contents: [Content]
+    content(id: ID!): Content
+    articles: [Article]
+    article(id: ID!): Article
+    contentById(id: ID!): Content
+    articleById(id: ID!): Article
+    videoById(id: ID!): Video
+    videoByIdAnalytics(id: ID!): Video
+    videoByIdRecommendations(id: ID!): Video
+    podcastById(id: ID!): Podcast
+    podcastByIdAnalytics(id: ID!): Podcast
+    podcastByIdRecommendations(id: ID!): Podcast
+  }
+  interface Content {
+    id: ID!
+    title: String
+    createdAt: String
+    relatedContent: [Content]
+  }
+  type Article implements Content {
+    id: ID!
+    title: String
+    createdAt: String
+    body: String
+    wordCount: Int
+    views: Int
+    readTime: Int
+    shareCount: Int
+    relatedContent: [Content]
+    suggestedArticles: [Article]
+    readingList: [Article]
+  }
+  type Video implements Content {
+    id: ID!
+    title: String
+    createdAt: String
+    url: String
+    duration: Int
+    views: Int
+    watchTime: Int
+    completionRate: Float
+    relatedContent: [Content]
+    suggestedVideos: [Video]
+    playlist: [Video]
+  }
+  type Podcast implements Content {
+    id: ID!
+    title: String
+    createdAt: String
+    audioUrl: String
+    episodeNumber: Int
+    plays: Int
+    listenTime: Int
+    dropOffRate: Float
+    relatedContent: [Content]
+    suggestedPodcasts: [Podcast]
+    seriesEpisodes: [Podcast]
+  }

@@ -1,0 +1,20 @@
+name: "PROVIDES_INVALID_FIELDS - @provides references non-existent field"
+description: "Spec: @provides fields argument must reference existing fields on the return type"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      details: ProductDetails @provides(fields: "unknownField")
+    }
+
+    type ProductDetails {
+      name: String @external
+      description: String @external
+    }
+
+error: "PROVIDES_INVALID_FIELDS"

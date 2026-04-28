@@ -1,0 +1,55 @@
+name: "Basic Variable Handling"
+description: |
+  Tests variable handling with different scalar types (ID, String, Int, Boolean, Float).
+  Covers passing variables across subgraph boundaries through entity lookups.
+
+subgraphs:
+  users: |
+    type Query {
+      user(id: ID!): User
+      userById(id: ID!): User @lookup
+      users(active: Boolean): [User]
+    }
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      age: Int
+      active: Boolean
+      score: Float
+    }
+
+  orders: |
+    type Query {
+      orders(userId: ID!, limit: Int, includeArchived: Boolean): [Order]
+      userById(id: ID!): User @lookup
+    }
+    type User @key(fields: "id") {
+      id: ID!
+      recentOrders(limit: Int): [Order]
+    }
+    type Order {
+      id: ID!
+      total: Float
+      items: Int
+    }
+
+supergraph: |
+  type Query {
+    user(id: ID!): User
+    userById(id: ID!): User
+    users(active: Boolean): [User]
+    orders(userId: ID!, limit: Int, includeArchived: Boolean): [Order]
+  }
+  type User {
+    id: ID!
+    name: String
+    age: Int
+    active: Boolean
+    score: Float
+    recentOrders(limit: Int): [Order]
+  }
+  type Order {
+    id: ID!
+    total: Float
+    items: Int
+  }

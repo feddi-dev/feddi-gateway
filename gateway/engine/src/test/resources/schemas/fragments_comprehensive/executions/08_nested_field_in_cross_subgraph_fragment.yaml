@@ -1,0 +1,36 @@
+name: "Nested field inside cross-subgraph inline fragment"
+description: "Tests that nested fields are correctly placed inside inline fragments when resolving cross-subgraph"
+
+query: |
+  {
+    contents {
+      id
+      title
+      ... on Article {
+        suggestedArticles {
+          id
+        }
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: content
+    operation: '{ contents { id title __typename } }'
+    variables: {}
+    response: { data: { contents: [{ __typename: "Article", id: "a1", title: "Article 1" }] } }
+
+  - subgraph: recommendations
+    operation: 'query ($id: ID!) { contentById(id: $id) { ... on Article { suggestedArticles { id } } } }'
+    variables: { id: "a1" }
+    response: { data: { contentById: { __typename: "Article", suggestedArticles: [{ id: "a2" }] } } }
+
+expectedResponse: {
+  data: {
+    contents: [
+      { id: "a1", title: "Article 1", suggestedArticles: [{ id: "a2" }] }
+    ]
+  }
+}

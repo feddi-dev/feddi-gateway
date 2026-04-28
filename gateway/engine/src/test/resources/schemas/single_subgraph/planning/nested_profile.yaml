@@ -1,0 +1,19 @@
+name: "Nested profile only"
+description: "Profile without user fields"
+
+query: |
+  {
+    users {
+      profile {
+        bio
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: main
+      operation: "{ users { profile { bio } } }"
+      dependsOn: []
+      repeatedExecution: false

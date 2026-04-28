@@ -1,0 +1,37 @@
+name: "@skip with variable=false includes field at runtime"
+description: "When @skip(if: $var) is used and $var=false, the field is included at runtime"
+
+query: |
+  query GetProduct($skipField: Boolean!) {
+    product {
+      id
+      skip @skip(if: $skipField)
+    }
+  }
+
+variables: { skipField: false }
+
+subgraphCalls:
+  - id: step1
+    subgraph: a
+    operation: '{ product { id price } }'
+    variables: {}
+    response: { data: { product: { id: "p1", price: 100.0 } } }
+
+  - id: step3
+    subgraph: b
+    operation: 'query ($id: ID!, $price: Float!) { productById(id: $id) { isExpensive(price: $price) } }'
+    variables: { id: "p1", price: 100.0 }
+    response: { data: { productById: { isExpensive: false } } }
+
+  - id: step2
+    subgraph: c
+    operation: 'query ($id: ID!, $isExpensive: Boolean!, $skipField: Boolean!) { productById(id: $id) { skip(isExpensive: $isExpensive) @skip(if: $skipField) } }'
+    variables: { id: "p1", isExpensive: false, skipField: false }
+    response: { data: { productById: { skip: true } } }
+
+expectedResponse: {
+  data: {
+    product: { id: "p1", skip: true }
+  }
+}

@@ -1,0 +1,31 @@
+name: "Products with createdBy"
+description: "Queries products with createdBy fields resolved directly from the products subgraph without entity lookups"
+
+query: |
+  {
+    products {
+      createdBy {
+        email
+        totalProductsCreated
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { createdBy { email totalProductsCreated } } }'
+    variables: {}
+    response: { data: { products: [{ __typename: "Book", createdBy: { email: "u1@example.com", totalProductsCreated: 2 } }, { __typename: "Book", createdBy: { email: "u2@example.com", totalProductsCreated: 2 } }, { __typename: "Magazine", createdBy: { email: "u1@example.com", totalProductsCreated: 2 } }, { __typename: "Magazine", createdBy: { email: "u2@example.com", totalProductsCreated: 2 } }] } }
+
+expectedResponse: {
+  data: {
+    products: [
+      { createdBy: { email: "u1@example.com", totalProductsCreated: 2 } },
+      { createdBy: { email: "u2@example.com", totalProductsCreated: 2 } },
+      { createdBy: { email: "u1@example.com", totalProductsCreated: 2 } },
+      { createdBy: { email: "u2@example.com", totalProductsCreated: 2 } }
+    ]
+  }
+}
