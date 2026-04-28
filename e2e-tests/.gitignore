@@ -9,3 +9,4 @@ docker/feddi-gateway/*.jar
 
 # Ignore copied customizations JARs (build artifacts)
 docker/feddi-gateway/libs/
+docker/gateway/libs/
