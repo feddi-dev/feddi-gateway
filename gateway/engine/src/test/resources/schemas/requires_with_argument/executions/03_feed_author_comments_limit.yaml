@@ -2,7 +2,7 @@ name: "Feed with author and comments with limit argument"
 description: |
   Tests @require resolution alongside a user-requested field with an argument.
   The query requests both author (which internally requires comments) and
-  comments(limit: 1). The gateway must handle both the @require-driven fetch
+  comments(limit: 1). The feddi Gateway must handle both the @require-driven fetch
   and the user-requested comments field.
 
 query: |

@@ -6,12 +6,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Full gateway definition returned by a {@link FeddiGatewayDefinitionSource}.
+ * Full feddi Gateway definition returned by a {@link FeddiGatewayDefinitionSource}.
  *
  * @param subgraphs subgraph definitions keyed by subgraph name
  * @param gatewaySettings gateway-level settings
  * @param supergraphSdl pre-composed supergraph SDL from the control plane, or null if
- *                       the gateway should compose from subgraph schemas itself
+ *                       the feddi Gateway should compose from subgraph schemas itself
  */
 public record FeddiGatewayDefinition(
     Map<String, SubgraphDefinition> subgraphs,

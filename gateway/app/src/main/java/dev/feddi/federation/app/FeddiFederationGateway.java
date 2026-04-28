@@ -121,12 +121,12 @@ public final class FeddiFederationGateway {
     }
 
     /**
-     * Creates a new FeddiFederationGateway from subgraph inputs, clients, execution listener, and gateway metrics.
+     * Creates a new FeddiFederationGateway from subgraph inputs, clients, execution listener, and feddi Gateway metrics.
      *
      * @param subgraphInputs the subgraph schemas to compose
      * @param subgraphClients map of subgraph name to client
      * @param executionListener listener for execution events (metrics, logging, etc.)
-     * @param gatewayMetrics gateway metrics for planning duration recording (may be null)
+     * @param gatewayMetrics feddi Gateway metrics for planning duration recording (may be null)
      * @return the configured gateway
      * @throws CompositionException if schema composition fails
      */
@@ -138,13 +138,13 @@ public final class FeddiFederationGateway {
     }
 
     /**
-     * Creates a new FeddiFederationGateway from subgraph inputs, clients, execution listener, gateway metrics,
+     * Creates a new FeddiFederationGateway from subgraph inputs, clients, execution listener, feddi Gateway metrics,
      * and an optional document provider.
      *
      * @param subgraphInputs the subgraph schemas to compose
      * @param subgraphClients map of subgraph name to client
      * @param executionListener listener for execution events (metrics, logging, etc.)
-     * @param gatewayMetrics gateway metrics for planning duration recording (may be null)
+     * @param gatewayMetrics feddi Gateway metrics for planning duration recording (may be null)
      * @param documentProvider optional provider for pre-parsed documents (may be null)
      * @return the configured gateway
      * @throws CompositionException if schema composition fails
@@ -200,7 +200,7 @@ public final class FeddiFederationGateway {
      * @param subgraphInputs the subgraph schemas (needed to build the planning graph)
      * @param subgraphClients map of subgraph name to client
      * @param executionListener listener for execution events (metrics, logging, etc.)
-     * @param gatewayMetrics gateway metrics for planning duration recording (may be null)
+     * @param gatewayMetrics feddi Gateway metrics for planning duration recording (may be null)
      * @return the configured gateway
      */
     public static FeddiFederationGateway createWithPreComposedSupergraph(
@@ -221,7 +221,7 @@ public final class FeddiFederationGateway {
      * @param subgraphInputs the subgraph schemas (needed to build the planning graph)
      * @param subgraphClients map of subgraph name to client
      * @param executionListener listener for execution events (metrics, logging, etc.)
-     * @param gatewayMetrics gateway metrics for planning duration recording (may be null)
+     * @param gatewayMetrics feddi Gateway metrics for planning duration recording (may be null)
      * @param documentProvider optional provider for pre-parsed documents (may be null)
      * @return the configured gateway
      */
@@ -233,7 +233,7 @@ public final class FeddiFederationGateway {
             FeddiGatewayMetrics gatewayMetrics,
             DocumentProvider documentProvider) {
 
-        log.info("Creating gateway from pre-composed supergraph ({} subgraphs)", subgraphInputs.size());
+        log.info("Creating feddi Gateway from pre-composed supergraph ({} subgraphs)", subgraphInputs.size());
 
         // Parse the pre-composed supergraph SDL into a GraphQLSchema
         var schemaParser = new SchemaParser();
@@ -263,7 +263,7 @@ public final class FeddiFederationGateway {
             DocumentProvider documentProvider,
             boolean introspectionEnabled) {
 
-        log.info("Creating gateway from pre-composed supergraph ({} subgraphs, introspection={})",
+        log.info("Creating feddi Gateway from pre-composed supergraph ({} subgraphs, introspection={})",
                 subgraphInputs.size(), introspectionEnabled);
 
         var schemaParser = new SchemaParser();

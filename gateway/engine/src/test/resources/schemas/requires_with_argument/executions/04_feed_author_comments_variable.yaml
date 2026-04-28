@@ -1,7 +1,7 @@
 name: "Feed with author and comments via variable"
 description: |
   Same as test 03 but uses a query variable for the comments limit argument.
-  Verifies that the gateway correctly resolves both @require-driven fields and
+  Verifies that the feddi Gateway correctly resolves both @require-driven fields and
   user-requested fields when arguments come from variables.
 
 query: |

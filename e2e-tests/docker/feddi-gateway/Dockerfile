@@ -2,7 +2,7 @@ FROM eclipse-temurin:25-jdk-alpine
 
 WORKDIR /app
 
-# Copy the Spring Boot JAR (copied by Gradle copyGatewayJar task)
+# Copy the Spring Boot JAR (copied by Gradle copyFeddiGatewayJar task)
 COPY app.jar app.jar
 
 # Copy customizations JAR (if present)

@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 /**
- * Loads the initial gateway definition and applies subsequent updates from the active source.
+ * Loads the initial feddi Gateway definition and applies subsequent updates from the active source.
  */
 @Component
 public class FeddiGatewayDefinitionSourceManager implements ApplicationRunner {
@@ -30,7 +30,7 @@ public class FeddiGatewayDefinitionSourceManager implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         gatewayDefinitionSource.load().ifPresentOrElse(
             this::reloadInitialDefinition,
-            () -> log.info("No gateway definition provided by {}", gatewayDefinitionSource.getClass().getName())
+            () -> log.info("No feddi Gateway definition provided by {}", gatewayDefinitionSource.getClass().getName())
         );
 
         gatewayDefinitionSource.updates()
@@ -42,20 +42,20 @@ public class FeddiGatewayDefinitionSourceManager implements ApplicationRunner {
     }
 
     private void reloadInitialDefinition(FeddiGatewayDefinition gatewayDefinition) {
-        log.info("Loading gateway definition from {}", gatewayDefinitionSource.getClass().getName());
+        log.info("Loading feddi Gateway definition from {}", gatewayDefinitionSource.getClass().getName());
         gatewayReloadService.reload(gatewayDefinition);
-        log.info("Gateway initialized with {} subgraph(s)", gatewayDefinition.subgraphs().size());
+        log.info("feddi Gateway initialized with {} subgraph(s)", gatewayDefinition.subgraphs().size());
     }
 
     private Mono<Void> reloadUpdatedDefinition(FeddiGatewayDefinition gatewayDefinition) {
         return Mono.fromRunnable(() -> {
-                log.info("Refreshing gateway definition from {}", gatewayDefinitionSource.getClass().getName());
+                log.info("Refreshing feddi Gateway definition from {}", gatewayDefinitionSource.getClass().getName());
                 gatewayReloadService.reload(gatewayDefinition);
-                log.info("Gateway refreshed with {} subgraph(s)", gatewayDefinition.subgraphs().size());
+                log.info("feddi Gateway refreshed with {} subgraph(s)", gatewayDefinition.subgraphs().size());
             })
             .then()
             .onErrorResume(e -> {
-                log.error("Failed to refresh gateway definition", e);
+                log.error("Failed to refresh feddi Gateway definition", e);
                 return Mono.<Void>empty();
             });
     }

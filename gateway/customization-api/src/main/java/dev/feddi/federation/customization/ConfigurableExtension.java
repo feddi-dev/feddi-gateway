@@ -4,7 +4,7 @@ package dev.feddi.federation.customization;
  * Interface for extensions that receive configuration from feddi-gateway.yml.
  *
  * <p>Extensions implement this interface with their typed config POJO.
- * The gateway will:
+ * The feddi Gateway will:
  * <ol>
  *   <li>Parse feddi-gateway.yml and find the {@code extensions.<namespace>} section</li>
  *   <li>Deserialize it into the type returned by {@link #configType()}</li>

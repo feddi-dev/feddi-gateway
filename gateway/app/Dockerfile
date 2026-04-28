@@ -7,7 +7,7 @@ RUN java -Djarmode=tools -jar app.jar extract --layers --destination extracted
 # Stage 2: Build final image
 FROM eclipse-temurin:25-jre-alpine
 
-RUN addgroup -S gateway && adduser -S gateway -G gateway
+RUN addgroup -S feddi-gateway && adduser -S feddi-gateway -G feddi-gateway
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ COPY --from=extract /app/extracted/application/ ./
 COPY libs/ libs/
 
 EXPOSE 8080
-USER gateway
+USER feddi-gateway
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
   CMD wget --spider -q http://localhost:8080/actuator/health || exit 1

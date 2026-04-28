@@ -91,7 +91,7 @@ tasks.named('processIntegrationTestResources') {
 	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
-// Distribution ZIP: packages gateway + launcher scripts + sample config
+// Distribution ZIP: packages feddi Gateway + launcher scripts + sample config
 tasks.register('feddiGatewayDistZip', Zip) {
 	description = 'Creates the feddi-gateway.zip distribution'
 	group = 'distribution'
@@ -102,7 +102,7 @@ tasks.register('feddiGatewayDistZip', Zip) {
 	destinationDirectory = layout.buildDirectory.dir('distributions')
 
 	into('feddi-gateway') {
-		// Gateway app JAR
+		// feddi Gateway app JAR
 		from(bootJar) {
 			rename { 'app.jar' }
 		}

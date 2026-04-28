@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Thread-safe holder for the FeddiFederationGateway.
  *
- * Enables atomic hot-reload of the gateway - in-flight requests complete
+ * Enables atomic hot-reload of the feddi Gateway - in-flight requests complete
  * with the old gateway while new requests get the new gateway.
  */
 @Component

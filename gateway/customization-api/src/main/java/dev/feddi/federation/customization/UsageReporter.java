@@ -8,7 +8,7 @@ package dev.feddi.federation.customization;
  * errors). The implementation is responsible for extracting field coordinates, computing
  * operation hashes, batching, and delivering usage data.
  *
- * <p>Implementations must be non-blocking — the gateway calls {@link #report}
+ * <p>Implementations must be non-blocking — the feddi Gateway calls {@link #report}
  * in the request path. Heavy processing (hashing, field extraction) should happen
  * on a background thread.
  */

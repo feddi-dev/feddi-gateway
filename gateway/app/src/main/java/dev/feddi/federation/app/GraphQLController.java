@@ -49,9 +49,9 @@ public class GraphQLController {
 
         FeddiFederationGateway gateway = gatewayHolder.get();
         if (gateway == null) {
-            log.warn("GraphQL request received but gateway not initialized");
+            log.warn("GraphQL request received but feddi Gateway not initialized");
             return Mono.error(new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                "Gateway not initialized. Please upload subgraph configuration."));
+                "feddi Gateway not initialized. Please upload subgraph configuration."));
         }
 
         log.debug("Executing GraphQL query: {}", request.query());

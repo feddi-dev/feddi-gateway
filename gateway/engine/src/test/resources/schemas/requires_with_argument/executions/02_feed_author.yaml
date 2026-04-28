@@ -1,6 +1,6 @@
 name: "Feed with author via @require on comments"
 description: |
-  Tests @require with list selection. The gateway fetches feed from subgraph c, then
+  Tests @require with list selection. The feddi Gateway fetches feed from subgraph c, then
   fetches comments with authorId for each post, and passes commentAuthorIds to subgraph d
   to resolve the author. Post p1 comments all have authorId "a2", post p2 comments all
   have authorId "a1".

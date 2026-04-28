@@ -11,7 +11,7 @@ import java.util.List;
  * Represents a lookup argument mapping from an @is directive.
  *
  * The @is directive maps a @lookup field argument to source fields on the entity.
- * This tells the gateway which field values to pass when invoking the lookup.
+ * This tells the feddi Gateway which field values to pass when invoking the lookup.
  *
  * For simple cases like `productById(id: ID! @is(field: "id")): Product @lookup`:
  * - argumentName = "id" (the argument name on the lookup field)

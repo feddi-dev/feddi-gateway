@@ -1,4 +1,4 @@
-# feddi gateway configuration
+# feddi Gateway configuration
 # Copy this file to feddi-gateway.yml and adjust for your environment.
 
 # Server port (default: 8080)
@@ -31,4 +31,4 @@ port: 8080
 # Metrics
 # Prometheus metrics are available at http://localhost:9090/actuator/prometheus
 # (on the management port, not the main server port).
-# Scrape this endpoint with Prometheus for JVM, HTTP, and gateway metrics.
+# Scrape this endpoint with Prometheus for JVM, HTTP, and feddi Gateway metrics.

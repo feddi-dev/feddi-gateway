@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Immutable context for a gateway request, carrying HTTP headers and request metadata.
+ * Immutable context for a feddi Gateway request, carrying HTTP headers and request metadata.
  * Created before execution. Use the builder-style setters to configure, then pass to the gateway.
  * The document is NOT part of the context — it's a result of execution and lives in {@link ExecutionOutcome}.
  */

@@ -4,7 +4,7 @@ package dev.feddi.federation.customization;
  * Factory interface for creating SubgraphClient instances.
  *
  * <p>Implementations of this interface are discovered via Spring's component scanning
- * and used by the gateway to create clients for communicating with subgraphs.
+ * and used by the feddi Gateway to create clients for communicating with subgraphs.
  *
  * <p>To provide a custom implementation:
  * <ol>
@@ -13,7 +13,7 @@ package dev.feddi.federation.customization;
  *   <li>Ensure your implementation is on the classpath and scanned by Spring</li>
  * </ol>
  *
- * <p>The gateway provides a default implementation that will be used if no custom
+ * <p>The feddi Gateway provides a default implementation that will be used if no custom
  * implementation is found.
  *
  * <p>Example implementation:

@@ -1,5 +1,5 @@
 name: "Can afford via chained requires"
-description: "Tests chained requires: gateway fetches id from b, price from a, isExpensive from c, then passes to d"
+description: "Tests chained requires: feddi Gateway fetches id from b, price from a, isExpensive from c, then passes to d"
 
 query: |
   {

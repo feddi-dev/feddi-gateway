@@ -169,7 +169,7 @@ public final class SchemaValidator {
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.FieldWithMissingRequiredArgumentRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.ReferenceToInaccessibleTypeRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.EnumTypeDefaultValueInaccessibleRule());
-        // Note: ENUM_VALUES_MISMATCH is not implemented - the gateway merges enum values from
+        // Note: ENUM_VALUES_MISMATCH is not implemented - the feddi Gateway merges enum values from
         // different subgraphs (union of values), which differs from strict spec interpretation
 
         // External pre-merge validation rules

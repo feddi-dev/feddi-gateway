@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * <p>This test is completely independent from the gateway codebase.
  * It only depends on:
  * <ul>
- *   <li>The gateway Docker image (built from the Spring Boot JAR)</li>
+ *   <li>The feddi Gateway Docker image (built from the Spring Boot JAR)</li>
  *   <li>Node.js subgraph implementations in docker/subgraphs/</li>
  * </ul>
  *

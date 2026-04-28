@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 
 /**
- * Auto-configuration for the default gateway definition source and admin upload.
+ * Auto-configuration for the default feddi Gateway definition source and admin upload.
  *
  * <p>When no custom {@link FeddiGatewayDefinitionSource} is registered by an extension,
  * this creates the default in-memory source and the admin upload infrastructure

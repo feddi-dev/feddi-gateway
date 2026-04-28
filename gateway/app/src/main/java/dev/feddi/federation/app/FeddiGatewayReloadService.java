@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Rebuilds the gateway from a logical gateway definition.
+ * Rebuilds the feddi Gateway from a logical gateway definition.
  */
 @Service
 public class FeddiGatewayReloadService {
@@ -42,7 +42,7 @@ public class FeddiGatewayReloadService {
     /**
      * Rebuilds and swaps the active gateway.
      *
-     * @param gatewayDefinition logical gateway definition
+     * @param gatewayDefinition logical feddi Gateway definition
      */
     public void reload(FeddiGatewayDefinition gatewayDefinition) {
         if (gatewayDefinition == null) {

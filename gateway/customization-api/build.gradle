@@ -12,8 +12,8 @@ publishing {
             from components.java
 
             pom {
-                name = 'feddi gateway customization API'
-                description = 'API for customizing the feddi gateway'
+                name = 'feddi Gateway customization API'
+                description = 'API for customizing the feddi Gateway'
             }
         }
     }

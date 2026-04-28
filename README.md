@@ -1,4 +1,4 @@
-# Feddi Gateway
+# feddi Gateway
 
 feddi Gateway is a JVM-native GraphQL federation gateway, implementing the [GraphQL Composite Schemas Spec](https://github.com/graphql/composite-schemas-spec). It composes source schemas, plans cross-subgraph operations, and executes GraphQL requests against a unified schema.
 
@@ -99,7 +99,7 @@ The feddi Gateway itself recognizes the namespace and forwards its configuration
 
 The default runtime source accepts feddi Gateway definitions through `POST /admin/upload` as multipart form data with a `file` part containing a ZIP archive.
 
-If a custom `GatewayDefinitionSource` extension is installed and active, ZIP uploads are disabled.
+If a custom `FeddiGatewayDefinitionSource` extension is installed and active, ZIP uploads are disabled.
 
 Accepted ZIP layouts:
 

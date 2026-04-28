@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "=============================================="
-echo "Building gateway JAR + publishing customization-api"
+echo "Building feddi Gateway JAR + publishing customization-api"
 echo "=============================================="
 cd "$PROJECT_ROOT/gateway"
 # customization-api is consumed by e2e-tests via mavenLocal — publish it

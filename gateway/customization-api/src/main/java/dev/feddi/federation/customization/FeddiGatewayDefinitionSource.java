@@ -5,10 +5,10 @@ import reactor.core.publisher.Flux;
 import java.util.Optional;
 
 /**
- * Provides gateway definitions from any source.
+ * Provides feddi Gateway definitions from any source.
  *
  * <p>Implementations of this interface are discovered via Spring's component scanning
- * and used by the gateway to initialize itself on startup and receive refreshes over time.
+ * and used by the feddi Gateway to initialize itself on startup and receive refreshes over time.
  *
  * <p>To provide a custom implementation:
  * <ol>
@@ -17,19 +17,19 @@ import java.util.Optional;
  *   <li>Ensure your implementation is on the classpath and scanned by Spring</li>
  * </ol>
  *
- * <p>The gateway provides a default in-memory implementation.
+ * <p>The feddi Gateway provides a default in-memory implementation.
  */
 public interface FeddiGatewayDefinitionSource {
 
     /**
-     * Loads the gateway definition to use at startup.
+     * Loads the feddi Gateway definition to use at startup.
      *
-     * @return the gateway definition, or empty if startup should leave the gateway uninitialized
+     * @return the feddi Gateway definition, or empty if startup should leave the gateway uninitialized
      */
     Optional<FeddiGatewayDefinition> load();
 
     /**
-     * Publishes updated gateway definitions over time.
+     * Publishes updated feddi Gateway definitions over time.
      *
      * @return a stream of definition updates
      */

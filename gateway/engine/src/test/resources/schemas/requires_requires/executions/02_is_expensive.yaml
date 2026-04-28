@@ -1,5 +1,5 @@
 name: "Is expensive via requires"
-description: "Tests requires chain: gateway fetches hasDiscount from b, price from a via lookup, then passes both to c for isExpensive"
+description: "Tests requires chain: feddi Gateway fetches hasDiscount from b, price from a via lookup, then passes both to c for isExpensive"
 
 query: |
   {

@@ -6,12 +6,12 @@ import reactor.core.publisher.Mono;
 
 /**
  * Extension point for providing pre-parsed, pre-validated documents.
- * If registered, the gateway calls this before ParseAndValidate.
+ * If registered, the feddi Gateway calls this before ParseAndValidate.
  *
  * <p>Return a Mono with a PreparsedDocumentEntry:
  * <ul>
- *   <li>With a Document: gateway skips parsing and validation, uses this document</li>
- *   <li>With errors: gateway returns these errors to the client</li>
+ *   <li>With a Document: feddi Gateway skips parsing and validation, uses this document</li>
+ *   <li>With errors: feddi Gateway returns these errors to the client</li>
  * </ul>
  * <p>Return Mono.empty() to fall through to normal ParseAndValidate.
  */
