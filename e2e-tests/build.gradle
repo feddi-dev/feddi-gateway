@@ -65,7 +65,7 @@ tasks.register('copyFeddiGatewayJar', Copy) {
         exclude '*-plain.jar'
         rename { 'app.jar' }
     }
-    into file("${projectDir}/docker/gateway")
+    into file("${projectDir}/docker/feddi-gateway")
 
     doFirst {
         if (!gatewayJarDir.exists()) {
@@ -83,7 +83,7 @@ tasks.register('copyCustomizationsJar', Copy) {
     dependsOn ':customizations:jar'
 
     def customizationsJarDir = file("${projectDir}/customizations/build/libs")
-    def libsDir = file("${projectDir}/docker/gateway/libs")
+    def libsDir = file("${projectDir}/docker/feddi-gateway/libs")
 
     from(customizationsJarDir) {
         include '*.jar'
