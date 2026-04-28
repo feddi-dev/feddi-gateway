@@ -23,16 +23,16 @@ public class FeddiGatewayMetrics implements ExecutionListener {
     public FeddiGatewayMetrics(MeterRegistry registry) {
         this.registry = registry;
 
-        this.requestDuration = Timer.builder("gateway.request.duration")
+        this.requestDuration = Timer.builder("feddi.gateway.request.duration")
                 .description("Total GraphQL request duration")
                 .publishPercentileHistogram()
                 .register(registry);
 
-        this.requestErrors = Counter.builder("gateway.request.errors")
+        this.requestErrors = Counter.builder("feddi.gateway.request.errors")
                 .description("GraphQL request errors")
                 .register(registry);
 
-        this.planningDuration = Timer.builder("gateway.planning.duration")
+        this.planningDuration = Timer.builder("feddi.gateway.planning.duration")
                 .description("Query planning duration")
                 .publishPercentileHistogram()
                 .register(registry);
@@ -43,7 +43,7 @@ public class FeddiGatewayMetrics implements ExecutionListener {
     }
 
     public void recordRequestDuration(Timer.Sample sample, String operationType) {
-        sample.stop(Timer.builder("gateway.request.duration")
+        sample.stop(Timer.builder("feddi.gateway.request.duration")
                 .tag("operation.type", operationType)
                 .publishPercentileHistogram()
                 .register(registry));
@@ -59,14 +59,14 @@ public class FeddiGatewayMetrics implements ExecutionListener {
 
     @Override
     public void onSubgraphFetchComplete(String subgraphName, long durationNanos, boolean success) {
-        Timer.builder("gateway.subgraph.duration")
+        Timer.builder("feddi.gateway.subgraph.duration")
                 .tag("subgraph.name", subgraphName)
                 .publishPercentileHistogram()
                 .register(registry)
                 .record(durationNanos, TimeUnit.NANOSECONDS);
 
         if (!success) {
-            Counter.builder("gateway.subgraph.errors")
+            Counter.builder("feddi.gateway.subgraph.errors")
                     .tag("subgraph.name", subgraphName)
                     .register(registry)
                     .increment();
@@ -75,7 +75,7 @@ public class FeddiGatewayMetrics implements ExecutionListener {
 
     @Override
     public void onSubgraphTimeout(String subgraphName) {
-        Counter.builder("gateway.subgraph.timeouts")
+        Counter.builder("feddi.gateway.subgraph.timeouts")
                 .tag("subgraph.name", subgraphName)
                 .register(registry)
                 .increment();

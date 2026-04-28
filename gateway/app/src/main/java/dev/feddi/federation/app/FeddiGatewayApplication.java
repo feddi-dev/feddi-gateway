@@ -36,7 +36,7 @@ public class FeddiGatewayApplication {
         System.setProperty("server.port", String.valueOf(gatewayConfig.getPort()));
 
         // Introspection toggle
-        System.setProperty("gateway.introspection.enabled",
+        System.setProperty("feddi.gateway.introspection.enabled",
                 String.valueOf(gatewayConfig.isIntrospectionEnabled()));
 
         // Actuator on a separate port, bound to localhost by default
@@ -46,7 +46,7 @@ public class FeddiGatewayApplication {
         // Set system properties for each extension namespace so auto-configurations
         // can use @ConditionalOnProperty to activate only when configured
         for (String namespace : gatewayConfig.getExtensions().keySet()) {
-            System.setProperty("gateway.extensions." + namespace, "true");
+            System.setProperty("feddi.gateway.extensions." + namespace, "true");
         }
 
         SpringApplication.run(FeddiGatewayApplication.class, args);
