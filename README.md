@@ -1,3 +1,9 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="feddi-logo-light.svg">
+  <source media="(prefers-color-scheme: light)" srcset="feddi-logo-dark.svg">
+  <img alt="feddi" src="feddi-logo-dark.svg" width="220">
+</picture>
+
 # feddi Gateway
 
 feddi Gateway is a JVM-native GraphQL federation gateway, implementing the [GraphQL Composite Schemas Spec](https://github.com/graphql/composite-schemas-spec). It composes source schemas, plans cross-subgraph operations, and executes GraphQL requests against a unified schema.
