@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
 
@@ -74,8 +75,13 @@ public final class GraphQLSubgraphServer {
     private final TypeDefinitionRegistry typeRegistry;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private DisposableServer server;
-    private final List<StubConfiguration> stubs = new ArrayList<>();
-    private final List<RecordedRequest> recordedRequests = new ArrayList<>();
+    // CopyOnWriteArrayList because Reactor Netty dispatches each request on a
+    // separate ctor-http-nio-N thread, and concurrent ArrayList.add() races
+    // produce ArrayIndexOutOfBoundsException ("Index N out of bounds for
+    // length M") that surfaces as a 500 to the calling gateway and shows up
+    // as a flaky cross-subgraph test failure.
+    private final List<StubConfiguration> stubs = new CopyOnWriteArrayList<>();
+    private final List<RecordedRequest> recordedRequests = new CopyOnWriteArrayList<>();
 
     /**
      * Creates a new GraphQL subgraph server.
@@ -328,11 +334,19 @@ public final class GraphQLSubgraphServer {
             @SuppressWarnings("unchecked")
             Map<String, Object> responseData = (Map<String, Object>) stub.response().get("data");
 
-            // Build executable schema with mock data wiring
-            MockDataWiringFactory wiringFactory = new MockDataWiringFactory(responseData);
-            RuntimeWiring wiring = wiringFactory.buildWiring();
-            GraphQLSchema executableSchema = new SchemaGenerator()
-                .makeExecutableSchema(typeRegistry, wiring);
+            // Build executable schema with mock data wiring.
+            // SchemaGenerator.makeExecutableSchema is called against the shared
+            // typeRegistry; GraphQL Java is not documented as thread-safe for
+            // concurrent schema generation off the same registry. Synchronize
+            // to prevent rare concurrent-modification corruption that surfaces
+            // as malformed (text/plain) responses to the calling gateway.
+            GraphQLSchema executableSchema;
+            synchronized (typeRegistry) {
+                MockDataWiringFactory wiringFactory = new MockDataWiringFactory(responseData);
+                RuntimeWiring wiring = wiringFactory.buildWiring();
+                executableSchema = new SchemaGenerator()
+                    .makeExecutableSchema(typeRegistry, wiring);
+            }
 
             GraphQL graphQL = GraphQL.newGraphQL(executableSchema).build();
 
