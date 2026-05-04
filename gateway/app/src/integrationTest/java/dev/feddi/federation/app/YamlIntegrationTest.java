@@ -53,7 +53,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>Stops WireMock servers</li>
  * </ol>
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    // Bind the gateway server to 127.0.0.1 (loopback) rather than the
+    // wildcard so port(0) collisions with other processes' specific-address
+    // LISTEN sockets fail at bind time and the kernel assigns a different
+    // port — see GraphQLSubgraphServer.start() for the full rationale.
+    properties = {"server.address=127.0.0.1"}
+)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class YamlIntegrationTest {
 

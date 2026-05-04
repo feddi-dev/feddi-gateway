@@ -133,20 +133,31 @@ public final class GraphQLSubgraphServer {
         HttpHandler httpHandler = RouterFunctions.toHttpHandler(route);
         ReactorHttpHandlerAdapter adapter = new ReactorHttpHandlerAdapter(httpHandler);
 
+        // Bind specifically to 127.0.0.1 (loopback) instead of the wildcard
+        // address. With wildcard, our LISTEN coexists silently with any
+        // other process's specific-address LISTEN on the same port — and
+        // BSD's TCP-listener lookup prefers the more-specific match for
+        // incoming localhost traffic, so client requests to localhost:port
+        // get routed to the *other* process (e.g. an IDE that happens to
+        // bind a port in macOS's ephemeral 49152-65535 range). Binding
+        // specifically to 127.0.0.1 makes the kernel detect the conflict
+        // at bind time as EADDRINUSE; port(0) then skips that port and
+        // assigns a different one.
         server = HttpServer.create()
+            .host("127.0.0.1")
             .port(0)
             .handle(adapter)
             .bindNow();
     }
 
     /**
-     * Returns the base URL of this server (e.g., "http://localhost:54321").
+     * Returns the base URL of this server (e.g., "http://127.0.0.1:54321").
      */
     public String getUrl() {
         if (server == null) {
             throw new IllegalStateException("Server not started");
         }
-        return "http://localhost:" + server.port();
+        return "http://127.0.0.1:" + server.port();
     }
 
     /**
