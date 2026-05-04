@@ -35,7 +35,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Integration test for the DocumentProvider extension point.
  * Verifies persisted query resolution, unknown hash errors, and fall-through to ParseAndValidate.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    // See note on YamlIntegrationTest — pin the random port to 127.0.0.1.
+    properties = {"server.address=127.0.0.1"}
+)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Import(DocumentProviderIntegrationTest.TestConfig.class)
 public class DocumentProviderIntegrationTest {

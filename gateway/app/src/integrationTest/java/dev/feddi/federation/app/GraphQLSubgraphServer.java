@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
 
@@ -74,8 +75,13 @@ public final class GraphQLSubgraphServer {
     private final TypeDefinitionRegistry typeRegistry;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private DisposableServer server;
-    private final List<StubConfiguration> stubs = new ArrayList<>();
-    private final List<RecordedRequest> recordedRequests = new ArrayList<>();
+    // CopyOnWriteArrayList because Reactor Netty dispatches each request on a
+    // separate ctor-http-nio-N thread, and concurrent ArrayList.add() races
+    // produce ArrayIndexOutOfBoundsException ("Index N out of bounds for
+    // length M") that surfaces as a 500 to the calling gateway and shows up
+    // as a flaky cross-subgraph test failure.
+    private final List<StubConfiguration> stubs = new CopyOnWriteArrayList<>();
+    private final List<RecordedRequest> recordedRequests = new CopyOnWriteArrayList<>();
 
     /**
      * Creates a new GraphQL subgraph server.
@@ -127,20 +133,31 @@ public final class GraphQLSubgraphServer {
         HttpHandler httpHandler = RouterFunctions.toHttpHandler(route);
         ReactorHttpHandlerAdapter adapter = new ReactorHttpHandlerAdapter(httpHandler);
 
+        // Bind specifically to 127.0.0.1 (loopback) instead of the wildcard
+        // address. With wildcard, our LISTEN coexists silently with any
+        // other process's specific-address LISTEN on the same port — and
+        // BSD's TCP-listener lookup prefers the more-specific match for
+        // incoming localhost traffic, so client requests to localhost:port
+        // get routed to the *other* process (e.g. an IDE that happens to
+        // bind a port in macOS's ephemeral 49152-65535 range). Binding
+        // specifically to 127.0.0.1 makes the kernel detect the conflict
+        // at bind time as EADDRINUSE; port(0) then skips that port and
+        // assigns a different one.
         server = HttpServer.create()
+            .host("127.0.0.1")
             .port(0)
             .handle(adapter)
             .bindNow();
     }
 
     /**
-     * Returns the base URL of this server (e.g., "http://localhost:54321").
+     * Returns the base URL of this server (e.g., "http://127.0.0.1:54321").
      */
     public String getUrl() {
         if (server == null) {
             throw new IllegalStateException("Server not started");
         }
-        return "http://localhost:" + server.port();
+        return "http://127.0.0.1:" + server.port();
     }
 
     /**
@@ -328,11 +345,19 @@ public final class GraphQLSubgraphServer {
             @SuppressWarnings("unchecked")
             Map<String, Object> responseData = (Map<String, Object>) stub.response().get("data");
 
-            // Build executable schema with mock data wiring
-            MockDataWiringFactory wiringFactory = new MockDataWiringFactory(responseData);
-            RuntimeWiring wiring = wiringFactory.buildWiring();
-            GraphQLSchema executableSchema = new SchemaGenerator()
-                .makeExecutableSchema(typeRegistry, wiring);
+            // Build executable schema with mock data wiring.
+            // SchemaGenerator.makeExecutableSchema is called against the shared
+            // typeRegistry; GraphQL Java is not documented as thread-safe for
+            // concurrent schema generation off the same registry. Synchronize
+            // to prevent rare concurrent-modification corruption that surfaces
+            // as malformed (text/plain) responses to the calling gateway.
+            GraphQLSchema executableSchema;
+            synchronized (typeRegistry) {
+                MockDataWiringFactory wiringFactory = new MockDataWiringFactory(responseData);
+                RuntimeWiring wiring = wiringFactory.buildWiring();
+                executableSchema = new SchemaGenerator()
+                    .makeExecutableSchema(typeRegistry, wiring);
+            }
 
             GraphQL graphQL = GraphQL.newGraphQL(executableSchema).build();
 

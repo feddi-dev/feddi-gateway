@@ -20,7 +20,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Integration test that verifies HTTP headers (Authorization, User-Agent)
  * are forwarded from the gateway to subgraph servers.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    // See note on YamlIntegrationTest — pin the random port to 127.0.0.1.
+    properties = {"server.address=127.0.0.1"}
+)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class HeaderForwardingIntegrationTest {
 
