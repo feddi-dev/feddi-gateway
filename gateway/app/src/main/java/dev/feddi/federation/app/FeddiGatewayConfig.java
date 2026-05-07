@@ -1,6 +1,6 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.UsageReporter;
+import dev.feddi.federation.extension.UsageReporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;

@@ -1,10 +1,10 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.FeddiGatewayDefinition;
-import dev.feddi.federation.customization.FeddiGatewaySettings;
-import dev.feddi.federation.customization.SubgraphClientFactory;
-import dev.feddi.federation.customization.SubgraphDefinition;
-import dev.feddi.federation.customization.SubgraphSettings;
+import dev.feddi.federation.extension.FeddiGatewayDefinition;
+import dev.feddi.federation.extension.FeddiGatewaySettings;
+import dev.feddi.federation.extension.SubgraphClientFactory;
+import dev.feddi.federation.extension.SubgraphDefinition;
+import dev.feddi.federation.extension.SubgraphSettings;
 import graphql.ExecutionInput;
 import graphql.ExecutionResultImpl;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

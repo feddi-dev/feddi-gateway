@@ -1,6 +1,6 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.DocumentProvider;
+import dev.feddi.federation.extension.DocumentProvider;
 import graphql.GraphqlErrorBuilder;
 import graphql.execution.preparsed.PreparsedDocumentEntry;
 import graphql.language.Document;

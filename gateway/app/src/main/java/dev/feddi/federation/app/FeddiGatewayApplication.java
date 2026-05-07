@@ -1,6 +1,6 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.ExtensionConfigProvider;
+import dev.feddi.federation.extension.ExtensionConfigProvider;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;

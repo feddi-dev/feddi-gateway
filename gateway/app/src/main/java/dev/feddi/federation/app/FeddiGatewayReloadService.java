@@ -1,11 +1,11 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.DocumentProvider;
-import dev.feddi.federation.customization.FeddiGatewayDefinition;
-import dev.feddi.federation.customization.SubgraphClient;
-import dev.feddi.federation.customization.SubgraphClientFactory;
-import dev.feddi.federation.customization.SubgraphDefinition;
-import dev.feddi.federation.customization.SubgraphSettings;
+import dev.feddi.federation.extension.DocumentProvider;
+import dev.feddi.federation.extension.FeddiGatewayDefinition;
+import dev.feddi.federation.extension.SubgraphClient;
+import dev.feddi.federation.extension.SubgraphClientFactory;
+import dev.feddi.federation.extension.SubgraphDefinition;
+import dev.feddi.federation.extension.SubgraphSettings;
 import dev.feddi.federation.engine.compose.Composer.SubgraphInput;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;

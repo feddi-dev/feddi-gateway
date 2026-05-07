@@ -1,7 +1,7 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.FeddiGatewayRequestContext;
-import dev.feddi.federation.customization.SubgraphClient;
+import dev.feddi.federation.extension.FeddiGatewayRequestContext;
+import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.engine.executor.SubgraphTimeoutException;
 import graphql.ExecutionResult;
 import graphql.language.OperationDefinition;

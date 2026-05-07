@@ -1,0 +1,2 @@
+e2e.extensions.JavaHttpSubgraphClientFactoryAutoConfiguration
+e2e.extensions.TestDocumentProviderAutoConfiguration

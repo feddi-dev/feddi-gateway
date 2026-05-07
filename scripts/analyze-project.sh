@@ -69,7 +69,7 @@ if [ -d "$PROJECT_ROOT/gateway" ]; then
     echo "gateway/ (multi-project)"
 
     # Subprojects
-    for subproject in engine app customization-api; do
+    for subproject in engine app extension-api; do
         if [ -d "$PROJECT_ROOT/gateway/$subproject" ] && [ -f "$PROJECT_ROOT/gateway/$subproject/build.gradle" ]; then
             analyze_gradle_project "$PROJECT_ROOT/gateway/$subproject" "gateway/$subproject"
         fi
@@ -87,7 +87,7 @@ if [ -d "$PROJECT_ROOT/e2e-tests" ]; then
     fi
 
     # Subprojects
-    for subproject in customizations; do
+    for subproject in extensions; do
         if [ -d "$PROJECT_ROOT/e2e-tests/$subproject" ] && [ -f "$PROJECT_ROOT/e2e-tests/$subproject/build.gradle" ]; then
             analyze_gradle_project "$PROJECT_ROOT/e2e-tests/$subproject" "e2e-tests/$subproject"
         fi

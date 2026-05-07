@@ -40,7 +40,7 @@ configurations {
 dependencies {
 	// Project dependencies
 	implementation project(':engine')
-	implementation project(':customization-api')
+	implementation project(':extension-api')
 
 	// GraphQL Java (version managed in gradle/libs.versions.toml)
 	implementation libs.graphql.java

@@ -5,7 +5,7 @@ WORKDIR /app
 # Copy the Spring Boot JAR (copied by Gradle copyFeddiGatewayJar task)
 COPY app.jar app.jar
 
-# Copy customizations JAR (if present)
+# Copy extensions JAR (if present)
 COPY libs/ libs/
 
 # Copy feddi-gateway configuration

@@ -1,7 +1,7 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.FeddiGatewayRequestContext;
-import dev.feddi.federation.customization.SubgraphClient;
+import dev.feddi.federation.extension.FeddiGatewayRequestContext;
+import dev.feddi.federation.extension.SubgraphClient;
 import graphql.ExecutionResult;
 import graphql.language.OperationDefinition;
 import reactor.core.publisher.Mono;
@@ -9,7 +9,7 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 
 /**
- * Adapts a customization-api SubgraphClient to the engine's SubgraphClient interface.
+ * Adapts an extension-api SubgraphClient to the engine's SubgraphClient interface.
  *
  * <p>Captures the {@link FeddiGatewayRequestContext} at creation time (per-request)
  * and passes it to the delegate on every execute call. The engine's interface

@@ -1,7 +1,7 @@
 package dev.feddi.federation.app;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.feddi.federation.customization.ConfigurableExtension;
+import dev.feddi.federation.extension.ConfigurableExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;

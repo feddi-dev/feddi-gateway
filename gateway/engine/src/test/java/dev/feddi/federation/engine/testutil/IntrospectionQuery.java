@@ -14,7 +14,7 @@ public final class IntrospectionQuery {
     }
 
     /**
-     * Options for customizing the introspection query.
+     * Options for configuring the introspection query.
      */
     public record Options(
         /** Whether to include description fields. Default: true */
