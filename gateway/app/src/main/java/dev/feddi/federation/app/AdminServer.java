@@ -1,7 +1,7 @@
 package dev.feddi.federation.app;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.feddi.federation.customization.FeddiGatewayDefinitionSource;
+import dev.feddi.federation.extension.FeddiGatewayDefinitionSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
@@ -22,7 +22,7 @@ import static org.springframework.web.reactive.function.server.RequestPredicates
  * Separate HTTP server for admin endpoints (schema upload), bound to localhost only.
  * Runs on a dedicated port (default 9091) to isolate admin operations from public traffic.
  *
- * <p>Only created when no custom {@link FeddiGatewayDefinitionSource}
+ * <p>Only created when no extension-provided {@link FeddiGatewayDefinitionSource}
  * is registered (see {@link FeddiGatewayDefinitionSourceConfiguration}).
  */
 public class AdminServer implements SmartLifecycle {

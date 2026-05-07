@@ -1,7 +1,7 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.FeddiGatewayDefinition;
-import dev.feddi.federation.customization.FeddiGatewayDefinitionSource;
+import dev.feddi.federation.extension.FeddiGatewayDefinition;
+import dev.feddi.federation.extension.FeddiGatewayDefinitionSource;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 

@@ -1,7 +1,7 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.FeddiGatewayDefinition;
-import dev.feddi.federation.customization.FeddiGatewayDefinitionSource;
+import dev.feddi.federation.extension.FeddiGatewayDefinition;
+import dev.feddi.federation.extension.FeddiGatewayDefinitionSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;

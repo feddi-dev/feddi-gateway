@@ -1,8 +1,8 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.ExecutionOutcome;
-import dev.feddi.federation.customization.FeddiGatewayRequestContext;
-import dev.feddi.federation.customization.UsageReporter;
+import dev.feddi.federation.extension.ExecutionOutcome;
+import dev.feddi.federation.extension.FeddiGatewayRequestContext;
+import dev.feddi.federation.extension.UsageReporter;
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;

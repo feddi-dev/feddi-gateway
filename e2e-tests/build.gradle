@@ -77,24 +77,19 @@ tasks.register('copyFeddiGatewayJar', Copy) {
     }
 }
 
-// Task to copy the customizations JAR for Docker build
-tasks.register('copyCustomizationsJar', Copy) {
-    description = 'Copies the customizations JAR for Docker build'
-    dependsOn ':customizations:jar'
+// Task to copy the extensions JAR for Docker build
+tasks.register('copyExtensionsJar', Sync) {
+    description = 'Copies the extensions JAR for Docker build'
+    dependsOn ':extensions:jar'
 
-    def customizationsJarDir = file("${projectDir}/customizations/build/libs")
+    def extensionsJarDir = file("${projectDir}/extensions/build/libs")
     def libsDir = file("${projectDir}/docker/feddi-gateway/libs")
 
-    from(customizationsJarDir) {
+    from(extensionsJarDir) {
         include '*.jar'
     }
     into libsDir
-
-    doFirst {
-        // Ensure libs directory exists
-        libsDir.mkdirs()
-    }
 }
 
 // Ensure JARs are copied before running tests
-test.dependsOn copyFeddiGatewayJar, copyCustomizationsJar
+test.dependsOn copyFeddiGatewayJar, copyExtensionsJar

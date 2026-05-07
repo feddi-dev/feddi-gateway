@@ -16,7 +16,7 @@ It works best overall when used together with the feddi Platform. For full docum
 
 - `gateway/engine` - Composition, validation, query planning, and execution
 - `gateway/app` - Spring Boot application that serves the feddi Gateway over HTTP
-- `gateway/customization-api` - Public extension API for integrating custom behavior
+- `gateway/extension-api` - Public extension API for integrating gateway behavior
 - `e2e-tests` - Docker-based end-to-end tests
 - `scripts` - Helper scripts for common local workflows
 
@@ -105,7 +105,7 @@ The feddi Gateway itself recognizes the namespace and forwards its configuration
 
 The default runtime source accepts feddi Gateway definitions through `POST /admin/upload` as multipart form data with a `file` part containing a ZIP archive.
 
-If a custom `FeddiGatewayDefinitionSource` extension is installed and active, ZIP uploads are disabled.
+If an extension-provided `FeddiGatewayDefinitionSource` is installed and active, ZIP uploads are disabled.
 
 Accepted ZIP layouts:
 
@@ -148,7 +148,7 @@ Each subgraph entry must contain:
 - `schema.graphqls`
 - `config.yaml` or `config.yml`
 
-For the built-in subgraph client, `url` is the only consumed subgraph config key. Custom `SubgraphClientFactory` implementations can read additional keys from the same per-subgraph config map.
+For the built-in subgraph client, `url` is the only consumed subgraph config key. Extension-provided `SubgraphClientFactory` implementations can read additional keys from the same per-subgraph config map.
 
 ### Launcher Environment Variables
 
@@ -185,11 +185,11 @@ cd gateway
 ./gradlew :app:integrationTest
 ```
 
-If you run `e2e-tests` directly (without `./scripts/run-e2e-tests.sh`) after changing `feddi-gateway/customization-api`, publish the API to your local Maven repository first so the e2e-tests subproject can resolve it:
+If you run `e2e-tests` directly (without `./scripts/run-e2e-tests.sh`) after changing `feddi-gateway/extension-api`, publish the API to your local Maven repository first so the e2e-tests subproject can resolve it:
 
 ```bash
 cd gateway
-./gradlew :customization-api:publishToMavenLocal
+./gradlew :extension-api:publishToMavenLocal
 cd ../e2e-tests
 ./gradlew test
 ```

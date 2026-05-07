@@ -1,8 +1,8 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.DocumentProvider;
-import dev.feddi.federation.customization.FeddiGatewayRequestContext;
-import dev.feddi.federation.customization.SubgraphClient;
+import dev.feddi.federation.extension.DocumentProvider;
+import dev.feddi.federation.extension.FeddiGatewayRequestContext;
+import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.engine.compose.Composer;
 import dev.feddi.federation.engine.compose.Composer.SubgraphInput;
 import dev.feddi.federation.engine.compose.CompositionResult;
@@ -49,7 +49,7 @@ public final class FeddiFederationGateway {
     private final boolean introspectionEnabled;
     private final OperationPlanner planner;
     private final OperationNormalizer normalizer;
-    private final Map<String, SubgraphClient> customizationClients;
+    private final Map<String, SubgraphClient> extensionClients;
     private final ExecutionListener executionListener;
     private final FeddiGatewayMetrics gatewayMetrics;
     private final DocumentProvider documentProvider;
@@ -85,8 +85,8 @@ public final class FeddiFederationGateway {
             .sortSelections(false)  // Preserve query field order
             .processSkipInclude(true)  // Evaluate literal @skip/@include at planning time
             .build();
-        // Store customization-api clients — adapted per-request in execute() with context
-        this.customizationClients = new LinkedHashMap<>(subgraphClients);
+        // Store extension-api clients — adapted per-request in execute() with context
+        this.extensionClients = new LinkedHashMap<>(subgraphClients);
         this.executionListener = executionListener != null ? executionListener : ExecutionListener.NOOP;
         this.gatewayMetrics = gatewayMetrics;
         this.documentProvider = documentProvider;
@@ -355,7 +355,7 @@ public final class FeddiFederationGateway {
 
             // Adapt clients per-request with the gateway request context
             var engineClients = new LinkedHashMap<String, dev.feddi.federation.engine.executor.SubgraphClient>();
-            for (var entry : customizationClients.entrySet()) {
+            for (var entry : extensionClients.entrySet()) {
                 engineClients.put(entry.getKey(), new SubgraphClientAdapter(entry.getValue(), requestContext));
             }
 

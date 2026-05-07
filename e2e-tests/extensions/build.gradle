@@ -1,0 +1,39 @@
+plugins {
+    id 'java-library'
+    id 'checkstyle'
+}
+
+group = 'dev.feddi.federation.e2e'
+version = '1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+checkstyle {
+    toolVersion = '10.21.4'
+    configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+    maxWarnings = 0
+    maxErrors = 0
+}
+
+dependencies {
+    // Depend on the gateway extension API (published to Maven local)
+    implementation 'dev.feddi.federation:extension-api:1.0-SNAPSHOT'
+
+    // Spring Boot auto-configuration support
+    implementation libs.spring.boot.autoconfigure
+
+    // Jackson for JSON serialization
+    implementation libs.jackson.databind
+
+    // SLF4J for logging
+    implementation libs.slf4j.api
+}

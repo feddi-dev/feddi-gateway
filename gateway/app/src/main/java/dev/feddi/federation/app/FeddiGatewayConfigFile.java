@@ -63,7 +63,7 @@ public class FeddiGatewayConfigFile {
 
     /**
      * Extension configuration sections, keyed by namespace.
-     * Each extension declares its namespace and config type via {@link dev.feddi.federation.customization.ConfigurableExtension}.
+     * Each extension declares its namespace and config type via {@link dev.feddi.federation.extension.ConfigurableExtension}.
      */
     private Map<String, Object> extensions = new LinkedHashMap<>();
 

@@ -2,10 +2,10 @@ package dev.feddi.federation.app;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import dev.feddi.federation.customization.FeddiGatewayDefinition;
-import dev.feddi.federation.customization.FeddiGatewaySettings;
-import dev.feddi.federation.customization.SubgraphDefinition;
-import dev.feddi.federation.customization.SubgraphSettings;
+import dev.feddi.federation.extension.FeddiGatewayDefinition;
+import dev.feddi.federation.extension.FeddiGatewaySettings;
+import dev.feddi.federation.extension.SubgraphDefinition;
+import dev.feddi.federation.extension.SubgraphSettings;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -18,7 +18,7 @@ import java.util.zip.ZipInputStream;
 /**
  * Service for processing zip uploads containing subgraph configurations.
  *
- * <p>Only created when no custom {@link FeddiGatewayDefinitionSource}
+ * <p>Only created when no extension-provided {@link FeddiGatewayDefinitionSource}
  * is registered (see {@link FeddiGatewayDefinitionSourceConfiguration}).
  *
  * Expected zip structure:

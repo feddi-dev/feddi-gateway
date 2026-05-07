@@ -1,6 +1,6 @@
 package dev.feddi.federation.app;
 
-import dev.feddi.federation.customization.SubgraphClientFactory;
+import dev.feddi.federation.extension.SubgraphClientFactory;
 import graphql.ExecutionInput;
 import graphql.ExecutionResultImpl;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
