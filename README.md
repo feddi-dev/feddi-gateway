@@ -6,39 +6,71 @@
 
 # feddi Gateway
 
-feddi Gateway is a JVM-native GraphQL federation gateway, implementing the [GraphQL Composite Schemas Spec](https://github.com/graphql/composite-schemas-spec). It composes source schemas, plans cross-subgraph operations, and executes GraphQL requests against a unified schema.
+feddi Gateway is a JVM-native GraphQL federation gateway built on [GraphQL Java](https://github.com/graphql-java/graphql-java) — the foundation of Spring GraphQL, Netflix DGS, and thousands of enterprise deployments.
+
+It implements the [GraphQL Composite Schemas Spec](https://github.com/graphql/composite-schemas-spec), composes source schemas, plans cross-subgraph operations, and executes GraphQL requests against a unified schema — entirely inside the JVM.
+
+Federation gateways sit on the critical path for every GraphQL request. For Java-centric enterprises, running that infrastructure outside the JVM means rebuilding security, policy enforcement, and compliance controls in a foreign runtime. feddi Gateway eliminates that split.
 
 This repository is an open source project and can be used independently of the [feddi Platform](https://feddi.dev). You can run it as a standalone feddi Gateway with your own feddi Gateway definition source, your own subgraph client integration, or the built-in ZIP upload flow.
 
 It works best overall when used together with the feddi Platform. For full documentation on running the feddi Gateway with the feddi Platform — including pre-built binaries — see [feddi.dev/get-started](https://feddi.dev/get-started).
 
-## Repository Layout
-
-- `gateway/engine` - Composition, validation, query planning, and execution
-- `gateway/app` - Spring Boot application that serves the feddi Gateway over HTTP
-- `gateway/extension-api` - Public extension API for integrating gateway behavior
-- `e2e-tests` - Docker-based end-to-end tests
-- `scripts` - Helper scripts for common local workflows
-
 ## Requirements
 
-- Java 25
+- Java 25 or later
 - Docker, for `e2e-tests`
 
 ## Quick Start
 
-Run the core test suite:
+From the repository root, create a minimal two-subgraph definition:
 
 ```bash
-cd gateway
-./gradlew test integrationTest
+mkdir -p subgraphs/products subgraphs/reviews
 ```
 
-Build the runnable application JAR:
+`subgraphs/products/schema.graphqls`:
+
+```graphql
+type Query {
+  product(id: ID!): Product
+}
+
+type Product {
+  id: ID!
+  name: String!
+}
+```
+
+`subgraphs/products/config.yaml`:
+
+```yaml
+url: http://localhost:4001/graphql
+```
+
+`subgraphs/reviews/schema.graphqls`:
+
+```graphql
+type Query {
+  review(id: ID!): Review
+}
+
+type Review {
+  id: ID!
+  body: String!
+}
+```
+
+`subgraphs/reviews/config.yaml`:
+
+```yaml
+url: http://localhost:4002/graphql
+```
+
+Package them into a ZIP:
 
 ```bash
-cd gateway
-./gradlew :app:bootJar
+cd subgraphs && zip -r ../subgraphs.zip . && cd ..
 ```
 
 Build the distribution ZIP:
@@ -48,7 +80,33 @@ cd gateway
 ./gradlew :app:feddiGatewayDistZip
 ```
 
-The feddi Gateway application reads `feddi-gateway.yml` from the working directory and serves GraphQL requests at `POST /graphql`.
+Extract the distribution from the repository root:
+
+```bash
+unzip gateway/app/build/distributions/feddi-gateway.zip
+```
+
+Create `feddi-gateway/feddi-gateway.yml`:
+
+```yaml
+port: 8080
+```
+
+Start the gateway:
+
+```bash
+cd feddi-gateway
+bin/feddi-gateway
+```
+
+In a separate terminal, upload your subgraph definitions from the repository root:
+
+```bash
+curl -X POST http://localhost:9091/admin/upload \
+  -F file=@subgraphs.zip
+```
+
+Your federated graph is now available at `POST http://localhost:8080/graphql`. Make sure the subgraph servers are running at the configured URLs before sending queries.
 
 ## Configuration
 
@@ -61,8 +119,6 @@ The feddi Gateway has three configuration surfaces:
 If `feddi-gateway.yml` is missing or cannot be parsed, the feddi Gateway starts with defaults. The loader only reads `feddi-gateway.yml` from the working directory.
 
 ### `feddi-gateway.yml`
-
-The `extensions` section is optional. A standalone deployment can omit it entirely.
 
 Example:
 
@@ -82,11 +138,11 @@ Supported top-level keys:
 | `enable-introspection` | boolean | `true` | Whether GraphQL introspection is enabled. Set to `false` in production to prevent schema discovery                             |
 | `admin-port` | integer | `9091` | Port for the admin endpoint (`/admin/upload`)                                                                                  |
 | `admin-address` | string | `127.0.0.1` | Bind address for the admin server. Set to `0.0.0.0` if admin access is needed from outside the host (e.g. Docker)              |
-| `management-port` | integer | `9090` | Port for the actuator endpoints (health, metrics, info)                                                                        |
+| `management-port` | integer | `9090` | Port for the actuator endpoints; `GET /actuator/health` is the primary health check URL                                        |
 | `management-address` | string | `127.0.0.1` | Bind address for the management server. Set to `0.0.0.0` if health checks come from outside the host (e.g. Docker, Kubernetes) |
 | `max-request-size-bytes` | long | `2097152` | Maximum GraphQL request body size in bytes; set to `0` to disable the limit                                                    |
 | `logging.dir` | string | `.` | Directory where rolling log files are written                                                                                  |
-| `extensions` | map | `{}` | Namespace-based configuration passed to installed extensions                                                                   |
+| `extensions` | map | `{}` | Namespace-based configuration passed to installed extensions; omit entirely for a standalone deployment                        |
 
 Logging behavior is fixed by the application:
 
@@ -103,7 +159,7 @@ The feddi Gateway itself recognizes the namespace and forwards its configuration
 
 ### feddi Gateway Definition Uploads
 
-The default runtime source accepts feddi Gateway definitions through `POST /admin/upload` as multipart form data with a `file` part containing a ZIP archive.
+The default runtime source accepts feddi Gateway definitions through `POST /admin/upload` as multipart form data with a `file` part containing a ZIP archive. Each upload replaces the active definition immediately.
 
 If an extension-provided `FeddiGatewayDefinitionSource` is installed and active, ZIP uploads are disabled.
 
@@ -162,6 +218,14 @@ The distribution launcher script supports these environment variables:
 
 The launcher requires Java 25 or later.
 
+## Repository Layout
+
+- `gateway/engine` - Composition, validation, query planning, and execution
+- `gateway/app` - Spring Boot application that serves the feddi Gateway over HTTP
+- `gateway/extension-api` - Public extension API for integrating gateway behavior
+- `e2e-tests` - Docker-based end-to-end tests
+- `scripts` - Helper scripts for common local workflows
+
 ## Running Tests
 
 Run everything in this repository:
@@ -185,7 +249,7 @@ cd gateway
 ./gradlew :app:integrationTest
 ```
 
-If you run `e2e-tests` directly (without `./scripts/run-e2e-tests.sh`) after changing `feddi-gateway/extension-api`, publish the API to your local Maven repository first so the e2e-tests subproject can resolve it:
+If you run `e2e-tests` directly (without `./scripts/run-e2e-tests.sh`) after changing `gateway/extension-api`, publish the API to your local Maven repository first so the e2e-tests subproject can resolve it:
 
 ```bash
 cd gateway
@@ -223,3 +287,7 @@ See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 ## License
 
 This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
+
+---
+
+Built by Andi Marek, creator of GraphQL Java, and the feddi team.
