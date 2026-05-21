@@ -19,7 +19,29 @@ It works best overall when used together with the feddi Platform. For full docum
 ## Tests
 
 <!-- test-results-start -->
-Baseline test results are populated automatically after the next successful `main` build.
+### Test Results
+| Suite | Tests | Passed | Failed | Errors | Skipped | Status |
+|:------|------:|-------:|-------:|-------:|--------:|:-------|
+| Gateway engine | 1099 | 1095 | - | - | 4 | skip |
+| Gateway app unit | 10 | 10 | - | - | - | pass |
+| Gateway app integration | 322 | 318 | - | - | 4 | skip |
+| E2E tests | 31 | 31 | - | - | - | pass |
+
+### Test Categories
+| Category | Count |
+|:---------|------:|
+| Composition success | 37 |
+| Composition errors | 74 |
+| Planning | 129 |
+| Execution | 196 |
+| Engine other | 663 |
+
+### Code Coverage
+| Metric | Coverage | Covered / Total |
+|:-------|---------:|----------------:|
+| Line | 83.7% | 7058/8428 |
+| Branch | 75.8% | 3409/4495 |
+| Method | 79.8% | 1218/1527 |
 <!-- test-results-end -->
 
 ## Requirements
