@@ -1,6 +1,19 @@
+plugins {
+    id 'jacoco'
+}
+
+jacoco {
+    toolVersion = '0.8.14'
+}
+
+repositories {
+    mavenCentral()
+}
+
 subprojects {
     apply plugin: 'java'
     apply plugin: 'checkstyle'
+    apply plugin: 'jacoco'
 
     java {
         toolchain {
@@ -24,12 +37,50 @@ subprojects {
         maxErrors = 0
     }
 
+    jacoco {
+        toolVersion = rootProject.jacoco.toolVersion
+    }
+
     // Exclude generated sources from checkstyle
     tasks.named('checkstyleMain') {
         source = fileTree('src/main/java')
     }
 
-    tasks.named('test') {
+    tasks.withType(Test).configureEach {
         useJUnitPlatform()
+    }
+}
+
+tasks.register('jacocoAggregateReport', JacocoReport) {
+    group = 'verification'
+    description = 'Generates an aggregate JaCoCo coverage report for gateway Java code.'
+
+    def coveredProjects = subprojects.findAll { it.plugins.hasPlugin('java') }
+    def testTasks = coveredProjects.collectMany { project ->
+        project.tasks.withType(Test).findAll { it.name in ['test', 'integrationTest'] }
+    }
+
+    mustRunAfter testTasks
+
+    executionData.from coveredProjects.collect { project ->
+        project.fileTree(project.layout.buildDirectory.dir('jacoco').get().asFile) {
+            include '*.exec'
+        }
+    }
+
+    sourceDirectories.from coveredProjects.collect { project ->
+        project.sourceSets.main.allSource.srcDirs
+    }
+
+    classDirectories.from coveredProjects.collect { project ->
+        project.fileTree(project.layout.buildDirectory.dir('classes/java/main').get().asFile) {
+            exclude 'dev/feddi/federation/engine/parser/antlr/**'
+        }
+    }
+
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
     }
 }

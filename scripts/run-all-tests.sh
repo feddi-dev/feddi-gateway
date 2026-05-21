@@ -57,7 +57,7 @@ echo "=============================================="
 echo "Building and testing gateway project"
 echo "=============================================="
 cd "$PROJECT_ROOT/gateway"
-./gradlew clean test integrationTest bootJar $RERUN_TASKS
+./gradlew clean test integrationTest bootJar jacocoAggregateReport $RERUN_TASKS
 
 # Count YAML-based tests (these are dynamically generated)
 COMPOSITION_SUCCESS_TESTS=$(count_yaml_tests "*/composition/success/*")
