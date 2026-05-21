@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,6 +18,20 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Fetch main for generated file guard
+        if: github.event_name == 'pull_request'
+        run: git fetch origin main --depth=1
+
+      - name: Verify generated files are not updated in PRs
+        if: github.event_name == 'pull_request'
+        run: node .github/scripts/test-report.js verify-generated --base-ref origin/main
+
+      - name: Prepare main baseline for PR checks
+        if: github.event_name == 'pull_request'
+        run: |
+          mkdir -p baseline-main
+          git show origin/main:test-baseline.json > baseline-main/test-baseline.json 2>/dev/null || cp test-baseline.json baseline-main/test-baseline.json
 
       - name: Set up Java 25
         uses: actions/setup-java@v4
@@ -26,6 +45,44 @@ jobs:
       - name: Run tests
         run: ./scripts/run-all-tests.sh
 
+      - name: Collect test stats
+        if: always()
+        run: node .github/scripts/test-report.js collect --output test-stats/test-stats.json
+
+      - name: Run report helper tests
+        run: node .github/scripts/test-report.test.js
+
+      - name: Enforce per-class coverage gate
+        if: always() && github.event_name == 'pull_request'
+        run: node .github/scripts/test-report.js gate --baseline baseline-main/test-baseline.json --coverage gateway/build/reports/jacoco/jacocoAggregateReport/jacocoAggregateReport.xml
+
+      - name: Upload test stats
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-stats
+          path: test-stats/test-stats.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload coverage XML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: gateway/build/reports/jacoco/jacocoAggregateReport/jacocoAggregateReport.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-html-report
+          path: gateway/build/reports/jacoco/jacocoAggregateReport/html/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -37,3 +94,43 @@ jobs:
             e2e-tests/**/build/reports/tests/
             e2e-tests/**/build/test-results/
           retention-days: 7
+
+  publish-results:
+    name: Publish Test Baseline
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          ssh-key: ${{ secrets.BASELINE_DEPLOY_KEY }}
+
+      - name: Download test stats
+        uses: actions/download-artifact@v4
+        with:
+          name: test-stats
+          path: test-stats
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+
+      - name: Update test baseline
+        run: node .github/scripts/test-report.js baseline --stats test-stats/test-stats.json --coverage coverage/jacocoAggregateReport.xml --baseline test-baseline.json
+
+      - name: Update README test report
+        run: node scripts/generate-readme-test-report.js
+
+      - name: Push updated baseline and README
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add test-baseline.json README.md
+          git diff --cached --quiet && echo "No baseline changes to commit" && exit 0
+          git commit -m "Update test baseline [skip ci]"
+          git push

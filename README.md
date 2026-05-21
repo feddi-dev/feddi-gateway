@@ -16,6 +16,12 @@ This repository is an open source project and can be used independently of the [
 
 It works best overall when used together with the feddi Platform. For full documentation on running the feddi Gateway with the feddi Platform — including pre-built binaries — see [feddi.dev/get-started](https://feddi.dev/get-started).
 
+## Tests
+
+<!-- test-results-start -->
+Baseline test results are populated automatically after the next successful `main` build.
+<!-- test-results-end -->
+
 ## Requirements
 
 - Java 25 or later
