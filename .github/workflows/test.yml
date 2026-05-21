@@ -34,7 +34,7 @@ jobs:
           git show origin/main:test-baseline.json > baseline-main/test-baseline.json 2>/dev/null || cp test-baseline.json baseline-main/test-baseline.json
 
       - name: Set up Java 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'corretto'
           java-version: '25'
