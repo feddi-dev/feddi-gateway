@@ -152,16 +152,6 @@ function collectTestStats(repoRoot = process.cwd()) {
   return { tests, categories };
 }
 
-function statusLabel(stats) {
-  const total = stats?.total || 0;
-  const failed = (stats?.failed || 0) + (stats?.errors || 0);
-  const skipped = stats?.skipped || 0;
-  if (total === 0) return '-';
-  if (failed > 0) return 'fail';
-  if (skipped > 0) return 'skip';
-  return 'pass';
-}
-
 function num(value) {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
@@ -223,11 +213,11 @@ function buildReadmeSection(baseline) {
   const lines = [];
 
   lines.push('### Test Results');
-  lines.push('| Suite | Tests | Passed | Failed | Errors | Skipped | Status |');
-  lines.push('|:------|------:|-------:|-------:|-------:|--------:|:-------|');
+  lines.push('| Suite | Tests | Passed | Failed | Errors | Skipped |');
+  lines.push('|:------|------:|-------:|-------:|-------:|--------:|');
   for (const suite of testSuites) {
     const stats = tests[suite.key] || zeroTest;
-    lines.push(`| ${suite.label} | ${valueOrDash(stats.total)} | ${valueOrDash(stats.passed)} | ${valueOrDash(stats.failed)} | ${valueOrDash(stats.errors)} | ${valueOrDash(stats.skipped)} | ${statusLabel(stats)} |`);
+    lines.push(`| ${suite.label} | ${valueOrDash(stats.total)} | ${valueOrDash(stats.passed)} | ${valueOrDash(stats.failed)} | ${valueOrDash(stats.errors)} | ${valueOrDash(stats.skipped)} |`);
   }
 
   lines.push('');
@@ -436,7 +426,7 @@ function verifyGeneratedFiles(baseRef) {
     return;
   }
 
-  const baselineDiff = git(['diff', '--name-only', `${baseRef}...HEAD`, '--', 'test-baseline.json']);
+  const baselineDiff = git(['diff', '--name-only', baseRef, 'HEAD', '--', 'test-baseline.json']);
   if (baselineDiff) {
     throw new Error('test-baseline.json is generated from main builds and must not be changed directly in PRs.');
   }
@@ -450,7 +440,11 @@ function verifyGeneratedFiles(baseRef) {
   const baseSection = extractMarkedSection(baseReadme);
   const currentSection = extractMarkedSection(currentReadme);
   if (baseSection && currentSection && baseSection !== currentSection) {
-    throw new Error('The generated README test report section must not be changed directly in PRs.');
+    const baseline = readJson('test-baseline.json', { tests: {}, categories: {}, coverage: {} });
+    const expectedReadme = replaceMarkedSection(currentReadme, buildReadmeSection(baseline));
+    if (expectedReadme !== currentReadme) {
+      throw new Error('The generated README test report section must match the current README generator output.');
+    }
   }
 }
 
