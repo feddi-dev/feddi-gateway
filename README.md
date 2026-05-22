@@ -20,12 +20,12 @@ It works best overall when used together with the feddi Platform. For full docum
 
 <!-- test-results-start -->
 ### Test Results
-| Suite | Tests | Passed | Failed | Errors | Skipped | Status |
-|:------|------:|-------:|-------:|-------:|--------:|:-------|
-| Gateway engine | 1099 | 1095 | - | - | 4 | skip |
-| Gateway app unit | 10 | 10 | - | - | - | pass |
-| Gateway app integration | 322 | 318 | - | - | 4 | skip |
-| E2E tests | 31 | 31 | - | - | - | pass |
+| Suite | Tests | Passed | Failed | Errors | Skipped |
+|:------|------:|-------:|-------:|-------:|--------:|
+| Gateway engine | 1099 | 1095 | - | - | 4 |
+| Gateway app unit | 10 | 10 | - | - | - |
+| Gateway app integration | 322 | 318 | - | - | 4 |
+| E2E tests | 31 | 31 | - | - | - |
 
 ### Test Categories
 | Category | Count |
