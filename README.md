@@ -12,9 +12,9 @@ It implements the [GraphQL Composite Schemas Spec](https://github.com/graphql/co
 
 Federation gateways sit on the critical path for every GraphQL request. For Java-centric enterprises, running that infrastructure outside the JVM means rebuilding security, policy enforcement, and compliance controls in a foreign runtime. feddi Gateway eliminates that split.
 
-This repository is an open source project and can be used independently of the [feddi Platform](https://feddi.dev?utm_source=github&utm_medium=readme&utm_campaign=feddi_gateway&utm_content=landing_page). You can run it as a standalone feddi Gateway with your own feddi Gateway definition source, your own subgraph client integration, or the built-in ZIP upload flow.
+This repository is an open source project and can be used independently of the [feddi Platform](https://feddi.dev?utm_source=github_feddi_gateway&utm_medium=readme&utm_campaign=site_referral&utm_content=feddi_platform). You can run it as a standalone feddi Gateway with your own feddi Gateway definition source, your own subgraph client integration, or the built-in ZIP upload flow.
 
-It works best overall when used together with the feddi Platform. For full documentation on running the feddi Gateway with the feddi Platform — including pre-built binaries — see [feddi.dev/get-started](https://feddi.dev/get-started?utm_source=github&utm_medium=readme&utm_campaign=feddi_gateway&utm_content=get_started).
+It works best overall when used together with the feddi Platform. For full documentation on running the feddi Gateway with the feddi Platform — including pre-built binaries — see [feddi.dev/get-started](https://feddi.dev/get-started?utm_source=github_feddi_gateway&utm_medium=readme&utm_campaign=site_referral&utm_content=feddi_get_started).
 
 ## Tests
 
