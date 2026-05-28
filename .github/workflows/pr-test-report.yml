@@ -45,7 +45,7 @@ jobs:
         run: node .github/scripts/test-report.js comment --stats test-stats/test-stats.json --baseline test-baseline.json --coverage coverage/jacocoAggregateReport.xml --output comment.md
 
       - name: Upsert PR comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
