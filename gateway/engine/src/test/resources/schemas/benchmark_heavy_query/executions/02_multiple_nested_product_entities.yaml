@@ -1,0 +1,102 @@
+name: "Multiple nested product entities are merged independently"
+description: |
+  Multiple Product entities returned under Review objects must each drive their
+  own downstream lookups. Fields fetched for one Product must not be merged into
+  another Product at a different list position.
+
+query: |
+  fragment ProductFields on Product {
+    inStock
+    name
+    price
+    shippingEstimate
+    upc
+    weight
+  }
+
+  {
+    users {
+      id
+      reviews {
+        id
+        product {
+          ...ProductFields
+          reviews {
+            id
+          }
+        }
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: accounts
+    operation: '{users{id}}'
+    variables: {}
+    response: { data: { users: [{ id: "u1" }] } }
+
+  - subgraph: reviews
+    operation: 'query ($id:ID!){user(id:$id){reviews{id product{upc reviews{id}}}}}'
+    variables: { id: "u1" }
+    response: { data: { user: { reviews: [
+      { id: "r1", product: { upc: "p1", reviews: [{ id: "r1" }] } },
+      { id: "r2", product: { upc: "p2", reviews: [{ id: "r2" }] } }
+    ] } } }
+
+  - subgraph: products
+    operation: 'query ($upc:ID!){product(upc:$upc){name price weight}}'
+    variables: { upc: "p1" }
+    response: { data: { product: { name: "Table", price: 899, weight: 100 } } }
+
+  - subgraph: products
+    operation: 'query ($upc:ID!){product(upc:$upc){name price weight}}'
+    variables: { upc: "p2" }
+    response: { data: { product: { name: "Chair", price: 54, weight: 8 } } }
+
+  - subgraph: inventory
+    operation: 'query ($upc:ID!,$weight:Long!,$price:Long!){productByUpc(upc:$upc){inStock shippingEstimate(weight:$weight,price:$price)}}'
+    variables: { upc: "p1", price: 899, weight: 100 }
+    response: { data: { productByUpc: { inStock: true, shippingEstimate: 999 } } }
+
+  - subgraph: inventory
+    operation: 'query ($upc:ID!,$weight:Long!,$price:Long!){productByUpc(upc:$upc){inStock shippingEstimate(weight:$weight,price:$price)}}'
+    variables: { upc: "p2", price: 54, weight: 8 }
+    response: { data: { productByUpc: { inStock: false, shippingEstimate: 62 } } }
+
+expectedResponse: {
+  data: {
+    users: [
+      {
+        id: "u1",
+        reviews: [
+          {
+            id: "r1",
+            product: {
+              inStock: true,
+              name: "Table",
+              price: 899,
+              shippingEstimate: 999,
+              upc: "p1",
+              weight: 100,
+              reviews: [{ id: "r1" }]
+            }
+          },
+          {
+            id: "r2",
+            product: {
+              inStock: false,
+              name: "Chair",
+              price: 54,
+              shippingEstimate: 62,
+              upc: "p2",
+              weight: 8,
+              reviews: [{ id: "r2" }]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

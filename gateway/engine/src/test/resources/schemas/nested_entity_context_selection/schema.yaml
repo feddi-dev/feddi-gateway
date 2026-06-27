@@ -1,0 +1,56 @@
+name: "Nested Entity Context Selection"
+description: |
+  Tests requirement-based context selection for nested entity lookups.
+
+subgraphs:
+  catalog: |
+    type Query {
+      reviews: [Review!]!
+    }
+
+    type Review {
+      id: ID!
+      product: Product!
+      metadata: ProductMetadata!
+    }
+
+    type Product @key(fields: "upc") {
+      upc: ID!
+    }
+
+    type ProductMetadata {
+      upc: ID!
+      source: String
+    }
+
+  products: |
+    type Query {
+      product(upc: ID! @is(field: "<Product>.upc")): Product @lookup
+    }
+
+    type Product @key(fields: "upc") {
+      upc: ID!
+      name: String!
+    }
+
+supergraph: |
+  type Query {
+    reviews: [Review!]!
+    product(upc: ID!): Product
+  }
+
+  type Review {
+    id: ID!
+    product: Product!
+    metadata: ProductMetadata!
+  }
+
+  type Product {
+    upc: ID!
+    name: String!
+  }
+
+  type ProductMetadata {
+    upc: ID!
+    source: String
+  }

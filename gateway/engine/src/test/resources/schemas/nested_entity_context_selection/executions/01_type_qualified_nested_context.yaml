@@ -1,0 +1,57 @@
+name: "Type-qualified nested context ignores unrelated objects"
+description: |
+  A lookup requirement with an initial type condition should use only nested
+  objects of that type. An unrelated nested object with the same field name must
+  not drive the entity lookup.
+
+query: |
+  {
+    reviews {
+      id
+      product {
+        upc
+        name
+      }
+      metadata {
+        upc
+        source
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{reviews{id product{upc __typename} metadata{upc source}}}'
+    variables: {}
+    response: { data: { reviews: [
+      {
+        id: "r1",
+        product: { upc: "p1", __typename: "Product" },
+        metadata: { upc: "metadata-only", source: "catalog" }
+      }
+    ] } }
+
+  - subgraph: products
+    operation: 'query ($upc:ID!){product(upc:$upc){name}}'
+    variables: { upc: "p1" }
+    response: { data: { product: { name: "Table" } } }
+
+expectedResponse: {
+  data: {
+    reviews: [
+      {
+        id: "r1",
+        product: {
+          upc: "p1",
+          name: "Table"
+        },
+        metadata: {
+          upc: "metadata-only",
+          source: "catalog"
+        }
+      }
+    ]
+  }
+}
