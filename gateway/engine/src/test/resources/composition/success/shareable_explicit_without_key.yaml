@@ -1,0 +1,35 @@
+name: "@shareable fields may be shared without @key"
+description: "A field can be shared across subgraphs without @key when every definition is explicitly @shareable."
+
+subgraphs:
+  products: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product {
+      id: ID! @shareable
+      price: Float!
+    }
+
+  catalog: |
+    type Query {
+      productByIdCatalog(id: ID!): Product @lookup
+    }
+
+    type Product {
+      id: ID! @shareable
+      name: String!
+    }
+
+supergraph: |
+  type Query {
+    productById(id: ID!): Product
+    productByIdCatalog(id: ID!): Product
+  }
+
+  type Product {
+    id: ID!
+    price: Float!
+    name: String!
+  }

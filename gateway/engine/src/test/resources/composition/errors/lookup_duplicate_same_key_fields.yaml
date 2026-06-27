@@ -1,0 +1,16 @@
+name: "LOOKUP_DUPLICATE - same return type and key fields"
+description: "Duplicate @lookup fields are detected by return type and mapped key fields, including explicit @is mappings."
+
+subgraphs:
+  products: |
+    type Query {
+      productById(id: ID!): Product @lookup
+      productByKey(key: ID! @is(field: "id")): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "LOOKUP_DUPLICATE"

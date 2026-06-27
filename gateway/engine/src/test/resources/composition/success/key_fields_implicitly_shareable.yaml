@@ -1,0 +1,35 @@
+name: "@key fields are implicitly shareable"
+description: "Fields referenced by @key may appear in multiple subgraphs without also being marked @shareable."
+
+subgraphs:
+  products: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float!
+    }
+
+  catalog: |
+    type Query {
+      productByIdCatalog(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String!
+    }
+
+supergraph: |
+  type Query {
+    productById(id: ID!): Product
+    productByIdCatalog(id: ID!): Product
+  }
+
+  type Product {
+    id: ID!
+    price: Float!
+    name: String!
+  }

@@ -1,0 +1,25 @@
+name: "INVALID_FIELD_SHARING - @lookup does not make fields shareable"
+description: "@lookup identifies entity fields for lookup resolution, but shared fields still need @key or @shareable."
+
+subgraphs:
+  products: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product {
+      id: ID!
+      price: Float!
+    }
+
+  catalog: |
+    type Query {
+      productByIdCatalog(id: ID!): Product @lookup
+    }
+
+    type Product {
+      id: ID!
+      name: String!
+    }
+
+error: "INVALID_FIELD_SHARING"
