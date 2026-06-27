@@ -349,29 +349,13 @@ public final class Executor {
     private Mono<StepResult> executeRepeatedStep(ExecutionStep step, SubgraphClient client,
                                                  ExecutionContext ctx, Map<String, Object> queryVariables) {
         int parentStepId = step.dependsOn().get(0);
-
-        // First try nested contexts, then fall back to top-level contexts
-        List<Map<String, Object>> parentContexts = ctx.getNestedContexts(parentStepId);
-        if (parentContexts == null || parentContexts.isEmpty()) {
-            parentContexts = ctx.getDataContexts(parentStepId);
-        }
-
-        // If contexts don't match the requirements, search for matching entities in the merged data
-        // This handles cases where entities are nested deeper (e.g., { b: { a: [items] } })
-        if (parentContexts != null && !parentContexts.isEmpty() && !step.requirements().isEmpty()) {
-            Set<String> requiredFields = getRequiredTopLevelFields(step.requirements());
-            if (!contextsSatisfyRequirements(parentContexts, requiredFields)) {
-                // Search for entities that have the required fields
-                parentContexts = findMatchingEntities(ctx.getMergedData(), requiredFields);
-            }
-        }
+        List<Map<String, Object>> parentContexts = selectParentContexts(step, ctx, parentStepId);
 
         if (parentContexts == null || parentContexts.isEmpty()) {
             return Mono.just(new StepResult(step.id()));
         }
 
         final List<Map<String, Object>> contexts = parentContexts;
-        final Set<String> requiredVarNames = step.requirements().keySet();
         // Get field names that should be set to null for skipped entities
         final Set<String> nullFieldNames = getFirstLevelFieldNames(step.operation());
 
@@ -442,7 +426,7 @@ public final class Executor {
                             }
                             resultContexts.add(er.context());
 
-                            List<Map<String, Object>> nested = extractNestedEntities(data);
+                            List<Map<String, Object>> nested = extractNestedContexts(data);
                             allNestedEntities.addAll(nested);
                         }
                     } else {
@@ -911,118 +895,176 @@ public final class Executor {
     }
 
     /**
-     * Gets the top-level field names required by a step's requirements.
-     * For single-alternative requirements, returns the field name directly.
-     * For multi-alternative requirements (e.g., {@code <Book>.isbn | <Electronics>.sku}),
-     * returns field names from all alternatives. Use {@link #contextsSatisfyRequirements}
-     * which handles per-alternative checking.
+     * Selects the concrete response objects that should drive a repeated lookup.
+     *
+     * Nested contexts are preferred because they represent objects produced below
+     * the parent lookup root. If none of them carry the fields required by this
+     * lookup, fall back to the direct parent contexts. That fallback is important
+     * for multi-hop lookups where a previous lookup merged a translated key into
+     * the original entity object, including the null-key propagation path.
      */
-    private Set<String> getRequiredTopLevelFields(Map<String, SelectedValue> requirements) {
-        Set<String> fields = new HashSet<>();
-        for (SelectedValue value : requirements.values()) {
-            for (Alternative alt : value.alternatives()) {
-                if (alt instanceof Path path && !path.segments().isEmpty()) {
-                    fields.add(path.segments().get(0).fieldName());
-                }
+    private List<Map<String, Object>> selectParentContexts(ExecutionStep step, ExecutionContext ctx, int parentStepId) {
+        List<Map<String, Object>> nestedContexts =
+            filterContextsForRequirements(ctx.getNestedContexts(parentStepId), step.requirements());
+        if (!nestedContexts.isEmpty()) {
+            return nestedContexts;
+        }
+
+        List<Map<String, Object>> dataContexts =
+            filterContextsForRequirements(ctx.getDataContexts(parentStepId), step.requirements());
+        if (!dataContexts.isEmpty()) {
+            return dataContexts;
+        }
+
+        if (step.requirements().isEmpty()) {
+            return List.of();
+        }
+
+        return findMatchingContexts(ctx.getMergedData(), step.requirements());
+    }
+
+    private List<Map<String, Object>> filterContextsForRequirements(List<Map<String, Object>> contexts,
+                                                                     Map<String, SelectedValue> requirements) {
+        if (contexts == null || contexts.isEmpty()) {
+            return List.of();
+        }
+        if (requirements.isEmpty()) {
+            return contexts;
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> context : contexts) {
+            if (contextCanProvideRequirements(context, requirements)) {
+                result.add(context);
             }
         }
-        return fields;
+        return result;
     }
 
     /**
-     * Checks if the given contexts can satisfy the required fields.
-     * For each requirement, at least one alternative's fields must be present in the context.
-     * Returns true if at least one context satisfies all requirements.
+     * Checks whether a context has the source fields for every requirement.
+     * Null values count as present so downstream steps can still write nulls for
+     * fields that cannot be resolved after a null lookup.
      */
-    private boolean contextsSatisfyRequirements(List<Map<String, Object>> contexts, Set<String> requiredFields) {
-        if (requiredFields.isEmpty()) {
-            return true;
-        }
-        for (Map<String, Object> context : contexts) {
-            // Check if any required field is present (alternatives mean any one suffices)
-            boolean hasAny = false;
-            for (String field : requiredFields) {
-                if (context.containsKey(field)) {
-                    hasAny = true;
-                    break;
-                }
+    private boolean contextCanProvideRequirements(Map<String, Object> context,
+                                                   Map<String, SelectedValue> requirements) {
+        for (SelectedValue selectedValue : requirements.values()) {
+            if (!contextCanProvideSelectedValue(context, selectedValue)) {
+                return false;
             }
-            if (hasAny) {
+        }
+        return true;
+    }
+
+    private boolean contextCanProvideSelectedValue(Map<String, Object> context, SelectedValue selectedValue) {
+        for (Alternative alt : selectedValue.alternatives()) {
+            if (contextCanProvideAlternative(context, alt)) {
                 return true;
             }
         }
         return false;
     }
 
+    private boolean contextCanProvideAlternative(Map<String, Object> context, Alternative alt) {
+        return switch (alt) {
+            case Path path -> contextHasPathSource(context, path);
+            case ObjectSelection obj -> contextCanProvideObjectSelection(context, obj);
+            case ListSelection list -> list.pathPrefix() != null
+                && contextHasPathSource(context, list.pathPrefix());
+        };
+    }
+
+    private boolean contextCanProvideObjectSelection(Map<String, Object> context, ObjectSelection obj) {
+        if (obj.pathPrefix() != null) {
+            return contextHasPathSource(context, obj.pathPrefix());
+        }
+        for (ObjectField field : obj.fields()) {
+            if (!contextCanProvideSelectedValue(context, field.value())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean contextHasPathSource(Map<String, Object> context, Path path) {
+        if (path.hasInitialTypeCondition()) {
+            String typename = (String) context.get(IntrospectionFields.TYPENAME);
+            if (typename == null || !path.initialTypeCondition().equals(typename)) {
+                return false;
+            }
+        }
+        if (path.segments().isEmpty()) {
+            return true;
+        }
+        return context.containsKey(path.segments().get(0).fieldName());
+    }
+
     /**
-     * Finds entities in the data structure that have all the required fields.
-     * Searches recursively through nested maps and lists.
+     * Finds matching contexts in merged data when the direct parent context is a
+     * wrapper object around the actual entity, such as { container: { book } }.
      */
-    private List<Map<String, Object>> findMatchingEntities(Map<String, Object> data, Set<String> requiredFields) {
+    private List<Map<String, Object>> findMatchingContexts(Map<String, Object> data,
+                                                            Map<String, SelectedValue> requirements) {
         List<Map<String, Object>> result = new ArrayList<>();
-        findMatchingEntitiesRecursive(data, requiredFields, result);
+        findMatchingContextsRecursive(data, requirements, result);
         return result;
     }
 
-    private void findMatchingEntitiesRecursive(Object data, Set<String> requiredFields, List<Map<String, Object>> result) {
+    private void findMatchingContextsRecursive(Object data, Map<String, SelectedValue> requirements,
+                                               List<Map<String, Object>> result) {
         if (data instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) data;
 
-            // Check if this map has all required fields
-            if (map.keySet().containsAll(requiredFields)) {
+            if (contextCanProvideRequirements(map, requirements)) {
                 result.add(map);
-                // Don't recurse into this map's children - we found a match
                 return;
             }
 
-            // Recurse into values
             for (Object value : map.values()) {
-                findMatchingEntitiesRecursive(value, requiredFields, result);
+                findMatchingContextsRecursive(value, requirements, result);
             }
         } else if (data instanceof List) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) data;
             for (Object item : list) {
-                findMatchingEntitiesRecursive(item, requiredFields, result);
+                findMatchingContextsRecursive(item, requirements, result);
             }
         }
     }
 
     /**
-     * Extracts nested entities (objects with 'id' fields) from response data.
+     * Extracts context candidates below a lookup root. The lookup root object is
+     * not itself added because repeated lookup results are merged into the
+     * original parent context; only objects nested beneath that result can be
+     * independent contexts for later lookups.
      */
-    private List<Map<String, Object>> extractNestedEntities(Map<String, Object> data) {
+    private List<Map<String, Object>> extractNestedContexts(Map<String, Object> data) {
         List<Map<String, Object>> nested = new ArrayList<>();
-        extractNestedEntitiesRecursive(data, nested);
+        for (Object value : data.values()) {
+            extractNestedContextsRecursive(value, nested, false);
+        }
         return nested;
     }
 
-    /**
-     * Recursively extracts entities with 'id' fields from nested data structures.
-     */
-    private void extractNestedEntitiesRecursive(Object data, List<Map<String, Object>> result) {
+    private void extractNestedContextsRecursive(Object data, List<Map<String, Object>> result,
+                                                boolean includeCurrent) {
         if (data instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) data;
 
+            if (includeCurrent) {
+                result.add(map);
+            }
+
             for (Object value : map.values()) {
-                if (value instanceof List) {
-                    @SuppressWarnings("unchecked")
-                    List<Object> list = (List<Object>) value;
-                    for (Object item : list) {
-                        if (item instanceof Map) {
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> itemMap = (Map<String, Object>) item;
-                            if (itemMap.containsKey("id")) {
-                                result.add(itemMap);
-                            }
-                            extractNestedEntitiesRecursive(itemMap, result);
-                        }
-                    }
-                } else if (value instanceof Map) {
-                    extractNestedEntitiesRecursive(value, result);
-                }
+                extractNestedContextsRecursive(value, result, true);
+            }
+        } else if (data instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) data;
+            for (Object item : list) {
+                extractNestedContextsRecursive(item, result, true);
             }
         }
     }
