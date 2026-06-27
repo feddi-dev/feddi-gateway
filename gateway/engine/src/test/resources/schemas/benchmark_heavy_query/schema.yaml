@@ -1,0 +1,73 @@
+name: "Benchmark Heavy Query"
+description: |
+  Mirrors the graphql-gateway-benchmarks composite-schema subgraphs. The heavy
+  query exercises repeated transitions between users, reviews, and products.
+
+subgraphs:
+  products: |
+    type Query {
+      topProducts(first: Int! = 5): [Product!]!
+      product(upc: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      name: String!
+      price: Long!
+      weight: Long!
+    }
+
+    scalar Long
+
+  accounts: |
+    type Query {
+      me: User
+      user(id: ID!): User @lookup
+      users: [User!]!
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+      username: String
+      birthday: Int
+    }
+
+  inventory: |
+    type Query {
+      productByUpc(upc: ID!): Product @lookup @internal
+    }
+
+    type Product @key(fields: "upc") {
+      shippingEstimate(weight: Long! @require(field: "weight") price: Long! @require(field: "price")): Long
+      upc: String!
+      inStock: Boolean!
+    }
+
+    scalar Long
+
+  reviews: |
+    type Query {
+      product(upc: ID!): Product @lookup @internal
+      review(id: ID!): Review @lookup
+      user(id: ID!): User @lookup @internal
+    }
+
+    type Product @key(fields: "upc") {
+      reviews: [Review!]!
+      upc: String!
+    }
+
+    type Review {
+      id: ID!
+      author: User
+      product: Product
+      body: String!
+      authorId: String!
+      productUpc: String!
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      reviews: [Review!]!
+    }
