@@ -1,0 +1,51 @@
+name: "Path Scoped Lookup Plans"
+description: |
+  Focused regression tests for repeated use of the same lookup edge at
+  different response paths. Each path needs its own lookup plan so fields and
+  @require response keys do not leak between branches.
+
+subgraphs:
+  store: |
+    type Query {
+      shelves: [Shelf!]!
+      carts: [Cart!]!
+    }
+
+    type Shelf {
+      id: ID!
+      product: Product!
+    }
+
+    type Cart {
+      id: ID!
+      product: Product!
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+    }
+
+  catalog: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String!
+      price: Int!
+      weight: Int!
+    }
+
+  shipping: |
+    type Query {
+      productShipping(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      shippingCost(
+        weight: Int! @require(field: "weight")
+        price: Int! @require(field: "price")
+      ): Int!
+    }
