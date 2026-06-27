@@ -1,0 +1,97 @@
+name: "Null nested product lookup is scoped to that product"
+description: |
+  If one nested Product entity lookup returns null, only that Product object
+  should receive nulls for fields from downstream subgraphs. Other nested
+  Product entities in the same response should still be completed normally.
+
+query: |
+  fragment ProductFields on Product {
+    inStock
+    name
+    price
+    shippingEstimate
+    upc
+    weight
+  }
+
+  {
+    users {
+      id
+      reviews {
+        id
+        product {
+          ...ProductFields
+          reviews {
+            id
+          }
+        }
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: accounts
+    operation: '{users{id}}'
+    variables: {}
+    response: { data: { users: [{ id: "u1" }] } }
+
+  - subgraph: reviews
+    operation: 'query ($id:ID!){user(id:$id){reviews{id product{upc reviews{id}}}}}'
+    variables: { id: "u1" }
+    response: { data: { user: { reviews: [
+      { id: "r1", product: { upc: "p1", reviews: [{ id: "r1" }] } },
+      { id: "r2", product: { upc: "missing", reviews: [{ id: "r2" }] } }
+    ] } } }
+
+  - subgraph: products
+    operation: 'query ($upc:ID!){product(upc:$upc){name price weight}}'
+    variables: { upc: "p1" }
+    response: { data: { product: { name: "Table", price: 899, weight: 100 } } }
+
+  - subgraph: products
+    operation: 'query ($upc:ID!){product(upc:$upc){name price weight}}'
+    variables: { upc: "missing" }
+    response: { data: { product: null } }
+
+  - subgraph: inventory
+    operation: 'query ($upc:ID!,$weight:Long!,$price:Long!){productByUpc(upc:$upc){inStock shippingEstimate(weight:$weight,price:$price)}}'
+    variables: { upc: "p1", price: 899, weight: 100 }
+    response: { data: { productByUpc: { inStock: true, shippingEstimate: 999 } } }
+
+expectedResponse: {
+  data: {
+    users: [
+      {
+        id: "u1",
+        reviews: [
+          {
+            id: "r1",
+            product: {
+              inStock: true,
+              name: "Table",
+              price: 899,
+              shippingEstimate: 999,
+              upc: "p1",
+              weight: 100,
+              reviews: [{ id: "r1" }]
+            }
+          },
+          {
+            id: "r2",
+            product: {
+              inStock: null,
+              name: null,
+              price: null,
+              shippingEstimate: null,
+              upc: "missing",
+              weight: null,
+              reviews: [{ id: "r2" }]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
