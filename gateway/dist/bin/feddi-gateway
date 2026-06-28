@@ -103,7 +103,8 @@ DEFAULT_JVM_OPTS="\
  -XX:+AlwaysPreTouch \
  -XX:+ExitOnOutOfMemoryError \
  -XX:+HeapDumpOnOutOfMemoryError \
- -XX:-OmitStackTraceInFastThrow"
+ -XX:-OmitStackTraceInFastThrow \
+ --enable-native-access=ALL-UNNAMED"
 
 # --------------------------------------------------------------------------
 # Launch the feddi Gateway
