@@ -119,7 +119,9 @@ class ExecutionStepGraphQLGenerationTest {
             Map.of(),
             false,
             Set.of(),
-            Set.of()
+            Set.of(),
+            Set.of(),
+            Map.of()
         );
         
         // Generate GraphQL
@@ -202,7 +204,9 @@ class ExecutionStepGraphQLGenerationTest {
             Map.of(),
             false,
             Set.of(),
-            Set.of()
+            Set.of(),
+            Set.of(),
+            Map.of()
         );
         
         // Verify operation is accessible

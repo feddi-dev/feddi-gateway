@@ -24,6 +24,7 @@ import graphql.language.Argument;
 import graphql.language.Directive;
 import graphql.language.Field;
 import graphql.language.InlineFragment;
+import graphql.language.NonNullType;
 import graphql.language.OperationDefinition;
 import graphql.language.SelectionSet;
 import graphql.language.Type;
@@ -36,6 +37,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -526,7 +528,7 @@ public final class OperationPlanner {
                     for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
                         Map<String, String> nestedResponseKeys = lookupArgNestedResponseKeys.get(lookupArg.argumentName());
                         SelectedValue requirement = createRequirementSelectedValue(lookupArg, nestedResponseKeys);
-                        lookupTargetPlan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType());
+                        lookupTargetPlan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType(), RequirementKind.KEY);
                     }
                 }
 
@@ -598,7 +600,7 @@ public final class OperationPlanner {
                 // Add @require variable as requirement for the target plan
                 SelectedValue transformedSelection = transformSelectionWithResponseKeys(
                     req.selection(), reqResponseKeys);
-                targetPlan.addRequirement(req.argumentName(), transformedSelection, req.argumentType());
+                targetPlan.addRequirement(req.argumentName(), transformedSelection, req.argumentType(), RequirementKind.REQUIRE, req.fieldName(), req.fieldReturnNonNull());
             }
         }
         
@@ -1032,7 +1034,7 @@ public final class OperationPlanner {
                             Map<String, String> nestedResponseKeys = lookupArgNestedResponseKeys.get(lookupArg.argumentName());
                             // Create path with response keys for nested fields like "compositeId.two"
                             Path keyPath = createNestedPath(lookupArg.path(), nestedResponseKeys);
-                            intermediatePlan.addRequirement(lookupArg.argumentName(), new SelectedValue(keyPath), lookupArg.argumentType());
+                            intermediatePlan.addRequirement(lookupArg.argumentName(), new SelectedValue(keyPath), lookupArg.argumentType(), RequirementKind.KEY);
                         }
                     }
 
@@ -1133,7 +1135,7 @@ public final class OperationPlanner {
                 for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
                     Map<String, String> nestedResponseKeys = lookupArgNestedResponseKeys.get(lookupArg.argumentName());
                     SelectedValue requirement = createRequirementSelectedValue(lookupArg, nestedResponseKeys);
-                    intermediatePlan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType());
+                    intermediatePlan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType(), RequirementKind.KEY);
                 }
             }
 
@@ -1168,7 +1170,7 @@ public final class OperationPlanner {
                     // Add the @require variable requirement to intermediate plan
                     SelectedValue transformedSelection = transformSelectionWithResponseKeys(
                         req.selection(), reqResponseKeys);
-                    intermediatePlan.addRequirement(req.argumentName(), transformedSelection, req.argumentType());
+                    intermediatePlan.addRequirement(req.argumentName(), transformedSelection, req.argumentType(), RequirementKind.REQUIRE, req.fieldName(), req.fieldReturnNonNull());
 
                     // Add the field argument for this @require
                     List<String> fieldArgPath = List.of(fieldName);
@@ -1390,7 +1392,7 @@ public final class OperationPlanner {
                     for (LookupArgument lookupArg :enteringLookupEdge.lookupArguments()) {
                         Map<String, String> nestedResponseKeys = lookupArgCombinedResponseKeys.get(lookupArg.argumentName());
                         SelectedValue requirement = createRequirementSelectedValue(lookupArg, nestedResponseKeys);
-                        plan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType());
+                        plan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType(), RequirementKind.KEY);
                     }
                 }
             }
@@ -1510,7 +1512,7 @@ public final class OperationPlanner {
                         for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
                             Map<String, String> nestedResponseKeys = lookupArgCombinedResponseKeys.get(lookupArg.argumentName());
                             SelectedValue requirement = createRequirementSelectedValue(lookupArg, nestedResponseKeys);
-                            lookupTargetPlan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType());
+                            lookupTargetPlan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType(), RequirementKind.KEY);
                         }
                     }
 
@@ -1573,7 +1575,7 @@ public final class OperationPlanner {
                             if (req.fieldName() == null || req.fieldName().equals(fieldName)) {
                                 SelectedValue transformedSelection = transformSelectionWithResponseKeys(
                                     req.selection(), reqResponseKeys);
-                                targetPlan.addRequirement(req.argumentName(), transformedSelection, req.argumentType());
+                                targetPlan.addRequirement(req.argumentName(), transformedSelection, req.argumentType(), RequirementKind.REQUIRE, req.fieldName(), req.fieldReturnNonNull());
                             }
                         }
                     }
@@ -1596,10 +1598,22 @@ public final class OperationPlanner {
                     .sorted()
                     .toList();
 
-                // Extract just the SelectedValue from requirements for ExecutionStep
+                // Extract SelectedValue mappings, @is keys, and non-null @require args
                 Map<String, SelectedValue> stepRequirements = new LinkedHashMap<>();
+                Set<String> keyRequirementNames = new LinkedHashSet<>();
+                Map<String, RequireArgumentSkipInfo> nonNullRequireArguments = new LinkedHashMap<>();
                 for (var entry : plan.requirements.entrySet()) {
                     stepRequirements.put(entry.getKey(), entry.getValue().selection());
+                    if (entry.getValue().kind() == RequirementKind.KEY) {
+                        keyRequirementNames.add(entry.getKey());
+                    } else if (entry.getValue().kind() == RequirementKind.REQUIRE
+                        && entry.getValue().type() instanceof NonNullType) {
+                        String fieldName = entry.getValue().fieldName();
+                        if (fieldName != null && !fieldName.isBlank()) {
+                            nonNullRequireArguments.put(entry.getKey(),
+                                new RequireArgumentSkipInfo(fieldName, entry.getValue().fieldReturnNonNull()));
+                        }
+                    }
                 }
 
                 // A step needs repeated execution if it has requirements
@@ -1619,7 +1633,9 @@ public final class OperationPlanner {
                     stepRequirements,
                     repeatedExecution,
                     artificialPaths,
-                    requestedPaths
+                    requestedPaths,
+                    keyRequirementNames,
+                    nonNullRequireArguments
                 );
 
                 steps.add(step);
@@ -1665,7 +1681,9 @@ public final class OperationPlanner {
                     step.requirements(),
                     step.repeatedExecution(),
                     step.artificialFieldPaths(),
-                    step.requestedFieldPaths()
+                    step.requestedFieldPaths(),
+                    step.keyRequirementNames(),
+                    step.nonNullRequireArguments()
                 ));
             }
 
@@ -1725,9 +1743,15 @@ public final class OperationPlanner {
         }
 
         /**
-         * Holds requirement information including the selection and type.
+         * Holds requirement information including the selection, type, kind, and owning field.
          */
-        record RequirementInfo(SelectedValue selection, Type<?> type) {}
+        record RequirementInfo(
+            SelectedValue selection,
+            Type<?> type,
+            RequirementKind kind,
+            String fieldName,
+            boolean fieldReturnNonNull
+        ) {}
         /**
          * Adds an artificial field (for @key or @require) at the specified position.
          * Reuses existing field if already present, or generates unique alias if there's a clash.
@@ -1916,8 +1940,13 @@ public final class OperationPlanner {
             return lastMatch;
         }
 
-        void addRequirement(String name, SelectedValue selection, Type<?> type) {
-            requirements.putIfAbsent(name, new RequirementInfo(selection, type));
+        void addRequirement(String name, SelectedValue selection, Type<?> type, RequirementKind kind) {
+            addRequirement(name, selection, type, kind, null, false);
+        }
+
+        void addRequirement(String name, SelectedValue selection, Type<?> type, RequirementKind kind,
+                            String fieldName, boolean fieldReturnNonNull) {
+            requirements.putIfAbsent(name, new RequirementInfo(selection, type, kind, fieldName, fieldReturnNonNull));
         }
 
         /**

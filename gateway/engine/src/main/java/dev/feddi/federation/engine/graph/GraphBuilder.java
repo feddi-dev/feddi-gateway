@@ -466,8 +466,9 @@ public final class GraphBuilder {
                     try {
                         SelectedValue selection = FieldSelectionMapParser.parseFieldSelectionMap(fieldSelectionMap);
                         Type<?> argType = convertToLanguageType(arg.getType());
+                        boolean fieldReturnNonNull = GraphQLTypeUtil.isNonNull(field.getType());
                         // Include the field name so the planner knows which field this requirement belongs to
-                        requirements.add(Requirement.of(arg.getName(), selection, argType, fieldName));
+                        requirements.add(Requirement.of(arg.getName(), selection, argType, fieldName, fieldReturnNonNull));
                     } catch (InvalidSyntaxException e) {
                         throw new IllegalArgumentException(
                             "Invalid @require field selection on argument '" + arg.getName() +

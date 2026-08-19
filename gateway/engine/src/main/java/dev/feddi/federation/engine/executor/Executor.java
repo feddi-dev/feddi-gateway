@@ -3,6 +3,7 @@ package dev.feddi.federation.engine.executor;
 import dev.feddi.federation.engine.IntrospectionFields;
 import dev.feddi.federation.engine.planner.ExecutionPlan;
 import dev.feddi.federation.engine.planner.ExecutionStep;
+import dev.feddi.federation.engine.planner.RequireArgumentSkipInfo;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.Alternative;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.ListSelection;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.ObjectField;
@@ -176,16 +177,22 @@ public final class Executor {
             return executeIntrospectionStep(step, Map.of());
         }
 
+        // Resolve the subgraph client lazily inside repeated/single execution so that
+        // steps which skip every entity (e.g. non-null @require resolved to null) do
+        // not fail just because no client was registered for an unused subgraph.
+        if (step.repeatedExecution()) {
+            return executeRepeatedStep(step, ctx, queryVariables);
+        } else {
+            return executeSingleDependentStep(step, ctx, queryVariables);
+        }
+    }
+
+    private SubgraphClient requireClient(ExecutionStep step) {
         SubgraphClient client = subgraphClients.get(step.subgraph());
         if (client == null) {
-            return Mono.error(new ExecutionException("No client for subgraph: " + step.subgraph()));
+            throw new ExecutionException("No client for subgraph: " + step.subgraph());
         }
-
-        if (step.repeatedExecution()) {
-            return executeRepeatedStep(step, client, ctx, queryVariables);
-        } else {
-            return executeSingleDependentStep(step, client, ctx, queryVariables);
-        }
+        return client;
     }
 
     /**
@@ -346,7 +353,7 @@ public final class Executor {
     /**
      * Executes a repeated step for each parent entity in parallel.
      */
-    private Mono<StepResult> executeRepeatedStep(ExecutionStep step, SubgraphClient client,
+    private Mono<StepResult> executeRepeatedStep(ExecutionStep step,
                                                  ExecutionContext ctx, Map<String, Object> queryVariables) {
         int parentStepId = step.dependsOn().get(0);
         List<Map<String, Object>> parentContexts = selectParentContexts(step, ctx, parentStepId);
@@ -369,11 +376,23 @@ public final class Executor {
                 Map<String, Object> extractedVars = extractVariables(step.requirements(), context);
                 stepVariables.putAll(extractedVars);
 
-                // Skip entities that don't have essential key fields (null key handling)
-                // This happens when an intermediate lookup returned null.
-                // We check if key fields EXIST in context (not if they're null).
-                if (!hasEssentialKeyFields(step.requirements(), context)) {
+                // Skip entities that don't have essential @is key fields (null key handling).
+                if (!hasEssentialKeyFields(step.keyRequirements(), context)) {
                     return Mono.just(new EntityResult(context, null));
+                }
+
+                // Skip when a non-null @require argument resolved to null (Cases 2/3).
+                // Nullable @require args (Case 1) are intentionally allowed through with null.
+                List<GraphQLError> requireNullErrors = collectRequiredArgumentNullErrors(step, extractedVars);
+                if (requireNullErrors != null) {
+                    return Mono.just(new EntityResult(context, null, null, requireNullErrors));
+                }
+
+                SubgraphClient client;
+                try {
+                    client = requireClient(step);
+                } catch (ExecutionException e) {
+                    return Mono.error(e);
                 }
 
                 long entityStart = System.nanoTime();
@@ -441,6 +460,13 @@ public final class Executor {
                         // Still add to resultContexts so downstream steps can set their fields to null
                         resultContexts.add(er.context());
 
+                        // Case 3: non-null @require + non-null field return → REQUIRED_ARGUMENT_NULL
+                        if (er.skipErrors() != null) {
+                            for (GraphQLError error : er.skipErrors()) {
+                                stepResult.addError(error);
+                            }
+                        }
+
                         // If there was an error (e.g., timeout), record it
                         if (er.error() != null) {
                             if (er.error() instanceof SubgraphTimeoutException ste) {
@@ -464,7 +490,7 @@ public final class Executor {
     /**
      * Executes a single dependent step (non-repeated).
      */
-    private Mono<StepResult> executeSingleDependentStep(ExecutionStep step, SubgraphClient client,
+    private Mono<StepResult> executeSingleDependentStep(ExecutionStep step,
                                                         ExecutionContext ctx, Map<String, Object> queryVariables) {
         int parentStepId = step.dependsOn().get(0);
         Map<String, Object> parentData = ctx.getStepData(parentStepId);
@@ -478,6 +504,8 @@ public final class Executor {
         Map<String, Object> stepVariables = new LinkedHashMap<>(
             filterVariablesForOperation(step.operation(), queryVariables));
         stepVariables.putAll(extractVariables(step.requirements(), parentData));
+
+        SubgraphClient client = requireClient(step);
 
         long depStart = System.nanoTime();
         return client.execute(step.operation(), stepVariables)
@@ -632,7 +660,36 @@ public final class Executor {
     }
 
     /**
-     * Checks if essential key fields are present and non-null in the context.
+     * If any non-null {@code @require} argument extracted to null, returns an (possibly empty)
+     * list of Case 3 errors and signals that the subgraph call should be skipped.
+     * Returns {@code null} when the call should proceed.
+     */
+    private List<GraphQLError> collectRequiredArgumentNullErrors(ExecutionStep step,
+                                                                  Map<String, Object> extractedVars) {
+        if (step.nonNullRequireArguments().isEmpty()) {
+            return null;
+        }
+
+        boolean shouldSkip = false;
+        List<GraphQLError> errors = new ArrayList<>();
+        for (var entry : step.nonNullRequireArguments().entrySet()) {
+            if (extractedVars.get(entry.getKey()) != null) {
+                continue;
+            }
+            shouldSkip = true;
+            RequireArgumentSkipInfo info = entry.getValue();
+            if (info.fieldReturnNonNull()) {
+                errors.add(new RequiredArgumentNullError(info.fieldName(), entry.getKey()));
+            }
+        }
+        return shouldSkip ? errors : null;
+    }
+
+    /**
+     * Checks if essential {@code @is} key fields are present and non-null in the context.
+     *
+     * Only lookup-key requirements should be passed here — {@code @require} arguments are
+     * excluded so a null nullable required value still triggers a subgraph call.
      *
      * For single-segment paths (like "id"), the field must exist AND be non-null.
      * This handles the case where a lookup returned null and the executor added
@@ -1166,10 +1223,16 @@ public final class Executor {
      * @param context the entity context that was used for this execution
      * @param result the execution result, or null if skipped/failed
      * @param error optional error if the execution failed (e.g., timeout)
+     * @param skipErrors optional GraphQL errors produced when skipping due to null @require values
      */
-    private record EntityResult(Map<String, Object> context, ExecutionResult result, Throwable error) {
+    private record EntityResult(Map<String, Object> context, ExecutionResult result, Throwable error,
+                                List<GraphQLError> skipErrors) {
         EntityResult(Map<String, Object> context, ExecutionResult result) {
-            this(context, result, null);
+            this(context, result, null, null);
+        }
+
+        EntityResult(Map<String, Object> context, ExecutionResult result, Throwable error) {
+            this(context, result, error, null);
         }
     }
 
