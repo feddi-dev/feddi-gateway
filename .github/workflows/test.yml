@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Fetch main for generated file guard
         if: github.event_name == 'pull_request'
@@ -103,7 +103,7 @@ jobs:
 
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: main
           ssh-key: ${{ secrets.BASELINE_DEPLOY_KEY }}
