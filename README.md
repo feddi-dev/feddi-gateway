@@ -164,7 +164,7 @@ Supported top-level keys:
 | --- | --- | --- |--------------------------------------------------------------------------------------------------------------------------------|
 | `port` | integer | `8080` | HTTP port for the feddi Gateway server                                                                                         |
 | `enable-introspection` | boolean | `true` | Whether GraphQL introspection is enabled. Set to `false` in production to prevent schema discovery                             |
-| `enable-graphiql` | boolean | `false` | Serves a GraphiQL UI at `/graphiql`. For local development and demos, not production. Requires `enable-introspection: true` to load the schema — `/graphiql` explains this instead of showing an empty explorer if introspection is off while this is on. Loads its UI assets from a CDN (unpkg.com); the host running the gateway needs outbound internet access to use it. |
+| `enable-graphiql` | boolean | `false` | Serves a GraphiQL UI at `/graphiql`. For local development and demos, not production. Requires `enable-introspection: true`. Set to `false` in production |
 | `admin-port` | integer | `9091` | Port for the admin endpoint (`/admin/upload`)                                                                                  |
 | `admin-address` | string | `127.0.0.1` | Bind address for the admin server. Set to `0.0.0.0` if admin access is needed from outside the host (e.g. Docker)              |
 | `management-port` | integer | `9090` | Port for the actuator endpoints; `GET /actuator/health` is the primary health check URL                                        |
