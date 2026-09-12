@@ -26,9 +26,7 @@ public class FeddiGatewayConfigFile {
     /**
      * Whether the GraphiQL UI is served at /graphiql. Defaults to false.
      * Intended for local development and demos, not production. Requires
-     * {@code enable-introspection: true} to actually load the schema —
-     * /graphiql explains this instead of rendering an empty explorer if
-     * introspection is off while this is on.
+     * {@code enable-introspection: true}. Set to false in production.
      */
     @JsonProperty("enable-graphiql")
     private boolean enableGraphiql = false;
