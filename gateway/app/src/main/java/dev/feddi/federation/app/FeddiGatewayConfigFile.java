@@ -24,6 +24,16 @@ public class FeddiGatewayConfigFile {
     private boolean enableIntrospection = true;
 
     /**
+     * Whether the GraphiQL UI is served at /graphiql. Defaults to false.
+     * Intended for local development and demos, not production. Requires
+     * {@code enable-introspection: true} to actually load the schema —
+     * /graphiql explains this instead of rendering an empty explorer if
+     * introspection is off while this is on.
+     */
+    @JsonProperty("enable-graphiql")
+    private boolean enableGraphiql = false;
+
+    /**
      * Admin port for the schema upload endpoint (/admin/upload).
      * Defaults to 9091.
      */
@@ -81,6 +91,14 @@ public class FeddiGatewayConfigFile {
 
     public void setEnableIntrospection(boolean enableIntrospection) {
         this.enableIntrospection = enableIntrospection;
+    }
+
+    public boolean isGraphiqlEnabled() {
+        return enableGraphiql;
+    }
+
+    public void setEnableGraphiql(boolean enableGraphiql) {
+        this.enableGraphiql = enableGraphiql;
     }
 
     public int getAdminPort() {
