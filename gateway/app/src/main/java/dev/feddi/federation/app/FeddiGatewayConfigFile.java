@@ -26,7 +26,7 @@ public class FeddiGatewayConfigFile {
     /**
      * Whether the GraphiQL UI is served at /graphiql. Defaults to false.
      * Intended for local development and demos, not production. Requires
-     * {@code enable-introspection: true}. Set to false in production.
+     * {@code enable-introspection: true}.
      */
     @JsonProperty("enable-graphiql")
     private boolean enableGraphiql = false;
