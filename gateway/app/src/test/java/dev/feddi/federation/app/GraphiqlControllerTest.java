@@ -37,7 +37,7 @@ class GraphiqlControllerTest {
     void servesGraphiqlWhenEnabledWithIntrospection() {
         FeddiGatewayConfigFile config = new FeddiGatewayConfigFile();
         config.setEnableGraphiql(true);
-        // enable-introspection defaults to true
+        config.setEnableIntrospection(true);
 
         ResponseEntity<String> response = new GraphiqlController(config).graphiql();
 
