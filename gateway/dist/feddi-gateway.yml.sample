@@ -7,6 +7,14 @@ port: 8080
 # Disable GraphQL introspection for production (default: true)
 # enable-introspection: false
 
+# Serve a GraphiQL UI at /graphiql (default: false). For local development
+# and demos, not production. Needs enable-introspection: true to actually
+# load the schema — /graphiql will explain this instead of showing an empty
+# explorer if introspection is off while this is on. Loads its UI assets
+# from a CDN (unpkg.com), so the machine running the gateway needs outbound
+# internet access to use it.
+# enable-graphiql: true
+
 # Admin port for schema upload endpoint — localhost only (default: 9091)
 # admin-port: 9091
 
