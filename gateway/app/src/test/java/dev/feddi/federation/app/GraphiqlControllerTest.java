@@ -42,7 +42,7 @@ class GraphiqlControllerTest {
         ResponseEntity<String> response = new GraphiqlController(config).graphiql();
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getBody().contains("GraphiQL.createFetcher"));
+        assertTrue(response.getBody().contains("createGraphiQLFetcher"));
         assertTrue(response.getBody().contains("url: '/graphql'"));
     }
 }

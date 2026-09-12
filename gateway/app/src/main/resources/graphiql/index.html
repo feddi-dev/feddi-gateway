@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>feddi Gateway — GraphiQL</title>
+  <style>
+    body { margin: 0; display: flex; flex-direction: column; height: 100vh; }
+    #graphiql { flex: 1; min-height: 0; }
+    #graphiql-prod-warning {
+      flex: none;
+      background: #fff3cd;
+      color: #664d03;
+      font: 13px sans-serif;
+      padding: 0.4rem 0.75rem;
+      text-align: center;
+    }
+  </style>
+  <link
+    rel="stylesheet"
+    href="https://esm.sh/graphiql@5.4.0/dist/style.css"
+    integrity="sha384-TFpQQKp325U5sd3PddH4cS0KOB3Gz/aqdEe12Mqkkq3wm2MGcDhRX5WhWf+o8akh"
+    crossorigin="anonymous"
+  />
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@19.2.8",
+      "react/": "https://esm.sh/react@19.2.8/",
+      "react-dom": "https://esm.sh/react-dom@19.2.8",
+      "react-dom/": "https://esm.sh/react-dom@19.2.8/",
+      "graphiql": "https://esm.sh/graphiql@5.4.0?standalone&external=react,react-dom,@graphiql/react,graphql",
+      "graphiql/": "https://esm.sh/graphiql@5.4.0/",
+      "@graphiql/react": "https://esm.sh/@graphiql/react@0.39.0?standalone&external=react,react-dom,graphql,@graphiql/toolkit,@emotion/is-prop-valid",
+      "@graphiql/toolkit": "https://esm.sh/@graphiql/toolkit@0.12.1?standalone&external=graphql",
+      "graphql": "https://esm.sh/graphql@17.0.2",
+      "@emotion/is-prop-valid": "data:text/javascript,"
+    },
+    "integrity": {
+      "https://esm.sh/react@19.2.8": "sha384-ZLbEMZxxxJSWKr0slZZsXGR6UNzfnEk4+qYI9PLH9QSxvWWQjs3UgkzrGuo33roA",
+      "https://esm.sh/graphiql@5.4.0?standalone&external=react,react-dom,@graphiql/react,graphql": "sha384-P5rs3WtMR+YUHbk+eUuomiB3Grin+04e9jKjuOY5KMBdjnl/qOUaCALfnVqVpIL8",
+      "https://esm.sh/@graphiql/react@0.39.0?standalone&external=react,react-dom,graphql,@graphiql/toolkit,@emotion/is-prop-valid": "sha384-snSfFGTvNof5jyaw3xkRx7zsKRy9DWiljMvYXoo+zIwrhQv/h2pWOH81boYwk5P2",
+      "https://esm.sh/@graphiql/toolkit@0.12.1?standalone&external=graphql": "sha384-+cNTwZgIW33q7A4E+ZoCMqzcXdfVIc2VthQvJ0uDpRXERBWYuDKPVMzvdQU8x48o",
+      "https://esm.sh/graphql@17.0.2": "sha384-IPvlcmnvWT91sKqwbg9MxPXJUuPmSdwXCp22x6hcbBkAEhlfSKkMLR3v19K9iRUp"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="graphiql-prod-warning">
+    ⚠ GraphiQL is enabled. Set <code>enable-graphiql: false</code> in feddi-gateway.yml before running this gateway in production.
+  </div>
+  <div id="graphiql">Loading GraphiQL...</div>
+  <script type="module">
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+    import { GraphiQL, HISTORY_PLUGIN } from 'graphiql';
+    import { createGraphiQLFetcher } from '@graphiql/toolkit';
+    import 'graphiql/setup-workers/esm.sh';
+
+    const fetcher = createGraphiQLFetcher({ url: '/graphql' });
+
+    const root = ReactDOM.createRoot(document.getElementById('graphiql'));
+    root.render(
+      React.createElement(GraphiQL, { fetcher, plugins: [HISTORY_PLUGIN] }),
+    );
+  </script>
+</body>
+</html>
