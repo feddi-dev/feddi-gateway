@@ -1,0 +1,26 @@
+name: "aliases"
+
+query: |
+  { item: product(id: "1") { id name feedback: reviews { id body writer: author { id name } } } }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: "{ item: product(id: \"1\") { id name } }"
+    variables: {}
+    response: {"data": {"item": {"id": "1", "name": "Keyboard"}}}
+  - subgraph: reviews
+    operation: "query ($id: ID!) { productById(id: $id) { feedback: reviews { id body writer: author { id } } } }"
+    variables: {"id": "1"}
+    response: {"data": {"productById": {"feedback": [{"id": "1", "body": "Great", "writer": {"id": "1"}}, {"id": "3", "body": "Good", "writer": {"id": "2"}}]}}}
+  - subgraph: users
+    operation: "query ($id: ID!) { user(id: $id) { name } }"
+    variables: {"id": "1"}
+    response: {"data": {"user": {"name": "Ada"}}}
+  - subgraph: users
+    operation: "query ($id: ID!) { user(id: $id) { name } }"
+    variables: {"id": "2"}
+    response: {"data": {"user": {"name": "Grace"}}}
+
+expectedResponse: {"data": {"item": {"name": "Keyboard", "feedback": [{"body": "Great", "writer": {"name": "Ada", "id": "1"}, "id": "1"}, {"body": "Good", "writer": {"name": "Grace", "id": "2"}, "id": "3"}], "id": "1"}}}

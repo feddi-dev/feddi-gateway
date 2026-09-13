@@ -1,0 +1,41 @@
+name: "Nested entity targets"
+description: "Issue #49: reviews and their authors share an id key; only authors are user lookup targets. Nullable fields also exercise absent targets."
+
+subgraphs:
+  products: |
+    type Query {
+      product(id: ID!): Product @lookup
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String!
+    }
+
+  reviews: |
+    type Query {
+      review(id: ID!): Review @lookup
+      productById(id: ID!): Product @lookup
+      userById(id: ID!): User @lookup
+    }
+    type Review @key(fields: "id") {
+      id: ID!
+      body: String!
+      author: User
+    }
+    type Product @key(fields: "id") {
+      id: ID!
+      reviews: [Review]
+    }
+    type User @key(fields: "id") {
+      id: ID!
+      reviews: [Review]
+    }
+
+  users: |
+    type Query {
+      user(id: ID!): User @lookup
+    }
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+    }

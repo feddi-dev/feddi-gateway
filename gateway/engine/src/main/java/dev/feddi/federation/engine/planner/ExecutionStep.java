@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
  * @param requirements variable mappings for data needed from previous steps (argument name to FieldSelectionMap)
  * @param repeatedExecution true if this step may need to be executed multiple times (once per entity from parent step)
  * @param artificialFieldPaths dot-notation paths of fields added for internal purposes (not requested by client)
+ * @param entityPath response keys locating lookup targets from the response root; null for legacy plans
  * @param requestedFieldPaths dot-notation paths of fields explicitly requested by the client
  */
 public record ExecutionStep(
@@ -38,10 +39,21 @@ public record ExecutionStep(
     Map<String, SelectedValue> requirements,
     boolean repeatedExecution,
     Set<String> artificialFieldPaths,
-    Set<String> requestedFieldPaths
+    Set<String> requestedFieldPaths,
+    List<String> entityPath
 ) {
 
+    /** Compatibility constructor for manually assembled plans without entity locations. */
+    public ExecutionStep(int id, String subgraph, OperationDefinition operation,
+                         List<Integer> dependsOn, List<Integer> parallelWith,
+                         Map<String, SelectedValue> requirements, boolean repeatedExecution,
+                         Set<String> artificialFieldPaths, Set<String> requestedFieldPaths) {
+        this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, null);
+    }
+
     public ExecutionStep {
+        entityPath = entityPath == null ? null : List.copyOf(entityPath);
         if (id < 1) {
             throw new IllegalArgumentException("id must be positive");
         }
