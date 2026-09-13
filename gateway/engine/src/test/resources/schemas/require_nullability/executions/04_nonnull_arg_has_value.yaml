@@ -1,13 +1,9 @@
 name: "Non-null argument with valid value - calls subgraph"
 description: |
-  NOT YET IMPLEMENTED - This test documents expected future behavior.
-
   When a @require argument has a non-null type (Float!) and the value is present,
   the subgraph should be called normally with the value.
 
   This is the happy path where the required value is available.
-
-skip: true
 
 query: |
   {

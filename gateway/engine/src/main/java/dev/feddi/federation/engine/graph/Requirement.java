@@ -15,8 +15,15 @@ import java.util.List;
  * @param selection the parsed FieldSelectionMap value specifying required fields
  * @param argumentType the GraphQL AST type of the argument (may be null if not available)
  * @param fieldName the name of the field that has this @require argument (may be null)
+ * @param fieldReturnNonNull true when the owning field's return type is non-null
  */
-public record Requirement(String argumentName, SelectedValue selection, Type<?> argumentType, String fieldName) {
+public record Requirement(
+    String argumentName,
+    SelectedValue selection,
+    Type<?> argumentType,
+    String fieldName,
+    boolean fieldReturnNonNull
+) {
 
     public Requirement {
         if (argumentName == null || argumentName.isBlank()) {
@@ -32,30 +39,38 @@ public record Requirement(String argumentName, SelectedValue selection, Type<?> 
      * Creates a Requirement from an argument name and parsed selection (without type).
      */
     public static Requirement of(String argumentName, SelectedValue selection) {
-        return new Requirement(argumentName, selection, null, null);
+        return new Requirement(argumentName, selection, null, null, false);
     }
 
     /**
      * Creates a Requirement from an argument name, parsed selection, and type.
      */
     public static Requirement of(String argumentName, SelectedValue selection, Type<?> argumentType) {
-        return new Requirement(argumentName, selection, argumentType, null);
+        return new Requirement(argumentName, selection, argumentType, null, false);
     }
 
     /**
-     * Creates a Requirement with all fields including the source field name.
+     * Creates a Requirement with field name and return nullability.
+     */
+    public static Requirement of(String argumentName, SelectedValue selection, Type<?> argumentType,
+                                 String fieldName, boolean fieldReturnNonNull) {
+        return new Requirement(argumentName, selection, argumentType, fieldName, fieldReturnNonNull);
+    }
+
+    /**
+     * Creates a Requirement with field name (return type treated as nullable).
      */
     public static Requirement of(String argumentName, SelectedValue selection, Type<?> argumentType, String fieldName) {
-        return new Requirement(argumentName, selection, argumentType, fieldName);
+        return new Requirement(argumentName, selection, argumentType, fieldName, false);
     }
-    
+
     public List<Path> extractPaths() {
         return selection.extractPaths();
     }
 
     @Override
     public String toString() {
-        return String.format("@require(field: \"%s\") on argument '%s'", 
+        return String.format("@require(field: \"%s\") on argument '%s'",
             FieldSelectionMapPrinter.print(selection), argumentName);
     }
 }

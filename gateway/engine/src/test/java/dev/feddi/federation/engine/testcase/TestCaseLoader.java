@@ -392,7 +392,9 @@ public final class TestCaseLoader {
                         step.requirements(),
                         step.repeatedExecution(),
                         Set.of(),
-                        Set.of()
+                        Set.of(),
+                        step.keyRequirementNames(),
+                        step.nonNullRequireArguments()
                     ));
                 }
             } else {
@@ -441,7 +443,12 @@ public final class TestCaseLoader {
             repeatedExecution = !requirements.isEmpty();
         }
 
-        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution, Set.of(), Set.of());
+        // Planning YAML fixtures do not distinguish @is vs @require; treat all as keys
+        // so executor skip behavior stays conservative for hand-written plans.
+        Set<String> keyRequirementNames = Set.copyOf(requirements.keySet());
+
+        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements,
+            repeatedExecution, Set.of(), Set.of(), keyRequirementNames, Map.of());
     }
     
     /**

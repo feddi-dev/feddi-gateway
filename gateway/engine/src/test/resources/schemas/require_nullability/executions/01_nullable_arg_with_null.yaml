@@ -1,7 +1,5 @@
 name: "Nullable argument receives null value - calls subgraph"
 description: |
-  NOT YET IMPLEMENTED - This test documents expected future behavior.
-
   When a @require argument has a nullable type (Float) and the value is null,
   the subgraph should be called with the null value. This allows the subgraph
   to decide how to handle null input values.
@@ -10,8 +8,6 @@ description: |
   - Argument type: nullable (Float)
   - Value: null
   - Behavior: Call subgraph with null
-
-skip: true
 
 query: |
   {
