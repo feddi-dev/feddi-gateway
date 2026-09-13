@@ -1,0 +1,23 @@
+name: "empty_list"
+
+query: |
+  { product(id: "1") { id name reviews { id body author { id name } } } }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: "{ product(id: \"1\") { id name } }"
+    variables: {}
+    response: {"data": {"product": {"id": "1", "name": "Keyboard"}}}
+  - subgraph: reviews
+    operation: "query ($id: ID!) { productById(id: $id) { reviews { id body author { id } } } }"
+    variables: {"id": "1"}
+    response: {"data": {"productById": {"reviews": []}}}
+  # Register a users client; NestedEntityTargetTest asserts it receives no calls.
+  - subgraph: users
+    operation: "query ($id: ID!) { user(id: $id) { name } }"
+    variables: {"id": "unused"}
+    response: {"data": {"user": {"name": "Must not be fetched"}}}
+
+expectedResponse: {"data": {"product": {"name": "Keyboard", "reviews": [], "id": "1"}}}

@@ -147,14 +147,9 @@ public final class Executor {
                     .map(stepMonos::get)
                     .toList();
 
-                stepMono = Mono.zip(dependencies, results -> {
-                        // Merge dependency results into a context for this step
-                        ExecutionContext ctx = new ExecutionContext();
-                        for (Object result : results) {
-                            ctx.merge((StepResult) result);
-                        }
-                        return ctx;
-                    })
+                // Dependencies complete only after their results have entered the shared
+                // response tree. Absolute entity paths must start at that tree's root.
+                stepMono = Mono.zip(dependencies, results -> sharedContext)
                     .flatMap(ctx -> executeStepWithErrorRecovery(step, executeStepWithContext(step, ctx, queryVariables)))
                     .doOnNext(sharedContext::merge);
             }
@@ -897,13 +892,19 @@ public final class Executor {
     /**
      * Selects the concrete response objects that should drive a repeated lookup.
      *
-     * Nested contexts are preferred because they represent objects produced below
-     * the parent lookup root. If none of them carry the fields required by this
-     * lookup, fall back to the direct parent contexts. That fallback is important
-     * for multi-hop lookups where a previous lookup merged a translated key into
-     * the original entity object, including the null-key propagation path.
+     * Planned lookups follow their explicit response path. An absent target must
+     * not fall back to unrelated objects that happen to have the same key fields.
+     * Legacy, manually assembled plans without a path retain requirement-based
+     * context selection, including support for translated keys and null keys.
      */
     private List<Map<String, Object>> selectParentContexts(ExecutionStep step, ExecutionContext ctx, int parentStepId) {
+        if (step.entityPath() != null) {
+            List<Map<String, Object>> targets = new ArrayList<>();
+            synchronized (ctx) {
+                collectEntityTargets(ctx.getMergedData(), step.entityPath(), 0, targets);
+            }
+            return filterContextsForRequirements(targets, step.requirements());
+        }
         List<Map<String, Object>> nestedContexts =
             filterContextsForRequirements(ctx.getNestedContexts(parentStepId), step.requirements());
         if (!nestedContexts.isEmpty()) {
@@ -921,6 +922,23 @@ public final class Executor {
         }
 
         return findMatchingContexts(ctx.getMergedData(), step.requirements());
+    }
+
+    /** Follow response keys, traversing lists without consuming a path segment. */
+    @SuppressWarnings("unchecked")
+    private void collectEntityTargets(Object value, List<String> path, int index,
+                                      List<Map<String, Object>> targets) {
+        if (value instanceof List<?> list) {
+            for (Object item : list) {
+                collectEntityTargets(item, path, index, targets);
+            }
+        } else if (value instanceof Map<?, ?> map) {
+            if (index == path.size()) {
+                targets.add((Map<String, Object>) map);
+            } else {
+                collectEntityTargets(map.get(path.get(index)), path, index + 1, targets);
+            }
+        }
     }
 
     private List<Map<String, Object>> filterContextsForRequirements(List<Map<String, Object>> contexts,

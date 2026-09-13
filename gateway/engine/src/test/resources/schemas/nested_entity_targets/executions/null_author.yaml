@@ -1,0 +1,26 @@
+name: "null_author"
+
+query: |
+  { product(id: "1") { id name reviews { id body author { id name } } } }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: "{ product(id: \"1\") { id name } }"
+    variables: {}
+    response: {"data": {"product": {"id": "1", "name": "Keyboard"}}}
+  - subgraph: reviews
+    operation: "query ($id: ID!) { productById(id: $id) { reviews { id body author { id } } } }"
+    variables: {"id": "1"}
+    response: {"data": {"productById": {"reviews": [{"id": "1", "body": "Great", "author": {"id": "1"}}, {"id": "3", "body": "Good", "author": {"id": "2"}}, {"id": "2", "body": "Anonymous", "author": null}, null]}}}
+  - subgraph: users
+    operation: "query ($id: ID!) { user(id: $id) { name } }"
+    variables: {"id": "1"}
+    response: {"data": {"user": {"name": "Ada"}}}
+  - subgraph: users
+    operation: "query ($id: ID!) { user(id: $id) { name } }"
+    variables: {"id": "2"}
+    response: {"data": {"user": {"name": "Grace"}}}
+
+expectedResponse: {"data": {"product": {"name": "Keyboard", "reviews": [{"body": "Great", "author": {"name": "Ada", "id": "1"}, "id": "1"}, {"body": "Good", "author": {"name": "Grace", "id": "2"}, "id": "3"}, {"body": "Anonymous", "author": null, "id": "2"}, null], "id": "1"}}}

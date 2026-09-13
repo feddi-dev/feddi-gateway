@@ -96,7 +96,7 @@ public final class OperationPlanner {
      *
      * @param currentPath the current path through the graph
      * @param selection the selection to plan
-     * @param parentPath the path of parent field names leading to this selection (for hierarchy tracking)
+     * @param parentPath the path of parent response keys leading to this selection (for hierarchy tracking)
      * @param context the planning context
      */
     private void planSelection(OperationPath currentPath, Selection selection,
@@ -163,11 +163,11 @@ public final class OperationPlanner {
         // Recursively plan sub-selections, passing fragment context to keep fields inside the fragment
         if (selection.hasSubSelections()) {
             List<String> childParentPath = new ArrayList<>(parentPath);
-            childParentPath.add(fieldName);
+            childParentPath.add(selection.alias() != null ? selection.alias() : fieldName);
 
             // Enter the field in the fragment context for nested path tracking
             if (fragmentContext != null) {
-                fragmentContext.enterField(fieldName);
+                fragmentContext.enterField(selection.alias() != null ? selection.alias() : fieldName);
             }
 
             for (Selection subSelection : selection.subSelections()) {
@@ -282,11 +282,11 @@ public final class OperationPlanner {
         // so nested fields stay inside the inline fragment's selection tree
         if (selection.hasSubSelections()) {
             List<String> childParentPath = new ArrayList<>(parentPath);
-            childParentPath.add(fieldName);
+            childParentPath.add(selection.alias() != null ? selection.alias() : fieldName);
 
             // Enter the field in the fragment context for nested path tracking
             if (targetFragmentContext != null) {
-                targetFragmentContext.enterField(fieldName);
+                targetFragmentContext.enterField(selection.alias() != null ? selection.alias() : fieldName);
             }
 
             for (Selection subSelection : selection.subSelections()) {
@@ -415,13 +415,15 @@ public final class OperationPlanner {
         }
 
         private List<String> lookupEntryPath(OperationPath path, LookupMoveEdge lookupEdge, List<String> fallbackParentPath) {
-            List<String> entryPath = new ArrayList<>();
+            int depth = 0;
             for (Edge edge : path.getEdges()) {
                 if (edge.equals(lookupEdge)) {
-                    return entryPath;
+                    // Graph edges use schema field names. Preserve the client's response
+                    // keys (including aliases) at the same depth in the operation.
+                    return List.copyOf(fallbackParentPath.subList(0, depth));
                 }
                 if (!(edge instanceof LookupMoveEdge)) {
-                    entryPath.add(edge.fieldName());
+                    depth++;
                 }
             }
             return fallbackParentPath;
@@ -1619,7 +1621,8 @@ public final class OperationPlanner {
                     stepRequirements,
                     repeatedExecution,
                     artificialPaths,
-                    requestedPaths
+                    requestedPaths,
+                    plan.lookupEntryPath
                 );
 
                 steps.add(step);
@@ -1665,7 +1668,8 @@ public final class OperationPlanner {
                     step.requirements(),
                     step.repeatedExecution(),
                     step.artificialFieldPaths(),
-                    step.requestedFieldPaths()
+                    step.requestedFieldPaths(),
+                    step.entityPath()
                 ));
             }
 
