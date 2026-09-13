@@ -163,11 +163,11 @@ public final class OperationPlanner {
         // Recursively plan sub-selections, passing fragment context to keep fields inside the fragment
         if (selection.hasSubSelections()) {
             List<String> childParentPath = new ArrayList<>(parentPath);
-            childParentPath.add(selection.alias() != null ? selection.alias() : fieldName);
+            childParentPath.add(selection.responseKey());
 
             // Enter the field in the fragment context for nested path tracking
             if (fragmentContext != null) {
-                fragmentContext.enterField(selection.alias() != null ? selection.alias() : fieldName);
+                fragmentContext.enterField(selection.responseKey());
             }
 
             for (Selection subSelection : selection.subSelections()) {
@@ -282,11 +282,11 @@ public final class OperationPlanner {
         // so nested fields stay inside the inline fragment's selection tree
         if (selection.hasSubSelections()) {
             List<String> childParentPath = new ArrayList<>(parentPath);
-            childParentPath.add(selection.alias() != null ? selection.alias() : fieldName);
+            childParentPath.add(selection.responseKey());
 
             // Enter the field in the fragment context for nested path tracking
             if (targetFragmentContext != null) {
-                targetFragmentContext.enterField(selection.alias() != null ? selection.alias() : fieldName);
+                targetFragmentContext.enterField(selection.responseKey());
             }
 
             for (Selection subSelection : selection.subSelections()) {
@@ -1744,17 +1744,11 @@ public final class OperationPlanner {
 
             SelectionNode parent = root;
 
-            // Navigate to the parent node, creating intermediate nodes if needed.
-            // Path segments are field names, but children are keyed by response keys (aliases).
-            // When direct key lookup fails, search for a node with matching fieldName.
+            // Paths and children both use response keys, including aliases.
             for (String pathSegment : adjustedPath) {
                 SelectionNode child = parent.children.get(pathSegment);
                 if (child == null) {
-                    // Not found by direct key - search children by field name
-                    child = findLastChildByFieldName(parent, pathSegment);
-                }
-                if (child == null) {
-                    // Still not found - create new node
+                    // Create an intermediate node for an internal field path
                     child = new SelectionNode(pathSegment, true);
                     parent.children.put(pathSegment, child);
                 }
@@ -1860,18 +1854,11 @@ public final class OperationPlanner {
 
             SelectionNode parent = root;
 
-            // Navigate to the parent node, creating intermediate nodes if needed.
-            // Path segments are field names, but children are keyed by response keys (aliases).
-            // When direct key lookup fails, search for a node with matching fieldName.
+            // Paths and children both use response keys, including aliases.
             for (String pathSegment : adjustedPath) {
                 SelectionNode child = parent.children.get(pathSegment);
                 if (child == null) {
-                    // Not found by direct key - search children by field name
-                    // Use the LAST matching node (most recently added) since we process in order
-                    child = findLastChildByFieldName(parent, pathSegment);
-                }
-                if (child == null) {
-                    // Still not found - create new node
+                    // Create an intermediate node for an internal field path
                     child = new SelectionNode(pathSegment, true);
                     parent.children.put(pathSegment, child);
                 }
