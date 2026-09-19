@@ -1,6 +1,8 @@
 package dev.feddi.federation.app;
 
 import dev.feddi.federation.extension.SubgraphClientFactory;
+import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,7 +26,8 @@ public class SubgraphClientFactoryConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean(SubgraphClientFactory.class)
-    public SubgraphClientFactory subgraphClientFactory(WebClient.Builder webClientBuilder) {
-        return new DefaultSubgraphClientFactory(webClientBuilder);
+    public SubgraphClientFactory subgraphClientFactory(WebClient.Builder webClientBuilder,
+                                                         @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
+        return new DefaultSubgraphClientFactory(webClientBuilder, headerCustomizer);
     }
 }

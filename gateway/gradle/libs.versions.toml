@@ -7,6 +7,7 @@ junit-jupiter = "5.14.2"
 assertj = "3.27.7"
 spring-context = "6.2.15"
 spring-boot = "4.0.2"
+spring-web = "6.2.15"
 spring-webflux = "6.2.15"
 reactor-netty = "1.2.6"
 testcontainers = "2.0.3"
@@ -29,6 +30,7 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 spring-context = { module = "org.springframework:spring-context", version.ref = "spring-context" }
 spring-boot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure", version.ref = "spring-boot" }
+spring-web = { module = "org.springframework:spring-web", version.ref = "spring-web" }
 spring-webflux = { module = "org.springframework:spring-webflux", version.ref = "spring-webflux" }
 reactor-netty-http = { module = "io.projectreactor.netty:reactor-netty-http", version.ref = "reactor-netty" }
 okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp-mockwebserver" }
