@@ -251,7 +251,7 @@ The launcher requires Java 25 or later.
 
 - `gateway/engine` - Composition, validation, query planning, and execution
 - `gateway/app` - Spring Boot application that serves the feddi Gateway over HTTP
-- `gateway/extension-api` - Public extension API for integrating gateway behavior
+- `gateway/extension` - Public extension API for integrating gateway behavior
 - `e2e-tests` - Docker-based end-to-end tests
 - `scripts` - Helper scripts for common local workflows
 
@@ -278,11 +278,11 @@ cd gateway
 ./gradlew :app:integrationTest
 ```
 
-If you run `e2e-tests` directly (without `./scripts/run-e2e-tests.sh`) after changing `gateway/extension-api`, publish the API to your local Maven repository first so the e2e-tests subproject can resolve it:
+If you run `e2e-tests` directly (without `./scripts/run-e2e-tests.sh`) after changing `gateway/extension`, publish the API to your local Maven repository first so the e2e-tests subproject can resolve it:
 
 ```bash
 cd gateway
-./gradlew :extension-api:publishToMavenLocal
+./gradlew :extension:publishToMavenLocal
 cd ../e2e-tests
 ./gradlew test
 ```

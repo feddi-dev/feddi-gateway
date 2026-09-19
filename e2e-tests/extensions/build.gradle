@@ -26,7 +26,7 @@ checkstyle {
 
 dependencies {
     // Depend on the gateway extension API (published to Maven local)
-    implementation 'dev.feddi.federation:extension-api:1.0-SNAPSHOT'
+    implementation 'dev.feddi:feddi-gateway-extension:1.0-SNAPSHOT'
 
     // Spring Boot auto-configuration support
     implementation libs.spring.boot.autoconfigure

@@ -85,7 +85,7 @@ public final class FeddiFederationGateway {
             .sortSelections(false)  // Preserve query field order
             .processSkipInclude(true)  // Evaluate literal @skip/@include at planning time
             .build();
-        // Store extension-api clients — adapted per-request in execute() with context
+        // Store extension clients — adapted per-request in execute() with context
         this.extensionClients = new LinkedHashMap<>(subgraphClients);
         this.executionListener = executionListener != null ? executionListener : ExecutionListener.NOOP;
         this.gatewayMetrics = gatewayMetrics;

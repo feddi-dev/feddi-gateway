@@ -5,12 +5,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "=============================================="
-echo "Building feddi Gateway JAR + publishing extension-api"
+echo "Building feddi Gateway JAR + publishing extension"
 echo "=============================================="
 cd "$PROJECT_ROOT/gateway"
-# extension-api is consumed by e2e-tests via mavenLocal — publish it
+# extension is consumed by e2e-tests via mavenLocal — publish it
 # so a fresh checkout (no prior ~/.m2 cache) resolves on first run.
-./gradlew :app:bootJar :extension-api:publishToMavenLocal --quiet
+./gradlew :app:bootJar :extension:publishToMavenLocal --quiet
 
 echo ""
 echo "=============================================="

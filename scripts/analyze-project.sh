@@ -69,7 +69,7 @@ if [ -d "$PROJECT_ROOT/gateway" ]; then
     echo "gateway/ (multi-project)"
 
     # Subprojects
-    for subproject in engine app extension-api; do
+    for subproject in engine app extension; do
         if [ -d "$PROJECT_ROOT/gateway/$subproject" ] && [ -f "$PROJECT_ROOT/gateway/$subproject/build.gradle" ]; then
             analyze_gradle_project "$PROJECT_ROOT/gateway/$subproject" "gateway/$subproject"
         fi
