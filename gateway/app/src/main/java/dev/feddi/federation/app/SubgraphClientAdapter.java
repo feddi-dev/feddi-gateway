@@ -9,7 +9,7 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 
 /**
- * Adapts an extension-api SubgraphClient to the engine's SubgraphClient interface.
+ * Adapts an extension SubgraphClient to the engine's SubgraphClient interface.
  *
  * <p>Captures the {@link FeddiGatewayRequestContext} at creation time (per-request)
  * and passes it to the delegate on every execute call. The engine's interface

@@ -1,4 +1,4 @@
 rootProject.name = 'gateway'
 include 'engine'
-include 'extension-api'
+include 'extension'
 include 'app'

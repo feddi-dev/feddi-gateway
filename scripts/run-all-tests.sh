@@ -80,9 +80,9 @@ TOTAL_TESTS=$((TOTAL_TESTS + GATEWAY_TOTAL))
 
 echo ""
 echo "=============================================="
-echo "Publishing extension-api to Maven local"
+echo "Publishing extension to Maven local"
 echo "=============================================="
-./gradlew :extension-api:publishToMavenLocal
+./gradlew :extension:publishToMavenLocal
 
 echo ""
 echo "=============================================="

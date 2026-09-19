@@ -1,0 +1,103 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+}
+
+group = 'dev.feddi'
+version = providers.gradleProperty('feddiGatewayExtensionVersion').orElse('1.0-SNAPSHOT').get()
+
+def localMavenRepositoryDir = layout.buildDirectory.dir('maven-repository')
+def centralPortalDir = layout.buildDirectory.dir('central-portal')
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            artifactId = 'feddi-gateway-extension'
+
+            pom {
+                name = 'feddi Gateway extension API'
+                description = 'API for extending the feddi Gateway'
+                url = 'https://github.com/feddi-dev/feddi-gateway'
+
+                licenses {
+                    license {
+                        name = 'Apache License, Version 2.0'
+                        url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                        distribution = 'repo'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'feddi'
+                        name = 'feddi'
+                        organization = 'feddi'
+                        organizationUrl = 'https://feddi.dev'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:https://github.com/feddi-dev/feddi-gateway.git'
+                    developerConnection = 'scm:git:https://github.com/feddi-dev/feddi-gateway.git'
+                    url = 'https://github.com/feddi-dev/feddi-gateway'
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = 'feddiGatewayExtension'
+            url = localMavenRepositoryDir
+        }
+    }
+}
+
+def signingKey = providers.gradleProperty('signingInMemoryKey')
+def signingPassword = providers.gradleProperty('signingInMemoryKeyPassword')
+def signingKeyValue = signingKey.getOrElse('')
+def requireSigning = providers.gradleProperty('feddiGatewayExtensionRequireSigning')
+    .map { it.toBoolean() }
+    .orElse(false)
+    .get()
+
+signing {
+    required { requireSigning }
+    if (!signingKeyValue.isBlank()) {
+        useInMemoryPgpKeys(signingKeyValue, signingPassword.getOrNull())
+        sign publishing.publications.mavenJava
+    }
+}
+
+tasks.register('centralPortalBundle', Zip) {
+    description = 'Builds the deployment bundle accepted by the Sonatype Central Portal Publisher API.'
+    group = 'publishing'
+    dependsOn tasks.named('publishMavenJavaPublicationToFeddiGatewayExtensionRepository')
+    archiveFileName = "feddi-gateway-extension-${project.version}-central-bundle.zip"
+    destinationDirectory = centralPortalDir
+    from localMavenRepositoryDir
+    doFirst {
+        if (requireSigning && signingKeyValue.isBlank()) {
+            throw new GradleException('feddiGatewayExtensionRequireSigning=true requires signingInMemoryKey')
+        }
+    }
+}
+
+dependencies {
+    // Reactive programming
+    api libs.reactor.core
+
+    // GraphQL Java for ExecutionResult and OperationDefinition types
+    api libs.graphql.java
+
+    // Spring context for bean annotations (@Component, @Service, @Primary, etc.)
+    // This allows extension-provided SubgraphClientFactory implementations to use Spring annotations
+    api libs.spring.context
+}
