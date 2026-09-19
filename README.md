@@ -235,6 +235,8 @@ Each subgraph entry must contain:
 
 For the built-in subgraph client, `url` is the only consumed subgraph config key. Extension-provided `SubgraphClientFactory` implementations can read additional keys from the same per-subgraph config map.
 
+If a `SubgraphRequestHeaderCustomizer` bean is registered, `DefaultSubgraphClient` calls it after forwarding the built-in `Authorization`/`User-Agent` headers, so it can add new headers or override forwarded ones.
+
 ### Launcher Environment Variables
 
 The distribution launcher script supports these environment variables:

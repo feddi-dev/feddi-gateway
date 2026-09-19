@@ -2,10 +2,12 @@ package dev.feddi.federation.app;
 
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.SubgraphClient;
+import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
 import graphql.language.AstPrinter;
 import graphql.language.OperationDefinition;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -17,7 +19,9 @@ import java.util.Map;
 
 /**
  * Default SubgraphClient implementation using Spring WebClient.
- * Forwards Authorization and User-Agent headers from the gateway request context.
+ * Forwards Authorization and User-Agent headers from the gateway request context, then
+ * gives an optional {@link SubgraphRequestHeaderCustomizer} bean a chance to add or
+ * override headers.
  */
 public class DefaultSubgraphClient implements SubgraphClient {
 
@@ -25,10 +29,13 @@ public class DefaultSubgraphClient implements SubgraphClient {
 
     private final WebClient webClient;
     private final String subgraphName;
+    private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
 
-    public DefaultSubgraphClient(WebClient webClient, String subgraphName) {
+    public DefaultSubgraphClient(WebClient webClient, String subgraphName,
+                                  @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
         this.webClient = webClient;
         this.subgraphName = subgraphName;
+        this.headerCustomizer = headerCustomizer;
     }
 
     @Override
@@ -50,6 +57,9 @@ public class DefaultSubgraphClient implements SubgraphClient {
             .headers(headers -> {
                 context.requestHeader("authorization").ifPresent(v -> headers.set("Authorization", v));
                 context.requestHeader("user-agent").ifPresent(v -> headers.set("User-Agent", v));
+                if (headerCustomizer != null) {
+                    headerCustomizer.customize(headers, subgraphName, context);
+                }
             })
             .bodyValue(requestBody)
             .exchangeToMono(response -> {
