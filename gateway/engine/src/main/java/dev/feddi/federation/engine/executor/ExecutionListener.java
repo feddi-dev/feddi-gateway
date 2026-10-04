@@ -17,4 +17,12 @@ public interface ExecutionListener {
      * Called when a subgraph fetch times out.
      */
     default void onSubgraphTimeout(String subgraphName) {}
+
+    /**
+     * Called when one request to a subgraph carried several entity lookups (batching).
+     *
+     * @param subgraphName the subgraph
+     * @param entityCount  the number of entities in the request
+     */
+    default void onSubgraphBatch(String subgraphName, int entityCount) {}
 }

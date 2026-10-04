@@ -1,11 +1,13 @@
 package dev.feddi.federation.app;
 
+import dev.feddi.federation.engine.executor.BatchingOptions;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.SubgraphClient;
 import graphql.ExecutionResult;
 import graphql.language.OperationDefinition;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -19,14 +21,28 @@ public class SubgraphClientAdapter implements dev.feddi.federation.engine.execut
 
     private final SubgraphClient delegate;
     private final FeddiGatewayRequestContext context;
+    private final BatchingOptions batching;
 
-    public SubgraphClientAdapter(SubgraphClient delegate, FeddiGatewayRequestContext context) {
+    public SubgraphClientAdapter(SubgraphClient delegate, FeddiGatewayRequestContext context,
+                                 BatchingOptions batching) {
         this.delegate = delegate;
         this.context = context;
+        this.batching = batching;
     }
 
     @Override
     public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables) {
         return delegate.execute(operation, variables, context);
+    }
+
+    @Override
+    public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
+                                                    List<Map<String, Object>> variableSets) {
+        return delegate.executeBatch(operation, variableSets, context);
+    }
+
+    @Override
+    public BatchingOptions batching() {
+        return batching;
     }
 }

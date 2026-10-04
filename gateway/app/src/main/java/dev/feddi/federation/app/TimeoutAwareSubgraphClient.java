@@ -8,6 +8,7 @@ import graphql.language.OperationDefinition;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
@@ -31,6 +32,16 @@ public class TimeoutAwareSubgraphClient implements SubgraphClient {
     @Override
     public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, FeddiGatewayRequestContext context) {
         return delegate.execute(operation, variables, context)
+            .timeout(timeout)
+            .onErrorMap(TimeoutException.class,
+                e -> new SubgraphTimeoutException(subgraphName, timeout, e));
+    }
+
+    @Override
+    public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
+                                                    List<Map<String, Object>> variableSets,
+                                                    FeddiGatewayRequestContext context) {
+        return delegate.executeBatch(operation, variableSets, context)
             .timeout(timeout)
             .onErrorMap(TimeoutException.class,
                 e -> new SubgraphTimeoutException(subgraphName, timeout, e));
