@@ -359,7 +359,7 @@ public final class Executor {
 
         // Group entities by the variables their lookup needs: the same entity often appears
         // at many positions (e.g. one product under many reviews), but is fetched only once.
-        Map<Map<String, Object>, List<Map<String, Object>>> contextsByVariables = new LinkedHashMap<>();
+        Map<Map<String, Object>, UniqueEntity> uniqueEntities = new LinkedHashMap<>();
         List<EntityResult> skipped = new ArrayList<>();
         for (Map<String, Object> context : parentContexts) {
             // Skip entities that don't have essential key fields (null key handling)
@@ -373,18 +373,18 @@ public final class Executor {
             // Requirement variables take precedence since they're entity-specific
             Map<String, Object> stepVariables = new LinkedHashMap<>(operationVariables);
             stepVariables.putAll(extractVariables(step.requirements(), context));
-            contextsByVariables.computeIfAbsent(stepVariables, k -> new ArrayList<>()).add(context);
+            uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).positions().add(context);
         }
 
         // Fetch the unique entities: one request each, or batched as configured for the subgraph
-        return Flux.fromIterable(batches(contextsByVariables, step.operation(), client.batching()))
+        return Flux.fromIterable(batches(List.copyOf(uniqueEntities.values()), step.operation(), client.batching()))
             .flatMap(batch -> fetchBatch(step.operation(), client, batch)
                 .onErrorResume(e -> {
                     // Handle failures without failing the entire step. The error is reported
                     // once; every position of the batch's entities gets null fields.
                     List<EntityResult> failed = new ArrayList<>();
-                    for (List<Map<String, Object>> contexts : batch.values()) {
-                        for (Map<String, Object> context : contexts) {
+                    for (UniqueEntity entity : batch) {
+                        for (Map<String, Object> context : entity.positions()) {
                             failed.add(new EntityResult(context, null, failed.isEmpty() ? e : null));
                         }
                     }
@@ -1186,37 +1186,30 @@ public final class Executor {
     }
 
     /**
-     * Result from a single entity execution in a repeated step.
-     * @param context the entity context that was used for this execution
-     * @param result the execution result, or null if skipped/failed
-     * @param error optional error if the execution failed (e.g., timeout)
+     * An entity to fetch once: the variables of its lookup and every position where it appears.
      */
+    private record UniqueEntity(Map<String, Object> variables, List<Map<String, Object>> positions) {
+        UniqueEntity(Map<String, Object> variables) {
+            this(variables, new ArrayList<>());
+        }
+    }
+
     /**
      * Splits the unique entities of a step into the requests to send: one entity per request
      * without batching (or when the operation can't be alias-batched), otherwise chunks of at
-     * most {@link BatchingOptions#maxBatchSize()} entities. Each batch maps an entity's variables
-     * to the positions where it appears.
+     * most {@link BatchingOptions#maxBatchSize()} entities.
      */
-    private static List<Map<Map<String, Object>, List<Map<String, Object>>>> batches(
-            Map<Map<String, Object>, List<Map<String, Object>>> contextsByVariables,
-            OperationDefinition operation, BatchingOptions batching) {
+    private static List<List<UniqueEntity>> batches(List<UniqueEntity> entities, OperationDefinition operation,
+                                                    BatchingOptions batching) {
         boolean batched = switch (batching.mode()) {
             case NONE -> false;
             case ALIAS -> AliasBatch.supports(operation);
             case VARIABLES -> true;
         };
         int size = batched ? batching.maxBatchSize() : 1;
-        List<Map<Map<String, Object>, List<Map<String, Object>>>> batches = new ArrayList<>();
-        Map<Map<String, Object>, List<Map<String, Object>>> current = new LinkedHashMap<>();
-        for (var entry : contextsByVariables.entrySet()) {
-            current.put(entry.getKey(), entry.getValue());
-            if (current.size() == size) {
-                batches.add(current);
-                current = new LinkedHashMap<>();
-            }
-        }
-        if (!current.isEmpty()) {
-            batches.add(current);
+        List<List<UniqueEntity>> batches = new ArrayList<>();
+        for (int start = 0; start < entities.size(); start += size) {
+            batches.add(entities.subList(start, Math.min(start + size, entities.size())));
         }
         return batches;
     }
@@ -1225,8 +1218,8 @@ public final class Executor {
      * Fetches one batch of unique entities and distributes the results to their positions.
      */
     private static Mono<List<EntityResult>> fetchBatch(OperationDefinition operation, SubgraphClient client,
-                                                       Map<Map<String, Object>, List<Map<String, Object>>> batch) {
-        List<Map<String, Object>> variableSets = new ArrayList<>(batch.keySet());
+                                                       List<UniqueEntity> batch) {
+        List<Map<String, Object>> variableSets = batch.stream().map(UniqueEntity::variables).toList();
         Mono<List<ExecutionResult>> results;
         if (variableSets.size() == 1) {
             results = client.execute(operation, variableSets.get(0)).map(List::of);
@@ -1237,14 +1230,13 @@ public final class Executor {
             results = client.execute(aliasBatch.operation(), aliasBatch.variables()).map(aliasBatch::split);
         }
         return results.map(list -> {
-            if (list.size() != variableSets.size()) {
+            if (list.size() != batch.size()) {
                 throw new ExecutionException("Subgraph returned " + list.size() + " results for a batch of "
-                    + variableSets.size());
+                    + batch.size());
             }
             List<EntityResult> entityResults = new ArrayList<>();
-            int i = 0;
-            for (List<Map<String, Object>> contexts : batch.values()) {
-                entityResults.addAll(fanOut(contexts, list.get(i++)));
+            for (int i = 0; i < batch.size(); i++) {
+                entityResults.addAll(fanOut(batch.get(i).positions(), list.get(i)));
             }
             return entityResults;
         });
@@ -1260,14 +1252,17 @@ public final class Executor {
         List<EntityResult> results = new ArrayList<>(contexts.size());
         results.add(new EntityResult(contexts.get(0), result));
         for (int i = 1; i < contexts.size(); i++) {
-            ExecutionResult copy = ExecutionResultImpl.newExecutionResult()
-                .data(SharedCallSubgraphClient.deepCopy(result.getData()))
-                .build();
-            results.add(new EntityResult(contexts.get(i), copy));
+            results.add(new EntityResult(contexts.get(i), ResultCopies.copyData(result)));
         }
         return results;
     }
 
+    /**
+     * Result from a single entity execution in a repeated step.
+     * @param context the entity context that was used for this execution
+     * @param result the execution result, or null if skipped/failed
+     * @param error optional error if the execution failed (e.g., timeout)
+     */
     private record EntityResult(Map<String, Object> context, ExecutionResult result, Throwable error) {
         EntityResult(Map<String, Object> context, ExecutionResult result) {
             this(context, result, null);

@@ -1,12 +1,9 @@
 package dev.feddi.federation.engine.executor;
 
 import graphql.ExecutionResult;
-import graphql.ExecutionResultImpl;
 import graphql.language.OperationDefinition;
 import reactor.core.publisher.Mono;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,7 +33,7 @@ final class SharedCallSubgraphClient implements SubgraphClient {
         }
 
         Mono<ExecutionResult> next() {
-            return claimed.compareAndSet(false, true) ? result : result.map(SharedCallSubgraphClient::copy);
+            return claimed.compareAndSet(false, true) ? result : result.map(ResultCopies::copy);
         }
     }
 
@@ -69,33 +66,5 @@ final class SharedCallSubgraphClient implements SubgraphClient {
     @Override
     public BatchingOptions batching() {
         return delegate.batching();
-    }
-
-    private static ExecutionResult copy(ExecutionResult result) {
-        return ExecutionResultImpl.newExecutionResult()
-            .data(deepCopy(result.getData()))
-            .errors(result.getErrors())
-            .extensions(result.getExtensions())
-            .build();
-    }
-
-    /**
-     * Deep-copies maps and lists; other values are immutable and shared.
-     */
-    @SuppressWarnings("unchecked")
-    static <T> T deepCopy(T value) {
-        if (value instanceof Map<?, ?> map) {
-            Map<Object, Object> copy = new LinkedHashMap<>(Math.max(4, map.size() * 2));
-            map.forEach((k, v) -> copy.put(k, deepCopy(v)));
-            return (T) copy;
-        }
-        if (value instanceof List<?> list) {
-            List<Object> copy = new ArrayList<>(list.size());
-            for (Object item : list) {
-                copy.add(deepCopy(item));
-            }
-            return (T) copy;
-        }
-        return value;
     }
 }

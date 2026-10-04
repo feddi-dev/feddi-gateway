@@ -98,6 +98,7 @@ public final class FeddiFederationGateway {
         this.batching = Map.of();
     }
 
+    // Copy constructor for withSubgraphBatching: must copy every field of the gateway.
     private FeddiFederationGateway(FeddiFederationGateway source, Map<String, BatchingOptions> batching) {
         this.graph = source.graph;
         this.supergraph = source.supergraph;
