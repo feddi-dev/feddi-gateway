@@ -7,3 +7,4 @@ benchmark runs (relative only; note the machine and settings).
 |---|---|---|---|---|---|
 | 2026-10-03 | `912aeb5` | baseline | ~500 (estimated, not yet measured) | — | Published: 19 RPS (.NET, Synthetic), wrong results with Rust subgraphs, at `5ff8b61` |
 | 2026-10-04 | step 0 | baseline measured | **337** (13 plan steps; accounts 60, inventory 135, products 131, reviews 11) | — | `BenchmarkHeavyQueryTest`: full heavy query matches a monolith oracle, also with random subgraph completion order (20 runs). The `topProducts` mis-plan from the published run is **no longer reproducible** on `main`. Budget `MAX_SUBGRAPH_CALLS = 337` |
+| 2026-10-04 | step 0 | local benchmark baseline | 337 | **22.6** / — | `scripts/local-benchmark.sh` (Rust subgraphs in Docker, 50 VUs, 30 s, MacBook 8 cores). 100% checks passed with Rust subgraphs. Latency med 715 ms, p95 6.6 s, max 17.8 s. No Fusion comparison (needs .NET) |

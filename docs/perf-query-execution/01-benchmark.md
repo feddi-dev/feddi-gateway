@@ -109,6 +109,12 @@ targeting", 2026-09-13) changed this area, but no test yet confirms the full que
 
 ## Running it locally
 
+**Use `scripts/local-benchmark.sh <benchmarks-checkout> [seconds] [vus] [delay-ms]`** in this repo: it runs the
+Rust subgraphs in Docker, builds feddi from the current checkout, and runs k6. It never calls the benchmark's
+`build.sh`/`install.sh` (the Rust `build.sh` installs rustup if cargo is missing). Requirements: docker, k6, JDK 25+.
+
+The benchmark's own harness, for reference:
+
 ```bash
 ./k6/benchmark.sh composite-schema/gateways/feddi subgraphs-net constant
 ```
