@@ -132,6 +132,10 @@ public final class Executor {
         // Thread-safe context for collecting results from completed steps
         ExecutionContext sharedContext = new ExecutionContext();
 
+        // Per-execution clients that share identical query calls between steps
+        Map<String, SubgraphClient> clients = new HashMap<>();
+        subgraphClients.forEach((name, client) -> clients.put(name, new SharedCallSubgraphClient(client)));
+
         Map<Integer, Mono<StepResult>> stepMonos = new LinkedHashMap<>();
 
         for (ExecutionStep step : sorted) {
@@ -139,7 +143,7 @@ public final class Executor {
 
             if (step.isRoot()) {
                 // Root step: execute immediately with query variables
-                stepMono = executeStepWithErrorRecovery(step, executeRootStep(step, queryVariables))
+                stepMono = executeStepWithErrorRecovery(step, executeRootStep(step, queryVariables, clients))
                     .doOnNext(sharedContext::merge);
             } else {
                 // Dependent step: wait for direct dependencies only, then execute
@@ -150,7 +154,7 @@ public final class Executor {
                 // Dependencies complete only after their results have entered the shared
                 // response tree. Absolute entity paths must start at that tree's root.
                 stepMono = Mono.zip(dependencies, results -> sharedContext)
-                    .flatMap(ctx -> executeStepWithErrorRecovery(step, executeStepWithContext(step, ctx, queryVariables)))
+                    .flatMap(ctx -> executeStepWithErrorRecovery(step, executeStepWithContext(step, ctx, queryVariables, clients)))
                     .doOnNext(sharedContext::merge);
             }
 
@@ -165,13 +169,14 @@ public final class Executor {
      * Executes a step with a pre-built context from its dependencies.
      */
     private Mono<StepResult> executeStepWithContext(ExecutionStep step, ExecutionContext ctx,
-                                                     Map<String, Object> queryVariables) {
+                                                     Map<String, Object> queryVariables,
+                                                     Map<String, SubgraphClient> clients) {
         // Introspection steps should always be root steps, but handle it just in case
         if (INTROSPECTION_SUBGRAPH.equals(step.subgraph())) {
             return executeIntrospectionStep(step, Map.of());
         }
 
-        SubgraphClient client = subgraphClients.get(step.subgraph());
+        SubgraphClient client = clients.get(step.subgraph());
         if (client == null) {
             return Mono.error(new ExecutionException("No client for subgraph: " + step.subgraph()));
         }
@@ -264,13 +269,14 @@ public final class Executor {
     /**
      * Executes a root step with the query variables.
      */
-    private Mono<StepResult> executeRootStep(ExecutionStep step, Map<String, Object> variables) {
+    private Mono<StepResult> executeRootStep(ExecutionStep step, Map<String, Object> variables,
+                                             Map<String, SubgraphClient> clients) {
         // Handle introspection subgraph internally
         if (INTROSPECTION_SUBGRAPH.equals(step.subgraph())) {
             return executeIntrospectionStep(step, variables);
         }
 
-        SubgraphClient client = subgraphClients.get(step.subgraph());
+        SubgraphClient client = clients.get(step.subgraph());
         if (client == null) {
             return Mono.error(new ExecutionException("No client for subgraph: " + step.subgraph()));
         }
@@ -1207,28 +1213,11 @@ public final class Executor {
         results.add(new EntityResult(contexts.get(0), result));
         for (int i = 1; i < contexts.size(); i++) {
             ExecutionResult copy = ExecutionResultImpl.newExecutionResult()
-                .data(deepCopy(result.getData()))
+                .data(SharedCallSubgraphClient.deepCopy(result.getData()))
                 .build();
             results.add(new EntityResult(contexts.get(i), copy));
         }
         return results;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> T deepCopy(T value) {
-        if (value instanceof Map<?, ?> map) {
-            Map<Object, Object> copy = new LinkedHashMap<>(Math.max(4, map.size() * 2));
-            map.forEach((k, v) -> copy.put(k, deepCopy(v)));
-            return (T) copy;
-        }
-        if (value instanceof List<?> list) {
-            List<Object> copy = new ArrayList<>(list.size());
-            for (Object item : list) {
-                copy.add(deepCopy(item));
-            }
-            return (T) copy;
-        }
-        return value;
     }
 
     private record EntityResult(Map<String, Object> context, ExecutionResult result, Throwable error) {
