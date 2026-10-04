@@ -17,7 +17,9 @@ JVM GraphQL composite-schema federation gateway (Java 25, graphql-java, Reactor)
 
 ```bash
 ./scripts/run-all-tests.sh        # everything (engine, app unit + integration, e2e); -c allows cached results
+                                  # run with JDK 25: JAVA_HOME=$(/usr/libexec/java_home -v 25) (e2e build fails on JDK 26)
 cd gateway && ./gradlew :engine:test   # fast loop for planner/executor work
+scripts/local-benchmark.sh <graphql-gateway-benchmarks checkout>   # relative RPS (Docker + k6)
 ```
 
 Checkstyle runs with the build and fails on any violation. Project rules include: use `FederationDirectives`

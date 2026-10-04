@@ -1,5 +1,6 @@
 package dev.feddi.federation.app;
 
+import dev.feddi.federation.app.OperationPlanCache.PreparedOperation;
 import dev.feddi.federation.extension.DocumentProvider;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.SubgraphClient;
@@ -53,6 +54,7 @@ public final class FeddiFederationGateway {
     private final ExecutionListener executionListener;
     private final FeddiGatewayMetrics gatewayMetrics;
     private final DocumentProvider documentProvider;
+    private final OperationPlanCache planCache = new OperationPlanCache();
 
     private FeddiFederationGateway(Graph graph, GraphQLSchema supergraph,
                                    Map<String, SubgraphClient> subgraphClients,
@@ -300,58 +302,28 @@ public final class FeddiFederationGateway {
     public Mono<GatewayResult> execute(ExecutionInput executionInput, FeddiGatewayRequestContext requestContext) {
         Map<String, Object> variables = executionInput.getVariables();
 
-        // Resolve document: try provider first, fall back to ParseAndValidate
-        Mono<Document> documentMono;
+        // Resolve the prepared operation: try the provider first (persisted documents),
+        // then the plan cache by query text, then ParseAndValidate + normalize + plan.
+        Mono<PreparedOperation> preparedMono;
         if (documentProvider != null) {
-            documentMono = documentProvider.getDocument(executionInput, requestContext)
+            preparedMono = documentProvider.getDocument(executionInput, requestContext)
                 .flatMap(entry -> {
                     if (entry.hasErrors()) {
-                        return Mono.<Document>error(new DocumentResolutionException(entry.getErrors()));
+                        return Mono.<PreparedOperation>error(new DocumentResolutionException(entry.getErrors()));
                     }
                     log.debug("Using document from DocumentProvider");
-                    return Mono.just(entry.getDocument());
+                    Document providedDocument = entry.getDocument();
+                    return Mono.fromCallable(() -> planCache.getOrPrepare(providedDocument,
+                        () -> prepare(providedDocument)));
                 })
-                .switchIfEmpty(Mono.defer(() -> parseAndValidate(executionInput)));
+                .switchIfEmpty(Mono.defer(() -> prepareFromText(executionInput)));
         } else {
-            documentMono = Mono.defer(() -> parseAndValidate(executionInput));
+            preparedMono = Mono.defer(() -> prepareFromText(executionInput));
         }
 
-        return documentMono.flatMap(rawDocument -> {
-            // Normalize the document (inline fragments, deduplicate fields, etc.)
-            log.debug("Normalizing query");
-            Document document = normalizer.normalize(rawDocument);
-
-            OperationDefinition operationDef = document.getDefinitionsOfType(OperationDefinition.class)
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> {
-                    log.error("No operation found in query");
-                    return new ExecutionException("No operation found in query");
-                });
-
-            // Convert to our Operation model
-            log.debug("Converting to Operation model");
-            Operation query = Operation.fromOperationDefinition(operationDef);
-
-            // Plan the query
-            log.debug("Planning query execution");
-            var planningSample = gatewayMetrics != null ? gatewayMetrics.startTimer() : null;
-            ExecutionPlan plan;
-            try {
-                plan = planner.plan(query);
-                log.debug("Query planned with {} step(s)", plan.steps().size());
-                for (var step : plan.steps()) {
-                    log.debug("  Step {}: subgraph={}, dependsOn={}",
-                        step.id(), step.subgraph(), step.dependsOn());
-                }
-            } catch (Exception e) {
-                log.error("Query planning failed: {}", e.getMessage(), e);
-                throw e;
-            } finally {
-                if (planningSample != null) {
-                    gatewayMetrics.recordPlanningDuration(planningSample);
-                }
-            }
+        return preparedMono.flatMap(prepared -> {
+            Document document = prepared.document();
+            ExecutionPlan plan = prepared.plan();
 
             // Adapt clients per-request with the gateway request context
             var engineClients = new LinkedHashMap<String, dev.feddi.federation.engine.executor.SubgraphClient>();
@@ -371,6 +343,62 @@ public final class FeddiFederationGateway {
             return Mono.just(new GatewayResult(
                 ExecutionResultImpl.newExecutionResult().addErrors(e.getErrors()).build(), null));
         });
+    }
+
+    private Mono<PreparedOperation> prepareFromText(ExecutionInput executionInput) {
+        String query = executionInput.getQuery();
+        String operationName = executionInput.getOperationName();
+        PreparedOperation cached = planCache.getByText(query, operationName);
+        if (cached != null) {
+            log.debug("Using cached plan");
+            return Mono.just(cached);
+        }
+        return parseAndValidate(executionInput).map(document -> {
+            PreparedOperation prepared = prepare(document);
+            planCache.putByText(query, operationName, prepared);
+            return prepared;
+        });
+    }
+
+    /**
+     * Normalizes a validated document and plans it.
+     */
+    private PreparedOperation prepare(Document rawDocument) {
+        // Normalize the document (inline fragments, deduplicate fields, etc.)
+        log.debug("Normalizing query");
+        Document document = normalizer.normalize(rawDocument);
+
+        OperationDefinition operationDef = document.getDefinitionsOfType(OperationDefinition.class)
+            .stream()
+            .findFirst()
+            .orElseThrow(() -> {
+                log.error("No operation found in query");
+                return new ExecutionException("No operation found in query");
+            });
+
+        // Convert to our Operation model
+        log.debug("Converting to Operation model");
+        Operation query = Operation.fromOperationDefinition(operationDef);
+
+        // Plan the query
+        log.debug("Planning query execution");
+        var planningSample = gatewayMetrics != null ? gatewayMetrics.startTimer() : null;
+        try {
+            ExecutionPlan plan = planner.plan(query);
+            log.debug("Query planned with {} step(s)", plan.steps().size());
+            for (var step : plan.steps()) {
+                log.debug("  Step {}: subgraph={}, dependsOn={}",
+                    step.id(), step.subgraph(), step.dependsOn());
+            }
+            return new PreparedOperation(document, plan);
+        } catch (Exception e) {
+            log.error("Query planning failed: {}", e.getMessage(), e);
+            throw e;
+        } finally {
+            if (planningSample != null) {
+                gatewayMetrics.recordPlanningDuration(planningSample);
+            }
+        }
     }
 
     private Mono<Document> parseAndValidate(ExecutionInput executionInput) {
