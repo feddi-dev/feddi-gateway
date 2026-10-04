@@ -6,6 +6,7 @@ import dev.feddi.federation.engine.executor.BatchingOptions.Mode;
 import dev.feddi.federation.extension.FeddiGatewayDefinition;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.FeddiGatewaySettings;
+import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
 import dev.feddi.federation.extension.SubgraphDefinition;
 import dev.feddi.federation.extension.SubgraphSettings;
 import graphql.ExecutionResult;
@@ -122,6 +123,21 @@ class DefaultSubgraphClientBatchTest {
     }
 
     @Test
+    void headerCustomizerAppliesToBatchesAndProbe() {
+        start(body -> response(200, "application/jsonl", """
+            {"data":{"user":null},"variableIndex":0}
+            {"data":{"user":null},"variableIndex":1}
+            """));
+        SubgraphRequestHeaderCustomizer customizer = (headers, subgraph, context) -> headers.set("X-Internal", subgraph);
+
+        client(customizer).executeBatch(LOOKUP, List.of(Map.of("id", "1"), Map.of("id", "2")),
+            FeddiGatewayRequestContext.empty()).block();
+        client(customizer).supportsVariableBatching().block();
+
+        assertThat(requestHeaders).hasSize(2).allSatisfy(h -> assertThat(h).containsEntry("x-internal", "accounts"));
+    }
+
+    @Test
     void probeTreatsInvalidSuccessfulResponseAsUnsupported() {
         start(body -> response(200, "text/html", "<html>not graphql</html>"));
 
@@ -136,7 +152,7 @@ class DefaultSubgraphClientBatchTest {
         server = null;
         var holder = new FeddiGatewayHolder();
         var service = new FeddiGatewayReloadService(holder,
-            new DefaultSubgraphClientFactory(WebClient.builder()),
+            new DefaultSubgraphClientFactory(WebClient.builder(), null),
             new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
 
         service.reload(new FeddiGatewayDefinition(Map.of("accounts", new SubgraphDefinition(
@@ -163,7 +179,7 @@ class DefaultSubgraphClientBatchTest {
         start(body -> response(400, "application/json", "{\"errors\":[{\"message\":\"bad request\"}]}"));
         var holder = new FeddiGatewayHolder();
         var service = new FeddiGatewayReloadService(holder,
-            new DefaultSubgraphClientFactory(WebClient.builder()),
+            new DefaultSubgraphClientFactory(WebClient.builder(), null),
             new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
 
         service.reload(new FeddiGatewayDefinition(Map.of("accounts", new SubgraphDefinition(
@@ -213,6 +229,10 @@ class DefaultSubgraphClientBatchTest {
     }
 
     private DefaultSubgraphClient client() {
-        return new DefaultSubgraphClient(WebClient.builder().baseUrl(url()).build(), "accounts");
+        return client(null);
+    }
+
+    private DefaultSubgraphClient client(SubgraphRequestHeaderCustomizer customizer) {
+        return new DefaultSubgraphClient(WebClient.builder().baseUrl(url()).build(), "accounts", customizer);
     }
 }

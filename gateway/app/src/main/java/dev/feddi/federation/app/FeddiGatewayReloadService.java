@@ -83,9 +83,15 @@ public class FeddiGatewayReloadService {
             }
 
             SubgraphClient baseClient = clientFactory.create(name, settings);
-            if (batching.get(name).mode() == BatchingOptions.Mode.VARIABLES
-                    && baseClient instanceof DefaultSubgraphClient defaultClient) {
-                variableBatchingClients.put(name, defaultClient);
+            if (batching.get(name).mode() == BatchingOptions.Mode.VARIABLES) {
+                if (baseClient instanceof DefaultSubgraphClient defaultClient) {
+                    variableBatchingClients.put(name, defaultClient);
+                } else {
+                    log.warn("Subgraph '{}' is configured with 'batching: variables' but uses a custom "
+                        + "SubgraphClient ({}). Variable batching only takes effect if it implements "
+                        + "executeBatch; otherwise every entity is sent separately. 'batching: alias' "
+                        + "works with any client.", name, baseClient.getClass().getName());
+                }
             }
             clients.put(name, new TimeoutAwareSubgraphClient(baseClient, name, timeout));
         }

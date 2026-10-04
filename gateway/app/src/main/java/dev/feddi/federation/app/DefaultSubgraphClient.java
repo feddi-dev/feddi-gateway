@@ -14,6 +14,7 @@ import graphql.language.OperationDefinition;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -64,13 +65,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
 
         return webClient.post()
             .contentType(MediaType.APPLICATION_JSON)
-            .headers(headers -> {
-                context.requestHeader("authorization").ifPresent(v -> headers.set("Authorization", v));
-                context.requestHeader("user-agent").ifPresent(v -> headers.set("User-Agent", v));
-                if (headerCustomizer != null) {
-                    headerCustomizer.customize(headers, subgraphName, context);
-                }
-            })
+            .headers(headers -> applyHeaders(headers, context))
             .bodyValue(requestBody)
             .exchangeToMono(response -> {
                 if (response.statusCode().is2xxSuccessful()) {
@@ -125,10 +120,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
         return webClient.post()
             .contentType(MediaType.APPLICATION_JSON)
             .accept(JSONL, MediaType.APPLICATION_JSON)
-            .headers(headers -> {
-                context.requestHeader("authorization").ifPresent(v -> headers.set("Authorization", v));
-                context.requestHeader("user-agent").ifPresent(v -> headers.set("User-Agent", v));
-            })
+            .headers(headers -> applyHeaders(headers, context))
             .bodyValue(requestBody)
             .exchangeToMono(response -> response.bodyToMono(String.class)
                 .defaultIfEmpty("")
@@ -163,6 +155,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
         return webClient.post()
             .contentType(MediaType.APPLICATION_JSON)
             .accept(JSONL, MediaType.APPLICATION_JSON)
+            // Not a client request: only the customizer's headers (e.g. internal auth) apply.
+            .headers(headers -> applyHeaders(headers, FeddiGatewayRequestContext.empty()))
             .bodyValue(requestBody)
             .exchangeToMono(response -> response.bodyToMono(String.class)
                 .defaultIfEmpty("")
@@ -176,6 +170,18 @@ public class DefaultSubgraphClient implements SubgraphClient {
                         return false;
                     }
                 }));
+    }
+
+    /**
+     * Forwards Authorization and User-Agent from the gateway request, then lets the optional
+     * {@link SubgraphRequestHeaderCustomizer} add or override headers.
+     */
+    private void applyHeaders(HttpHeaders headers, FeddiGatewayRequestContext context) {
+        context.requestHeader("authorization").ifPresent(v -> headers.set("Authorization", v));
+        context.requestHeader("user-agent").ifPresent(v -> headers.set("User-Agent", v));
+        if (headerCustomizer != null) {
+            headerCustomizer.customize(headers, subgraphName, context);
+        }
     }
 
     /**
