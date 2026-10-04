@@ -34,5 +34,5 @@ All work stays on this branch until it is finished. Andi then reviews it before 
   while Fusion and Hive make about 10–15 batched calls.
 - feddi also re-plans every request (there is no plan cache).
 - The fix, in order: plan cache, remove duplicate entities, merge identical steps, batch lookups (alias for any
-  server, variables where supported), then a cost-based planner modelled on Fusion. feddi stays server-agnostic. Fusion implements the same composite-schema spec as feddi,
-  so it is the base design. Hive Router contributes the repeat-until-stable merge passes and entity dedup.
+  server, variables where supported), then a cost-based planner modelled on Fusion. feddi stays server-agnostic.
+- Fusion implements the same composite-schema spec as feddi, so it is the base design. Hive Router contributes the repeat-until-stable merge passes and entity dedup.
