@@ -7,6 +7,9 @@ set -Eeuo pipefail
 #
 #   scripts/local-benchmark.sh <graphql-gateway-benchmarks-dir> [seconds] [vus] [subgraph-delay-ms]
 #
+#   FEDDI_BATCHING=none|alias|variables sets the batching mode of all subgraphs
+#   (default: unset, i.e. the subgraph config as shipped by the benchmark).
+#
 # - Subgraphs: the benchmark's Rust subgraphs, built and run in Docker (no Rust
 #   toolchain needed on the host). Ports 5221-5224.
 # - Gateway: built from this checkout (:app:feddiGatewayDistZip), configured with
@@ -64,6 +67,11 @@ for entry in accounts:eShop.Accounts inventory:eShop.Inventory products:eShop.Pr
   cp "$BENCH_DIR/composite-schema/subgraphs-net/${entry##*:}/schema.graphql" \
      "$WORK_DIR/subgraph-config/${entry%%:*}/schema.graphqls"
 done
+if [[ -n "${FEDDI_BATCHING:-}" ]]; then
+  for cfg in "$WORK_DIR"/subgraph-config/*/config.yaml; do
+    printf '\nbatching: %s\n' "$FEDDI_BATCHING" >> "$cfg"
+  done
+fi
 ( cd "$WORK_DIR/subgraph-config" && zip -qr "$WORK_DIR/subgraphs.zip" . )
 
 echo "==> Starting feddi"
@@ -84,7 +92,7 @@ until curl -s --max-time 5 -X POST -H 'Content-Type: application/json' \
   sleep 0.5
 done
 
-echo "==> Warmup (10s), then measuring ${SECONDS_TO_RUN}s with ${VUS} VUs"
+echo "==> Warmup (10s), then measuring ${SECONDS_TO_RUN}s with ${VUS} VUs (batching: ${FEDDI_BATCHING:-as configured})"
 ( cd "$BENCH_DIR/k6" && MODE=constant BENCH_VUS="$VUS" BENCH_OVER_TIME=10s \
     k6 run --quiet --no-summary k6.js >/dev/null 2>&1 ) || true
 ( cd "$BENCH_DIR/k6" && MODE=constant BENCH_VUS="$VUS" BENCH_OVER_TIME="${SECONDS_TO_RUN}s" \
