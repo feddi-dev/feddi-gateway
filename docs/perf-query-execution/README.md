@@ -11,7 +11,7 @@ All work stays on this branch until it is finished. Andi then reviews it before 
 | | |
 |---|---|
 | Branch | `perf/query-execution` (from `main` @ `912aeb5`) |
-| Current step | 2, entity dedup (done: 0 tests, 1 plan cache; 337 calls, 31 req/s locally) |
+| Current step | 3, merge identical steps (done: 0 tests, 1 plan cache, 2 entity dedup; 26 calls, 388 req/s locally vs 22.6 at baseline) |
 | Benchmark result (published, commit `5ff8b61`) | Rust subgraphs: wrong results · .NET subgraphs: ~19 RPS (leaders ~2,400–2,900) · Burst: not run |
 
 ## Files
