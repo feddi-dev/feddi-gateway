@@ -30,6 +30,15 @@ public class FeddiGatewayHolder {
     }
 
     /**
+     * Atomically replaces the gateway only if it is still {@code expected}.
+     *
+     * @return true if replaced
+     */
+    public boolean replace(FeddiFederationGateway expected, FeddiFederationGateway replacement) {
+        return gatewayRef.compareAndSet(expected, replacement);
+    }
+
+    /**
      * Returns true if a gateway has been configured.
      */
     public boolean isInitialized() {

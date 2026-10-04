@@ -9,7 +9,11 @@ import dev.feddi.federation.engine.executor.BatchingOptions;
 import dev.feddi.federation.extension.SubgraphSettings;
 import dev.feddi.federation.engine.compose.Composer.SubgraphInput;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -24,6 +28,9 @@ import java.util.Map;
 public class FeddiGatewayReloadService {
 
     private final FeddiGatewayHolder gatewayHolder;
+    private static final Logger log = LoggerFactory.getLogger(FeddiGatewayReloadService.class);
+    private static final Duration VARIABLE_BATCHING_CHECK_TIMEOUT = Duration.ofSeconds(10);
+
     private final SubgraphClientFactory clientFactory;
     private final FeddiGatewayMetrics gatewayMetrics;
     private final DocumentProvider documentProvider;
@@ -56,6 +63,7 @@ public class FeddiGatewayReloadService {
         List<SubgraphInput> inputs = new ArrayList<>();
         Map<String, SubgraphClient> clients = new HashMap<>();
         Map<String, BatchingOptions> batching = new HashMap<>();
+        Map<String, DefaultSubgraphClient> variableBatchingClients = new HashMap<>();
         Duration timeout = gatewayDefinition.gatewaySettings().timeout();
 
         for (Map.Entry<String, SubgraphDefinition> entry : gatewayDefinition.subgraphs().entrySet()) {
@@ -75,6 +83,10 @@ public class FeddiGatewayReloadService {
             }
 
             SubgraphClient baseClient = clientFactory.create(name, settings);
+            if (batching.get(name).mode() == BatchingOptions.Mode.VARIABLES
+                    && baseClient instanceof DefaultSubgraphClient defaultClient) {
+                variableBatchingClients.put(name, defaultClient);
+            }
             clients.put(name, new TimeoutAwareSubgraphClient(baseClient, name, timeout));
         }
 
@@ -89,7 +101,44 @@ public class FeddiGatewayReloadService {
             gateway = FeddiFederationGateway.create(inputs, clients, gatewayMetrics,
                     gatewayMetrics, documentProvider, introspectionEnabled);
         }
-        gatewayHolder.set(gateway.withSubgraphBatching(batching));
+        FeddiFederationGateway configured = gateway.withSubgraphBatching(batching);
+        gatewayHolder.set(configured);
+        verifyVariableBatching(configured, variableBatchingClients, batching);
+    }
+
+    /**
+     * Checks asynchronously that subgraphs configured with {@code batching: variables} support it.
+     * Reload may run on an event-loop thread, so this never blocks. A subgraph that answers but
+     * does not support variable batching falls back to alias batching (spec-compliant, works with
+     * every server) with an error in the log; an unreachable subgraph is left as configured.
+     */
+    private void verifyVariableBatching(FeddiFederationGateway gateway, Map<String, DefaultSubgraphClient> clients,
+                                        Map<String, BatchingOptions> batching) {
+        if (clients.isEmpty()) {
+            return;
+        }
+        Flux.fromIterable(clients.entrySet())
+            .flatMap(entry -> entry.getValue().supportsVariableBatching()
+                .timeout(VARIABLE_BATCHING_CHECK_TIMEOUT)
+                .filter(supported -> !supported)
+                .map(unsupported -> entry.getKey())
+                .onErrorResume(e -> {
+                    log.warn("Could not verify variable batching support of subgraph '{}': {}",
+                        entry.getKey(), e.getMessage());
+                    return Mono.empty();
+                }))
+            .collectList()
+            .filter(unsupported -> !unsupported.isEmpty())
+            .subscribe(unsupported -> {
+                log.error("Subgraph(s) {} are configured with 'batching: variables' but do not support variable "
+                    + "batching. Falling back to 'batching: alias'. Set 'batching: alias' or 'none' for them.",
+                    unsupported);
+                Map<String, BatchingOptions> fallback = new HashMap<>(batching);
+                for (String name : unsupported) {
+                    fallback.put(name, new BatchingOptions(BatchingOptions.Mode.ALIAS, batching.get(name).maxBatchSize()));
+                }
+                gatewayHolder.replace(gateway, gateway.withSubgraphBatching(fallback));
+            });
     }
 
     private void validateSubgraph(String name, SubgraphDefinition subgraphDefinition) {
