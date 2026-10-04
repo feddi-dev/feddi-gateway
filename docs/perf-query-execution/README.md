@@ -27,6 +27,7 @@ All work stays on this branch until it is finished. Andi then reviews it before 
 | [07-batching.md](07-batching.md) | Batching research (specs, servers) and decisions: server-agnostic, `none \| alias \| variables` |
 | [08-java-ecosystem.md](08-java-ecosystem.md) | Java subgraph tuning guide and the graphql-java / Spring follow-up track |
 | [09-architecture.md](09-architecture.md) | Target architecture: plan cache, optimizer passes, dedup, batching, transport |
+| [10-review-notes.md](10-review-notes.md) | Self-review: sabotage checks of the tests, fixes, open questions for Andi |
 
 ## Summary
 
