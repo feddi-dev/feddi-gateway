@@ -159,6 +159,8 @@ class DefaultSubgraphClientBatchTest {
             "type Query { user(id: ID!): User } type User { id: ID! name: String }",
             new SubgraphSettings(Map.of("url", unreachable, "batching", "variables")))),
             FeddiGatewaySettings.defaults()));
+        // The probe fails fast (connection refused). This test can only observe that no fallback
+        // happens; it would also pass if the probe never ran.
         Thread.sleep(1_000);
 
         assertThat(holder.get().batching("accounts").mode()).isEqualTo(Mode.VARIABLES);

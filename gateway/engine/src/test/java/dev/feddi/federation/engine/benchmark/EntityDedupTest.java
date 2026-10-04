@@ -64,6 +64,25 @@ class EntityDedupTest {
     }
 
     @Test
+    void sharedCallDoesNotLeakFieldsBetweenResponsePaths() {
+        // Both aliases need the identical lookup product(upc: "1") { reviews { author { id } } }, so
+        // the call is shared within the request. Only "b" asks for the author's name, which a
+        // later accounts step merges into the author objects: with shared (uncopied) result
+        // maps, "name" would leak into "a".
+        String query = """
+            {
+              a: topProducts(first: 1) { upc reviews { id author { id } } }
+              b: topProducts(first: 1) { upc reviews { id author { id name } } }
+            }
+            """;
+
+        var run = execute(query, UnaryOperator.identity());
+
+        assertMatchesMonolith(query, run.result());
+        assertThat(run.clients().get(BenchmarkSubgraphs.REVIEWS).calls()).hasSize(1);
+    }
+
+    @Test
     void failedCallIsReportedOnceAndNullsEveryPosition() {
         String query = "{ users { id reviews { id product { upc name } } } }";
 

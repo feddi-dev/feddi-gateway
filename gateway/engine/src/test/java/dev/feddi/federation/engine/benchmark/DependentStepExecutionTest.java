@@ -23,8 +23,8 @@ import java.util.function.UnaryOperator;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Execution of dependent steps against the benchmark subgraphs: single (non-repeated)
- * dependent steps below a single object, and subgraph GraphQL errors in repeated steps.
+ * Execution of dependent (lookup) steps against the benchmark subgraphs: lookups below a
+ * single root object, and subgraph GraphQL errors in repeated steps.
  */
 class DependentStepExecutionTest {
 
@@ -40,7 +40,7 @@ class DependentStepExecutionTest {
     }
 
     @Test
-    void lookupBelowSingleObjectMatchesMonolith() {
+    void lookupsBelowSingleRootObjectMatchMonolith() {
         String query = "{ me { id name reviews { id body product { upc name inStock } } } }";
 
         var result = execute(query, UnaryOperator.identity());

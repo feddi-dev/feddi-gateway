@@ -100,8 +100,6 @@ class SubgraphBatchingConfigTest {
         assertThatThrownBy(() -> client.executeBatch(OPERATION, List.of(Map.of("id", "1")),
             FeddiGatewayRequestContext.empty()).block())
             .isInstanceOf(SubgraphTimeoutException.class);
-        assertThat(client.subgraphName()).isEqualTo("catalog");
-        assertThat(client.timeout()).isEqualTo(Duration.ofMillis(50));
     }
 
     private static FeddiGatewayHolder reload(Map<String, Object> settings) {

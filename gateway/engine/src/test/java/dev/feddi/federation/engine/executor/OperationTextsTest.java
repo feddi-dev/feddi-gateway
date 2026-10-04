@@ -31,10 +31,12 @@ class OperationTextsTest {
 
     @Test
     void staysBounded() {
-        for (int i = 0; i <= OperationTexts.MAX_ENTRIES; i++) {
-            OperationTexts.compact(operation("{ f" + (i % 3) + " }"));
+        // Every parse creates a new operation instance, i.e. a new cache entry.
+        for (int i = 0; i < OperationTexts.MAX_ENTRIES + 10; i++) {
+            OperationTexts.compact(operation("{ a }"));
         }
-        // No assertion on internals beyond correctness: printing still works after clearing.
+
+        assertThat(OperationTexts.size()).isLessThanOrEqualTo(2 * OperationTexts.MAX_ENTRIES);
         assertThat(OperationTexts.compact(operation("{ a }"))).isEqualTo("{a}");
     }
 

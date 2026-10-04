@@ -51,6 +51,11 @@ public final class OperationTexts {
         return lookup(PRETTY, operation, AstPrinter::printAst);
     }
 
+    /** Number of cached texts (for tests). */
+    static int size() {
+        return COMPACT.size() + PRETTY.size();
+    }
+
     private static String lookup(Map<Key, String> cache, OperationDefinition operation,
                                  Function<OperationDefinition, String> printer) {
         Key key = new Key(operation);
