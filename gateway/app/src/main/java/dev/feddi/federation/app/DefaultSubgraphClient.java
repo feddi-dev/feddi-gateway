@@ -4,12 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.feddi.federation.engine.IntrospectionFields;
+import dev.feddi.federation.engine.executor.OperationTexts;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
-import graphql.language.AstPrinter;
 import graphql.language.OperationDefinition;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -51,7 +51,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
 
     @Override
     public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, FeddiGatewayRequestContext context) {
-        String query = AstPrinter.printAst(operation);
+        String query = OperationTexts.pretty(operation);
 
         log.debug("[{}] Executing subgraph query: {}", subgraphName, query);
         if (variables != null && !variables.isEmpty()) {
@@ -112,7 +112,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
     public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
                                                     List<Map<String, Object>> variableSets,
                                                     FeddiGatewayRequestContext context) {
-        String query = AstPrinter.printAst(operation);
+        String query = OperationTexts.pretty(operation);
         log.debug("[{}] Executing variable batch of {}: {}", subgraphName, variableSets.size(), query);
 
         Map<String, Object> requestBody = Map.of("query", query, "variables", variableSets);
