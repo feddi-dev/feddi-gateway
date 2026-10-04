@@ -72,6 +72,20 @@ final class SharedCallSubgraphClient implements SubgraphClient {
         return calls.computeIfAbsent(key, k -> new SharedCall(delegate.execute(operation, variables))).next();
     }
 
+    /**
+     * Batched requests are already deduplicated per step and are not shared between steps.
+     */
+    @Override
+    public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
+                                                    List<Map<String, Object>> variableSets) {
+        return delegate.executeBatch(operation, variableSets);
+    }
+
+    @Override
+    public BatchingOptions batching() {
+        return delegate.batching();
+    }
+
     private static ExecutionResult copy(ExecutionResult result) {
         return ExecutionResultImpl.newExecutionResult()
             .data(deepCopy(result.getData()))

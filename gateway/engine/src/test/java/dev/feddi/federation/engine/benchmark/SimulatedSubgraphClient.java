@@ -1,5 +1,6 @@
 package dev.feddi.federation.engine.benchmark;
 
+import dev.feddi.federation.engine.executor.BatchingOptions;
 import dev.feddi.federation.engine.executor.SubgraphClient;
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
@@ -35,11 +36,46 @@ public final class SimulatedSubgraphClient implements SubgraphClient {
 
     private final GraphQL graphQL;
     private final int maxLatencyMillis;
+    private final BatchingOptions batching;
     private final List<Call> calls = new CopyOnWriteArrayList<>();
 
     public SimulatedSubgraphClient(GraphQLSchema schema, int maxLatencyMillis) {
+        this(schema, maxLatencyMillis, BatchingOptions.NONE);
+    }
+
+    public SimulatedSubgraphClient(GraphQLSchema schema, int maxLatencyMillis, BatchingOptions batching) {
         this.graphQL = GraphQL.newGraphQL(schema).build();
         this.maxLatencyMillis = maxLatencyMillis;
+        this.batching = batching;
+    }
+
+    @Override
+    public BatchingOptions batching() {
+        return batching;
+    }
+
+    /**
+     * Variable batching like a HotChocolate subgraph: one request, one result per variable set.
+     */
+    @Override
+    public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
+                                                    List<Map<String, Object>> variableSets) {
+        if (batching.mode() != BatchingOptions.Mode.VARIABLES) {
+            return Mono.error(new IllegalStateException("subgraph does not support variable batching"));
+        }
+        calls.add(new Call(AstPrinter.printAstCompact(operation), Map.of("variableSets", variableSets)));
+        String query = AstPrinter.printAst(Document.newDocument().definition(operation).build());
+        Mono<List<ExecutionResult>> results = Mono.fromCallable(() -> variableSets.stream()
+            .map(variables -> graphQL.execute(ExecutionInput.newExecutionInput().query(query).variables(variables).build()))
+            .toList());
+        return delay().then(results);
+    }
+
+    private Mono<Long> delay() {
+        if (maxLatencyMillis <= 0) {
+            return Mono.just(0L);
+        }
+        return Mono.delay(Duration.ofMillis(ThreadLocalRandom.current().nextLong(maxLatencyMillis + 1L)), Schedulers.parallel());
     }
 
     @Override
@@ -51,11 +87,7 @@ public final class SimulatedSubgraphClient implements SubgraphClient {
             .query(query)
             .variables(variables == null ? Map.of() : variables)
             .build()));
-        if (maxLatencyMillis <= 0) {
-            return result;
-        }
-        long delay = ThreadLocalRandom.current().nextLong(maxLatencyMillis + 1L);
-        return Mono.delay(Duration.ofMillis(delay), Schedulers.parallel()).then(result);
+        return delay().then(result);
     }
 
     public List<Call> calls() {

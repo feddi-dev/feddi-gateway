@@ -1,5 +1,6 @@
 package dev.feddi.federation.engine.benchmark;
 
+import dev.feddi.federation.engine.executor.BatchingOptions;
 import dev.feddi.federation.engine.executor.Executor;
 import dev.feddi.federation.engine.executor.SubgraphClient;
 import dev.feddi.federation.engine.planner.ExecutionPlan;
@@ -10,7 +11,8 @@ import dev.feddi.federation.engine.testcase.SchemaDefinition;
 import dev.feddi.federation.engine.testcase.TestCaseLoader;
 import graphql.ExecutionResult;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -92,10 +94,14 @@ class BenchmarkHeavyQueryTest {
         """;
 
     /**
-     * Upper bound on subgraph calls for one heavy query. Baseline before optimizations: see
-     * docs/perf-query-execution/06-progress-log.md. Lower this as call reduction lands.
+     * Upper bound on subgraph calls for one heavy query, per batching mode. Baseline before
+     * optimizations was 337: see docs/perf-query-execution/06-progress-log.md. Lower these as
+     * call reduction lands.
      */
-    static final int MAX_SUBGRAPH_CALLS = 20;
+    static final Map<BatchingOptions.Mode, Integer> MAX_SUBGRAPH_CALLS = Map.of(
+        BatchingOptions.Mode.NONE, 20,
+        BatchingOptions.Mode.ALIAS, 8,
+        BatchingOptions.Mode.VARIABLES, 8);
 
     private static SchemaDefinition schema;
     private static ExecutionPlan plan;
@@ -109,35 +115,38 @@ class BenchmarkHeavyQueryTest {
         plan = new OperationPlanner(schema.graph()).plan(Operation.parse(HEAVY_QUERY, normalizer));
     }
 
-    @Test
-    void heavyQueryMatchesMonolith() {
-        var run = execute(0);
+    @ParameterizedTest
+    @EnumSource(BatchingOptions.Mode.class)
+    void heavyQueryMatchesMonolith(BatchingOptions.Mode mode) {
+        var run = execute(mode, 0);
 
         assertThat(run.result().getErrors()).isEmpty();
         assertThat((Object) run.result().getData()).isEqualTo(expectedData());
     }
 
-    @Test
-    void heavyQueryIsCorrectWhenSubgraphsCompleteInRandomOrder() {
+    @ParameterizedTest
+    @EnumSource(BatchingOptions.Mode.class)
+    void heavyQueryIsCorrectWhenSubgraphsCompleteInRandomOrder(BatchingOptions.Mode mode) {
         Object expected = expectedData();
         for (int i = 0; i < 20; i++) {
-            var run = execute(3);
+            var run = execute(mode, 3);
             assertThat(run.result().getErrors()).as("errors in run %d", i).isEmpty();
             assertThat((Object) run.result().getData()).as("data in run %d", i).isEqualTo(expected);
         }
     }
 
-    @Test
-    void heavyQueryStaysWithinSubgraphCallBudget() {
-        var run = execute(0);
+    @ParameterizedTest
+    @EnumSource(BatchingOptions.Mode.class)
+    void heavyQueryStaysWithinSubgraphCallBudget(BatchingOptions.Mode mode) {
+        var run = execute(mode, 0);
 
         Map<String, Integer> callsPerSubgraph = new TreeMap<>();
         run.clients().forEach((name, client) -> callsPerSubgraph.put(name, client.calls().size()));
         int total = callsPerSubgraph.values().stream().mapToInt(Integer::intValue).sum();
-        System.out.printf("Heavy query: %d plan steps, %d subgraph calls %s%n",
-            plan.steps().size(), total, callsPerSubgraph);
+        System.out.printf("Heavy query (%s): %d plan steps, %d subgraph calls %s%n",
+            mode, plan.steps().size(), total, callsPerSubgraph);
 
-        assertThat(total).isLessThanOrEqualTo(MAX_SUBGRAPH_CALLS);
+        assertThat(total).isLessThanOrEqualTo(MAX_SUBGRAPH_CALLS.get(mode));
     }
 
     private static Object expectedData() {
@@ -149,11 +158,12 @@ class BenchmarkHeavyQueryTest {
     private record Run(ExecutionResult result, Map<String, SimulatedSubgraphClient> clients) {
     }
 
-    private static Run execute(int maxLatencyMillis) {
+    private static Run execute(BatchingOptions.Mode mode, int maxLatencyMillis) {
+        var batching = new BatchingOptions(mode, BatchingOptions.DEFAULT_MAX_BATCH_SIZE);
         Map<String, SimulatedSubgraphClient> simulated = new LinkedHashMap<>();
         Map<String, SubgraphClient> clients = new LinkedHashMap<>();
         for (String name : BenchmarkSubgraphs.NAMES) {
-            var client = new SimulatedSubgraphClient(BenchmarkSubgraphs.subgraph(name), maxLatencyMillis);
+            var client = new SimulatedSubgraphClient(BenchmarkSubgraphs.subgraph(name), maxLatencyMillis, batching);
             simulated.put(name, client);
             clients.put(name, client);
         }

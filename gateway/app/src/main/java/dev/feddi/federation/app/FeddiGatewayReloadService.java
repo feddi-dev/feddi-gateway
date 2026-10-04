@@ -5,6 +5,7 @@ import dev.feddi.federation.extension.FeddiGatewayDefinition;
 import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.extension.SubgraphClientFactory;
 import dev.feddi.federation.extension.SubgraphDefinition;
+import dev.feddi.federation.engine.executor.BatchingOptions;
 import dev.feddi.federation.extension.SubgraphSettings;
 import dev.feddi.federation.engine.compose.Composer.SubgraphInput;
 import org.jspecify.annotations.Nullable;
@@ -54,6 +55,7 @@ public class FeddiGatewayReloadService {
 
         List<SubgraphInput> inputs = new ArrayList<>();
         Map<String, SubgraphClient> clients = new HashMap<>();
+        Map<String, BatchingOptions> batching = new HashMap<>();
         Duration timeout = gatewayDefinition.gatewaySettings().timeout();
 
         for (Map.Entry<String, SubgraphDefinition> entry : gatewayDefinition.subgraphs().entrySet()) {
@@ -64,6 +66,13 @@ public class FeddiGatewayReloadService {
             SubgraphSettings settings = subgraphDefinition.settings();
             String url = settings.config().get("url") != null ? settings.config().get("url").toString() : "";
             inputs.add(new SubgraphInput(name, url, subgraphDefinition.sdl()));
+
+            try {
+                batching.put(name, BatchingOptions.fromSettings(settings.config(), BatchingOptions.NONE));
+            } catch (IllegalArgumentException e) {
+                throw new FeddiGatewayDefinitionException(
+                    "Invalid batching config for subgraph " + name + ": " + e.getMessage(), e);
+            }
 
             SubgraphClient baseClient = clientFactory.create(name, settings);
             clients.put(name, new TimeoutAwareSubgraphClient(baseClient, name, timeout));
@@ -80,7 +89,7 @@ public class FeddiGatewayReloadService {
             gateway = FeddiFederationGateway.create(inputs, clients, gatewayMetrics,
                     gatewayMetrics, documentProvider, introspectionEnabled);
         }
-        gatewayHolder.set(gateway);
+        gatewayHolder.set(gateway.withSubgraphBatching(batching));
     }
 
     private void validateSubgraph(String name, SubgraphDefinition subgraphDefinition) {

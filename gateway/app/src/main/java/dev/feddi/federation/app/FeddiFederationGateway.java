@@ -10,6 +10,7 @@ import dev.feddi.federation.engine.compose.CompositionResult;
 import dev.feddi.federation.engine.compose.CustomScalarWiring;
 import dev.feddi.federation.engine.compose.SubgraphParser;
 import dev.feddi.federation.engine.compose.Subgraph;
+import dev.feddi.federation.engine.executor.BatchingOptions;
 import dev.feddi.federation.engine.executor.ExecutionListener;
 import dev.feddi.federation.engine.executor.Executor;
 import dev.feddi.federation.engine.graph.Graph;
@@ -54,7 +55,8 @@ public final class FeddiFederationGateway {
     private final ExecutionListener executionListener;
     private final FeddiGatewayMetrics gatewayMetrics;
     private final DocumentProvider documentProvider;
-    private final OperationPlanCache planCache = new OperationPlanCache();
+    private final OperationPlanCache planCache;
+    private final Map<String, BatchingOptions> batching;
 
     private FeddiFederationGateway(Graph graph, GraphQLSchema supergraph,
                                    Map<String, SubgraphClient> subgraphClients,
@@ -92,6 +94,40 @@ public final class FeddiFederationGateway {
         this.executionListener = executionListener != null ? executionListener : ExecutionListener.NOOP;
         this.gatewayMetrics = gatewayMetrics;
         this.documentProvider = documentProvider;
+        this.planCache = new OperationPlanCache();
+        this.batching = Map.of();
+    }
+
+    private FeddiFederationGateway(FeddiFederationGateway source, Map<String, BatchingOptions> batching) {
+        this.graph = source.graph;
+        this.supergraph = source.supergraph;
+        this.introspectionEnabled = source.introspectionEnabled;
+        this.planner = source.planner;
+        this.normalizer = source.normalizer;
+        this.extensionClients = source.extensionClients;
+        this.executionListener = source.executionListener;
+        this.gatewayMetrics = source.gatewayMetrics;
+        this.documentProvider = source.documentProvider;
+        this.planCache = source.planCache;
+        this.batching = Map.copyOf(batching);
+    }
+
+    /**
+     * Returns a gateway that batches entity lookups per subgraph as configured. Subgraphs
+     * without an entry use {@link BatchingOptions#NONE}.
+     *
+     * @param batching batching options by subgraph name
+     * @return a new gateway sharing everything else with this one
+     */
+    public FeddiFederationGateway withSubgraphBatching(Map<String, BatchingOptions> batching) {
+        return new FeddiFederationGateway(this, batching);
+    }
+
+    /**
+     * Returns the batching options for a subgraph.
+     */
+    public BatchingOptions batching(String subgraphName) {
+        return batching.getOrDefault(subgraphName, BatchingOptions.NONE);
     }
     
     /**
@@ -328,7 +364,8 @@ public final class FeddiFederationGateway {
             // Adapt clients per-request with the gateway request context
             var engineClients = new LinkedHashMap<String, dev.feddi.federation.engine.executor.SubgraphClient>();
             for (var entry : extensionClients.entrySet()) {
-                engineClients.put(entry.getKey(), new SubgraphClientAdapter(entry.getValue(), requestContext));
+                engineClients.put(entry.getKey(),
+                    new SubgraphClientAdapter(entry.getValue(), requestContext, batching(entry.getKey())));
             }
 
             // Execute the plan (pass supergraph schema only if introspection is enabled)
