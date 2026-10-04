@@ -24,6 +24,8 @@ All work stays on this branch until it is finished. Andi then reviews it before 
 | [04-reference-hive.md](04-reference-hive.md) | The Guild Hive Router's planner and what to cherry-pick from it |
 | [05-plan.md](05-plan.md) | Step-by-step plan, workflow and open decisions |
 | [06-progress-log.md](06-progress-log.md) | Measurements and notes after each step |
+| [07-batching.md](07-batching.md) | Batching research (specs, servers) and decisions: server-agnostic, `none \| alias \| variables` |
+| [08-java-ecosystem.md](08-java-ecosystem.md) | Java subgraph tuning guide and the graphql-java / Spring follow-up track |
 
 ## Summary
 
@@ -31,6 +33,6 @@ All work stays on this branch until it is finished. Andi then reviews it before 
   merges identical lookup steps. For the benchmark query that adds up to roughly 500 subgraph calls per request,
   while Fusion and Hive make about 10–15 batched calls.
 - feddi also re-plans every request (there is no plan cache).
-- The fix, in order: batch lookups (variable batching), remove duplicate entities, merge identical steps, then
-  (optionally) a cost-based planner modelled on Fusion. Fusion implements the same composite-schema spec as feddi,
+- The fix, in order: plan cache, remove duplicate entities, merge identical steps, batch lookups (alias for any
+  server, variables where supported), then a cost-based planner modelled on Fusion. feddi stays server-agnostic. Fusion implements the same composite-schema spec as feddi,
   so it is the base design. Hive Router contributes the repeat-until-stable merge passes and entity dedup.

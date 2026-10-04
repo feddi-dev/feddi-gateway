@@ -39,5 +39,11 @@ constants instead of directive string literals, no introspection field literals 
 - All performance work stays on this branch (draft PR feddi-dev/feddi-gateway#53) until it is finished; Andi
   reviews before it is merged into `main`.
 - Small commits, each with tests passing. Follow the step order in `docs/perf-query-execution/05-plan.md`.
+- feddi is **server-agnostic**: the baseline is plain GraphQL-over-HTTP. Batching is per-subgraph config
+  `batching: none | alias | variables` with a gateway-wide default (built-in default `none`); `variables` is checked
+  at startup. `SubgraphClient.executeBatch` is a `default` method that falls back to `execute` per variable set.
+  Details: `docs/perf-query-execution/07-batching.md`.
+- Java-subgraph tuning and graphql-java/Spring upstream work are a separate track
+  (`docs/perf-query-execution/08-java-ecosystem.md`), not part of this branch.
 - After each step, add an entry to `docs/perf-query-execution/06-progress-log.md` and update the status in its
   `README.md`.
