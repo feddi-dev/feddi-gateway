@@ -11,3 +11,6 @@ docker/gateway/*.jar
 # Ignore copied extensions JARs (build artifacts)
 docker/feddi-gateway/libs/
 docker/gateway/libs/
+
+# Ignore copied Spring subgraph JAR (build artifact)
+docker/subgraphs/inventory/*.jar
