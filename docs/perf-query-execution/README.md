@@ -11,7 +11,7 @@ All work stays on this branch until it is finished. Andi then reviews it before 
 | | |
 |---|---|
 | Branch | `perf/query-execution` (from `main` @ `912aeb5`) |
-| Current step | 0, tests (not started) |
+| Current step | 1, plan cache (step 0 done: 337 subgraph calls per heavy query) |
 | Benchmark result (published, commit `5ff8b61`) | Rust subgraphs: wrong results · .NET subgraphs: ~19 RPS (leaders ~2,400–2,900) · Burst: not run |
 
 ## Files
