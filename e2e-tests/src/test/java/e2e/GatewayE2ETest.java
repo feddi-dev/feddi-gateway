@@ -14,6 +14,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,6 +28,7 @@ import java.util.zip.ZipOutputStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -65,7 +67,9 @@ public class GatewayE2ETest {
         .withExposedService("products-1", 4001, Wait.forListeningPort()
             .withStartupTimeout(Duration.ofMinutes(2)))
         .withExposedService("reviews-1", 4002, Wait.forListeningPort()
-            .withStartupTimeout(Duration.ofMinutes(2)));
+            .withStartupTimeout(Duration.ofMinutes(2)))
+        .withExposedService("inventory-1", 4003, Wait.forListeningPort()
+            .withStartupTimeout(Duration.ofMinutes(3)));
 
     private WebClient gatewayClient;
     private WebClient adminClient;
@@ -1356,7 +1360,7 @@ public class GatewayE2ETest {
     private static String sha256Hex(String input) {
         try {
             var digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
             var hex = new StringBuilder();
             for (byte b : hash) {
                 hex.append(String.format("%02x", b));
@@ -1365,6 +1369,100 @@ public class GatewayE2ETest {
         } catch (Exception e) {
             throw new RuntimeException("SHA-256 not available", e);
         }
+    }
+
+    // ==================== Vanilla Spring for GraphQL subgraph (batching) ====================
+
+    private static final String STOCK_QUERY = "{ products { id name stock warehouse } }";
+
+    private static final List<Map<String, Object>> EXPECTED_STOCK = List.of(
+        Map.of("id", "1", "name", "Table", "stock", 12, "warehouse", "Berlin"),
+        Map.of("id", "2", "name", "Chair", "stock", 0, "warehouse", "Hamburg"),
+        Map.of("id", "3", "name", "Couch", "stock", 3, "warehouse", "Berlin"));
+
+    @Test
+    @Order(32)
+    void springSubgraphWithoutBatchingGetsOneRequestPerProduct() throws IOException {
+        uploadWithInventoryBatching("none");
+
+        int before = inventoryRequests();
+        Map<String, Object> response = executeGraphQL(STOCK_QUERY);
+
+        assertNull(response.get("errors"), "Unexpected errors: " + response.get("errors"));
+        assertEquals(EXPECTED_STOCK, ((Map<?, ?>) response.get("data")).get("products"));
+        assertEquals(3, inventoryRequests() - before);
+    }
+
+    @Test
+    @Order(33)
+    void springSubgraphWithAliasBatchingGetsOneRequest() throws IOException {
+        uploadWithInventoryBatching("alias");
+
+        int before = inventoryRequests();
+        Map<String, Object> response = executeGraphQL(STOCK_QUERY);
+
+        assertNull(response.get("errors"), "Unexpected errors: " + response.get("errors"));
+        assertEquals(EXPECTED_STOCK, ((Map<?, ?>) response.get("data")).get("products"));
+        assertEquals(1, inventoryRequests() - before);
+    }
+
+    @Test
+    @Order(34)
+    void customClientWithoutExecuteBatchSendsVariableBatchesPerEntity() throws IOException {
+        // The e2e gateway uses a custom SubgraphClient (JavaHttpSubgraphClient) that does not
+        // implement executeBatch: 'batching: variables' falls back to one request per entity
+        // and results stay correct. (feddi's default client is covered by unit tests: it
+        // detects that Spring for GraphQL rejects variable batches and falls back to alias.)
+        uploadWithInventoryBatching("variables");
+
+        int before = inventoryRequests();
+        Map<String, Object> response = executeGraphQL(STOCK_QUERY);
+
+        assertNull(response.get("errors"), "Unexpected errors: " + response.get("errors"));
+        assertEquals(EXPECTED_STOCK, ((Map<?, ?>) response.get("data")).get("products"));
+        assertEquals(3, inventoryRequests() - before);
+    }
+
+    private void uploadWithInventoryBatching(String batching) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            addResourceToZip(zos, "subgraphs/products/schema.graphqls");
+            addResourceToZip(zos, "subgraphs/products/config.yaml");
+            addResourceToZip(zos, "subgraphs/reviews/schema.graphqls");
+            addResourceToZip(zos, "subgraphs/reviews/config.yaml");
+            addResourceToZip(zos, "subgraphs/inventory/schema.graphqls");
+            zos.putNextEntry(new ZipEntry("subgraphs/inventory/config.yaml"));
+            zos.write(("url: http://inventory:4003/graphql\nbatching: " + batching + "\n")
+                .getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> uploadResponse = adminClient.post()
+            .uri("/admin/upload")
+            .contentType(MediaType.APPLICATION_OCTET_STREAM)
+            .bodyValue(baos.toByteArray())
+            .retrieve()
+            .bodyToMono(Map.class)
+            .block();
+        assertNotNull(uploadResponse);
+        assertEquals(true, uploadResponse.get("success"), "Upload failed: " + uploadResponse);
+    }
+
+    /** Requests received by the Spring subgraph so far (queried directly, not through feddi). */
+    private int inventoryRequests() {
+        String host = environment.getServiceHost("inventory-1", 4003);
+        int port = environment.getServicePort("inventory-1", 4003);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response = WebClient.create("http://" + host + ":" + port)
+            .post()
+            .uri("/graphql")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(Map.of("query", "{ inventoryRequests }"))
+            .retrieve()
+            .bodyToMono(Map.class)
+            .block();
+        return ((Number) ((Map<?, ?>) response.get("data")).get("inventoryRequests")).intValue();
     }
 
     private Map<String, Object> executeGraphQL(String query) {

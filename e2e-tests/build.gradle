@@ -91,5 +91,16 @@ tasks.register('copyExtensionsJar', Sync) {
     into libsDir
 }
 
+// Task to copy the Spring for GraphQL subgraph JAR for Docker build
+tasks.register('copySpringSubgraphJar', Copy) {
+    description = 'Copies the Spring for GraphQL subgraph JAR for Docker build'
+    dependsOn ':spring-subgraph:bootJar'
+
+    from(file("${projectDir}/spring-subgraph/build/libs")) {
+        include 'app.jar'
+    }
+    into file("${projectDir}/docker/subgraphs/inventory")
+}
+
 // Ensure JARs are copied before running tests
-test.dependsOn copyFeddiGatewayJar, copyExtensionsJar
+test.dependsOn copyFeddiGatewayJar, copyExtensionsJar, copySpringSubgraphJar
