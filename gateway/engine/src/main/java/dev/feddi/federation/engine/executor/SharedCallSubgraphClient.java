@@ -2,7 +2,6 @@ package dev.feddi.federation.engine.executor;
 
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
-import graphql.language.AstPrinter;
 import graphql.language.OperationDefinition;
 import reactor.core.publisher.Mono;
 
@@ -28,18 +27,6 @@ final class SharedCallSubgraphClient implements SubgraphClient {
     private record CallKey(String operation, Map<String, Object> variables) {
     }
 
-    private record OperationKey(OperationDefinition operation) {
-        @Override
-        public boolean equals(Object other) {
-            return other instanceof OperationKey key && key.operation == operation;
-        }
-
-        @Override
-        public int hashCode() {
-            return System.identityHashCode(operation);
-        }
-    }
-
     private static final class SharedCall {
         private final Mono<ExecutionResult> result;
         private final AtomicBoolean claimed = new AtomicBoolean();
@@ -55,7 +42,6 @@ final class SharedCallSubgraphClient implements SubgraphClient {
 
     private final SubgraphClient delegate;
     private final Map<CallKey, SharedCall> calls = new ConcurrentHashMap<>();
-    private final Map<OperationKey, String> operationTexts = new ConcurrentHashMap<>();
 
     SharedCallSubgraphClient(SubgraphClient delegate) {
         this.delegate = delegate;
@@ -66,8 +52,7 @@ final class SharedCallSubgraphClient implements SubgraphClient {
         if (operation.getOperation() != OperationDefinition.Operation.QUERY) {
             return delegate.execute(operation, variables);
         }
-        String text = operationTexts.computeIfAbsent(new OperationKey(operation),
-            key -> AstPrinter.printAstCompact(key.operation()));
+        String text = OperationTexts.compact(operation);
         CallKey key = new CallKey(text, variables == null ? Map.of() : variables);
         return calls.computeIfAbsent(key, k -> new SharedCall(delegate.execute(operation, variables))).next();
     }

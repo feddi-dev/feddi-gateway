@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Alias batching: rewrites one lookup operation and N variable sets into a single
@@ -43,6 +44,24 @@ import java.util.Map;
 final class AliasBatch {
 
     private static final String PREFIX = "_b";
+    private static final int MAX_TEMPLATES = 10_000;
+
+    private record Template(OperationDefinition operation, List<String> rootKeys, List<String> variableNames) {
+    }
+
+    private record TemplateKey(OperationDefinition operation, int copies) {
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof TemplateKey key && key.operation == operation && key.copies == copies;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * System.identityHashCode(operation) + copies;
+        }
+    }
+
+    private static final Map<TemplateKey, Template> TEMPLATES = new ConcurrentHashMap<>();
 
     private final OperationDefinition operation;
     private final Map<String, Object> variables;
@@ -73,16 +92,50 @@ final class AliasBatch {
     static AliasBatch create(OperationDefinition operation, List<Map<String, Object>> variableSets, int maxBatchSize) {
         int size = variableSets.size();
         int copies = Math.max(size, Math.min(bucket(size), maxBatchSize));
+        Template template = template(operation, copies);
 
+        Map<String, Object> variables = new LinkedHashMap<>();
+        for (int i = 0; i < copies; i++) {
+            String suffix = "_b" + i;
+            Map<String, Object> set = variableSets.get(Math.min(i, size - 1));
+            for (String name : template.variableNames()) {
+                if (set.containsKey(name)) {
+                    variables.put(name + suffix, set.get(name));
+                }
+            }
+        }
+        return new AliasBatch(template.operation(), variables, template.rootKeys(), size);
+    }
+
+    /**
+     * The batched operation for an operation and number of copies. It depends only on these
+     * two (variables are passed separately), so it is built once and cached; plans are cached,
+     * so the same operation instances recur.
+     */
+    private static Template template(OperationDefinition operation, int copies) {
+        TemplateKey key = new TemplateKey(operation, copies);
+        Template template = TEMPLATES.get(key);
+        if (template == null) {
+            template = buildTemplate(operation, copies);
+            if (TEMPLATES.size() >= MAX_TEMPLATES) {
+                TEMPLATES.clear();
+            }
+            TEMPLATES.put(key, template);
+        }
+        return template;
+    }
+
+    private static Template buildTemplate(OperationDefinition operation, int copies) {
         List<Field> rootFields = new ArrayList<>();
         for (Selection<?> selection : operation.getSelectionSet().getSelections()) {
             rootFields.add((Field) selection);
         }
         List<String> rootKeys = rootFields.stream().map(Field::getResultKey).toList();
+        List<String> variableNames = operation.getVariableDefinitions().stream()
+            .map(VariableDefinition::getName).toList();
 
         List<Selection> selections = new ArrayList<>();
         List<VariableDefinition> definitions = new ArrayList<>();
-        Map<String, Object> variables = new LinkedHashMap<>();
         for (int i = 0; i < copies; i++) {
             String suffix = "_b" + i;
             String aliasPrefix = PREFIX + i + "_";
@@ -93,14 +146,11 @@ final class AliasBatch {
             for (VariableDefinition definition : operation.getVariableDefinitions()) {
                 definitions.add(definition.transform(b -> b.name(definition.getName() + suffix)));
             }
-            Map<String, Object> set = variableSets.get(Math.min(i, size - 1));
-            set.forEach((name, value) -> variables.put(name + suffix, value));
         }
-
         OperationDefinition batched = operation.transform(b -> b
             .variableDefinitions(definitions)
             .selectionSet(SelectionSet.newSelectionSet().selections(selections).build()));
-        return new AliasBatch(batched, variables, rootKeys, size);
+        return new Template(batched, rootKeys, variableNames);
     }
 
     OperationDefinition operation() {
