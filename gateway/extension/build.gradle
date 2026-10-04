@@ -100,4 +100,7 @@ dependencies {
     // Spring context for bean annotations (@Component, @Service, @Primary, etc.)
     // This allows extension-provided SubgraphClientFactory implementations to use Spring annotations
     api libs.spring.context
+
+    // Spring web for HttpHeaders, used by SubgraphRequestHeaderCustomizer
+    api libs.spring.web
 }

@@ -15,8 +15,8 @@
       "skipped": 0
     },
     "gateway-app-integration": {
-      "total": 341,
-      "passed": 337,
+      "total": 343,
+      "passed": 339,
       "failed": 0,
       "errors": 0,
       "skipped": 4
@@ -49,11 +49,11 @@
   "coverage": {
     "overall": {
       "branch": {
-        "covered": 3464,
+        "covered": 3466,
         "missed": 1084
       },
       "line": {
-        "covered": 7153,
+        "covered": 7157,
         "missed": 1369
       },
       "method": {
@@ -64,11 +64,11 @@
     "classes": {
       "dev.feddi.federation.app.DefaultSubgraphClient": {
         "line": {
-          "covered": 65,
+          "covered": 68,
           "missed": 4
         },
         "branch": {
-          "covered": 21,
+          "covered": 23,
           "missed": 9
         },
         "method": {
@@ -78,11 +78,11 @@
         "methods": [
           {
             "name": "&lt;init&gt;",
-            "desc": "(Lorg/springframework/web/reactive/function/client/WebClient;Ljava/lang/String;)V",
-            "line": 29,
+            "desc": "(Lorg/springframework/web/reactive/function/client/WebClient;Ljava/lang/String;Ldev/feddi/federation/extension/SubgraphRequestHeaderCustomizer;)V",
+            "line": 35,
             "counters": {
               "line": {
-                "covered": 4,
+                "covered": 5,
                 "missed": 0
               },
               "branch": {
@@ -98,7 +98,7 @@
           {
             "name": "execute",
             "desc": "(Lgraphql/language/OperationDefinition;Ljava/util/Map;Ldev/feddi/federation/extension/FeddiGatewayRequestContext;)Lreactor/core/publisher/Mono;",
-            "line": 36,
+            "line": 43,
             "counters": {
               "line": {
                 "covered": 12,
@@ -117,7 +117,7 @@
           {
             "name": "buildExecutionResult",
             "desc": "(Ljava/util/Map;)Lgraphql/ExecutionResult;",
-            "line": 92,
+            "line": 102,
             "counters": {
               "line": {
                 "covered": 14,
@@ -136,7 +136,7 @@
           {
             "name": "extractErrorMessage",
             "desc": "(Ljava/util/Map;)Ljava/lang/String;",
-            "line": 121,
+            "line": 131,
             "counters": {
               "line": {
                 "covered": 7,
@@ -155,7 +155,7 @@
           {
             "name": "emptyResult",
             "desc": "()Lgraphql/ExecutionResult;",
-            "line": 135,
+            "line": 145,
             "counters": {
               "line": {
                 "covered": 3,
@@ -174,7 +174,7 @@
           {
             "name": "lambda$execute$9",
             "desc": "(Ljava/lang/Throwable;)V",
-            "line": 88,
+            "line": 98,
             "counters": {
               "line": {
                 "covered": 1,
@@ -193,7 +193,7 @@
           {
             "name": "lambda$execute$3",
             "desc": "(Lorg/springframework/web/reactive/function/client/ClientResponse;)Lreactor/core/publisher/Mono;",
-            "line": 56,
+            "line": 66,
             "counters": {
               "line": {
                 "covered": 10,
@@ -212,7 +212,7 @@
           {
             "name": "lambda$execute$8",
             "desc": "(Lorg/springframework/web/reactive/function/client/ClientResponse;)Lreactor/core/publisher/Mono;",
-            "line": 82,
+            "line": 92,
             "counters": {
               "line": {
                 "covered": 0,
@@ -231,7 +231,7 @@
           {
             "name": "lambda$execute$7",
             "desc": "(Ljava/util/Map;)Lreactor/core/publisher/Mono;",
-            "line": 77,
+            "line": 87,
             "counters": {
               "line": {
                 "covered": 3,
@@ -250,7 +250,7 @@
           {
             "name": "lambda$execute$6",
             "desc": "(Ljava/util/Map;)V",
-            "line": 75,
+            "line": 85,
             "counters": {
               "line": {
                 "covered": 1,
@@ -269,7 +269,7 @@
           {
             "name": "lambda$execute$5",
             "desc": "(Ljava/util/Map;)Lgraphql/ExecutionResult;",
-            "line": 70,
+            "line": 80,
             "counters": {
               "line": {
                 "covered": 1,
@@ -288,7 +288,7 @@
           {
             "name": "lambda$execute$4",
             "desc": "(Ljava/util/Map;)V",
-            "line": 60,
+            "line": 70,
             "counters": {
               "line": {
                 "covered": 8,
@@ -307,14 +307,14 @@
           {
             "name": "lambda$execute$0",
             "desc": "(Ldev/feddi/federation/extension/FeddiGatewayRequestContext;Lorg/springframework/http/HttpHeaders;)V",
-            "line": 51,
+            "line": 58,
             "counters": {
               "line": {
-                "covered": 3,
+                "covered": 5,
                 "missed": 0
               },
               "branch": {
-                "covered": 0,
+                "covered": 2,
                 "missed": 0
               },
               "method": {
@@ -326,7 +326,7 @@
           {
             "name": "lambda$execute$2",
             "desc": "(Lorg/springframework/http/HttpHeaders;Ljava/lang/String;)V",
-            "line": 52,
+            "line": 59,
             "counters": {
               "line": {
                 "covered": 1,
@@ -345,7 +345,7 @@
           {
             "name": "lambda$execute$1",
             "desc": "(Lorg/springframework/http/HttpHeaders;Ljava/lang/String;)V",
-            "line": 51,
+            "line": 58,
             "counters": {
               "line": {
                 "covered": 1,
@@ -364,7 +364,7 @@
           {
             "name": "&lt;clinit&gt;",
             "desc": "()V",
-            "line": 24,
+            "line": 28,
             "counters": {
               "line": {
                 "covered": 1,
@@ -911,7 +911,7 @@
       },
       "dev.feddi.federation.app.DefaultSubgraphClientFactory": {
         "line": {
-          "covered": 6,
+          "covered": 7,
           "missed": 0
         },
         "branch": {
@@ -925,11 +925,11 @@
         "methods": [
           {
             "name": "&lt;init&gt;",
-            "desc": "(Lorg/springframework/web/reactive/function/client/WebClient$Builder;)V",
-            "line": 20,
+            "desc": "(Lorg/springframework/web/reactive/function/client/WebClient$Builder;Ldev/feddi/federation/extension/SubgraphRequestHeaderCustomizer;)V",
+            "line": 24,
             "counters": {
               "line": {
-                "covered": 3,
+                "covered": 4,
                 "missed": 0
               },
               "branch": {
@@ -945,7 +945,7 @@
           {
             "name": "create",
             "desc": "(Ljava/lang/String;Ldev/feddi/federation/extension/SubgraphSettings;)Ldev/feddi/federation/extension/SubgraphClient;",
-            "line": 26,
+            "line": 31,
             "counters": {
               "line": {
                 "covered": 3,
@@ -1072,7 +1072,7 @@
           {
             "name": "&lt;init&gt;",
             "desc": "(Ljava/lang/String;Ljava/util/List;Ljava/util/Map;)V",
-            "line": 140,
+            "line": 150,
             "counters": {
               "line": {
                 "covered": 1,
@@ -1091,7 +1091,7 @@
           {
             "name": "getMessage",
             "desc": "()Ljava/lang/String;",
-            "line": 147,
+            "line": 157,
             "counters": {
               "line": {
                 "covered": 1,
@@ -1110,7 +1110,7 @@
           {
             "name": "getLocations",
             "desc": "()Ljava/util/List;",
-            "line": 152,
+            "line": 162,
             "counters": {
               "line": {
                 "covered": 1,
@@ -1129,7 +1129,7 @@
           {
             "name": "getErrorType",
             "desc": "()Lgraphql/ErrorClassification;",
-            "line": 157,
+            "line": 167,
             "counters": {
               "line": {
                 "covered": 1,
@@ -1148,7 +1148,7 @@
           {
             "name": "getPath",
             "desc": "()Ljava/util/List;",
-            "line": 162,
+            "line": 172,
             "counters": {
               "line": {
                 "covered": 1,
@@ -1167,7 +1167,7 @@
           {
             "name": "getExtensions",
             "desc": "()Ljava/util/Map;",
-            "line": 167,
+            "line": 177,
             "counters": {
               "line": {
                 "covered": 1,
@@ -3238,7 +3238,7 @@
           {
             "name": "&lt;init&gt;",
             "desc": "()V",
-            "line": 18,
+            "line": 20,
             "counters": {
               "line": {
                 "covered": 1,
@@ -3256,8 +3256,8 @@
           },
           {
             "name": "subgraphClientFactory",
-            "desc": "(Lorg/springframework/web/reactive/function/client/WebClient$Builder;)Ldev/feddi/federation/extension/SubgraphClientFactory;",
-            "line": 28,
+            "desc": "(Lorg/springframework/web/reactive/function/client/WebClient$Builder;Ldev/feddi/federation/extension/SubgraphRequestHeaderCustomizer;)Ldev/feddi/federation/extension/SubgraphClientFactory;",
+            "line": 31,
             "counters": {
               "line": {
                 "covered": 1,

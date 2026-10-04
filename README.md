@@ -24,7 +24,7 @@ It works best overall when used together with the feddi Platform. For full docum
 |:------|------:|-------:|-------:|-------:|--------:|
 | Gateway engine | 1129 | 1125 | - | - | 4 |
 | Gateway app unit | 14 | 14 | - | - | - |
-| Gateway app integration | 341 | 337 | - | - | 4 |
+| Gateway app integration | 343 | 339 | - | - | 4 |
 | E2E tests | 31 | 31 | - | - | - |
 
 ### Test Categories
@@ -39,8 +39,8 @@ It works best overall when used together with the feddi Platform. For full docum
 ### Code Coverage
 | Metric | Coverage | Covered / Total |
 |:-------|---------:|----------------:|
-| Line | 83.9% | 7153/8522 |
-| Branch | 76.2% | 3464/4548 |
+| Line | 83.9% | 7157/8526 |
+| Branch | 76.2% | 3466/4550 |
 | Method | 80.2% | 1237/1543 |
 <!-- test-results-end -->
 
@@ -234,6 +234,8 @@ Each subgraph entry must contain:
 - `config.yaml` or `config.yml`
 
 For the built-in subgraph client, `url` is the only consumed subgraph config key. Extension-provided `SubgraphClientFactory` implementations can read additional keys from the same per-subgraph config map.
+
+If a `SubgraphRequestHeaderCustomizer` bean is registered, `DefaultSubgraphClient` calls it after forwarding the built-in `Authorization`/`User-Agent` headers, so it can add new headers or override forwarded ones.
 
 ### Launcher Environment Variables
 
