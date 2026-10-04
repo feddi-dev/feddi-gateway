@@ -97,3 +97,30 @@ subgraph server.
   alias/complexity/depth limits must allow the batch size.
 - Subgraph-side analytics and logs change (operation hashes vary by batch size; field usage counts may drop).
 - A non-null lookup (`Product!`) that fails nulls the whole batch, so lookups should be nullable.
+
+## Persisted documents
+
+feddi supports persisted documents from clients via the `DocumentProvider` SPI (see
+[02-feddi-current.md](02-feddi-current.md)).
+
+**Client → gateway: no conflict.** Persisted documents decide which client operation runs; call reduction happens
+later and changes neither the client document nor the response. The plan cache (step 1) makes persisted requests
+skip normalizing and planning as well.
+
+**Gateway → subgraph: matters only for subgraphs that accept registered operations exclusively** (a trusted-document
+allowlist). feddi always sends *generated* operations, so such subgraphs already have to allow feddi's operations.
+How the techniques change the set of operation texts:
+
+| Technique | Changes operation texts? | Effect on subgraph allowlists |
+|---|---|---|
+| Plan cache, entity dedup | no | none |
+| `variables` batching | no (one text for any number of entities) | none |
+| Merging identical steps, planner v2 | yes, but a fixed set | regenerate the allowlist on feddi upgrades |
+| `alias` batching | one text per batch-size bucket | ~5–10× more texts per lookup |
+| `alias-combine` (different steps in one document) | combinations × buckets | too many to register in practice |
+
+Consequences:
+- Subgraphs with allowlists: use `batching: variables` (if supported) or `none`; dedup and step merging still apply.
+- `alias-combine` is a separate switch, so `alias` can be used without it.
+- Generated subgraph operations are printed **deterministically** (tested), so allowlists stay valid across restarts.
+- Follow-ups: export of all generated subgraph operations per subgraph; sending persisted IDs to subgraphs.

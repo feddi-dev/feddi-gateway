@@ -2,10 +2,21 @@
 
 ## Request path
 
-`app/.../FeddiFederationGateway.java` (around line 320) handles every request like this:
-parse → `OperationNormalizer.normalize` → `Operation.fromOperationDefinition` → `planner.plan(query)` → `Executor.execute`.
+`app/.../FeddiFederationGateway.execute` (around line 300) handles every request like this:
 
-**There is no plan cache.** The same query is normalized and planned again on every request.
+1. Resolve the document: the optional **`DocumentProvider`** (published SPI, `extension/.../DocumentProvider.java`)
+   is asked first. This is how **persisted documents** are supported, e.g. an APQ-style provider that looks up
+   `extensions.persistedQuery.sha256Hash` (see `e2e-tests/extensions/.../TestDocumentProvider.java`,
+   `DocumentProviderIntegrationTest`, and the persisted-query tests in `GatewayE2ETest`). It may return a
+   document (feddi skips parse and validate), errors (e.g. `PersistedQueryNotFound`), or empty (feddi falls back to
+   `ParseAndValidate`).
+2. `OperationNormalizer.normalize` → `Operation.fromOperationDefinition` → `planner.plan(query)`.
+3. A new `Executor` per request (with per-request `SubgraphClientAdapter`s) → `Executor.execute`.
+4. `GatewayResult(result, normalizedDocument)`. `GraphQLController` passes that **normalized** document to
+   `UsageReporter` via `ExecutionOutcome`.
+
+**There is no plan cache.** Even a persisted document is normalized and planned again on every request; the
+`DocumentProvider` only saves parsing and validation.
 
 ## Planner (`engine/.../planner/`, ~3.7k lines)
 
