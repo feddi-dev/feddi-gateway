@@ -37,8 +37,9 @@ this benchmark. The architecture is described in [09-architecture.md](09-archite
 ## Follow-up (not on this branch)
 
 - **Java ecosystem track** ([08-java-ecosystem.md](08-java-ecosystem.md)): publish the tuning guide with the
-  release; measure alias vs variables against the Spring reference subgraph; then decide on graphql-java / Spring
-  work and on the spec discussion in graphql-federation-spec#25.
+  release; graphql-java and Spring for GraphQL support for variable batching is planned work, aligned with
+  graphql-over-http#307 (the federation spec WG confirmed v1 relies on variable batching from the HTTP spec).
+- Verify feddi's variable batching wire format against the final graphql-over-http#307 appendix once merged.
 - Andi-style batch fields (feddi directive).
 - Reconsider switching the default batching mode to `alias`.
 - Request batching (`batching: requests`) if a use case appears.

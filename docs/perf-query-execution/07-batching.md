@@ -42,7 +42,29 @@ subgraph server.
 - `rfcs/Batching.md` describes request batching (implementations: Apollo, graphql-php, graphql-ruby, HotChocolate).
 - [graphql-over-http#307 "Adds Batching Proposal"](https://github.com/graphql/graphql-over-http/pull/307)
   (Michael Staib, open since 2024-08) and [#308 "Add Request Batching Appendix"](https://github.com/graphql/graphql-over-http/pull/308)
-  are both still open.
+  are both still open (#307 last updated 2026-08-26). #307 adds `Appendix B -- Batching` to the HTTP spec and says
+  it is "in the first place meant for Subgraphs/Source Schema in a federated graph".
+
+### Working group answer (2026-10-04)
+
+Leif asked Michael Staib (ChilliCream, federation spec WG) whether the federation spec will say something about
+batching. Answer, paraphrased:
+
+- Batching **is a v1 feature**, but it is **solved by the GraphQL-over-HTTP spec**, not by the federation spec itself.
+- Both ChilliCream's (Fusion) and Apollo's implementations use **variable batching**.
+- Apollo is working on its planner update.
+
+Consequences for feddi:
+
+- `variables` is the standard direction. Our wire format (variables array in, JSONL with `variableIndex` out)
+  matches HotChocolate and #307. Check it against the final appendix once #307 is merged (content type, field names,
+  ordering).
+- `alias` stays as the bridge for servers without variable batching (today: Spring for GraphQL, DGS, plain
+  graphql-java servers, graphql-js).
+- Closing the Java gap (graphql-java + Spring for GraphQL supporting variable batching) moves from "later, depending
+  on measurements" to planned work: see [08-java-ecosystem.md](08-java-ecosystem.md).
+- Possible later default: `variables` when the probe confirms support, otherwise `alias`. For the release that
+  merges this branch the built-in default stays `none`.
 
 ### Our view on where batching belongs
 - The **wire format** belongs in GraphQL-over-HTTP: it is transport-specific and useful beyond federation, and server
