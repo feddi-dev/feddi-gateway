@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -45,7 +46,8 @@ public final class ExecutingMockSubgraphClient implements SubgraphClient {
     private final String subgraphName;
     private final GraphQLSchema subgraphSchema;
     private final List<SubgraphCall> expectedCalls;
-    private final List<RecordedCall> recordedCalls = new ArrayList<>();
+    // Thread-safe: independent steps call the same subgraph concurrently.
+    private final List<RecordedCall> recordedCalls = new CopyOnWriteArrayList<>();
     private final Parser parser = new Parser();
     private final FinishOrderController finishOrderController;
 
