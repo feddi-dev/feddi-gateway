@@ -350,38 +350,49 @@ public final class Executor {
             return Mono.just(new StepResult(step.id()));
         }
 
-        final List<Map<String, Object>> contexts = parentContexts;
         // Get field names that should be set to null for skipped entities
         final Set<String> nullFieldNames = getFirstLevelFieldNames(step.operation());
+        final Map<String, Object> operationVariables = filterVariablesForOperation(step.operation(), queryVariables);
 
-        // Execute all entity calls in parallel
-        return Flux.fromIterable(contexts)
-            .flatMap(context -> {
-                // Start with filtered query variables, then overlay requirement variables
-                // Requirement variables take precedence since they're entity-specific
-                Map<String, Object> stepVariables = new LinkedHashMap<>(
-                    filterVariablesForOperation(step.operation(), queryVariables));
-                Map<String, Object> extractedVars = extractVariables(step.requirements(), context);
-                stepVariables.putAll(extractedVars);
+        // Group entities by the variables their lookup needs: the same entity often appears
+        // at many positions (e.g. one product under many reviews), but is fetched only once.
+        Map<Map<String, Object>, List<Map<String, Object>>> contextsByVariables = new LinkedHashMap<>();
+        List<EntityResult> skipped = new ArrayList<>();
+        for (Map<String, Object> context : parentContexts) {
+            // Skip entities that don't have essential key fields (null key handling)
+            // This happens when an intermediate lookup returned null.
+            // We check if key fields EXIST in context (not if they're null).
+            if (!hasEssentialKeyFields(step.requirements(), context)) {
+                skipped.add(new EntityResult(context, null));
+                continue;
+            }
+            // Start with filtered query variables, then overlay requirement variables
+            // Requirement variables take precedence since they're entity-specific
+            Map<String, Object> stepVariables = new LinkedHashMap<>(operationVariables);
+            stepVariables.putAll(extractVariables(step.requirements(), context));
+            contextsByVariables.computeIfAbsent(stepVariables, k -> new ArrayList<>()).add(context);
+        }
 
-                // Skip entities that don't have essential key fields (null key handling)
-                // This happens when an intermediate lookup returned null.
-                // We check if key fields EXIST in context (not if they're null).
-                if (!hasEssentialKeyFields(step.requirements(), context)) {
-                    return Mono.just(new EntityResult(context, null));
-                }
-
+        // Execute one call per unique entity in parallel
+        return Flux.fromIterable(contextsByVariables.entrySet())
+            .flatMap(entry -> {
                 long entityStart = System.nanoTime();
-                return client.execute(step.operation(), stepVariables)
+                return client.execute(step.operation(), entry.getKey())
                     .doOnNext(result -> listener.onSubgraphFetchComplete(step.subgraph(), System.nanoTime() - entityStart, true))
                     .doOnError(e -> listener.onSubgraphFetchComplete(step.subgraph(), System.nanoTime() - entityStart, false))
-                    .map(result -> new EntityResult(context, result))
+                    .map(result -> fanOut(entry.getValue(), result))
                     .onErrorResume(e -> {
-                        // Handle individual entity errors without failing the entire step
-                        // Capture the error so we can add it to the response
-                        return Mono.just(new EntityResult(context, null, e));
+                        // Handle individual entity errors without failing the entire step.
+                        // The error is reported once; every position of the entity gets null fields.
+                        List<EntityResult> failed = new ArrayList<>();
+                        for (Map<String, Object> context : entry.getValue()) {
+                            failed.add(new EntityResult(context, null, failed.isEmpty() ? e : null));
+                        }
+                        return Mono.just(failed);
                     });
             })
+            .concatMapIterable(results -> results)
+            .concatWith(Flux.fromIterable(skipped))
             .collectList()
             .map(entityResults -> {
                 StepResult stepResult = new StepResult(step.id());
@@ -1185,6 +1196,41 @@ public final class Executor {
      * @param result the execution result, or null if skipped/failed
      * @param error optional error if the execution failed (e.g., timeout)
      */
+    /**
+     * Distributes one subgraph result to every position of a deduplicated entity. The first
+     * position gets the result as is; every other position gets its own deep copy of the data,
+     * so later steps that target only one response path cannot leak fields into the others.
+     * Errors are reported once, with the first position.
+     */
+    private static List<EntityResult> fanOut(List<Map<String, Object>> contexts, ExecutionResult result) {
+        List<EntityResult> results = new ArrayList<>(contexts.size());
+        results.add(new EntityResult(contexts.get(0), result));
+        for (int i = 1; i < contexts.size(); i++) {
+            ExecutionResult copy = ExecutionResultImpl.newExecutionResult()
+                .data(deepCopy(result.getData()))
+                .build();
+            results.add(new EntityResult(contexts.get(i), copy));
+        }
+        return results;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T deepCopy(T value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<Object, Object> copy = new LinkedHashMap<>(Math.max(4, map.size() * 2));
+            map.forEach((k, v) -> copy.put(k, deepCopy(v)));
+            return (T) copy;
+        }
+        if (value instanceof List<?> list) {
+            List<Object> copy = new ArrayList<>(list.size());
+            for (Object item : list) {
+                copy.add(deepCopy(item));
+            }
+            return (T) copy;
+        }
+        return value;
+    }
+
     private record EntityResult(Map<String, Object> context, ExecutionResult result, Throwable error) {
         EntityResult(Map<String, Object> context, ExecutionResult result) {
             this(context, result, null);

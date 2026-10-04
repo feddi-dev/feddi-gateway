@@ -95,7 +95,7 @@ class BenchmarkHeavyQueryTest {
      * Upper bound on subgraph calls for one heavy query. Baseline before optimizations: see
      * docs/perf-query-execution/06-progress-log.md. Lower this as call reduction lands.
      */
-    static final int MAX_SUBGRAPH_CALLS = 337;
+    static final int MAX_SUBGRAPH_CALLS = 26;
 
     private static SchemaDefinition schema;
     private static ExecutionPlan plan;
