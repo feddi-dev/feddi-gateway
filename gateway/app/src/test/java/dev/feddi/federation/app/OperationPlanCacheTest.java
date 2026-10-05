@@ -12,6 +12,7 @@ import graphql.ExecutionResultImpl;
 import graphql.GraphqlErrorBuilder;
 import graphql.execution.preparsed.PreparsedDocumentEntry;
 import graphql.language.Document;
+import graphql.language.OperationDefinition;
 import graphql.parser.Parser;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -157,7 +158,9 @@ class OperationPlanCacheTest {
     // ==================== Helpers ====================
 
     private static PreparedOperation prepared(String query) {
-        return new PreparedOperation(Parser.parse(query), new ExecutionPlan(List.of()));
+        Document document = Parser.parse(query);
+        return new PreparedOperation(document, document.getDefinitionsOfType(OperationDefinition.class).get(0),
+            new ExecutionPlan(List.of()));
     }
 
     private static FeddiFederationGateway gateway(SimpleMeterRegistry registry, DocumentProvider provider) {

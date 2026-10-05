@@ -2,6 +2,7 @@ package dev.feddi.federation.app;
 
 import dev.feddi.federation.engine.planner.ExecutionPlan;
 import graphql.language.Document;
+import graphql.language.OperationDefinition;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Iterator;
@@ -33,11 +34,13 @@ import java.util.function.Supplier;
 final class OperationPlanCache {
 
     /**
-     * A prepared operation: the normalized document (passed on to usage reporting) and its plan.
+     * A prepared operation: the normalized document (passed on to usage reporting), the operation
+     * in it (its selection set orders the response fields) and its plan.
      */
-    record PreparedOperation(Document document, ExecutionPlan plan) {
+    record PreparedOperation(Document document, OperationDefinition operation, ExecutionPlan plan) {
         PreparedOperation {
             Objects.requireNonNull(document, "document");
+            Objects.requireNonNull(operation, "operation");
             Objects.requireNonNull(plan, "plan");
         }
     }
