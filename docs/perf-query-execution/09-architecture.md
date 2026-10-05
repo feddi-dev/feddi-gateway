@@ -22,7 +22,7 @@ normalize → Operation                                     │
 Planner (today's OperationPlanner; v2 decided after step 5)│   step 6
   │                                                       │
   ▼                                                       │
-PlanOptimizer: passes until stable + canonical printing   │   step 3
+(PlanOptimizer: dropped, see 05-plan 3b)                  │
   │                                                       │
   ▼                                                       │
 ExecutionPlan (immutable, cached) ◄──────────────────────┘

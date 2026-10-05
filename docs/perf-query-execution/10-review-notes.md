@@ -37,13 +37,40 @@ untested.
 - **Copy constructor** of `FeddiFederationGateway` (used by `withSubgraphBatching`): commented that it must copy every
   field.
 
+## Answers (2026-10-04, after reading the code)
+
+- **Q1 `fanOut` copy.** Positions of a repeated step come from `collectEntityTargets(step.entityPath())`, i.e. one
+  response path, so later steps write the same data for all of them and sharing is safe. Only steps **without** an
+  `entityPath` select positions by searching for key fields (possibly across paths). The copy was added in step 2
+  (`32dfe70`) as a precaution; it is not on `main`. Remove it once path-less plans are gone (PR A).
+- **Q2 `executeSingleDependentStep`.** The planner creates a non-repeated dependent step only when it has no
+  requirements, i.e. for a `@lookup` without arguments (`type Query { product: Product @lookup }`). feddi composes
+  that today; the spec forbids it (`LOOKUP_MUST_HAVE_ARGUMENTS`, error). Implement the rule and remove the path (PR B).
+- **Q3 field order.** Still open.
+- **Q4 error semantics.** Data is unchanged. A failing lookup is reported once per unique entity (`none`) or once per
+  batch (`alias`/`variables`) instead of once per position; the timeout listener fires once per batch. Example:
+  products subgraph down in the heavy query: ~131 identical errors before, 2 now.
+
+## Path-less plans: history and removal
+
+- Before #49 the executor found lookup targets by searching the response for objects with the required key fields
+  (parent-step contexts, then `findMatchingContexts` over the whole response). That hit unrelated objects with equal
+  keys (e.g. review `1` treated as user `1`) and mis-targeted aliases: issue #49.
+- `af2666d` (2026-09-13) added `entityPath` and made planned steps follow it; the key-field search stayed as a
+  fallback for "legacy, manually assembled plans without a path", covered by `LegacyExecutionPlanTest` (`a3db5b3`).
+- Nobody builds plans outside the planner (the `engine` module is not published; the extension SPI has no plan
+  types; plans are not stored). The planner always sets `entityPath` for lookup steps (all 316 repeated steps of the
+  341 fixture queries). Tests use the path-less constructor only for expected plans, which are compared, not executed.
+- Decision: remove execution of path-less repeated steps (PR A, against `main`); keep the constructor for tests.
+  Then remove the `fanOut` copy here.
+
 ## Open questions for Andi
 
-1. **Is the deep copy in `Executor.fanOut` needed?** All positions of one repeated step share the same response path,
+1. *(Answered above.)* **Is the deep copy in `Executor.fanOut` needed?** All positions of one repeated step share the same response path,
    so later steps fetch the same data for all of them; sharing one result map across those positions looks safe, and
    no test fails without the copy. It costs a few percent CPU (deep copies were ~2–4% of samples in the profile).
    Kept for now as a defensive measure; removing it needs a proof (or a counterexample test).
-2. **Is `Executor.executeSingleDependentStep` reachable?** The planner only creates a non-repeated dependent step when
+2. *(Answered above.)* **Is `Executor.executeSingleDependentStep` reachable?** The planner only creates a non-repeated dependent step when
    it has no requirements. It was uncovered on `main` too. Either find the case that produces it (and test it) or
    remove it.
 3. **Field order is not checked.** The monolith comparisons use `Map.equals`, which ignores key order. GraphQL
