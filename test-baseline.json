@@ -1,8 +1,8 @@
 {
   "tests": {
     "gateway-engine": {
-      "total": 1129,
-      "passed": 1125,
+      "total": 1126,
+      "passed": 1122,
       "failed": 0,
       "errors": 0,
       "skipped": 4
@@ -43,22 +43,22 @@
       "total": 209
     },
     "engine-other": {
-      "total": 673
+      "total": 670
     }
   },
   "coverage": {
     "overall": {
       "branch": {
-        "covered": 3466,
-        "missed": 1084
+        "covered": 3438,
+        "missed": 1068
       },
       "line": {
-        "covered": 7157,
-        "missed": 1369
+        "covered": 7115,
+        "missed": 1328
       },
       "method": {
-        "covered": 1237,
-        "missed": 306
+        "covered": 1232,
+        "missed": 300
       }
     },
     "classes": {
@@ -4668,7 +4668,7 @@
           {
             "name": "&lt;init&gt;",
             "desc": "(ILjava/lang/String;Lgraphql/language/OperationDefinition;Ljava/util/List;Ljava/util/List;Ljava/util/Map;ZLjava/util/Set;Ljava/util/Set;)V",
-            "line": 51,
+            "line": 55,
             "counters": {
               "line": {
                 "covered": 2,
@@ -4687,7 +4687,7 @@
           {
             "name": "&lt;init&gt;",
             "desc": "(ILjava/lang/String;Lgraphql/language/OperationDefinition;Ljava/util/List;Ljava/util/List;Ljava/util/Map;ZLjava/util/Set;Ljava/util/Set;Ljava/util/List;)V",
-            "line": 55,
+            "line": 59,
             "counters": {
               "line": {
                 "covered": 11,
@@ -4706,7 +4706,7 @@
           {
             "name": "root",
             "desc": "(ILjava/lang/String;Lgraphql/language/OperationDefinition;)Ldev/feddi/federation/engine/planner/ExecutionStep;",
-            "line": 77,
+            "line": 81,
             "counters": {
               "line": {
                 "covered": 0,
@@ -4725,7 +4725,7 @@
           {
             "name": "dependent",
             "desc": "(ILjava/lang/String;Lgraphql/language/OperationDefinition;Ljava/util/List;Ljava/util/Map;Z)Ldev/feddi/federation/engine/planner/ExecutionStep;",
-            "line": 91,
+            "line": 95,
             "counters": {
               "line": {
                 "covered": 0,
@@ -4744,7 +4744,7 @@
           {
             "name": "dependent",
             "desc": "(ILjava/lang/String;Lgraphql/language/OperationDefinition;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Z)Ldev/feddi/federation/engine/planner/ExecutionStep;",
-            "line": 106,
+            "line": 110,
             "counters": {
               "line": {
                 "covered": 0,
@@ -4763,7 +4763,7 @@
           {
             "name": "hasArtificialFields",
             "desc": "()Z",
-            "line": 113,
+            "line": 117,
             "counters": {
               "line": {
                 "covered": 0,
@@ -4782,7 +4782,7 @@
           {
             "name": "flattenedFields",
             "desc": "()Ljava/util/List;",
-            "line": 121,
+            "line": 125,
             "counters": {
               "line": {
                 "covered": 4,
@@ -4801,7 +4801,7 @@
           {
             "name": "flattenSelectionSet",
             "desc": "(Lgraphql/language/SelectionSet;Ljava/util/List;)V",
-            "line": 129,
+            "line": 133,
             "counters": {
               "line": {
                 "covered": 10,
@@ -4820,7 +4820,7 @@
           {
             "name": "toGraphQL",
             "desc": "()Ljava/lang/String;",
-            "line": 149,
+            "line": 153,
             "counters": {
               "line": {
                 "covered": 1,
@@ -4839,7 +4839,7 @@
           {
             "name": "isRoot",
             "desc": "()Z",
-            "line": 156,
+            "line": 160,
             "counters": {
               "line": {
                 "covered": 1,
@@ -4858,7 +4858,7 @@
           {
             "name": "hasRequirements",
             "desc": "()Z",
-            "line": 163,
+            "line": 167,
             "counters": {
               "line": {
                 "covered": 0,
@@ -4877,7 +4877,7 @@
           {
             "name": "hasParallelSteps",
             "desc": "()Z",
-            "line": 170,
+            "line": 174,
             "counters": {
               "line": {
                 "covered": 0,
@@ -4896,7 +4896,7 @@
           {
             "name": "toString",
             "desc": "()Ljava/lang/String;",
-            "line": 175,
+            "line": 179,
             "counters": {
               "line": {
                 "covered": 0,
@@ -4915,7 +4915,7 @@
           {
             "name": "lambda$toString$0",
             "desc": "(Ljava/util/Map$Entry;)Ljava/lang/String;",
-            "line": 187,
+            "line": 191,
             "counters": {
               "line": {
                 "covered": 0,
@@ -5624,250 +5624,6 @@
           }
         ]
       },
-      "dev.feddi.federation.engine.planner.BestPathTracker": {
-        "line": {
-          "covered": 28,
-          "missed": 22
-        },
-        "branch": {
-          "covered": 11,
-          "missed": 9
-        },
-        "method": {
-          "covered": 5,
-          "missed": 7
-        },
-        "methods": [
-          {
-            "name": "&lt;init&gt;",
-            "desc": "()V",
-            "line": 22,
-            "counters": {
-              "line": {
-                "covered": 3,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "add",
-            "desc": "(Ldev/feddi/federation/engine/planner/OperationPath;)V",
-            "line": 32,
-            "counters": {
-              "line": {
-                "covered": 11,
-                "missed": 3
-              },
-              "branch": {
-                "covered": 5,
-                "missed": 1
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "getBestPaths",
-            "desc": "()Ljava/util/List;",
-            "line": 58,
-            "counters": {
-              "line": {
-                "covered": 5,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 2,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "getBestPathsTo",
-            "desc": "(Ljava/lang/String;)Ljava/util/List;",
-            "line": 69,
-            "counters": {
-              "line": {
-                "covered": 0,
-                "missed": 2
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 2
-              },
-              "method": {
-                "covered": 0,
-                "missed": 1
-              }
-            }
-          },
-          {
-            "name": "getBestCostTo",
-            "desc": "(Ljava/lang/String;)Ljava/util/OptionalInt;",
-            "line": 77,
-            "counters": {
-              "line": {
-                "covered": 0,
-                "missed": 2
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 2
-              },
-              "method": {
-                "covered": 0,
-                "missed": 1
-              }
-            }
-          },
-          {
-            "name": "isEmpty",
-            "desc": "()Z",
-            "line": 85,
-            "counters": {
-              "line": {
-                "covered": 0,
-                "missed": 1
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 0,
-                "missed": 1
-              }
-            }
-          },
-          {
-            "name": "subgraphCount",
-            "desc": "()I",
-            "line": 92,
-            "counters": {
-              "line": {
-                "covered": 0,
-                "missed": 1
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 0,
-                "missed": 1
-              }
-            }
-          },
-          {
-            "name": "getSubgraphs",
-            "desc": "()Ljava/util/Set;",
-            "line": 99,
-            "counters": {
-              "line": {
-                "covered": 0,
-                "missed": 1
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 0,
-                "missed": 1
-              }
-            }
-          },
-          {
-            "name": "clear",
-            "desc": "()V",
-            "line": 106,
-            "counters": {
-              "line": {
-                "covered": 0,
-                "missed": 2
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 0,
-                "missed": 1
-              }
-            }
-          },
-          {
-            "name": "toString",
-            "desc": "()Ljava/lang/String;",
-            "line": 111,
-            "counters": {
-              "line": {
-                "covered": 0,
-                "missed": 10
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 4
-              },
-              "method": {
-                "covered": 0,
-                "missed": 1
-              }
-            }
-          },
-          {
-            "name": "findBestPaths",
-            "desc": "(Ljava/util/List;)Ljava/util/List;",
-            "line": 140,
-            "counters": {
-              "line": {
-                "covered": 9,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 2,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "lambda$findBestPaths$0",
-            "desc": "(ILdev/feddi/federation/engine/planner/OperationPath;)Z",
-            "line": 150,
-            "counters": {
-              "line": {
-                "covered": 1,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 2,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          }
-        ]
-      },
       "dev.feddi.federation.engine.planner.OperationPlanner$SelectionNode": {
         "line": {
           "covered": 40,
@@ -6102,6 +5858,250 @@
               },
               "branch": {
                 "covered": 0,
+                "missed": 0
+              },
+              "method": {
+                "covered": 1,
+                "missed": 0
+              }
+            }
+          }
+        ]
+      },
+      "dev.feddi.federation.engine.planner.BestPathTracker": {
+        "line": {
+          "covered": 28,
+          "missed": 22
+        },
+        "branch": {
+          "covered": 11,
+          "missed": 9
+        },
+        "method": {
+          "covered": 5,
+          "missed": 7
+        },
+        "methods": [
+          {
+            "name": "&lt;init&gt;",
+            "desc": "()V",
+            "line": 22,
+            "counters": {
+              "line": {
+                "covered": 3,
+                "missed": 0
+              },
+              "branch": {
+                "covered": 0,
+                "missed": 0
+              },
+              "method": {
+                "covered": 1,
+                "missed": 0
+              }
+            }
+          },
+          {
+            "name": "add",
+            "desc": "(Ldev/feddi/federation/engine/planner/OperationPath;)V",
+            "line": 32,
+            "counters": {
+              "line": {
+                "covered": 11,
+                "missed": 3
+              },
+              "branch": {
+                "covered": 5,
+                "missed": 1
+              },
+              "method": {
+                "covered": 1,
+                "missed": 0
+              }
+            }
+          },
+          {
+            "name": "getBestPaths",
+            "desc": "()Ljava/util/List;",
+            "line": 58,
+            "counters": {
+              "line": {
+                "covered": 5,
+                "missed": 0
+              },
+              "branch": {
+                "covered": 2,
+                "missed": 0
+              },
+              "method": {
+                "covered": 1,
+                "missed": 0
+              }
+            }
+          },
+          {
+            "name": "getBestPathsTo",
+            "desc": "(Ljava/lang/String;)Ljava/util/List;",
+            "line": 69,
+            "counters": {
+              "line": {
+                "covered": 0,
+                "missed": 2
+              },
+              "branch": {
+                "covered": 0,
+                "missed": 2
+              },
+              "method": {
+                "covered": 0,
+                "missed": 1
+              }
+            }
+          },
+          {
+            "name": "getBestCostTo",
+            "desc": "(Ljava/lang/String;)Ljava/util/OptionalInt;",
+            "line": 77,
+            "counters": {
+              "line": {
+                "covered": 0,
+                "missed": 2
+              },
+              "branch": {
+                "covered": 0,
+                "missed": 2
+              },
+              "method": {
+                "covered": 0,
+                "missed": 1
+              }
+            }
+          },
+          {
+            "name": "isEmpty",
+            "desc": "()Z",
+            "line": 85,
+            "counters": {
+              "line": {
+                "covered": 0,
+                "missed": 1
+              },
+              "branch": {
+                "covered": 0,
+                "missed": 0
+              },
+              "method": {
+                "covered": 0,
+                "missed": 1
+              }
+            }
+          },
+          {
+            "name": "subgraphCount",
+            "desc": "()I",
+            "line": 92,
+            "counters": {
+              "line": {
+                "covered": 0,
+                "missed": 1
+              },
+              "branch": {
+                "covered": 0,
+                "missed": 0
+              },
+              "method": {
+                "covered": 0,
+                "missed": 1
+              }
+            }
+          },
+          {
+            "name": "getSubgraphs",
+            "desc": "()Ljava/util/Set;",
+            "line": 99,
+            "counters": {
+              "line": {
+                "covered": 0,
+                "missed": 1
+              },
+              "branch": {
+                "covered": 0,
+                "missed": 0
+              },
+              "method": {
+                "covered": 0,
+                "missed": 1
+              }
+            }
+          },
+          {
+            "name": "clear",
+            "desc": "()V",
+            "line": 106,
+            "counters": {
+              "line": {
+                "covered": 0,
+                "missed": 2
+              },
+              "branch": {
+                "covered": 0,
+                "missed": 0
+              },
+              "method": {
+                "covered": 0,
+                "missed": 1
+              }
+            }
+          },
+          {
+            "name": "toString",
+            "desc": "()Ljava/lang/String;",
+            "line": 111,
+            "counters": {
+              "line": {
+                "covered": 0,
+                "missed": 10
+              },
+              "branch": {
+                "covered": 0,
+                "missed": 4
+              },
+              "method": {
+                "covered": 0,
+                "missed": 1
+              }
+            }
+          },
+          {
+            "name": "findBestPaths",
+            "desc": "(Ljava/util/List;)Ljava/util/List;",
+            "line": 140,
+            "counters": {
+              "line": {
+                "covered": 9,
+                "missed": 0
+              },
+              "branch": {
+                "covered": 2,
+                "missed": 0
+              },
+              "method": {
+                "covered": 1,
+                "missed": 0
+              }
+            }
+          },
+          {
+            "name": "lambda$findBestPaths$0",
+            "desc": "(ILdev/feddi/federation/engine/planner/OperationPath;)Z",
+            "line": 150,
+            "counters": {
+              "line": {
+                "covered": 1,
+                "missed": 0
+              },
+              "branch": {
+                "covered": 2,
                 "missed": 0
               },
               "method": {
@@ -7486,12 +7486,12 @@
       },
       "dev.feddi.federation.engine.planner.PathFinder": {
         "line": {
-          "covered": 197,
-          "missed": 9
+          "covered": 198,
+          "missed": 8
         },
         "branch": {
-          "covered": 103,
-          "missed": 19
+          "covered": 105,
+          "missed": 17
         },
         "method": {
           "covered": 18,
@@ -7603,8 +7603,8 @@
                 "missed": 0
               },
               "branch": {
-                "covered": 29,
-                "missed": 1
+                "covered": 30,
+                "missed": 0
               },
               "method": {
                 "covered": 1,
@@ -7618,12 +7618,12 @@
             "line": 359,
             "counters": {
               "line": {
-                "covered": 26,
-                "missed": 2
+                "covered": 27,
+                "missed": 1
               },
               "branch": {
-                "covered": 17,
-                "missed": 3
+                "covered": 18,
+                "missed": 2
               },
               "method": {
                 "covered": 1,
@@ -12366,7 +12366,7 @@
           {
             "name": "&lt;init&gt;",
             "desc": "(Ljava/lang/String;)V",
-            "line": 1241,
+            "line": 1093,
             "counters": {
               "line": {
                 "covered": 2,
@@ -12385,7 +12385,7 @@
           {
             "name": "&lt;init&gt;",
             "desc": "(Ljava/lang/String;Ljava/lang/Throwable;)V",
-            "line": 1245,
+            "line": 1097,
             "counters": {
               "line": {
                 "covered": 0,
@@ -12405,25 +12405,25 @@
       },
       "dev.feddi.federation.engine.executor.Executor$ExecutionContext": {
         "line": {
-          "covered": 20,
-          "missed": 3
+          "covered": 15,
+          "missed": 0
         },
         "branch": {
-          "covered": 10,
-          "missed": 2
+          "covered": 7,
+          "missed": 1
         },
         "method": {
-          "covered": 6,
-          "missed": 1
+          "covered": 5,
+          "missed": 0
         },
         "methods": [
           {
             "name": "&lt;init&gt;",
             "desc": "(Ldev/feddi/federation/engine/executor/Executor;)V",
-            "line": 1202,
+            "line": 1064,
             "counters": {
               "line": {
-                "covered": 6,
+                "covered": 4,
                 "missed": 0
               },
               "branch": {
@@ -12439,15 +12439,15 @@
           {
             "name": "merge",
             "desc": "(Ldev/feddi/federation/engine/executor/Executor$StepResult;)V",
-            "line": 1211,
+            "line": 1071,
             "counters": {
               "line": {
-                "covered": 10,
-                "missed": 2
+                "covered": 8,
+                "missed": 0
               },
               "branch": {
-                "covered": 10,
-                "missed": 2
+                "covered": 7,
+                "missed": 1
               },
               "method": {
                 "covered": 1,
@@ -12458,7 +12458,7 @@
           {
             "name": "getMergedData",
             "desc": "()Ljava/util/Map;",
-            "line": 1229,
+            "line": 1083,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12477,45 +12477,7 @@
           {
             "name": "getStepData",
             "desc": "(I)Ljava/util/Map;",
-            "line": 1230,
-            "counters": {
-              "line": {
-                "covered": 0,
-                "missed": 1
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 0,
-                "missed": 1
-              }
-            }
-          },
-          {
-            "name": "getDataContexts",
-            "desc": "(I)Ljava/util/List;",
-            "line": 1231,
-            "counters": {
-              "line": {
-                "covered": 1,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "getNestedContexts",
-            "desc": "(I)Ljava/util/List;",
-            "line": 1232,
+            "line": 1084,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12534,7 +12496,7 @@
           {
             "name": "getErrors",
             "desc": "()Ljava/util/List;",
-            "line": 1233,
+            "line": 1085,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12569,7 +12531,7 @@
           {
             "name": "&lt;init&gt;",
             "desc": "(Ljava/lang/String;Ljava/lang/String;)V",
-            "line": 1252,
+            "line": 1104,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12588,7 +12550,7 @@
           {
             "name": "getMessage",
             "desc": "()Ljava/lang/String;",
-            "line": 1255,
+            "line": 1107,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12607,7 +12569,7 @@
           {
             "name": "getLocations",
             "desc": "()Ljava/util/List;",
-            "line": 1260,
+            "line": 1112,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12626,7 +12588,7 @@
           {
             "name": "getErrorType",
             "desc": "()Lgraphql/ErrorClassification;",
-            "line": 1265,
+            "line": 1117,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12645,7 +12607,7 @@
           {
             "name": "getExtensions",
             "desc": "()Ljava/util/Map;",
-            "line": 1270,
+            "line": 1122,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12680,7 +12642,7 @@
           {
             "name": "&lt;init&gt;",
             "desc": "(Ljava/util/Map;Lgraphql/ExecutionResult;)V",
-            "line": 1190,
+            "line": 1052,
             "counters": {
               "line": {
                 "covered": 2,
@@ -12699,7 +12661,7 @@
           {
             "name": "&lt;init&gt;",
             "desc": "(Ljava/util/Map;Lgraphql/ExecutionResult;Ljava/lang/Throwable;)V",
-            "line": 1188,
+            "line": 1050,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12719,22 +12681,22 @@
       },
       "dev.feddi.federation.engine.executor.Executor$StepResult": {
         "line": {
-          "covered": 14,
-          "missed": 1
+          "covered": 11,
+          "missed": 0
         },
         "branch": {
           "covered": 0,
           "missed": 0
         },
         "method": {
-          "covered": 11,
-          "missed": 1
+          "covered": 8,
+          "missed": 0
         },
         "methods": [
           {
             "name": "&lt;init&gt;",
             "desc": "(I)V",
-            "line": 1162,
+            "line": 1028,
             "counters": {
               "line": {
                 "covered": 4,
@@ -12753,7 +12715,7 @@
           {
             "name": "getStepId",
             "desc": "()I",
-            "line": 1168,
+            "line": 1034,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12772,7 +12734,7 @@
           {
             "name": "getRootData",
             "desc": "()Ljava/util/Map;",
-            "line": 1169,
+            "line": 1035,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12791,45 +12753,7 @@
           {
             "name": "getStepData",
             "desc": "()Ljava/util/Map;",
-            "line": 1170,
-            "counters": {
-              "line": {
-                "covered": 1,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "getDataContexts",
-            "desc": "()Ljava/util/List;",
-            "line": 1171,
-            "counters": {
-              "line": {
-                "covered": 1,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "getNestedContexts",
-            "desc": "()Ljava/util/List;",
-            "line": 1172,
+            "line": 1036,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12848,7 +12772,7 @@
           {
             "name": "getErrors",
             "desc": "()Ljava/util/List;",
-            "line": 1173,
+            "line": 1037,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12867,7 +12791,7 @@
           {
             "name": "setRootData",
             "desc": "(Ljava/util/Map;)V",
-            "line": 1175,
+            "line": 1039,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12886,45 +12810,7 @@
           {
             "name": "setStepData",
             "desc": "(Ljava/util/Map;)V",
-            "line": 1176,
-            "counters": {
-              "line": {
-                "covered": 0,
-                "missed": 1
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 0,
-                "missed": 1
-              }
-            }
-          },
-          {
-            "name": "setDataContexts",
-            "desc": "(Ljava/util/List;)V",
-            "line": 1177,
-            "counters": {
-              "line": {
-                "covered": 1,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "setNestedContexts",
-            "desc": "(Ljava/util/List;)V",
-            "line": 1178,
+            "line": 1040,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12943,7 +12829,7 @@
           {
             "name": "addError",
             "desc": "(Lgraphql/GraphQLError;)V",
-            "line": 1179,
+            "line": 1041,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12963,16 +12849,16 @@
       },
       "dev.feddi.federation.engine.executor.Executor": {
         "line": {
-          "covered": 459,
-          "missed": 67
+          "covered": 424,
+          "missed": 31
         },
         "branch": {
-          "covered": 266,
-          "missed": 58
+          "covered": 238,
+          "missed": 46
         },
         "method": {
-          "covered": 54,
-          "missed": 7
+          "covered": 53,
+          "missed": 3
         },
         "methods": [
           {
@@ -13076,12 +12962,12 @@
             "line": 170,
             "counters": {
               "line": {
-                "covered": 5,
-                "missed": 3
+                "covered": 6,
+                "missed": 2
               },
               "branch": {
-                "covered": 3,
-                "missed": 3
+                "covered": 4,
+                "missed": 2
               },
               "method": {
                 "covered": 1,
@@ -13168,7 +13054,7 @@
           {
             "name": "executeIntrospectionStep",
             "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;Ljava/util/Map;)Lreactor/core/publisher/Mono;",
-            "line": 312,
+            "line": 311,
             "counters": {
               "line": {
                 "covered": 13,
@@ -13187,10 +13073,10 @@
           {
             "name": "executeRepeatedStep",
             "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;Ldev/feddi/federation/engine/executor/SubgraphClient;Ldev/feddi/federation/engine/executor/Executor$ExecutionContext;Ljava/util/Map;)Lreactor/core/publisher/Mono;",
-            "line": 346,
+            "line": 345,
             "counters": {
               "line": {
-                "covered": 10,
+                "covered": 9,
                 "missed": 0
               },
               "branch": {
@@ -13206,26 +13092,26 @@
           {
             "name": "executeSingleDependentStep",
             "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;Ldev/feddi/federation/engine/executor/SubgraphClient;Ldev/feddi/federation/engine/executor/Executor$ExecutionContext;Ljava/util/Map;)Lreactor/core/publisher/Mono;",
-            "line": 464,
+            "line": 447,
             "counters": {
               "line": {
-                "covered": 0,
-                "missed": 12
+                "covered": 12,
+                "missed": 0
               },
               "branch": {
-                "covered": 0,
-                "missed": 2
+                "covered": 1,
+                "missed": 1
               },
               "method": {
-                "covered": 0,
-                "missed": 1
+                "covered": 1,
+                "missed": 0
               }
             }
           },
           {
             "name": "buildResult",
             "desc": "(Ldev/feddi/federation/engine/executor/Executor$ExecutionContext;Ldev/feddi/federation/engine/planner/ExecutionPlan;)Lgraphql/ExecutionResult;",
-            "line": 503,
+            "line": 486,
             "counters": {
               "line": {
                 "covered": 9,
@@ -13244,7 +13130,7 @@
           {
             "name": "filterArtificialFields",
             "desc": "(Ljava/util/Map;Ljava/util/Set;Ljava/lang/String;)Ljava/util/Map;",
-            "line": 531,
+            "line": 514,
             "counters": {
               "line": {
                 "covered": 17,
@@ -13263,7 +13149,7 @@
           {
             "name": "filterArtificialFieldsInList",
             "desc": "(Ljava/util/List;Ljava/util/Set;Ljava/lang/String;)Ljava/util/List;",
-            "line": 567,
+            "line": 550,
             "counters": {
               "line": {
                 "covered": 3,
@@ -13282,7 +13168,7 @@
           {
             "name": "filterVariablesForOperation",
             "desc": "(Lgraphql/language/OperationDefinition;Ljava/util/Map;)Ljava/util/Map;",
-            "line": 584,
+            "line": 567,
             "counters": {
               "line": {
                 "covered": 14,
@@ -13301,7 +13187,7 @@
           {
             "name": "extractVariables",
             "desc": "(Ljava/util/Map;Ljava/util/Map;)Ljava/util/Map;",
-            "line": 613,
+            "line": 596,
             "counters": {
               "line": {
                 "covered": 8,
@@ -13320,7 +13206,7 @@
           {
             "name": "hasEssentialKeyFields",
             "desc": "(Ljava/util/Map;Ljava/util/Map;)Z",
-            "line": 643,
+            "line": 626,
             "counters": {
               "line": {
                 "covered": 21,
@@ -13339,7 +13225,7 @@
           {
             "name": "extractFromSelectedValue",
             "desc": "(Ljava/util/Map;Ldev/feddi/federation/engine/parser/FieldSelectionMap$SelectedValue;)Ljava/lang/Object;",
-            "line": 685,
+            "line": 668,
             "counters": {
               "line": {
                 "covered": 6,
@@ -13358,7 +13244,7 @@
           {
             "name": "extractFromAlternative",
             "desc": "(Ljava/util/Map;Ldev/feddi/federation/engine/parser/FieldSelectionMap$Alternative;)Ljava/lang/Object;",
-            "line": 698,
+            "line": 681,
             "counters": {
               "line": {
                 "covered": 4,
@@ -13377,7 +13263,7 @@
           {
             "name": "extractValueFromPath",
             "desc": "(Ljava/util/Map;Ldev/feddi/federation/engine/parser/FieldSelectionMap$Path;)Ljava/lang/Object;",
-            "line": 711,
+            "line": 694,
             "counters": {
               "line": {
                 "covered": 1,
@@ -13396,7 +13282,7 @@
           {
             "name": "extractValueFromPathWithIndex",
             "desc": "(Ljava/lang/Object;Ldev/feddi/federation/engine/parser/FieldSelectionMap$Path;I)Ljava/lang/Object;",
-            "line": 718,
+            "line": 701,
             "counters": {
               "line": {
                 "covered": 44,
@@ -13415,7 +13301,7 @@
           {
             "name": "extractFromObjectSelection",
             "desc": "(Ljava/util/Map;Ldev/feddi/federation/engine/parser/FieldSelectionMap$ObjectSelection;)Ljava/lang/Object;",
-            "line": 809,
+            "line": 792,
             "counters": {
               "line": {
                 "covered": 14,
@@ -13434,7 +13320,7 @@
           {
             "name": "extractFromListSelection",
             "desc": "(Ljava/util/Map;Ldev/feddi/federation/engine/parser/FieldSelectionMap$ListSelection;)Ljava/lang/Object;",
-            "line": 837,
+            "line": 820,
             "counters": {
               "line": {
                 "covered": 14,
@@ -13451,36 +13337,17 @@
             }
           },
           {
-            "name": "extractDataContexts",
-            "desc": "(Ljava/util/Map;)Ljava/util/List;",
-            "line": 869,
-            "counters": {
-              "line": {
-                "covered": 14,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 9,
-                "missed": 1
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
             "name": "selectParentContexts",
-            "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;Ldev/feddi/federation/engine/executor/Executor$ExecutionContext;I)Ljava/util/List;",
-            "line": 901,
+            "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;Ldev/feddi/federation/engine/executor/Executor$ExecutionContext;)Ljava/util/List;",
+            "line": 854,
             "counters": {
               "line": {
-                "covered": 16,
-                "missed": 1
+                "covered": 7,
+                "missed": 0
               },
               "branch": {
-                "covered": 7,
-                "missed": 1
+                "covered": 2,
+                "missed": 0
               },
               "method": {
                 "covered": 1,
@@ -13491,7 +13358,7 @@
           {
             "name": "collectEntityTargets",
             "desc": "(Ljava/lang/Object;Ljava/util/List;ILjava/util/List;)V",
-            "line": 931,
+            "line": 869,
             "counters": {
               "line": {
                 "covered": 9,
@@ -13510,15 +13377,15 @@
           {
             "name": "filterContextsForRequirements",
             "desc": "(Ljava/util/List;Ljava/util/Map;)Ljava/util/List;",
-            "line": 946,
+            "line": 884,
             "counters": {
               "line": {
                 "covered": 9,
                 "missed": 1
               },
               "branch": {
-                "covered": 9,
-                "missed": 1
+                "covered": 8,
+                "missed": 2
               },
               "method": {
                 "covered": 1,
@@ -13529,7 +13396,7 @@
           {
             "name": "contextCanProvideRequirements",
             "desc": "(Ljava/util/Map;Ljava/util/Map;)Z",
-            "line": 969,
+            "line": 907,
             "counters": {
               "line": {
                 "covered": 5,
@@ -13548,7 +13415,7 @@
           {
             "name": "contextCanProvideSelectedValue",
             "desc": "(Ljava/util/Map;Ldev/feddi/federation/engine/parser/FieldSelectionMap$SelectedValue;)Z",
-            "line": 978,
+            "line": 916,
             "counters": {
               "line": {
                 "covered": 5,
@@ -13567,7 +13434,7 @@
           {
             "name": "contextCanProvideAlternative",
             "desc": "(Ljava/util/Map;Ldev/feddi/federation/engine/parser/FieldSelectionMap$Alternative;)Z",
-            "line": 987,
+            "line": 925,
             "counters": {
               "line": {
                 "covered": 5,
@@ -13586,7 +13453,7 @@
           {
             "name": "contextCanProvideObjectSelection",
             "desc": "(Ljava/util/Map;Ldev/feddi/federation/engine/parser/FieldSelectionMap$ObjectSelection;)Z",
-            "line": 996,
+            "line": 934,
             "counters": {
               "line": {
                 "covered": 6,
@@ -13605,91 +13472,15 @@
           {
             "name": "contextHasPathSource",
             "desc": "(Ljava/util/Map;Ldev/feddi/federation/engine/parser/FieldSelectionMap$Path;)Z",
-            "line": 1008,
+            "line": 946,
             "counters": {
               "line": {
                 "covered": 6,
                 "missed": 1
               },
               "branch": {
-                "covered": 7,
-                "missed": 1
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "findMatchingContexts",
-            "desc": "(Ljava/util/Map;Ljava/util/Map;)Ljava/util/List;",
-            "line": 1026,
-            "counters": {
-              "line": {
-                "covered": 3,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "findMatchingContextsRecursive",
-            "desc": "(Ljava/lang/Object;Ljava/util/Map;Ljava/util/List;)V",
-            "line": 1033,
-            "counters": {
-              "line": {
-                "covered": 14,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 10,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "extractNestedContexts",
-            "desc": "(Ljava/util/Map;)Ljava/util/List;",
-            "line": 1061,
-            "counters": {
-              "line": {
-                "covered": 5,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 2,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          },
-          {
-            "name": "extractNestedContextsRecursive",
-            "desc": "(Ljava/lang/Object;Ljava/util/List;Z)V",
-            "line": 1070,
-            "counters": {
-              "line": {
-                "covered": 13,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 10,
-                "missed": 0
+                "covered": 6,
+                "missed": 2
               },
               "method": {
                 "covered": 1,
@@ -13700,7 +13491,7 @@
           {
             "name": "mergeIntoContext",
             "desc": "(Ljava/util/Map;Ljava/util/Map;)V",
-            "line": 1094,
+            "line": 962,
             "counters": {
               "line": {
                 "covered": 6,
@@ -13719,7 +13510,7 @@
           {
             "name": "getFirstLevelFieldNames",
             "desc": "(Lgraphql/language/OperationDefinition;)Ljava/util/Set;",
-            "line": 1110,
+            "line": 978,
             "counters": {
               "line": {
                 "covered": 10,
@@ -13738,26 +13529,26 @@
           {
             "name": "deepMerge",
             "desc": "(Ljava/util/Map;Ljava/util/Map;)V",
-            "line": 1132,
+            "line": 1000,
             "counters": {
               "line": {
-                "covered": 0,
-                "missed": 15
+                "covered": 15,
+                "missed": 0
               },
               "branch": {
-                "covered": 0,
-                "missed": 8
+                "covered": 7,
+                "missed": 1
               },
               "method": {
-                "covered": 0,
-                "missed": 1
+                "covered": 1,
+                "missed": 0
               }
             }
           },
           {
             "name": "lambda$filterArtificialFieldsInList$0",
             "desc": "(Ljava/util/Set;Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;",
-            "line": 569,
+            "line": 552,
             "counters": {
               "line": {
                 "covered": 3,
@@ -13776,26 +13567,26 @@
           {
             "name": "lambda$executeSingleDependentStep$2",
             "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;Lgraphql/ExecutionResult;)Ldev/feddi/federation/engine/executor/Executor$StepResult;",
-            "line": 482,
+            "line": 465,
             "counters": {
               "line": {
-                "covered": 0,
-                "missed": 9
+                "covered": 7,
+                "missed": 2
               },
               "branch": {
-                "covered": 0,
-                "missed": 6
+                "covered": 3,
+                "missed": 3
               },
               "method": {
-                "covered": 0,
-                "missed": 1
+                "covered": 1,
+                "missed": 0
               }
             }
           },
           {
             "name": "lambda$executeSingleDependentStep$1",
             "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;JLjava/lang/Throwable;)V",
-            "line": 480,
+            "line": 463,
             "counters": {
               "line": {
                 "covered": 0,
@@ -13814,33 +13605,33 @@
           {
             "name": "lambda$executeSingleDependentStep$0",
             "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;JLgraphql/ExecutionResult;)V",
-            "line": 479,
+            "line": 462,
             "counters": {
               "line": {
-                "covered": 0,
-                "missed": 1
+                "covered": 1,
+                "missed": 0
               },
               "branch": {
                 "covered": 0,
                 "missed": 0
               },
               "method": {
-                "covered": 0,
-                "missed": 1
+                "covered": 1,
+                "missed": 0
               }
             }
           },
           {
             "name": "lambda$executeRepeatedStep$5",
             "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;Ljava/util/Set;Ljava/util/List;)Ldev/feddi/federation/engine/executor/Executor$StepResult;",
-            "line": 387,
+            "line": 385,
             "counters": {
               "line": {
-                "covered": 42,
+                "covered": 32,
                 "missed": 0
               },
               "branch": {
-                "covered": 20,
+                "covered": 18,
                 "missed": 2
               },
               "method": {
@@ -13852,7 +13643,7 @@
           {
             "name": "lambda$executeRepeatedStep$6",
             "desc": "(Ljava/lang/Object;)Z",
-            "line": 405,
+            "line": 401,
             "counters": {
               "line": {
                 "covered": 1,
@@ -13871,7 +13662,7 @@
           {
             "name": "lambda$executeRepeatedStep$0",
             "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;Ljava/util/Map;Ldev/feddi/federation/engine/executor/SubgraphClient;Ljava/util/Map;)Lorg/reactivestreams/Publisher;",
-            "line": 362,
+            "line": 360,
             "counters": {
               "line": {
                 "covered": 12,
@@ -13890,7 +13681,7 @@
           {
             "name": "lambda$executeRepeatedStep$4",
             "desc": "(Ljava/util/Map;Ljava/lang/Throwable;)Lreactor/core/publisher/Mono;",
-            "line": 382,
+            "line": 380,
             "counters": {
               "line": {
                 "covered": 1,
@@ -13909,7 +13700,7 @@
           {
             "name": "lambda$executeRepeatedStep$3",
             "desc": "(Ljava/util/Map;Lgraphql/ExecutionResult;)Ldev/feddi/federation/engine/executor/Executor$EntityResult;",
-            "line": 378,
+            "line": 376,
             "counters": {
               "line": {
                 "covered": 1,
@@ -13928,7 +13719,7 @@
           {
             "name": "lambda$executeRepeatedStep$2",
             "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;JLjava/lang/Throwable;)V",
-            "line": 377,
+            "line": 375,
             "counters": {
               "line": {
                 "covered": 1,
@@ -13947,7 +13738,7 @@
           {
             "name": "lambda$executeRepeatedStep$1",
             "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;JLgraphql/ExecutionResult;)V",
-            "line": 376,
+            "line": 374,
             "counters": {
               "line": {
                 "covered": 1,
@@ -13966,7 +13757,7 @@
           {
             "name": "lambda$executeIntrospectionStep$0",
             "desc": "(Ldev/feddi/federation/engine/planner/ExecutionStep;Lgraphql/ExecutionResult;)Ldev/feddi/federation/engine/executor/Executor$StepResult;",
-            "line": 331,
+            "line": 330,
             "counters": {
               "line": {
                 "covered": 5,
@@ -13988,7 +13779,7 @@
             "line": 286,
             "counters": {
               "line": {
-                "covered": 8,
+                "covered": 7,
                 "missed": 7
               },
               "branch": {
@@ -19561,8 +19352,8 @@
           "missed": 10
         },
         "branch": {
-          "covered": 10,
-          "missed": 8
+          "covered": 11,
+          "missed": 7
         },
         "method": {
           "covered": 4,
@@ -19636,8 +19427,8 @@
                 "missed": 0
               },
               "branch": {
-                "covered": 1,
-                "missed": 1
+                "covered": 2,
+                "missed": 0
               },
               "method": {
                 "covered": 1,
@@ -22718,6 +22509,41 @@
           }
         ]
       },
+      "dev.feddi.federation.engine.compose.validation.rules.LookupDuplicateRule$TypePair": {
+        "line": {
+          "covered": 1,
+          "missed": 0
+        },
+        "branch": {
+          "covered": 0,
+          "missed": 0
+        },
+        "method": {
+          "covered": 1,
+          "missed": 0
+        },
+        "methods": [
+          {
+            "name": "&lt;init&gt;",
+            "desc": "(Ljava/lang/String;Ljava/lang/String;)V",
+            "line": 156,
+            "counters": {
+              "line": {
+                "covered": 1,
+                "missed": 0
+              },
+              "branch": {
+                "covered": 0,
+                "missed": 0
+              },
+              "method": {
+                "covered": 1,
+                "missed": 0
+              }
+            }
+          }
+        ]
+      },
       "dev.feddi.federation.engine.compose.validation.rules.ReferenceToInaccessibleTypeRule": {
         "line": {
           "covered": 59,
@@ -22888,41 +22714,6 @@
             "name": "&lt;clinit&gt;",
             "desc": "()V",
             "line": 42,
-            "counters": {
-              "line": {
-                "covered": 1,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          }
-        ]
-      },
-      "dev.feddi.federation.engine.compose.validation.rules.LookupDuplicateRule$TypePair": {
-        "line": {
-          "covered": 1,
-          "missed": 0
-        },
-        "branch": {
-          "covered": 0,
-          "missed": 0
-        },
-        "method": {
-          "covered": 1,
-          "missed": 0
-        },
-        "methods": [
-          {
-            "name": "&lt;init&gt;",
-            "desc": "(Ljava/lang/String;Ljava/lang/String;)V",
-            "line": 156,
             "counters": {
               "line": {
                 "covered": 1,
@@ -27395,41 +27186,6 @@
           }
         ]
       },
-      "dev.feddi.federation.engine.compose.validation.rules.InputFieldDefaultMismatchRule$FieldInfo": {
-        "line": {
-          "covered": 1,
-          "missed": 0
-        },
-        "branch": {
-          "covered": 0,
-          "missed": 0
-        },
-        "method": {
-          "covered": 1,
-          "missed": 0
-        },
-        "methods": [
-          {
-            "name": "&lt;init&gt;",
-            "desc": "(Ljava/lang/String;ZLjava/lang/Object;)V",
-            "line": 135,
-            "counters": {
-              "line": {
-                "covered": 1,
-                "missed": 0
-              },
-              "branch": {
-                "covered": 0,
-                "missed": 0
-              },
-              "method": {
-                "covered": 1,
-                "missed": 0
-              }
-            }
-          }
-        ]
-      },
       "dev.feddi.federation.engine.compose.validation.rules.ExternalMissingOnBaseRule": {
         "line": {
           "covered": 38,
@@ -27638,6 +27394,41 @@
             "name": "&lt;clinit&gt;",
             "desc": "()V",
             "line": 31,
+            "counters": {
+              "line": {
+                "covered": 1,
+                "missed": 0
+              },
+              "branch": {
+                "covered": 0,
+                "missed": 0
+              },
+              "method": {
+                "covered": 1,
+                "missed": 0
+              }
+            }
+          }
+        ]
+      },
+      "dev.feddi.federation.engine.compose.validation.rules.InputFieldDefaultMismatchRule$FieldInfo": {
+        "line": {
+          "covered": 1,
+          "missed": 0
+        },
+        "branch": {
+          "covered": 0,
+          "missed": 0
+        },
+        "method": {
+          "covered": 1,
+          "missed": 0
+        },
+        "methods": [
+          {
+            "name": "&lt;init&gt;",
+            "desc": "(Ljava/lang/String;ZLjava/lang/Object;)V",
+            "line": 135,
             "counters": {
               "line": {
                 "covered": 1,
