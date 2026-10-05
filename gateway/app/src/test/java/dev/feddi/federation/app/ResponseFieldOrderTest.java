@@ -83,11 +83,30 @@ class ResponseFieldOrderTest {
         assertThat(data.keySet()).containsExactly("second", "first");
     }
 
-    private static Map<String, Object> execute(String query) {
-        var gateway = FeddiFederationGateway.create(
+    @Test
+    void cachedPlansKeepTheQueryOrder() {
+        var gateway = gateway();
+        String query = "{ products { inStock name id } }";
+
+        execute(gateway, query);
+        var data = execute(gateway, query);
+
+        assertThat(list(data.get("products"))).allSatisfy(product ->
+            assertThat(product.keySet()).containsExactly("inStock", "name", "id"));
+    }
+
+    private static FeddiFederationGateway gateway() {
+        return FeddiFederationGateway.create(
             List.of(new SubgraphInput("products", "http://products", PRODUCTS_SDL),
                 new SubgraphInput("inventory", "http://inventory", INVENTORY_SDL)),
             Map.of("products", client(PRODUCTS_SDL, "products"), "inventory", client(INVENTORY_SDL, "inventory")));
+    }
+
+    private static Map<String, Object> execute(String query) {
+        return execute(gateway(), query);
+    }
+
+    private static Map<String, Object> execute(FeddiFederationGateway gateway, String query) {
         var result = gateway.execute(ExecutionInput.newExecutionInput().query(query).build()).block().executionResult();
         assertThat(result.getErrors()).isEmpty();
         return result.getData();
