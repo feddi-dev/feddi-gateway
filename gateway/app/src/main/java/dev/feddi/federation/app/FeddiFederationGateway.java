@@ -11,6 +11,7 @@ import dev.feddi.federation.engine.compose.SubgraphParser;
 import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.executor.ExecutionListener;
 import dev.feddi.federation.engine.executor.Executor;
+import dev.feddi.federation.engine.executor.ResponseFieldOrder;
 import dev.feddi.federation.engine.graph.Graph;
 import dev.feddi.federation.engine.graph.GraphBuilder;
 import dev.feddi.federation.engine.planner.ExecutionPlan;
@@ -365,12 +366,26 @@ public final class FeddiFederationGateway {
                     introspectionEnabled ? supergraph : null, executionListener);
             final Document finalDoc = document;
             return executor.execute(plan, variables != null ? variables : Map.of())
-                .map(result -> new GatewayResult(result, finalDoc));
+                .map(result -> new GatewayResult(inSelectionOrder(result, operationDef), finalDoc));
         }).onErrorResume(DocumentResolutionException.class, e -> {
             log.debug("Document resolution failed: {}", e.getErrors());
             return Mono.just(new GatewayResult(
                 ExecutionResultImpl.newExecutionResult().addErrors(e.getErrors()).build(), null));
         });
+    }
+
+    /**
+     * Puts the response fields into the order of the operation's selection set; the executor
+     * merges results from several subgraphs, which otherwise determines the order.
+     */
+    private static ExecutionResult inSelectionOrder(ExecutionResult result, OperationDefinition operation) {
+        if (result.getData() == null) {
+            return result;
+        }
+        return ExecutionResultImpl.newExecutionResult()
+            .from(result)
+            .data(ResponseFieldOrder.reorder(operation.getSelectionSet(), result.getData()))
+            .build();
     }
 
     private Mono<Document> parseAndValidate(ExecutionInput executionInput) {
