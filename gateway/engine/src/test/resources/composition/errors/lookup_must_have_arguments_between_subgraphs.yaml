@@ -1,0 +1,24 @@
+name: "LOOKUP_MUST_HAVE_ARGUMENTS - argument-less lookups used to join subgraphs"
+description: "Two subgraphs joining an entity through @lookup fields without arguments must not compose"
+
+subgraphs:
+  a: |
+    type Query {
+      settings: Settings @lookup
+    }
+
+    type Settings @key(fields: "id") {
+      id: ID!
+      theme: String
+    }
+  b: |
+    type Query {
+      settings: Settings @lookup
+    }
+
+    type Settings @key(fields: "id") {
+      id: ID!
+      locale: String
+    }
+
+error: "LOOKUP_MUST_HAVE_ARGUMENTS"

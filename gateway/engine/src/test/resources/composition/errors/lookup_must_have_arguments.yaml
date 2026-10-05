@@ -1,0 +1,15 @@
+name: "LOOKUP_MUST_HAVE_ARGUMENTS - lookup field without arguments"
+description: "Spec: a @lookup field must declare at least one argument (its stable key)"
+
+subgraphs:
+  products: |
+    type Query {
+      product: Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+error: "LOOKUP_MUST_HAVE_ARGUMENTS"
