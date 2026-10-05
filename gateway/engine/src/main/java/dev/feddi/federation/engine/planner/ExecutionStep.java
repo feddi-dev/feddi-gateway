@@ -27,7 +27,8 @@ import java.util.stream.Collectors;
  * @param requirements variable mappings for data needed from previous steps (argument name to FieldSelectionMap)
  * @param repeatedExecution true if this step may need to be executed multiple times (once per entity from parent step)
  * @param artificialFieldPaths dot-notation paths of fields added for internal purposes (not requested by client)
- * @param entityPath response keys locating lookup targets from the response root; null for legacy plans
+ * @param entityPath response keys locating lookup targets from the response root; required by the
+ *                   executor for repeated steps, null only for root steps and expected plans in tests
  * @param requestedFieldPaths dot-notation paths of fields explicitly requested by the client
  */
 public record ExecutionStep(
@@ -43,7 +44,10 @@ public record ExecutionStep(
     List<String> entityPath
 ) {
 
-    /** Compatibility constructor for manually assembled plans without entity locations. */
+    /**
+     * Constructor without an entity path, for root steps and for describing expected plans in tests.
+     * The executor rejects repeated steps built this way.
+     */
     public ExecutionStep(int id, String subgraph, OperationDefinition operation,
                          List<Integer> dependsOn, List<Integer> parallelWith,
                          Map<String, SelectedValue> requirements, boolean repeatedExecution,
