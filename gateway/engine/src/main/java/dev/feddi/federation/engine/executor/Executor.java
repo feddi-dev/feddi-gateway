@@ -288,7 +288,6 @@ public final class Executor {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> data = (Map<String, Object>) result.getData();
                     stepResult.setRootData(data);
-                    stepResult.setDataContexts(extractDataContexts(data));
                     log.debug("Step {} received data from subgraph '{}'", step.id(), step.subgraph());
                 }
                 // Capture any GraphQL errors from the subgraph response
@@ -343,8 +342,7 @@ public final class Executor {
      */
     private Mono<StepResult> executeRepeatedStep(ExecutionStep step, SubgraphClient client,
                                                  ExecutionContext ctx, Map<String, Object> queryVariables) {
-        int parentStepId = step.dependsOn().get(0);
-        List<Map<String, Object>> parentContexts = selectParentContexts(step, ctx, parentStepId);
+        List<Map<String, Object>> parentContexts = selectParentContexts(step, ctx);
 
         if (parentContexts == null || parentContexts.isEmpty()) {
             return Mono.just(new StepResult(step.id()));
@@ -385,8 +383,6 @@ public final class Executor {
             .collectList()
             .map(entityResults -> {
                 StepResult stepResult = new StepResult(step.id());
-                List<Map<String, Object>> resultContexts = new ArrayList<>();
-                List<Map<String, Object>> allNestedEntities = new ArrayList<>();
 
                 for (EntityResult er : entityResults) {
                     if (er.result() != null && er.result().getData() != null) {
@@ -412,17 +408,11 @@ public final class Executor {
                                     er.context().put(fieldName, null);
                                 }
                             }
-                            // Still add to resultContexts so downstream steps can set their fields to null
-                            resultContexts.add(er.context());
                         } else {
                             // Synchronize: parallel steps may share the same context map
                             synchronized (er.context()) {
                                 mergeIntoContext(er.context(), data);
                             }
-                            resultContexts.add(er.context());
-
-                            List<Map<String, Object>> nested = extractNestedContexts(data);
-                            allNestedEntities.addAll(nested);
                         }
                     } else {
                         // For skipped/failed entities (null result), set the expected fields to null
@@ -433,9 +423,6 @@ public final class Executor {
                                 er.context().put(fieldName, null);
                             }
                         }
-                        // Still add to resultContexts so downstream steps can set their fields to null
-                        resultContexts.add(er.context());
-
                         // If there was an error (e.g., timeout), record it
                         if (er.error() != null) {
                             if (er.error() instanceof SubgraphTimeoutException ste) {
@@ -448,10 +435,6 @@ public final class Executor {
                     }
                 }
 
-                stepResult.setDataContexts(resultContexts);
-                if (!allNestedEntities.isEmpty()) {
-                    stepResult.setNestedContexts(allNestedEntities);
-                }
                 return stepResult;
             });
     }
@@ -863,65 +846,20 @@ public final class Executor {
     }
 
     /**
-     * Extracts data contexts (entities) from a result data map.
+     * Selects the concrete response objects that should drive a repeated lookup: the
+     * objects at the step's entity path. An absent target must not fall back to unrelated
+     * objects that happen to have the same key fields (see #49).
      */
-    private List<Map<String, Object>> extractDataContexts(Map<String, Object> data) {
-        List<Map<String, Object>> contexts = new ArrayList<>();
-
-        for (Object value : data.values()) {
-            if (value instanceof List) {
-                @SuppressWarnings("unchecked")
-                List<Object> list = (List<Object>) value;
-                for (Object item : list) {
-                    if (item instanceof Map) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> itemMap = (Map<String, Object>) item;
-                        contexts.add(itemMap);
-                    }
-                }
-            } else if (value instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) value;
-                contexts.add(map);
-            }
+    private List<Map<String, Object>> selectParentContexts(ExecutionStep step, ExecutionContext ctx) {
+        if (step.entityPath() == null) {
+            throw new ExecutionException("Repeated step " + step.id() + " has no entity path; "
+                + "execution plans must be created by the OperationPlanner");
         }
-
-        return contexts;
-    }
-
-    /**
-     * Selects the concrete response objects that should drive a repeated lookup.
-     *
-     * Planned lookups follow their explicit response path. An absent target must
-     * not fall back to unrelated objects that happen to have the same key fields.
-     * Legacy, manually assembled plans without a path retain requirement-based
-     * context selection, including support for translated keys and null keys.
-     */
-    private List<Map<String, Object>> selectParentContexts(ExecutionStep step, ExecutionContext ctx, int parentStepId) {
-        if (step.entityPath() != null) {
-            List<Map<String, Object>> targets = new ArrayList<>();
-            synchronized (ctx) {
-                collectEntityTargets(ctx.getMergedData(), step.entityPath(), 0, targets);
-            }
-            return filterContextsForRequirements(targets, step.requirements());
+        List<Map<String, Object>> targets = new ArrayList<>();
+        synchronized (ctx) {
+            collectEntityTargets(ctx.getMergedData(), step.entityPath(), 0, targets);
         }
-        List<Map<String, Object>> nestedContexts =
-            filterContextsForRequirements(ctx.getNestedContexts(parentStepId), step.requirements());
-        if (!nestedContexts.isEmpty()) {
-            return nestedContexts;
-        }
-
-        List<Map<String, Object>> dataContexts =
-            filterContextsForRequirements(ctx.getDataContexts(parentStepId), step.requirements());
-        if (!dataContexts.isEmpty()) {
-            return dataContexts;
-        }
-
-        if (step.requirements().isEmpty()) {
-            return List.of();
-        }
-
-        return findMatchingContexts(ctx.getMergedData(), step.requirements());
+        return filterContextsForRequirements(targets, step.requirements());
     }
 
     /** Follow response keys, traversing lists without consuming a path segment. */
@@ -1018,76 +956,6 @@ public final class Executor {
     }
 
     /**
-     * Finds matching contexts in merged data when the direct parent context is a
-     * wrapper object around the actual entity, such as { container: { book } }.
-     */
-    private List<Map<String, Object>> findMatchingContexts(Map<String, Object> data,
-                                                            Map<String, SelectedValue> requirements) {
-        List<Map<String, Object>> result = new ArrayList<>();
-        findMatchingContextsRecursive(data, requirements, result);
-        return result;
-    }
-
-    private void findMatchingContextsRecursive(Object data, Map<String, SelectedValue> requirements,
-                                               List<Map<String, Object>> result) {
-        if (data instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) data;
-
-            if (contextCanProvideRequirements(map, requirements)) {
-                result.add(map);
-                return;
-            }
-
-            for (Object value : map.values()) {
-                findMatchingContextsRecursive(value, requirements, result);
-            }
-        } else if (data instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<Object> list = (List<Object>) data;
-            for (Object item : list) {
-                findMatchingContextsRecursive(item, requirements, result);
-            }
-        }
-    }
-
-    /**
-     * Extracts context candidates below a lookup root. The lookup root object is
-     * not itself added because repeated lookup results are merged into the
-     * original parent context; only objects nested beneath that result can be
-     * independent contexts for later lookups.
-     */
-    private List<Map<String, Object>> extractNestedContexts(Map<String, Object> data) {
-        List<Map<String, Object>> nested = new ArrayList<>();
-        for (Object value : data.values()) {
-            extractNestedContextsRecursive(value, nested, false);
-        }
-        return nested;
-    }
-
-    private void extractNestedContextsRecursive(Object data, List<Map<String, Object>> result,
-                                                boolean includeCurrent) {
-        if (data instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) data;
-
-            if (includeCurrent) {
-                result.add(map);
-            }
-
-            for (Object value : map.values()) {
-                extractNestedContextsRecursive(value, result, true);
-            }
-        } else if (data instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<Object> list = (List<Object>) data;
-            for (Object item : list) {
-                extractNestedContextsRecursive(item, result, true);
-            }
-        }
-    }
-
-    /**
      * Merges data from a lookup result into a context.
      */
     private void mergeIntoContext(Map<String, Object> context, Map<String, Object> lookupData) {
@@ -1157,8 +1025,6 @@ public final class Executor {
         private final int stepId;
         private Map<String, Object> rootData;
         private Map<String, Object> stepData;
-        private List<Map<String, Object>> dataContexts;
-        private List<Map<String, Object>> nestedContexts;
         private final List<GraphQLError> errors = new ArrayList<>();
 
         StepResult(int stepId) {
@@ -1168,14 +1034,10 @@ public final class Executor {
         int getStepId() { return stepId; }
         Map<String, Object> getRootData() { return rootData; }
         Map<String, Object> getStepData() { return stepData; }
-        List<Map<String, Object>> getDataContexts() { return dataContexts; }
-        List<Map<String, Object>> getNestedContexts() { return nestedContexts; }
         List<GraphQLError> getErrors() { return errors; }
 
         void setRootData(Map<String, Object> data) { this.rootData = data; }
         void setStepData(Map<String, Object> data) { this.stepData = data; }
-        void setDataContexts(List<Map<String, Object>> contexts) { this.dataContexts = contexts; }
-        void setNestedContexts(List<Map<String, Object>> contexts) { this.nestedContexts = contexts; }
         void addError(GraphQLError error) { this.errors.add(error); }
     }
 
@@ -1201,8 +1063,6 @@ public final class Executor {
         // ConcurrentHashMap doesn't allow null values, but we protect access with synchronized merge().
         private final Map<String, Object> mergedData = new LinkedHashMap<>();
         private final Map<Integer, Map<String, Object>> stepDataMap = new ConcurrentHashMap<>();
-        private final Map<Integer, List<Map<String, Object>>> dataContextsMap = new ConcurrentHashMap<>();
-        private final Map<Integer, List<Map<String, Object>>> nestedContextsMap = new ConcurrentHashMap<>();
         private final List<GraphQLError> errors = new CopyOnWriteArrayList<>();
 
         ExecutionContext() {}
@@ -1215,12 +1075,6 @@ public final class Executor {
                 deepMerge(mergedData, result.getStepData());
                 stepDataMap.put(result.getStepId(), result.getStepData());
             }
-            if (result.getDataContexts() != null) {
-                dataContextsMap.put(result.getStepId(), result.getDataContexts());
-            }
-            if (result.getNestedContexts() != null) {
-                nestedContextsMap.put(result.getStepId(), result.getNestedContexts());
-            }
             if (result.getErrors() != null && !result.getErrors().isEmpty()) {
                 errors.addAll(result.getErrors());
             }
@@ -1228,8 +1082,6 @@ public final class Executor {
 
         Map<String, Object> getMergedData() { return mergedData; }
         Map<String, Object> getStepData(int stepId) { return stepDataMap.get(stepId); }
-        List<Map<String, Object>> getDataContexts(int stepId) { return dataContextsMap.get(stepId); }
-        List<Map<String, Object>> getNestedContexts(int stepId) { return nestedContextsMap.get(stepId); }
         List<GraphQLError> getErrors() { return errors; }
     }
 
