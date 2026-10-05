@@ -42,10 +42,12 @@ untested.
 - **Q1 `fanOut` copy.** Positions of a repeated step come from `collectEntityTargets(step.entityPath())`, i.e. one
   response path, so later steps write the same data for all of them and sharing is safe. Only steps **without** an
   `entityPath` select positions by searching for key fields (possibly across paths). The copy was added in step 2
-  (`32dfe70`) as a precaution; it is not on `main`. Remove it once path-less plans are gone (PR A).
+  (`32dfe70`) as a precaution; it is not on `main`. **Done:** path-less plans were removed on `main`
+  (feddi-dev/feddi-gateway#55), merged here, and the copy in `fanOut` is removed (positions share the result's data).
+  The copy in `SharedCallSubgraphClient` stays: there one result is shared across different paths.
 - **Q2 `executeSingleDependentStep`.** The planner creates a non-repeated dependent step only when it has no
   requirements, i.e. for a `@lookup` without arguments (`type Query { product: Product @lookup }`). feddi composes
-  that today; the spec forbids it (`LOOKUP_MUST_HAVE_ARGUMENTS`, error). Implement the rule and remove the path (PR B).
+  that today; the spec forbids it (`LOOKUP_MUST_HAVE_ARGUMENTS`, error). Rule + removal: feddi-dev/feddi-gateway#56.
 - **Q3 field order.** Still open.
 - **Q4 error semantics.** Data is unchanged. A failing lookup is reported once per unique entity (`none`) or once per
   batch (`alias`/`variables`) instead of once per position; the timeout listener fires once per batch. Example:
@@ -61,8 +63,8 @@ untested.
 - Nobody builds plans outside the planner (the `engine` module is not published; the extension SPI has no plan
   types; plans are not stored). The planner always sets `entityPath` for lookup steps (all 316 repeated steps of the
   341 fixture queries). Tests use the path-less constructor only for expected plans, which are compared, not executed.
-- Decision: remove execution of path-less repeated steps (PR A, against `main`); keep the constructor for tests.
-  Then remove the `fanOut` copy here.
+- Decision: remove execution of path-less repeated steps; keep the constructor for tests. Done in
+  feddi-dev/feddi-gateway#55 (merged), then the `fanOut` copy was removed here.
 
 ## Open questions for Andi
 

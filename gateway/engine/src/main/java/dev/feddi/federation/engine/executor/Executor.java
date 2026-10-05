@@ -1105,16 +1105,21 @@ public final class Executor {
     }
 
     /**
-     * Distributes one subgraph result to every position of a deduplicated entity. The first
-     * position gets the result as is; every other position gets its own deep copy of the data,
-     * so later steps that target only one response path cannot leak fields into the others.
-     * Errors are reported once, with the first position.
+     * Distributes one subgraph result to every position of a deduplicated entity. Errors are
+     * reported once, with the first position.
+     *
+     * <p>The positions share the result's data: all positions of a repeated step lie on the
+     * step's entity path, so every later step merges the same fields into all of them. (Sharing
+     * across different paths is not safe; see {@link SharedCallSubgraphClient}, which copies.)
      */
     private static List<EntityResult> fanOut(List<Map<String, Object>> contexts, ExecutionResult result) {
         List<EntityResult> results = new ArrayList<>(contexts.size());
         results.add(new EntityResult(contexts.get(0), result));
-        for (int i = 1; i < contexts.size(); i++) {
-            results.add(new EntityResult(contexts.get(i), ResultCopies.copyData(result)));
+        if (contexts.size() > 1) {
+            ExecutionResult withoutErrors = ExecutionResultImpl.newExecutionResult().data(result.getData()).build();
+            for (int i = 1; i < contexts.size(); i++) {
+                results.add(new EntityResult(contexts.get(i), withoutErrors));
+            }
         }
         return results;
     }
