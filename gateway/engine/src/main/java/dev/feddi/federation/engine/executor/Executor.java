@@ -182,11 +182,13 @@ public final class Executor {
             return Mono.error(new ExecutionException("No client for subgraph: " + step.subgraph()));
         }
 
-        if (step.repeatedExecution()) {
-            return executeRepeatedStep(step, client, ctx, queryVariables);
-        } else {
-            return executeSingleDependentStep(step, client, ctx, queryVariables);
+        // Dependent steps are entity lookups, which always have key requirements and run
+        // once per entity. LOOKUP_MUST_HAVE_ARGUMENTS rules out lookups without a key.
+        if (!step.repeatedExecution()) {
+            throw new ExecutionException("Dependent step " + step.id() + " has no requirements; "
+                + "execution plans must be created by the OperationPlanner");
         }
+        return executeRepeatedStep(step, client, ctx, queryVariables);
     }
 
     /**
@@ -197,7 +199,7 @@ public final class Executor {
     private Mono<StepResult> executeStepWithErrorRecovery(ExecutionStep step, Mono<StepResult> execution) {
         return execution.onErrorResume(e -> {
             log.error("Step {} to subgraph '{}' failed: {}", step.id(), step.subgraph(), e.getMessage(), e);
-            StepResult errorResult = new StepResult(step.id());
+            StepResult errorResult = new StepResult();
             if (e instanceof SubgraphTimeoutException ste) {
                 log.warn("Subgraph '{}' timed out", ste.subgraphName());
                 listener.onSubgraphTimeout(ste.subgraphName());
@@ -286,7 +288,7 @@ public final class Executor {
         Map<String, Object> filteredVariables = filterVariablesForOperation(step.operation(), variables);
         return client.execute(step.operation(), filteredVariables)
             .map(result -> {
-                StepResult stepResult = new StepResult(step.id());
+                StepResult stepResult = new StepResult();
                 if (result.getData() != null) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> data = (Map<String, Object>) result.getData();
@@ -330,7 +332,7 @@ public final class Executor {
 
         return Mono.fromFuture(introspectionGraphQL.executeAsync(input))
             .map(result -> {
-                StepResult stepResult = new StepResult(step.id());
+                StepResult stepResult = new StepResult();
                 if (result.getData() != null) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> data = (Map<String, Object>) result.getData();
@@ -348,7 +350,7 @@ public final class Executor {
         List<Map<String, Object>> parentContexts = selectParentContexts(step, ctx);
 
         if (parentContexts == null || parentContexts.isEmpty()) {
-            return Mono.just(new StepResult(step.id()));
+            return Mono.just(new StepResult());
         }
 
         // Get field names that should be set to null for skipped entities
@@ -392,7 +394,7 @@ public final class Executor {
             .concatWith(Flux.fromIterable(skipped))
             .collectList()
             .map(entityResults -> {
-                StepResult stepResult = new StepResult(step.id());
+                StepResult stepResult = new StepResult();
 
                 for (EntityResult er : entityResults) {
                     if (er.result() != null && er.result().getData() != null) {
@@ -445,41 +447,6 @@ public final class Executor {
                     }
                 }
 
-                return stepResult;
-            });
-    }
-
-    /**
-     * Executes a single dependent step (non-repeated).
-     */
-    private Mono<StepResult> executeSingleDependentStep(ExecutionStep step, SubgraphClient client,
-                                                        ExecutionContext ctx, Map<String, Object> queryVariables) {
-        int parentStepId = step.dependsOn().get(0);
-        Map<String, Object> parentData = ctx.getStepData(parentStepId);
-
-        if (parentData == null) {
-            parentData = Map.of();
-        }
-
-        // Start with filtered query variables, then overlay requirement variables
-        // Requirement variables take precedence since they're entity-specific
-        Map<String, Object> stepVariables = new LinkedHashMap<>(
-            filterVariablesForOperation(step.operation(), queryVariables));
-        stepVariables.putAll(extractVariables(step.requirements(), parentData));
-        return client.execute(step.operation(), stepVariables)
-            .map(result -> {
-                StepResult stepResult = new StepResult(step.id());
-                if (result.getData() != null) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> data = (Map<String, Object>) result.getData();
-                    stepResult.setStepData(data);
-                }
-                // Capture any GraphQL errors from the subgraph response
-                if (result.getErrors() != null) {
-                    for (graphql.GraphQLError error : result.getErrors()) {
-                        stepResult.addError(error);
-                    }
-                }
                 return stepResult;
             });
     }
@@ -1000,50 +967,17 @@ public final class Executor {
     }
 
     /**
-     * Deep merges source into target.
-     */
-    private void deepMerge(Map<String, Object> target, Map<String, Object> source) {
-        for (Map.Entry<String, Object> entry : source.entrySet()) {
-            String key = entry.getKey();
-            Object sourceValue = entry.getValue();
-
-            if (target.containsKey(key)) {
-                Object targetValue = target.get(key);
-                if (targetValue instanceof Map && sourceValue instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> targetMap = (Map<String, Object>) targetValue;
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> sourceMap = (Map<String, Object>) sourceValue;
-                    deepMerge(targetMap, sourceMap);
-                } else {
-                    target.put(key, sourceValue);
-                }
-            } else {
-                target.put(key, sourceValue);
-            }
-        }
-    }
-
-    /**
      * Holds result from executing a single step.
      */
     private static class StepResult {
-        private final int stepId;
         private Map<String, Object> rootData;
-        private Map<String, Object> stepData;
         private final List<GraphQLError> errors = new ArrayList<>();
 
-        StepResult(int stepId) {
-            this.stepId = stepId;
-        }
 
-        int getStepId() { return stepId; }
         Map<String, Object> getRootData() { return rootData; }
-        Map<String, Object> getStepData() { return stepData; }
         List<GraphQLError> getErrors() { return errors; }
 
         void setRootData(Map<String, Object> data) { this.rootData = data; }
-        void setStepData(Map<String, Object> data) { this.stepData = data; }
         void addError(GraphQLError error) { this.errors.add(error); }
     }
 
@@ -1145,7 +1079,6 @@ public final class Executor {
         // (e.g., when a field resolver throws an error, the field value is null).
         // ConcurrentHashMap doesn't allow null values, but we protect access with synchronized merge().
         private final Map<String, Object> mergedData = new LinkedHashMap<>();
-        private final Map<Integer, Map<String, Object>> stepDataMap = new ConcurrentHashMap<>();
         private final List<GraphQLError> errors = new CopyOnWriteArrayList<>();
 
         ExecutionContext() {}
@@ -1154,17 +1087,12 @@ public final class Executor {
             if (result.getRootData() != null) {
                 mergedData.putAll(result.getRootData());
             }
-            if (result.getStepData() != null) {
-                deepMerge(mergedData, result.getStepData());
-                stepDataMap.put(result.getStepId(), result.getStepData());
-            }
             if (result.getErrors() != null && !result.getErrors().isEmpty()) {
                 errors.addAll(result.getErrors());
             }
         }
 
         Map<String, Object> getMergedData() { return mergedData; }
-        Map<String, Object> getStepData(int stepId) { return stepDataMap.get(stepId); }
         List<GraphQLError> getErrors() { return errors; }
     }
 

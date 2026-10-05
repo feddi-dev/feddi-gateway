@@ -116,6 +116,7 @@ public final class SchemaValidator {
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.IsInvalidUsageRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.RequireInvalidUsageRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupReturnsListRule());
+        rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupMustHaveArgumentsRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupReturnsNonNullableRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupUnionKeyFieldMissingRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupDuplicateRule());
