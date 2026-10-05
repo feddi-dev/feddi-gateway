@@ -356,10 +356,6 @@ public final class PathFinder {
      * different type-conditioned paths and only the matching one is used at runtime.
      */
     private boolean canSatisfyRequirements(OperationPath path, LookupMoveEdge lookupEdge) {
-        if (!lookupEdge.hasLookupArguments()) {
-            return true;
-        }
-
         Node sourceNode = path.tail();
         String typeContext = path.typeContext();
 

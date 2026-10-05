@@ -50,6 +50,32 @@ class PathFinderTest {
     }
     
     @Test
+    @DisplayName("Should follow a lookup edge without key arguments")
+    void findIndirectPathViaLookupWithoutKeyArguments() {
+        // Composition rejects @lookup fields without arguments (LOOKUP_MUST_HAVE_ARGUMENTS), but
+        // the graph itself allows such an edge: it must be followed, not skipped as "key already
+        // visited", and it has no key fields to resolve.
+        Node queryNode = new Node("Query", "root");
+        Node settingsMain = new Node("Settings", "main");
+        Node settingsPrefs = new Node("Settings", "prefs");
+
+        Graph graph = Graph.builder()
+            .root(queryNode)
+            .addFieldEdge("settings", queryNode, settingsMain)
+            .addLookupEdge("settings", settingsMain, settingsPrefs, 10, List.of())
+            .addFieldEdge("locale", settingsPrefs, settingsPrefs)
+            .build();
+
+        OperationPath startPath = OperationPath.startAt(queryNode)
+            .advance(new FieldMoveEdge("settings", queryNode, settingsMain, 1));
+
+        List<OperationPath> paths = new PathFinder(graph).findPaths(startPath, "locale");
+
+        assertThat(paths).singleElement()
+            .satisfies(path -> assertThat(path.currentSubgraph()).isEqualTo("prefs"));
+    }
+
+    @Test
     @DisplayName("Should find indirect path via lookup")
     void findIndirectPath() {
         // Build a graph with two subgraphs

@@ -53,13 +53,6 @@ public record LookupMoveEdge(
     }
 
     /**
-     * Checks if this lookup has any lookup arguments.
-     */
-    public boolean hasLookupArguments() {
-        return !lookupArguments.isEmpty();
-    }
-
-    /**
      * Checks if this lookup has any @require dependencies.
      */
     public boolean hasRequirements() {
