@@ -10,7 +10,8 @@ import java.util.Map;
 
 /**
  * Deep copies of subgraph result data. The executor writes into result maps when it merges
- * later steps, so a result that is handed to several consumers must give each its own copy.
+ * later steps, so a result that is handed to consumers on different response paths must give
+ * each its own copy.
  */
 final class ResultCopies {
 
@@ -25,15 +26,6 @@ final class ResultCopies {
             .data(deepCopy(result.getData()))
             .errors(result.getErrors())
             .extensions(result.getExtensions())
-            .build();
-    }
-
-    /**
-     * Copies only the data of a result, without errors (they are reported once elsewhere).
-     */
-    static ExecutionResult copyData(ExecutionResult result) {
-        return ExecutionResultImpl.newExecutionResult()
-            .data(deepCopy(result.getData()))
             .build();
     }
 
