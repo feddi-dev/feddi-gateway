@@ -6,12 +6,14 @@ import dev.feddi.federation.extension.FeddiGatewayDefinition;
 import dev.feddi.federation.extension.FeddiGatewaySettings;
 import dev.feddi.federation.extension.SubgraphDefinition;
 import dev.feddi.federation.extension.SubgraphSettings;
+import reactor.core.publisher.Mono;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -35,21 +37,46 @@ import java.util.zip.ZipInputStream;
 public class ZipUploadService {
 
     private final DefaultFeddiGatewayDefinitionSource gatewayDefinitionSource;
+    private final FeddiGatewayReloadService reloadService;
     private final ObjectMapper yamlMapper;
+    private final AtomicBoolean activating = new AtomicBoolean();
 
-    public ZipUploadService(DefaultFeddiGatewayDefinitionSource gatewayDefinitionSource) {
+    public ZipUploadService(DefaultFeddiGatewayDefinitionSource gatewayDefinitionSource,
+                            FeddiGatewayReloadService reloadService) {
         this.gatewayDefinitionSource = gatewayDefinitionSource;
+        this.reloadService = reloadService;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
     }
 
     /**
-     * Processes a zip file containing subgraph configurations and refreshes the gateway.
+     * Processes a zip file containing subgraph configurations and activates it.
      *
      * @param zipBytes the zip file contents
-     * @throws FeddiGatewayDefinitionException if parsing or validation fails
+     * @return completes when the new configuration is active; fails with a
+     *         {@link FeddiGatewayDefinitionException} if parsing, validation or activation fails
+     *         (the active configuration is kept), or with an {@link UploadInProgressException} if
+     *         another upload is still being activated
      */
-    public void processZip(byte[] zipBytes) {
-        gatewayDefinitionSource.replace(parseZip(zipBytes));
+    public Mono<Void> processZip(byte[] zipBytes) {
+        return Mono.defer(() -> {
+            if (!activating.compareAndSet(false, true)) {
+                return Mono.error(new UploadInProgressException());
+            }
+            return Mono.fromCallable(() -> parseZip(zipBytes))
+                .flatMap(definition -> reloadService.reload(definition)
+                    .then(Mono.fromRunnable(() -> gatewayDefinitionSource.store(definition))))
+                .then()
+                .doFinally(signal -> activating.set(false));
+        });
+    }
+
+    /**
+     * Another upload is still being activated.
+     */
+    public static final class UploadInProgressException extends RuntimeException {
+        UploadInProgressException() {
+            super("Another gateway configuration is being activated; try again when it has finished");
+        }
     }
 
     private FeddiGatewayDefinition parseZip(byte[] zipBytes) {

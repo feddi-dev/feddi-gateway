@@ -3,6 +3,7 @@ package dev.feddi.federation.app;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -33,6 +34,7 @@ class AdminServerTest {
 
             assertEquals(HttpStatus.OK, upload(client, "ok"));
             assertEquals(HttpStatus.BAD_REQUEST, upload(client, "bad"));
+            assertEquals(HttpStatus.CONFLICT, upload(client, "busy"));
         } finally {
             server.stop();
         }
@@ -52,12 +54,13 @@ class AdminServerTest {
     private ZipUploadController stubUploadController() {
         return new ZipUploadController(null) {
             @Override
-            public Map<String, Object> handleUpload(byte[] zipBytes) {
+            public Mono<UploadResponse> handleUpload(byte[] zipBytes) {
                 String body = new String(zipBytes, StandardCharsets.UTF_8);
-                if ("ok".equals(body)) {
-                    return Map.of("success", true, "message", "uploaded");
-                }
-                return Map.of("success", false, "error", "invalid zip");
+                return Mono.just(switch (body) {
+                    case "ok" -> new UploadResponse(200, Map.of("success", true, "message", "uploaded"));
+                    case "busy" -> new UploadResponse(409, Map.of("success", false, "error", "in progress"));
+                    default -> new UploadResponse(400, Map.of("success", false, "error", "invalid zip"));
+                });
             }
         };
     }
