@@ -19,6 +19,7 @@ import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -90,6 +91,27 @@ class ZipUploadServiceTest {
         assertTrue(response.body().get("error").toString().contains("batching"));
         assertSame(activeGateway, holder.get());
         assertSame(activeDefinition, source.load().orElseThrow());
+    }
+
+    @Test
+    void uploadThatFailsCompositionReportsTheError() throws IOException {
+        var controller = new ZipUploadController(new ZipUploadService(source, reloadService(Duration.ZERO)));
+        String lookupWithoutArguments = """
+            type Query {
+              product: Product @lookup
+            }
+
+            type Product @key(fields: "id") {
+              id: ID!
+            }
+            """;
+
+        var response = controller.handleUpload(createZip("subgraphs/main/schema.graphqls", lookupWithoutArguments,
+            "subgraphs/main/config.yaml", MAIN_CONFIG)).block();
+
+        assertEquals(400, response.status());
+        assertTrue(response.body().get("error").toString().startsWith("Schema composition failed"));
+        assertFalse(holder.isInitialized());
     }
 
     @Test
