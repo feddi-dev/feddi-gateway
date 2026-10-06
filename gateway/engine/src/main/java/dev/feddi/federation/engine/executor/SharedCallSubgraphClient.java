@@ -7,15 +7,16 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Shares identical subgraph query calls within one request. Different plan steps often send
  * the same lookup with the same variables (e.g. {@code product(upc: "1")} below several
  * response paths); the first call goes to the subgraph and later ones reuse its result.
  *
- * <p>Only queries are shared, never mutations. Each consumer after the first gets a deep copy
- * of the data, so steps that write into their response positions cannot affect each other.
+ * <p>Only queries are shared, never mutations. Every consumer gets its own deep copy of the
+ * data and the cached result stays untouched: the executor merges result maps into the response
+ * and later steps write into them, so a consumer that subscribes later must not see another
+ * consumer's changes.
  *
  * <p>Instances are per request: create one per {@link Executor#execute} call.
  */
@@ -24,21 +25,8 @@ final class SharedCallSubgraphClient implements SubgraphClient {
     private record CallKey(String operation, Map<String, Object> variables) {
     }
 
-    private static final class SharedCall {
-        private final Mono<ExecutionResult> result;
-        private final AtomicBoolean claimed = new AtomicBoolean();
-
-        SharedCall(Mono<ExecutionResult> result) {
-            this.result = result.cache();
-        }
-
-        Mono<ExecutionResult> next() {
-            return claimed.compareAndSet(false, true) ? result : result.map(ResultCopies::copy);
-        }
-    }
-
     private final SubgraphClient delegate;
-    private final Map<CallKey, SharedCall> calls = new ConcurrentHashMap<>();
+    private final Map<CallKey, Mono<ExecutionResult>> calls = new ConcurrentHashMap<>();
 
     SharedCallSubgraphClient(SubgraphClient delegate) {
         this.delegate = delegate;
@@ -51,7 +39,8 @@ final class SharedCallSubgraphClient implements SubgraphClient {
         }
         String text = OperationTexts.compact(operation);
         CallKey key = new CallKey(text, variables == null ? Map.of() : variables);
-        return calls.computeIfAbsent(key, k -> new SharedCall(delegate.execute(operation, variables))).next();
+        return calls.computeIfAbsent(key, k -> delegate.execute(operation, variables).cache())
+            .map(ResultCopies::copy);
     }
 
     /**

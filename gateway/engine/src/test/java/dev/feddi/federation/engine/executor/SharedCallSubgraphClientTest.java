@@ -78,6 +78,20 @@ class SharedCallSubgraphClientTest {
         assertThat(calls).hasValue(1);
     }
 
+    @Test
+    void laterConsumerDoesNotSeeChangesOfEarlierConsumer() {
+        // The first consumer's data is merged into the response and later steps write into it
+        // before another step requests the same call.
+        var client = new SharedCallSubgraphClient(delegate);
+        var op = operation("query ($upc: ID!) { product(upc: $upc) { name } }");
+
+        product(client.execute(op, Map.of("upc", "1")).block()).put("leaked", true);
+        ExecutionResult later = client.execute(op, Map.of("upc", "1")).block();
+
+        assertThat(product(later)).doesNotContainKey("leaked");
+        assertThat(calls).hasValue(1);
+    }
+
     private static OperationDefinition operation(String query) {
         return Parser.parse(query).getDefinitionsOfType(OperationDefinition.class).get(0);
     }
