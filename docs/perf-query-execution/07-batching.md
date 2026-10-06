@@ -121,9 +121,11 @@ Consequences for feddi:
    Known limitation: the subgraph timeout applies to the whole batch, so with `executeEach` one hanging request
    fails every entity of the batch. Clients without variable batching should use `none` or `alias` (documented in
    the Javadoc and the startup warning).
-6. **Metrics:** the existing per-call subgraph metrics change meaning (fewer, longer calls). Add
-   `feddi.gateway.subgraph.batch.size` and `feddi.gateway.subgraph.entities`, and note the change in the release
-   notes. `UsageReporter` (client operation usage) is not affected.
+6. **Metrics:** the existing per-call subgraph metrics change meaning (fewer, longer calls); note the change in the
+   release notes. `UsageReporter` (client operation usage) is not affected. *Not built:* a batch-size metric
+   (`feddi.gateway.subgraph.batch.size`, entities per request, e.g. to tune `batch-max-size`). An unused
+   `onSubgraphBatch` callback that only fired for `variables` was removed after review; build callback and metric
+   together if someone needs them.
 7. **HTTP/2 to subgraphs where they support it.** This makes even per-entity calls cheaper.
 8. **Proof by tests:** a real Spring for GraphQL subgraph in e2e, with the suite run in `none` and `alias` mode.
 

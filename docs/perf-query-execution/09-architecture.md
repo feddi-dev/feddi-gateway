@@ -74,8 +74,8 @@ Response assembly → UsageReporter / metrics (ExecutionListener)
    `subgraph-defaults:` at gateway level; built-in default `none`.
 9. **SPI** (`dev.feddi:feddi-gateway-extension`), non-breaking only: `SubgraphClient.executeBatch` default method;
    later `DocumentProvider.knownDocuments()`.
-10. **Observability**: `ExecutionListener` (engine-internal) gets `onBatch(subgraph, batchSize, entityCount)`; metrics
-    `feddi.gateway.subgraph.batch.size`, `feddi.gateway.subgraph.entities`.
+10. **Observability**: the existing per-request metrics (`ExecutionListener.onSubgraphFetchComplete`) count real
+    requests, so batching shows up as fewer requests. A batch-size metric is possible later (not built).
 
 ## Tests
 

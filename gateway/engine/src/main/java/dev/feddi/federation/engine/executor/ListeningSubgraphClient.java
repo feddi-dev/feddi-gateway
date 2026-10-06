@@ -9,8 +9,8 @@ import java.util.Map;
 
 /**
  * Reports every real subgraph request to the {@link ExecutionListener}: its duration and
- * outcome, and the batch size for batched requests. Sits directly around the transport client,
- * so shared or deduplicated calls are counted once.
+ * outcome. Sits directly around the transport client, so shared or deduplicated calls are
+ * counted once and a batch counts as one request.
  */
 final class ListeningSubgraphClient implements SubgraphClient {
 
@@ -39,7 +39,6 @@ final class ListeningSubgraphClient implements SubgraphClient {
                                                     List<Map<String, Object>> variableSets) {
         return Mono.defer(() -> {
             long start = System.nanoTime();
-            listener.onSubgraphBatch(subgraphName, variableSets.size());
             return delegate.executeBatch(operation, variableSets)
                 .doOnNext(results -> listener.onSubgraphFetchComplete(subgraphName, System.nanoTime() - start, true))
                 .doOnError(e -> listener.onSubgraphFetchComplete(subgraphName, System.nanoTime() - start, false));
