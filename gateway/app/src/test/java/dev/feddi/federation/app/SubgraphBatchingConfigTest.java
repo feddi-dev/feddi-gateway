@@ -73,7 +73,7 @@ class SubgraphBatchingConfigTest {
     @Test
     void adapterPassesBatchesAndContextToTheExtensionClient() {
         List<FeddiGatewayRequestContext> contexts = new ArrayList<>();
-        SubgraphClient client = new SubgraphClient() {
+        SubgraphClient client = new PerEntitySubgraphClient() {
             @Override
             public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables,
                                                  FeddiGatewayRequestContext context) {
@@ -93,8 +93,23 @@ class SubgraphBatchingConfigTest {
     }
 
     @Test
+    void executeEachKeepsSuccessfulResultsWhenOneRequestFails() {
+        PerEntitySubgraphClient client = (operation, variables, context) -> "2".equals(variables.get("id"))
+            ? Mono.error(new IllegalStateException("connection reset"))
+            : Mono.just(ExecutionResultImpl.newExecutionResult().data(variables).build());
+
+        List<ExecutionResult> results = client.executeBatch(OPERATION,
+            List.of(Map.of("id", "1"), Map.of("id", "2"), Map.of("id", "3")), FeddiGatewayRequestContext.empty()).block();
+
+        assertThat(results).extracting(r -> (Object) r.getData()).containsExactly(Map.of("id", "1"), null, Map.of("id", "3"));
+        assertThat(results.get(1).getErrors()).singleElement()
+            .satisfies(e -> assertThat(e.getMessage()).isEqualTo("Subgraph request failed: connection reset"));
+        assertThat(results.get(0).getErrors()).isEmpty();
+    }
+
+    @Test
     void timeoutAppliesToBatches() {
-        SubgraphClient slow = (operation, variables, context) -> Mono.never();
+        PerEntitySubgraphClient slow = (operation, variables, context) -> Mono.never();
         var client = new TimeoutAwareSubgraphClient(slow, "catalog", Duration.ofMillis(50));
 
         assertThatThrownBy(() -> client.executeBatch(OPERATION, List.of(Map.of("id", "1")),
@@ -103,7 +118,7 @@ class SubgraphBatchingConfigTest {
     }
 
     private static FeddiGatewayHolder reload(Map<String, Object> settings) {
-        SubgraphClientFactory factory = (name, subgraphSettings) -> (operation, variables, context) ->
+        SubgraphClientFactory factory = (name, subgraphSettings) -> (PerEntitySubgraphClient) (operation, variables, context) ->
             Mono.just(ExecutionResultImpl.newExecutionResult().build());
         var holder = new FeddiGatewayHolder();
         var service = new FeddiGatewayReloadService(holder, factory,

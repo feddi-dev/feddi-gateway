@@ -41,6 +41,16 @@ public class JavaHttpSubgraphClient implements SubgraphClient {
         this.subgraphName = subgraphName;
     }
 
+    /**
+     * No variable batching: one request per variable set.
+     */
+    @Override
+    public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
+                                                    List<Map<String, Object>> variableSets,
+                                                    FeddiGatewayRequestContext context) {
+        return SubgraphClient.executeEach(this, operation, variableSets, context);
+    }
+
     @Override
     public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, FeddiGatewayRequestContext context) {
         String query = AstPrinter.printAst(operation);
