@@ -16,6 +16,8 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.DisposableServer;
@@ -135,6 +137,23 @@ class DefaultSubgraphClientBatchTest {
         client(customizer).supportsVariableBatching().block();
 
         assertThat(requestHeaders).hasSize(2).allSatisfy(h -> assertThat(h).containsEntry("x-internal", "accounts"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {404, 405, 415, 422})
+    void probeTreatsRejectedBatchAsUnsupported(int status) {
+        start(body -> response(status, "application/json", "{\"errors\":[{\"message\":\"rejected\"}]}"));
+
+        assertThat(client().supportsVariableBatching().block()).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 403, 408, 429, 500, 502, 503})
+    void probeIsInconclusiveWhenStatusSaysNothingAboutBatching(int status) {
+        start(body -> response(status, "application/json", "{\"errors\":[{\"message\":\"unavailable\"}]}"));
+
+        assertThatThrownBy(() -> client().supportsVariableBatching().block())
+            .hasMessageContaining(String.valueOf(status));
     }
 
     @Test

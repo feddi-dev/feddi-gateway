@@ -116,7 +116,8 @@ public class FeddiGatewayReloadService {
      * Checks asynchronously that subgraphs configured with {@code batching: variables} support it.
      * Reload may run on an event-loop thread, so this never blocks. A subgraph that answers but
      * does not support variable batching falls back to alias batching (spec-compliant, works with
-     * every server) with an error in the log; an unreachable subgraph is left as configured.
+     * every server) with an error in the log. An unreachable subgraph or an inconclusive answer
+     * (authentication failure, rate limiting, server error) leaves the subgraph as configured.
      */
     private void verifyVariableBatching(FeddiFederationGateway gateway, Map<String, DefaultSubgraphClient> clients,
                                         Map<String, BatchingOptions> batching) {
