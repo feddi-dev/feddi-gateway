@@ -145,8 +145,12 @@ public class DefaultSubgraphClient implements SubgraphClient {
     /**
      * Checks whether the subgraph supports variable batching by sending a minimal batch of two.
      *
-     * @return true if supported, false if the subgraph answered but not with a valid batch
-     *         response; an error if the subgraph could not be reached
+     * <p>Answers that say nothing about batching are inconclusive: authentication failures (the
+     * probe carries no client's {@code Authorization}), rate limiting, timeouts and server errors.
+     *
+     * @return true if supported, false if the subgraph rejected the batch or did not answer with
+     *         a valid batch response; an error if the result is inconclusive or the subgraph could
+     *         not be reached
      */
     Mono<Boolean> supportsVariableBatching() {
         Map<String, Object> requestBody = Map.of(
@@ -160,16 +164,24 @@ public class DefaultSubgraphClient implements SubgraphClient {
             .bodyValue(requestBody)
             .exchangeToMono(response -> response.bodyToMono(String.class)
                 .defaultIfEmpty("")
-                .map(body -> {
+                .flatMap(body -> {
+                    int status = response.statusCode().value();
+                    if (isInconclusiveProbeStatus(status)) {
+                        return Mono.error(new IllegalStateException("probe returned HTTP " + status));
+                    }
                     if (!response.statusCode().is2xxSuccessful()) {
-                        return false;
+                        return Mono.just(false);
                     }
                     try {
-                        return parseBatchResponse(body, 2).stream().allMatch(r -> r.get("data") != null);
+                        return Mono.just(parseBatchResponse(body, 2).stream().allMatch(r -> r.get("data") != null));
                     } catch (IllegalArgumentException e) {
-                        return false;
+                        return Mono.just(false);
                     }
                 }));
+    }
+
+    private static boolean isInconclusiveProbeStatus(int status) {
+        return status == 401 || status == 403 || status == 408 || status == 429 || status >= 500;
     }
 
     /**
