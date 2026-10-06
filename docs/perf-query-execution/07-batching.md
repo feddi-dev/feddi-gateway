@@ -116,6 +116,9 @@ Consequences for feddi:
    `SubgraphClient.executeEach` (one request per variable set; a failed request becomes an error result for that
    entity only). **Release note:** custom `SubgraphClient`s must implement `executeBatch` (usually one line) and
    can no longer be written as lambdas.
+   Known limitation: the subgraph timeout applies to the whole batch, so with `executeEach` one hanging request
+   fails every entity of the batch. Clients without variable batching should use `none` or `alias` (documented in
+   the Javadoc and the startup warning).
 6. **Metrics:** the existing per-call subgraph metrics change meaning (fewer, longer calls). Add
    `feddi.gateway.subgraph.batch.size` and `feddi.gateway.subgraph.entities`, and note the change in the release
    notes. `UsageReporter` (client operation usage) is not affected.
