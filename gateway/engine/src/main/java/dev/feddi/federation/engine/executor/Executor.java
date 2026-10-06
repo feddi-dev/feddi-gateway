@@ -435,6 +435,12 @@ public final class Executor {
                                 er.context().put(fieldName, null);
                             }
                         }
+                        // A subgraph response without data can still carry GraphQL errors
+                        if (er.result() != null && er.result().getErrors() != null) {
+                            for (graphql.GraphQLError error : er.result().getErrors()) {
+                                stepResult.addError(error);
+                            }
+                        }
                         // If there was an error (e.g., timeout), record it
                         if (er.error() != null) {
                             if (er.error() instanceof SubgraphTimeoutException ste) {

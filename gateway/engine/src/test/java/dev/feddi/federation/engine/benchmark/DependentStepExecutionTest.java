@@ -61,6 +61,19 @@ class DependentStepExecutionTest {
         assertThat((Object) result.getData()).isEqualTo(expected.getData());
     }
 
+    @Test
+    void subgraphErrorsWithoutDataAreReported() {
+        // A subgraph answers with data: null (e.g. a non-null violation that reached the root).
+        String query = "{ users { id reviews { id product { upc name } } } }";
+
+        var result = execute(query, client -> (operation, variables) -> Mono.just(
+            ExecutionResultImpl.newExecutionResult()
+                .addError(GraphqlErrorBuilder.newError().message("no data").build())
+                .build()));
+
+        assertThat(result.getErrors()).extracting(e -> e.getMessage()).containsExactly("no data");
+    }
+
     private static ExecutionResult execute(String query, UnaryOperator<SubgraphClient> productsClient) {
         ExecutionPlan plan = new OperationPlanner(schema.graph()).plan(Operation.parse(query, normalizer));
         Map<String, SubgraphClient> clients = new LinkedHashMap<>();
