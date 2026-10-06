@@ -102,9 +102,11 @@ Consequences for feddi:
    switching to `alias` after it has been used in practice.
 3. **`variables` gets a check at startup or config load**: send a tiny variables-array request. If the subgraph
    rejects it, fail with a clear message ("subgraph X does not support variable batching; use `alias` or `none`").
-   *Implemented:* the check runs asynchronously on reload; a rejection (other 4xx, or 2xx without a valid batch
-   response) falls back to `alias` with an ERROR log. 401, 403, 408, 429 and 5xx are inconclusive (the probe carries
-   no client authorization) and, like an unreachable subgraph, keep `variables` with a warning.
+   *Implemented:* the reload runs the check before the new gateway becomes active (non-blocking: `reload` returns a
+   `Mono`). A rejection (other 4xx, or 2xx without a valid batch response) makes the definition invalid: at startup
+   the gateway does not start, on an update the active gateway is kept and the error is logged. 401, 403, 408, 429
+   and 5xx are inconclusive (the probe carries no client authorization) and, like an unreachable subgraph, are
+   accepted with a warning. (An earlier version fell back to `alias` silently, after the gateway was already live.)
 4. **`alias` safety:** a maximum batch size (split above it), and batch sizes rounded up to fixed buckets (1, 2, 4,
    8, …) so subgraph document caches get hits.
 5. **SPI:** `SubgraphClient` (published in `dev.feddi:feddi-gateway-extension`) gets a `default` method
