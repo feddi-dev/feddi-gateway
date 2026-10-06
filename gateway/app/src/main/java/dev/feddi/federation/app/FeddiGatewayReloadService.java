@@ -89,8 +89,9 @@ public class FeddiGatewayReloadService {
                 } else {
                     log.warn("Subgraph '{}' is configured with 'batching: variables' but uses a custom "
                         + "SubgraphClient ({}). Variable batching only takes effect if its executeBatch sends "
-                        + "a variables array; with SubgraphClient.executeEach every entity is sent separately. "
-                        + "'batching: alias' works with any client.", name, baseClient.getClass().getName());
+                        + "a variables array; with SubgraphClient.executeEach every entity is sent separately and "
+                        + "one slow request times out the whole batch. Use 'batching: alias' or 'none' for such "
+                        + "clients.", name, baseClient.getClass().getName());
                 }
             }
             clients.put(name, new TimeoutAwareSubgraphClient(baseClient, name, timeout));

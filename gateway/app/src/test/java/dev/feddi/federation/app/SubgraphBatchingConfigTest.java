@@ -108,6 +108,23 @@ class SubgraphBatchingConfigTest {
     }
 
     @Test
+    void executeEachKeepsSuccessfulResultsWhenExecuteThrows() {
+        PerEntitySubgraphClient client = (operation, variables, context) -> {
+            if ("2".equals(variables.get("id"))) {
+                throw new IllegalStateException("cannot build request");
+            }
+            return Mono.just(ExecutionResultImpl.newExecutionResult().data(variables).build());
+        };
+
+        List<ExecutionResult> results = client.executeBatch(OPERATION,
+            List.of(Map.of("id", "1"), Map.of("id", "2")), FeddiGatewayRequestContext.empty()).block();
+
+        assertThat(results).extracting(r -> (Object) r.getData()).containsExactly(Map.of("id", "1"), null);
+        assertThat(results.get(1).getErrors()).singleElement()
+            .satisfies(e -> assertThat(e.getMessage()).isEqualTo("Subgraph request failed: cannot build request"));
+    }
+
+    @Test
     void timeoutAppliesToBatches() {
         PerEntitySubgraphClient slow = (operation, variables, context) -> Mono.never();
         var client = new TimeoutAwareSubgraphClient(slow, "catalog", Duration.ofMillis(50));

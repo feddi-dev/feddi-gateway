@@ -52,8 +52,13 @@ public interface SubgraphClient {
 
     /**
      * Executes the operation once per variable set with {@link #execute}, for clients without
-     * variable batching. A failed request becomes an error result for its variable set only;
-     * the other results are kept.
+     * variable batching. A failed request (also one whose {@code execute} throws) becomes an error
+     * result for its variable set only; the other results are kept.
+     *
+     * <p>The feddi Gateway applies the subgraph timeout to the whole batch, so a single request
+     * that does not complete in time fails all of them. For clients that use this method,
+     * {@code batching: none} (a timeout per request) or {@code batching: alias} (one request per
+     * batch) are the better choices.
      *
      * @param client       the client to execute with
      * @param operation    the parsed GraphQL operation definition
@@ -66,7 +71,7 @@ public interface SubgraphClient {
                                                    List<Map<String, Object>> variableSets,
                                                    FeddiGatewayRequestContext context) {
         return Flux.fromIterable(variableSets)
-            .flatMapSequential(variables -> client.execute(operation, variables, context)
+            .flatMapSequential(variables -> Mono.defer(() -> client.execute(operation, variables, context))
                 .onErrorResume(e -> Mono.just(ExecutionResultImpl.newExecutionResult()
                     .addError(GraphqlErrorBuilder.newError()
                         .message("Subgraph request failed: " + e.getMessage())
