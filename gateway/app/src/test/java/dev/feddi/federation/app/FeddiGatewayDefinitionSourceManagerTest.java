@@ -89,7 +89,7 @@ class FeddiGatewayDefinitionSourceManagerTest {
         var openingHours = Map.of("mon", "09:00-17:00", "tue", "09:00-17:00");
 
         SubgraphClientFactory factory = (subgraphName, settings) ->
-                (operation, variables, context) -> reactor.core.publisher.Mono.just(
+                (PerEntitySubgraphClient) (operation, variables, context) -> reactor.core.publisher.Mono.just(
                         ExecutionResultImpl.newExecutionResult()
                                 .data(Map.of("attractions", List.of(Map.of(
                                         "id", 1,
@@ -168,7 +168,7 @@ class FeddiGatewayDefinitionSourceManagerTest {
     }
 
     private SubgraphClientFactory subgraphClientFactory() {
-        return (subgraphName, settings) -> (operation, variables, context) -> reactor.core.publisher.Mono.just(
+        return (subgraphName, settings) -> (PerEntitySubgraphClient) (operation, variables, context) -> reactor.core.publisher.Mono.just(
             ExecutionResultImpl.newExecutionResult()
                 .data(Map.of("products", List.of(Map.of("id", "1", "name", extractExpectedName(settings.config().get("url").toString())))))
                 .build()

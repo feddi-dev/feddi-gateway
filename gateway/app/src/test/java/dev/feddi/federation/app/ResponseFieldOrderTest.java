@@ -123,7 +123,7 @@ class ResponseFieldOrderTest {
                     .map(LinkedHashMap::new).orElse(null)))
             .build();
         var graphQL = GraphQL.newGraphQL(new SchemaGenerator().makeExecutableSchema(new SchemaParser().parse(plainSdl), wiring)).build();
-        return (operation, variables, context) -> Mono.fromCallable(() -> graphQL.execute(ExecutionInput.newExecutionInput()
+        return (PerEntitySubgraphClient) (operation, variables, context) -> Mono.fromCallable(() -> graphQL.execute(ExecutionInput.newExecutionInput()
             .query(AstPrinter.printAst(Document.newDocument().definition(operation).build()))
             .variables(variables)
             .build()));

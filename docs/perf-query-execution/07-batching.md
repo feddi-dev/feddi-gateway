@@ -110,6 +110,12 @@ Consequences for feddi:
 5. **SPI:** `SubgraphClient` (published in `dev.feddi:feddi-gateway-extension`) gets a `default` method
    `executeBatch(operation, List<variables>, context)`. The default calls `execute` once per variable set, so
    existing custom clients keep working. The built-in HTTP client overrides it per mode.
+   *Changed after review (2026-10-05, breaking):* `executeBatch` is abstract. As a `default` it failed silently:
+   a wrapper that overrode only `execute` lost the wrapped client's variable batching, and the fallback failed
+   the whole batch when one request failed. Implementations now batch, delegate, or call the static
+   `SubgraphClient.executeEach` (one request per variable set; a failed request becomes an error result for that
+   entity only). **Release note:** custom `SubgraphClient`s must implement `executeBatch` (usually one line) and
+   can no longer be written as lambdas.
 6. **Metrics:** the existing per-call subgraph metrics change meaning (fewer, longer calls). Add
    `feddi.gateway.subgraph.batch.size` and `feddi.gateway.subgraph.entities`, and note the change in the release
    notes. `UsageReporter` (client operation usage) is not affected.

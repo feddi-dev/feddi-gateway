@@ -7,8 +7,8 @@ JVM GraphQL composite-schema federation gateway (Java 25, graphql-java, Reactor)
 - `gateway/` – Gradle build (`engine`, `extension`, `app`)
   - `engine/` – composition (`compose/`), query graph (`graph/`), planner (`planner/`), executor (`executor/`)
   - `extension/` – **public SPI**, published to Maven Central as `dev.feddi:feddi-gateway-extension`
-    (`SubgraphClient`, `SubgraphClientFactory`, `SubgraphSettings`, …). Changes here must stay
-    backward compatible: add `default` methods instead of changing existing signatures.
+    (`SubgraphClient`, `SubgraphClientFactory`, `SubgraphSettings`, …). Prefer backward-compatible changes
+    (`default` methods). Breaking changes are allowed before 1.0 when agreed, with a release note.
   - `app/` – Spring Boot gateway (`FeddiFederationGateway` is the request path: parse → normalize → plan → execute)
 - `e2e-tests/` – separate Gradle build, end-to-end tests against Docker subgraphs
 - `docs/perf-query-execution/` – context and plan for the query-execution performance work
@@ -43,7 +43,8 @@ constants instead of directive string literals, no introspection field literals 
 - Small commits, each with tests passing. Follow the step order in `docs/perf-query-execution/05-plan.md`.
 - feddi is **server-agnostic**: the baseline is plain GraphQL-over-HTTP. Batching is per-subgraph config
   `batching: none | alias | variables` with a gateway-wide default (built-in default `none`); `variables` is checked
-  at startup. `SubgraphClient.executeBatch` is a `default` method that falls back to `execute` per variable set.
+  at startup. `SubgraphClient.executeBatch` is abstract (breaking change on this branch): implementations batch,
+  delegate (wrappers) or call `SubgraphClient.executeEach` (one request per variable set, failures per entity).
   Details: `docs/perf-query-execution/07-batching.md`.
 - Java-subgraph tuning and graphql-java/Spring upstream work are a separate track
   (`docs/perf-query-execution/08-java-ecosystem.md`), not part of this branch.

@@ -164,7 +164,7 @@ class OperationPlanCacheTest {
     }
 
     private static FeddiFederationGateway gateway(SimpleMeterRegistry registry, DocumentProvider provider) {
-        SubgraphClient client = (operation, variables, context) ->
+        PerEntitySubgraphClient client = (operation, variables, context) ->
             Mono.just(ExecutionResultImpl.newExecutionResult().data(PRODUCTS).build());
         return FeddiFederationGateway.create(
             List.of(new SubgraphInput("products", "http://localhost:0/graphql", SDL)),

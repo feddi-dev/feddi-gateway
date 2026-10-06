@@ -45,7 +45,7 @@ class ZipUploadServiceTest {
         );
 
         FeddiGatewayHolder holder = new FeddiGatewayHolder();
-        SubgraphClientFactory factory = (subgraphName, config) -> (op, vars, ctx) ->
+        SubgraphClientFactory factory = (subgraphName, config) -> (PerEntitySubgraphClient) (op, vars, ctx) ->
             reactor.core.publisher.Mono.just(ExecutionResultImpl.newExecutionResult()
                 .data(Map.of("products", List.of(
                     Map.of("id", "1", "name", "Test Product")
