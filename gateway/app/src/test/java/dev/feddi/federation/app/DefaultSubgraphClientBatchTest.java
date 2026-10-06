@@ -23,7 +23,6 @@ import reactor.core.publisher.Mono;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
 
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -164,25 +163,40 @@ class DefaultSubgraphClientBatchTest {
     }
 
     @Test
-    void reloadKeepsVariableBatchingWhenSubgraphIsUnreachable() throws Exception {
+    void reloadKeepsVariableBatchingWhenSubgraphIsUnreachable() {
         start(body -> response(200, "application/json", "{}"));
         String unreachable = url();
         server.disposeNow();
         server = null;
         var holder = new FeddiGatewayHolder();
-        var service = new FeddiGatewayReloadService(holder,
-            new DefaultSubgraphClientFactory(WebClient.builder(), null),
-            new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
 
-        service.reload(new FeddiGatewayDefinition(Map.of("accounts", new SubgraphDefinition(
-            "type Query { user(id: ID!): User } type User { id: ID! name: String }",
-            new SubgraphSettings(Map.of("url", unreachable, "batching", "variables")))),
-            FeddiGatewaySettings.defaults()));
-        // The probe fails fast (connection refused). This test can only observe that no fallback
-        // happens; it would also pass if the probe never ran.
-        Thread.sleep(1_000);
+        reloadService(holder).reload(definition(unreachable, Map.of("batching", "variables"))).block();
 
         assertThat(holder.get().batching("accounts").mode()).isEqualTo(Mode.VARIABLES);
+    }
+
+    @Test
+    void reloadKeepsVariableBatchingWhenProbeIsInconclusive() {
+        start(body -> response(401, "application/json", "{\"errors\":[{\"message\":\"unauthorized\"}]}"));
+        var holder = new FeddiGatewayHolder();
+
+        reloadService(holder).reload(definition(url(), Map.of("batching", "variables"))).block();
+
+        assertThat(requests).hasSize(1);
+        assertThat(holder.get().batching("accounts").mode()).isEqualTo(Mode.VARIABLES);
+    }
+
+    @Test
+    void reloadActivatesVariableBatchingWhenSubgraphSupportsIt() {
+        start(body -> response(200, "application/jsonl", """
+            {"data":{"__typename":"Query"},"variableIndex":0}
+            {"data":{"__typename":"Query"},"variableIndex":1}
+            """));
+        var holder = new FeddiGatewayHolder();
+
+        reloadService(holder).reload(definition(url(), Map.of("batching", "variables", "batch-max-size", 8))).block();
+
+        assertThat(holder.get().batching("accounts")).isEqualTo(new BatchingOptions(Mode.VARIABLES, 8));
     }
 
     @Test
@@ -196,23 +210,31 @@ class DefaultSubgraphClientBatchTest {
     }
 
     @Test
-    void reloadFallsBackToAliasWhenSubgraphLacksVariableBatching() throws Exception {
+    void reloadRejectsVariableBatchingWhenSubgraphLacksItAndKeepsActiveGateway() {
         start(body -> response(400, "application/json", "{\"errors\":[{\"message\":\"bad request\"}]}"));
         var holder = new FeddiGatewayHolder();
-        var service = new FeddiGatewayReloadService(holder,
-            new DefaultSubgraphClientFactory(WebClient.builder(), null),
+        var service = reloadService(holder);
+        service.reload(definition(url(), Map.of())).block();
+        var active = holder.get();
+
+        assertThatThrownBy(() -> service.reload(definition(url(), Map.of("batching", "variables"))).block())
+            .isInstanceOf(FeddiGatewayDefinitionException.class)
+            .hasMessageContaining("[accounts]")
+            .hasMessageContaining("do not support variable batching");
+        assertThat(holder.get()).isSameAs(active);
+    }
+
+    private static FeddiGatewayReloadService reloadService(FeddiGatewayHolder holder) {
+        return new FeddiGatewayReloadService(holder, new DefaultSubgraphClientFactory(WebClient.builder(), null),
             new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
+    }
 
-        service.reload(new FeddiGatewayDefinition(Map.of("accounts", new SubgraphDefinition(
+    private static FeddiGatewayDefinition definition(String url, Map<String, Object> batching) {
+        Map<String, Object> config = new HashMap<>(batching);
+        config.put("url", url);
+        return new FeddiGatewayDefinition(Map.of("accounts", new SubgraphDefinition(
             "type Query { user(id: ID!): User } type User { id: ID! name: String }",
-            new SubgraphSettings(Map.of("url", url(), "batching", "variables", "batch-max-size", 8)))),
-            FeddiGatewaySettings.defaults()));
-
-        long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
-        while (holder.get().batching("accounts").mode() != Mode.ALIAS && System.nanoTime() < deadline) {
-            Thread.sleep(20);
-        }
-        assertThat(holder.get().batching("accounts")).isEqualTo(new BatchingOptions(Mode.ALIAS, 8));
+            new SubgraphSettings(config))), FeddiGatewaySettings.defaults());
     }
 
     private record Response(int status, String contentType, String body) {

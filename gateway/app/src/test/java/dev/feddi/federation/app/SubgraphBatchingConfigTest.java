@@ -142,7 +142,7 @@ class SubgraphBatchingConfigTest {
             new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
         service.reload(new FeddiGatewayDefinition(
             Map.of("catalog", new SubgraphDefinition(SDL, new SubgraphSettings(settings))),
-            FeddiGatewaySettings.defaults()));
+            FeddiGatewaySettings.defaults())).block();
         return holder;
     }
 }

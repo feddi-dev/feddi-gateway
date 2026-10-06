@@ -48,11 +48,25 @@ public class FeddiGatewayReloadService {
     }
 
     /**
-     * Rebuilds and swaps the active gateway.
+     * Rebuilds the gateway and swaps it in once subgraphs configured with {@code batching: variables}
+     * are verified. Never blocks, so it can run on an event-loop thread.
      *
      * @param gatewayDefinition logical feddi Gateway definition
+     * @return completes when the new gateway is active; fails with a
+     *         {@link FeddiGatewayDefinitionException} if the definition is invalid, in which case the
+     *         active gateway is kept
      */
-    public void reload(FeddiGatewayDefinition gatewayDefinition) {
+    public Mono<Void> reload(FeddiGatewayDefinition gatewayDefinition) {
+        return Mono.fromCallable(() -> build(gatewayDefinition))
+            .flatMap(built -> verifyVariableBatching(built.variableBatchingClients())
+                .then(Mono.fromRunnable(() -> gatewayHolder.set(built.gateway()))));
+    }
+
+    private record BuiltGateway(FeddiFederationGateway gateway,
+                                Map<String, DefaultSubgraphClient> variableBatchingClients) {
+    }
+
+    private BuiltGateway build(FeddiGatewayDefinition gatewayDefinition) {
         if (gatewayDefinition == null) {
             throw new FeddiGatewayDefinitionException("Gateway definition must not be null");
         }
@@ -108,45 +122,34 @@ public class FeddiGatewayReloadService {
             gateway = FeddiFederationGateway.create(inputs, clients, gatewayMetrics,
                     gatewayMetrics, documentProvider, introspectionEnabled);
         }
-        FeddiFederationGateway configured = gateway.withSubgraphBatching(batching);
-        gatewayHolder.set(configured);
-        verifyVariableBatching(configured, variableBatchingClients, batching);
+        return new BuiltGateway(gateway.withSubgraphBatching(batching), variableBatchingClients);
     }
 
     /**
-     * Checks asynchronously that subgraphs configured with {@code batching: variables} support it.
-     * Reload may run on an event-loop thread, so this never blocks. A subgraph that answers but
-     * does not support variable batching falls back to alias batching (spec-compliant, works with
-     * every server) with an error in the log. An unreachable subgraph or an inconclusive answer
-     * (authentication failure, rate limiting, server error) leaves the subgraph as configured.
+     * Checks that subgraphs configured with {@code batching: variables} support it. A subgraph that
+     * rejects a variable batch makes the definition invalid: the configuration is wrong and would
+     * fail every batched lookup. An unreachable subgraph or an inconclusive answer (authentication
+     * failure, rate limiting, server error) is accepted with a warning, so a subgraph that is down
+     * does not block the gateway.
      */
-    private void verifyVariableBatching(FeddiFederationGateway gateway, Map<String, DefaultSubgraphClient> clients,
-                                        Map<String, BatchingOptions> batching) {
-        if (clients.isEmpty()) {
-            return;
-        }
-        Flux.fromIterable(clients.entrySet())
+    private Mono<Void> verifyVariableBatching(Map<String, DefaultSubgraphClient> clients) {
+        return Flux.fromIterable(clients.entrySet())
             .flatMap(entry -> entry.getValue().supportsVariableBatching()
                 .timeout(VARIABLE_BATCHING_CHECK_TIMEOUT)
-                .filter(supported -> !supported)
-                .map(unsupported -> entry.getKey())
                 .onErrorResume(e -> {
                     log.warn("Could not verify variable batching support of subgraph '{}': {}",
                         entry.getKey(), e.getMessage());
                     return Mono.empty();
-                }))
+                })
+                .filter(supported -> !supported)
+                .map(unsupported -> entry.getKey()))
+            .sort()
             .collectList()
-            .filter(unsupported -> !unsupported.isEmpty())
-            .subscribe(unsupported -> {
-                log.error("Subgraph(s) {} are configured with 'batching: variables' but do not support variable "
-                    + "batching. Falling back to 'batching: alias'. Set 'batching: alias' or 'none' for them.",
-                    unsupported);
-                Map<String, BatchingOptions> fallback = new HashMap<>(batching);
-                for (String name : unsupported) {
-                    fallback.put(name, new BatchingOptions(BatchingOptions.Mode.ALIAS, batching.get(name).maxBatchSize()));
-                }
-                gatewayHolder.replace(gateway, gateway.withSubgraphBatching(fallback));
-            });
+            .flatMap(unsupported -> unsupported.isEmpty()
+                ? Mono.<Void>empty()
+                : Mono.error(new FeddiGatewayDefinitionException("Subgraph(s) " + unsupported
+                    + " are configured with 'batching: variables' but do not support variable batching. "
+                    + "Use 'batching: alias' or 'none' for them.")));
     }
 
     private void validateSubgraph(String name, SubgraphDefinition subgraphDefinition) {
