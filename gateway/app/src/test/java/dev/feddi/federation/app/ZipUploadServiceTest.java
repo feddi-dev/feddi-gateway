@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -122,6 +123,18 @@ class ZipUploadServiceTest {
     }
 
     @Test
+    void cancelledUploadDoesNotBlockTheNextOne() throws IOException {
+        // The first reload would take long, the second is immediate
+        ZipUploadService service = new ZipUploadService(source,
+            reloadService(Duration.ofSeconds(30), Duration.ZERO));
+        // E.g. the uploading client disconnects while the configuration is being activated
+        service.processZip(zip(MAIN_CONFIG)).subscribe().dispose();
+
+        assertDoesNotThrow(() -> service.processZip(zip(MAIN_CONFIG)).block(Duration.ofSeconds(5)));
+        assertTrue(holder.isInitialized());
+    }
+
+    @Test
     void uploadWhileAnotherIsBeingActivatedIsAConflict() throws IOException {
         var controller = new ZipUploadController(new ZipUploadService(source, reloadService(Duration.ofMillis(300))));
         var first = controller.handleUpload(zip(MAIN_CONFIG)).toFuture();
@@ -154,10 +167,11 @@ class ZipUploadServiceTest {
     }
 
     /**
-     * A reload service whose reloads take at least {@code delay}, like one waiting for a
-     * variable batching check.
+     * A reload service whose reloads take a while, like one waiting for a variable batching
+     * check: the n-th reload takes {@code delays[n]} (the last delay repeats).
      */
-    private FeddiGatewayReloadService reloadService(Duration delay) {
+    private FeddiGatewayReloadService reloadService(Duration... delays) {
+        AtomicInteger reloads = new AtomicInteger();
         SubgraphClientFactory factory = (subgraphName, config) -> (PerEntitySubgraphClient) (op, vars, ctx) ->
             Mono.just(ExecutionResultImpl.newExecutionResult()
                 .data(Map.of("products", List.of(Map.of("id", "1", "name", "Test Product"))))
@@ -166,6 +180,7 @@ class ZipUploadServiceTest {
             null, new FeddiGatewayConfigFile()) {
             @Override
             public Mono<Void> reload(FeddiGatewayDefinition gatewayDefinition) {
+                Duration delay = delays[Math.min(reloads.getAndIncrement(), delays.length - 1)];
                 return Mono.delay(delay).then(super.reload(gatewayDefinition));
             }
         };
