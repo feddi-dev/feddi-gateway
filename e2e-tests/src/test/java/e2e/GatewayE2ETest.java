@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.testcontainers.containers.ComposeContainer;
@@ -64,6 +65,9 @@ public class GatewayE2ETest {
         .withExposedService("feddi-gateway-1", 8080, Wait.forListeningPort()
             .withStartupTimeout(Duration.ofMinutes(3)))
         .withExposedService("feddi-gateway-1", 9091)
+        .withExposedService("feddi-gateway-default-1", 8080, Wait.forListeningPort()
+            .withStartupTimeout(Duration.ofMinutes(3)))
+        .withExposedService("feddi-gateway-default-1", 9091)
         .withExposedService("products-1", 4001, Wait.forListeningPort()
             .withStartupTimeout(Duration.ofMinutes(2)))
         .withExposedService("reviews-1", 4002, Wait.forListeningPort()
@@ -1409,10 +1413,10 @@ public class GatewayE2ETest {
     @Test
     @Order(34)
     void customClientWithoutExecuteBatchSendsVariableBatchesPerEntity() throws IOException {
-        // The e2e gateway uses a custom SubgraphClient (JavaHttpSubgraphClient) that does not
-        // implement executeBatch: 'batching: variables' falls back to one request per entity
-        // and results stay correct. (feddi's default client is covered by unit tests: it
-        // detects that Spring for GraphQL rejects variable batches and falls back to alias.)
+        // The e2e gateway uses a custom SubgraphClient (JavaHttpSubgraphClient) without variable
+        // batching (executeBatch uses SubgraphClient.executeEach): 'batching: variables' sends
+        // one request per entity and results stay correct. Custom clients are not checked for
+        // variable batching support; the built-in client is (see the next test).
         uploadWithInventoryBatching("variables");
 
         int before = inventoryRequests();
@@ -1423,7 +1427,68 @@ public class GatewayE2ETest {
         assertEquals(3, inventoryRequests() - before);
     }
 
+    @Test
+    @Order(35)
+    void builtInClientRejectsVariableBatchingForSpringSubgraph() throws IOException {
+        // A gateway without the e2e extension, i.e. with feddi's built-in subgraph client
+        String host = environment.getServiceHost("feddi-gateway-default-1", 9091);
+        WebClient defaultAdmin = WebClient.create("http://" + host + ":"
+            + environment.getServicePort("feddi-gateway-default-1", 9091));
+        WebClient defaultGateway = WebClient.create("http://" + host + ":"
+            + environment.getServicePort("feddi-gateway-default-1", 8080));
+
+        Map<String, Object> accepted = upload(defaultAdmin, inventoryBatchingZip("alias"), HttpStatus.OK);
+        assertEquals(true, accepted.get("success"), "Upload failed: " + accepted);
+
+        // Spring for GraphQL answers a variables array with HTTP 400: the configuration is wrong
+        Map<String, Object> rejected = upload(defaultAdmin, inventoryBatchingZip("variables"), HttpStatus.BAD_REQUEST);
+        assertEquals(false, rejected.get("success"));
+        assertTrue(rejected.get("error").toString().contains("[inventory]"), "Unexpected error: " + rejected);
+        assertTrue(rejected.get("error").toString().contains("do not support variable batching"),
+            "Unexpected error: " + rejected);
+
+        // The previous configuration (alias batching) stays active
+        int before = inventoryRequests();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response = defaultGateway.post()
+            .uri("/graphql")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(Map.of("query", STOCK_QUERY))
+            .retrieve()
+            .bodyToMono(Map.class)
+            .block();
+        assertNull(response.get("errors"), "Unexpected errors: " + response.get("errors"));
+        assertEquals(EXPECTED_STOCK, ((Map<?, ?>) response.get("data")).get("products"));
+        assertEquals(1, inventoryRequests() - before);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> upload(WebClient admin, byte[] zip, HttpStatus expectedStatus) {
+        return admin.post()
+            .uri("/admin/upload")
+            .contentType(MediaType.APPLICATION_OCTET_STREAM)
+            .bodyValue(zip)
+            .exchangeToMono(r -> {
+                assertEquals(expectedStatus.value(), r.statusCode().value());
+                return r.bodyToMono(Map.class);
+            })
+            .block();
+    }
+
     private void uploadWithInventoryBatching(String batching) throws IOException {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> uploadResponse = adminClient.post()
+            .uri("/admin/upload")
+            .contentType(MediaType.APPLICATION_OCTET_STREAM)
+            .bodyValue(inventoryBatchingZip(batching))
+            .retrieve()
+            .bodyToMono(Map.class)
+            .block();
+        assertNotNull(uploadResponse);
+        assertEquals(true, uploadResponse.get("success"), "Upload failed: " + uploadResponse);
+    }
+
+    private byte[] inventoryBatchingZip(String batching) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(baos)) {
             addResourceToZip(zos, "subgraphs/products/schema.graphqls");
@@ -1436,17 +1501,7 @@ public class GatewayE2ETest {
                 .getBytes(StandardCharsets.UTF_8));
             zos.closeEntry();
         }
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> uploadResponse = adminClient.post()
-            .uri("/admin/upload")
-            .contentType(MediaType.APPLICATION_OCTET_STREAM)
-            .bodyValue(baos.toByteArray())
-            .retrieve()
-            .bodyToMono(Map.class)
-            .block();
-        assertNotNull(uploadResponse);
-        assertEquals(true, uploadResponse.get("success"), "Upload failed: " + uploadResponse);
+        return baos.toByteArray();
     }
 
     /** Requests received by the Spring subgraph so far (queried directly, not through feddi). */
