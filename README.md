@@ -188,7 +188,7 @@ The feddi Gateway itself recognizes the namespace and forwards its configuration
 
 ### feddi Gateway Definition Uploads
 
-The default runtime source accepts feddi Gateway definitions through `POST /admin/upload` as multipart form data with a `file` part containing a ZIP archive. Each upload replaces the active definition immediately.
+The default runtime source accepts feddi Gateway definitions through `POST /admin/upload` as multipart form data with a `file` part containing a ZIP archive. The response is sent once the upload is active: `200` when the new definition is active, `400` with an `error` message when it was rejected (invalid ZIP, composition error, or a subgraph configured with `batching: variables` that does not support it); the active definition is then kept. `409` means another upload is still being activated.
 
 If an extension-provided `FeddiGatewayDefinitionSource` is installed and active, ZIP uploads are disabled.
 

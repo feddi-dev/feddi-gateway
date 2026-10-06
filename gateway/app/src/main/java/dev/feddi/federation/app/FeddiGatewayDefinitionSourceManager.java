@@ -34,6 +34,9 @@ public class FeddiGatewayDefinitionSourceManager implements ApplicationRunner {
         );
 
         gatewayDefinitionSource.updates()
+            // A reload can take a while (variable batching checks). Keep only the newest pending
+            // definition meanwhile; the source never sees backpressure.
+            .onBackpressureLatest()
             .concatMap(this::reloadUpdatedDefinition)
             .subscribe(
                 unused -> { },

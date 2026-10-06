@@ -1,6 +1,7 @@
 package dev.feddi.federation.app;
 
 import dev.feddi.federation.extension.FeddiGatewayDefinitionSource;
+import reactor.core.publisher.Mono;
 
 import java.util.Map;
 
@@ -13,6 +14,12 @@ import java.util.Map;
  */
 public class ZipUploadController {
 
+    /**
+     * HTTP status and JSON body of an upload response.
+     */
+    public record UploadResponse(int status, Map<String, Object> body) {
+    }
+
     private final ZipUploadService uploadService;
 
     public ZipUploadController(ZipUploadService uploadService) {
@@ -20,22 +27,24 @@ public class ZipUploadController {
     }
 
     /**
-     * Process a ZIP file upload containing subgraph configurations.
+     * Process a ZIP file upload containing subgraph configurations. Completes when the new
+     * configuration is active or has been rejected.
      *
      * @param zipBytes the raw ZIP bytes
-     * @return response map with success/error
+     * @return 200 when the configuration is active, 400 when it was rejected (the active
+     *         configuration is kept), 409 while another upload is being activated
      */
-    public Map<String, Object> handleUpload(byte[] zipBytes) {
-        try {
-            uploadService.processZip(zipBytes);
-            return Map.of(
+    public Mono<UploadResponse> handleUpload(byte[] zipBytes) {
+        return uploadService.processZip(zipBytes)
+            .thenReturn(new UploadResponse(200, Map.of(
                 "success", true,
-                "message", "Gateway configuration updated successfully"
-            );
-        } catch (FeddiGatewayDefinitionException e) {
-            return Map.of("success", false, "error", e.getMessage());
-        } catch (FeddiFederationGateway.CompositionException e) {
-            return Map.of("success", false, "error", "Schema composition failed: " + e.getMessage());
-        }
+                "message", "Gateway configuration updated successfully")))
+            .onErrorResume(ZipUploadService.UploadInProgressException.class,
+                e -> Mono.just(new UploadResponse(409, Map.of("success", false, "error", e.getMessage()))))
+            .onErrorResume(FeddiGatewayDefinitionException.class,
+                e -> Mono.just(new UploadResponse(400, Map.of("success", false, "error", e.getMessage()))))
+            .onErrorResume(FeddiFederationGateway.CompositionException.class,
+                e -> Mono.just(new UploadResponse(400, Map.of("success", false,
+                    "error", "Schema composition failed: " + e.getMessage()))));
     }
 }

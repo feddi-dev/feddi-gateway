@@ -3,20 +3,19 @@ package dev.feddi.federation.app;
 import dev.feddi.federation.extension.FeddiGatewayDefinition;
 import dev.feddi.federation.extension.FeddiGatewayDefinitionSource;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Default in-memory gateway definition source, used when no extension provides one.
- *
- * <p>It publishes no updates: ZIP uploads activate their definition directly through the
- * {@link FeddiGatewayReloadService} (see {@link ZipUploadService}), so the uploader learns
- * whether activation succeeded. The source only remembers the active definition.
+ * A definition source that publishes updates like a push-based extension source: without a
+ * buffer, so it relies on the subscriber to keep requesting.
  */
-public class DefaultFeddiGatewayDefinitionSource implements FeddiGatewayDefinitionSource {
+class TestGatewayDefinitionSource implements FeddiGatewayDefinitionSource {
 
     private final AtomicReference<FeddiGatewayDefinition> current = new AtomicReference<>();
+    private final Sinks.Many<FeddiGatewayDefinition> updates = Sinks.many().multicast().directBestEffort();
 
     @Override
     public Optional<FeddiGatewayDefinition> load() {
@@ -25,13 +24,14 @@ public class DefaultFeddiGatewayDefinitionSource implements FeddiGatewayDefiniti
 
     @Override
     public Flux<FeddiGatewayDefinition> updates() {
-        return Flux.never();
+        return updates.asFlux();
     }
 
     /**
-     * Remembers a definition after it was activated.
+     * Sets the definition returned by {@link #load()} and publishes it.
      */
-    public void store(FeddiGatewayDefinition gatewayDefinition) {
+    Sinks.EmitResult replace(FeddiGatewayDefinition gatewayDefinition) {
         current.set(gatewayDefinition);
+        return updates.tryEmitNext(gatewayDefinition);
     }
 }
