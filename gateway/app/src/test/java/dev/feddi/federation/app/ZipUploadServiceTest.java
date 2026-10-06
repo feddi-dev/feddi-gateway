@@ -115,6 +115,13 @@ class ZipUploadServiceTest {
     }
 
     @Test
+    void uploadChainedAfterAnotherIsNotAConflict() throws IOException {
+        ZipUploadService service = new ZipUploadService(source, reloadService(Duration.ofMillis(50)));
+
+        assertDoesNotThrow(() -> service.processZip(zip(MAIN_CONFIG)).then(service.processZip(zip(MAIN_CONFIG))).block());
+    }
+
+    @Test
     void uploadWhileAnotherIsBeingActivatedIsAConflict() throws IOException {
         var controller = new ZipUploadController(new ZipUploadService(source, reloadService(Duration.ofMillis(300))));
         var first = controller.handleUpload(zip(MAIN_CONFIG)).toFuture();

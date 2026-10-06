@@ -66,7 +66,10 @@ public class ZipUploadService {
                 .flatMap(definition -> reloadService.reload(definition)
                     .then(Mono.fromRunnable(() -> gatewayDefinitionSource.store(definition))))
                 .then()
-                .doFinally(signal -> activating.set(false));
+                // Release before completion is signalled, so an upload chained after this one
+                // is not rejected as concurrent (doFinally would run after the downstream)
+                .doOnTerminate(() -> activating.set(false))
+                .doOnCancel(() -> activating.set(false));
         });
     }
 
