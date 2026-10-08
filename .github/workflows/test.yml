@@ -57,7 +57,7 @@ jobs:
         run: node .github/scripts/test-report.js gate --baseline baseline-main/test-baseline.json --coverage gateway/build/reports/jacoco/jacocoAggregateReport/jacocoAggregateReport.xml
 
       - name: Upload test stats
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-stats
@@ -66,7 +66,7 @@ jobs:
           retention-days: 7
 
       - name: Upload coverage XML report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-report
@@ -75,7 +75,7 @@ jobs:
           retention-days: 7
 
       - name: Upload coverage HTML report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-html-report
@@ -84,7 +84,7 @@ jobs:
           retention-days: 7
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results
