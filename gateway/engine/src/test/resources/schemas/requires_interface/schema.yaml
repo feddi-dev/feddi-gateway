@@ -11,9 +11,9 @@ subgraphs:
   a: |
     type Query {
       a: User
-      userById(id: ID!): User @lookup
-      homeAddressById(id: ID!): HomeAddress @lookup
-      workAddressById(id: ID!): WorkAddress @lookup
+      userById(id: ID!): User @lookup @shareable
+      homeAddressById(id: ID!): HomeAddress @lookup @shareable
+      workAddressById(id: ID!): WorkAddress @lookup @shareable
     }
 
     interface Address {
@@ -41,9 +41,9 @@ subgraphs:
   b: |
     type Query {
       b: User
-      userById(id: ID!): User @lookup
-      homeAddressById(id: ID!): HomeAddress @lookup
-      workAddressById(id: ID!): WorkAddress @lookup
+      userById(id: ID!): User @lookup @shareable
+      homeAddressById(id: ID!): HomeAddress @lookup @shareable
+      workAddressById(id: ID!): WorkAddress @lookup @shareable
       secondAddressById(id: ID!): SecondAddress @lookup
     }
 

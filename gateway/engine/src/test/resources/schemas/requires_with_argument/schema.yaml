@@ -8,7 +8,7 @@ description: |
 subgraphs:
   a: |
     type Query {
-      productByUpc(upc: String!): Product @lookup
+      productByUpc(upc: String!): Product @lookup @shareable
     }
 
     type Product @key(fields: "upc") {
@@ -27,7 +27,7 @@ subgraphs:
   b: |
     type Query {
       products: [Product]
-      productByUpc(upc: String!): Product @lookup
+      productByUpc(upc: String!): Product @lookup @shareable
     }
 
     type Product @key(fields: "upc") {
@@ -45,7 +45,7 @@ subgraphs:
   c: |
     type Query {
       feed: [Post]
-      postById(id: ID!): Post @lookup
+      postById(id: ID!): Post @lookup @shareable
       commentById(id: ID!): Comment @lookup
     }
 
@@ -62,7 +62,7 @@ subgraphs:
 
   d: |
     type Query {
-      postById(id: ID!): Post @lookup
+      postById(id: ID!): Post @lookup @shareable
     }
 
     type Post @key(fields: "id") {

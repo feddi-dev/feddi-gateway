@@ -9,7 +9,7 @@ subgraphs:
   a: |
     type Query {
       a: Entity
-      entityById(id: ID!): Entity @lookup
+      entityById(id: ID!): Entity @lookup @shareable
     }
 
     type Entity @key(fields: "id") {
@@ -42,7 +42,7 @@ subgraphs:
     type Query {
       b: Entity
       bb: Entity
-      entityById(id: ID!): Entity @lookup
+      entityById(id: ID!): Entity @lookup @shareable
     }
 
     type Entity @key(fields: "id") {

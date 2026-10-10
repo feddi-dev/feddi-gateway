@@ -7,7 +7,7 @@ subgraphs:
   catalog: |
     type Query {
       products(category: String, minPrice: Float, sortBy: String): [Product]
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
     }
     type Product @key(fields: "id") {
       id: ID!
@@ -25,7 +25,7 @@ subgraphs:
 
   reviews: |
     type Query {
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
     }
     type Product @key(fields: "id") {
       id: ID!

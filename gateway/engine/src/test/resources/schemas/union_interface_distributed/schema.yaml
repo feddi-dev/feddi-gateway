@@ -8,7 +8,7 @@ subgraphs:
       node(id: ID!): Node
       nodes: [Node]
       toasters: [Toaster]
-      ovenById(id: ID!): Oven @lookup
+      ovenById(id: ID!): Oven @lookup @shareable
       toasterById(id: ID!): Toaster @lookup
     }
 
@@ -33,7 +33,7 @@ subgraphs:
 
   b: |
     type Query {
-      ovenById(id: ID!): Oven @lookup
+      ovenById(id: ID!): Oven @lookup @shareable
     }
 
     interface Node {

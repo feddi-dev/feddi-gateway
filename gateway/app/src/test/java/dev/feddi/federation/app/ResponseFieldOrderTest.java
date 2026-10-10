@@ -29,7 +29,7 @@ class ResponseFieldOrderTest {
     private static final String PRODUCTS_SDL = """
         type Query {
           products: [Product]
-          productById(id: ID!): Product @lookup
+          productById(id: ID!): Product @lookup @shareable
         }
         type Product @key(fields: "id") {
           id: ID!
@@ -40,7 +40,7 @@ class ResponseFieldOrderTest {
 
     private static final String INVENTORY_SDL = """
         type Query {
-          productById(id: ID!): Product @lookup
+          productById(id: ID!): Product @lookup @shareable
         }
         type Product @key(fields: "id") {
           id: ID!
@@ -114,7 +114,7 @@ class ResponseFieldOrderTest {
 
     /** Executes subgraph operations against an executable copy of the subgraph schema. */
     private static SubgraphClient client(String sdl, String subgraph) {
-        String plainSdl = sdl.replace(" @lookup", "").replace(" @key(fields: \"id\")", "");
+        String plainSdl = sdl.replace(" @lookup", "").replace(" @shareable", "").replace(" @key(fields: \"id\")", "");
         var wiring = RuntimeWiring.newRuntimeWiring()
             .type("Query", t -> t
                 .dataFetcher("products", env -> copies(PRODUCTS))

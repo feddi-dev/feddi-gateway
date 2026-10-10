@@ -145,6 +145,76 @@ class InvalidFieldSharingRuleTest {
     }
 
     @Test
+    void lookupInSeveralSchemasNeedsShareable() {
+        CompositionResult result = compose("""
+            type Query {
+              productById(id: ID!): Product @lookup
+            }
+
+            type Product @key(fields: "id") {
+              id: ID!
+              name: String
+            }
+            """, """
+            type Query {
+              productById(id: ID!): Product @lookup
+            }
+
+            type Product @key(fields: "id") {
+              id: ID!
+              price: Float
+            }
+            """);
+
+        assertThat(sharingErrors(result)).containsExactly("Query.productById");
+    }
+
+    @Test
+    void lookupInSeveralSchemasMayBeShareableOrInternal() {
+        CompositionResult shareable = compose("""
+            type Query {
+              productById(id: ID!): Product @lookup @shareable
+            }
+
+            type Product @key(fields: "id") {
+              id: ID!
+              name: String
+            }
+            """, """
+            type Query {
+              productById(id: ID!): Product @lookup @shareable
+            }
+
+            type Product @key(fields: "id") {
+              id: ID!
+              price: Float
+            }
+            """);
+        CompositionResult internal = compose("""
+            type Query {
+              productById(id: ID!): Product @lookup
+            }
+
+            type Product @key(fields: "id") {
+              id: ID!
+              name: String
+            }
+            """, """
+            type Query {
+              productById(id: ID!): Product @lookup @internal
+            }
+
+            type Product @key(fields: "id") {
+              id: ID!
+              price: Float
+            }
+            """);
+
+        assertThat(sharingErrors(shareable)).isEmpty();
+        assertThat(sharingErrors(internal)).isEmpty();
+    }
+
+    @Test
     void nonKeyFieldInSeveralSchemasNeedsShareable() {
         CompositionResult result = compose("""
             type Query {

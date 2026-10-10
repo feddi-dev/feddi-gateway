@@ -11,8 +11,8 @@ subgraphs:
       content(id: ID!): Content
       articles: [Article]
       article(id: ID!): Article
-      contentById(id: ID!): Content @lookup
-      articleById(id: ID!): Article @lookup
+      contentById(id: ID!): Content @lookup @shareable
+      articleById(id: ID!): Article @lookup @shareable
       videoById(id: ID!): Video @lookup
       podcastById(id: ID!): Podcast @lookup
     }
@@ -46,8 +46,8 @@ subgraphs:
   # Analytics - owns view/engagement metrics
   analytics: |
     type Query {
-      contentById(id: ID!): Content @lookup
-      articleById(id: ID!): Article @lookup
+      contentById(id: ID!): Content @lookup @shareable
+      articleById(id: ID!): Article @lookup @shareable
       videoByIdAnalytics(id: ID!): Video @lookup
       podcastByIdAnalytics(id: ID!): Podcast @lookup
     }
@@ -76,8 +76,8 @@ subgraphs:
   # Recommendations - owns recommendation data
   recommendations: |
     type Query {
-      contentById(id: ID!): Content @lookup
-      articleById(id: ID!): Article @lookup
+      contentById(id: ID!): Content @lookup @shareable
+      articleById(id: ID!): Article @lookup @shareable
       videoByIdRecommendations(id: ID!): Video @lookup
       podcastByIdRecommendations(id: ID!): Podcast @lookup
     }

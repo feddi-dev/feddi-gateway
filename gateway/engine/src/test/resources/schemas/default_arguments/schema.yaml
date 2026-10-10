@@ -7,7 +7,7 @@ subgraphs:
   search: |
     type Query {
       search(query: String!, limit: Int = 10, offset: Int = 0): [SearchResult]
-      searchResultById(id: ID!): SearchResult @lookup
+      searchResultById(id: ID!): SearchResult @lookup @shareable
     }
     type SearchResult @key(fields: "id") {
       id: ID!
@@ -17,7 +17,7 @@ subgraphs:
 
   analytics: |
     type Query {
-      searchResultById(id: ID!): SearchResult @lookup
+      searchResultById(id: ID!): SearchResult @lookup @shareable
     }
     type SearchResult @key(fields: "id") {
       id: ID!

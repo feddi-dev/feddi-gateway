@@ -14,7 +14,7 @@ subgraphs:
   organizations: |
     type Query {
       organizations: [Organization]
-      organizationById(id: ID!): Organization @lookup
+      organizationById(id: ID!): Organization @lookup @shareable
     }
 
     type Organization @key(fields: "id") {
@@ -45,7 +45,7 @@ subgraphs:
 
   local_services: |
     type Query {
-      organizationById(id: ID!): Organization @lookup
+      organizationById(id: ID!): Organization @lookup @shareable
       organizationByCity(
         cityName: String! @is(field: "headquarters.building.address.city.name")
         country: String! @is(field: "headquarters.building.address.city.country")

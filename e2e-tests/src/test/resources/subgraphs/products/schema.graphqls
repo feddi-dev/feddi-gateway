@@ -3,7 +3,7 @@ scalar URL
 
 type Query {
   products: [Product]
-  productById(id: ID!): Product @lookup
+  productById(id: ID!): Product @lookup @shareable
   productsSince(since: DateTime!): [Product]
 }
 

@@ -1,7 +1,5 @@
 package dev.feddi.federation.engine.compose.validation.rules;
 
-import dev.feddi.federation.engine.Constants;
-
 import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
@@ -45,7 +43,9 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.SHAREABLE
  *   omitted", spec section @key)
  * - External fields are allowed (they reference fields from other subgraphs)
  * - Types and fields marked @internal do not take part
- * - Lookup fields on Query type are allowed (they're entity resolution entry points)
+ *
+ * Root fields follow the same rule: a lookup that several source schemas define needs @shareable
+ * (or @internal), like any other field.
  */
 public final class InvalidFieldSharingRule implements ValidationRule {
     
@@ -213,17 +213,6 @@ public final class InvalidFieldSharingRule implements ValidationRule {
         Set<String> keyFields = keyFieldsByType.get(typeName);
         if (keyFields != null && keyFields.contains(fieldName)) {
             return; // Key fields are implicitly shareable
-        }
-        
-        // Query fields with @lookup are entity resolution entry points and are expected
-        // to have similar fields across subgraphs
-        if (typeName.equals(Constants.QUERY)) {
-            // Check if any of the fields is a lookup
-            boolean anyLookup = fields.stream()
-                .anyMatch(f -> f.field().hasAppliedDirective(LOOKUP));
-            if (anyLookup) {
-                return; // Lookup fields on Query are allowed
-            }
         }
         
         // Count non-external definitions - only flag if multiple non-external instances exist

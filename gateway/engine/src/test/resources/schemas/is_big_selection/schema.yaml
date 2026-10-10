@@ -14,7 +14,7 @@ subgraphs:
   catalog: |
     type Query {
       products: [Product]
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
     }
 
     type Product @key(fields: "id") {
@@ -33,7 +33,7 @@ subgraphs:
 
   inventory: |
     type Query {
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
       productByDetails(
         details: ProductDetailsInput! @is(field: "{ sku category brand model color size weight }")
       ): Product @lookup

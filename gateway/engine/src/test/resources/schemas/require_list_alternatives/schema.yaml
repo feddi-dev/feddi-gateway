@@ -9,7 +9,7 @@ description: |
 subgraphs:
   orders: |
     type Query {
-      orderById(id: ID!): Order @lookup
+      orderById(id: ID!): Order @lookup @shareable
     }
 
     type Order @key(fields: "id") {
@@ -26,7 +26,7 @@ subgraphs:
 
   analytics: |
     type Query {
-      orderById(id: ID!): Order @lookup
+      orderById(id: ID!): Order @lookup @shareable
     }
 
     type Order @key(fields: "id") {

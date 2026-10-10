@@ -1,5 +1,5 @@
 type Query {
-  productById(id: ID!): Product @lookup
+  productById(id: ID!): Product @lookup @shareable
 }
 
 type Product @key(fields: "id") {

@@ -12,10 +12,10 @@ subgraphs:
   catalog: |
     type Query {
       media: [Media]
-      mediaById(id: ID!): Media @lookup
-      movieById(id: ID!): Movie @lookup
-      tvShowById(id: ID!): TVShow @lookup
-      podcastById(id: ID!): Podcast @lookup
+      mediaById(id: ID!): Media @lookup @shareable
+      movieById(id: ID!): Movie @lookup @shareable
+      tvShowById(id: ID!): TVShow @lookup @shareable
+      podcastById(id: ID!): Podcast @lookup @shareable
     }
 
     interface Media @key(fields: "id") {
@@ -81,9 +81,9 @@ subgraphs:
 
   analytics: |
     type Query {
-      mediaById(id: ID!): Media @lookup
-      podcastById(id: ID!): Podcast @lookup
-      tvShowById(id: ID!): TVShow @lookup
+      mediaById(id: ID!): Media @lookup @shareable
+      podcastById(id: ID!): Podcast @lookup @shareable
+      tvShowById(id: ID!): TVShow @lookup @shareable
     }
 
     interface Media @key(fields: "id") {
@@ -135,9 +135,9 @@ subgraphs:
 
   recommendations: |
     type Query {
-      mediaById(id: ID!): Media @lookup
-      movieById(id: ID!): Movie @lookup
-      tvShowById(id: ID!): TVShow @lookup
+      mediaById(id: ID!): Media @lookup @shareable
+      movieById(id: ID!): Movie @lookup @shareable
+      tvShowById(id: ID!): TVShow @lookup @shareable
     }
 
     interface Media @key(fields: "id") {
@@ -164,8 +164,8 @@ subgraphs:
 
   discovery: |
     type Query {
-      movieById(id: ID!): Movie @lookup
-      tvShowById(id: ID!): TVShow @lookup
+      movieById(id: ID!): Movie @lookup @shareable
+      tvShowById(id: ID!): TVShow @lookup @shareable
     }
 
     type Movie implements Media @key(fields: "id") {

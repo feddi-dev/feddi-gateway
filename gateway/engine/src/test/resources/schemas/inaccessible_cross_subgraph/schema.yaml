@@ -14,7 +14,7 @@ subgraphs:
   a: |
     type Query {
       orders: [Order]
-      orderById(id: ID!): Order @lookup
+      orderById(id: ID!): Order @lookup @shareable
     }
 
     type Order @key(fields: "id") {
@@ -30,7 +30,7 @@ subgraphs:
   b: |
     type Query {
       ordersByStatus(status: Status!): [Order!]
-      orderById(id: ID!): Order @lookup
+      orderById(id: ID!): Order @lookup @shareable
     }
 
     type Order @key(fields: "id") {
