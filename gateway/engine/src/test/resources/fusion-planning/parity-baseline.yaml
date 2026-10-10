@@ -1,12 +1,12 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 72 planned by feddi, 71 with no more steps than Fusion, 60 with no more depth
+# 91 tests (4 with an invalid query), 72 planned by feddi, 71 with no more steps than Fusion, 72 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "ok"
   steps: 4
   depth: 2
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ:
   status: "ok"
   steps: 6
@@ -132,7 +132,7 @@ PlannerAdvancedAdaptationTests/Issues_Issue_281:
   steps: 5
   depth: 3
   fusionOperations: 5
-  fusionDepth: 3
+  fusionDepth: 4
 PlannerAdvancedAdaptationTests/Provides_Nested_Provides:
   status: "composition: UNSATISFIABLE_QUERY_PATH: Field 'Category.details' cannot\
     \ be resolved on the query path 'Query.products.categories.details': no source\
@@ -170,13 +170,13 @@ PlannerBehaviorTests/Fragments_Fragment_Spread:
   steps: 3
   depth: 3
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 PlannerBehaviorTests/Fragments_Simple_Inline_Fragment:
   status: "ok"
   steps: 3
   depth: 3
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 PlannerBehaviorTests/Include_Skip_Basic_Include:
   status: "invalid query: Validation error (VariableTypeMismatch@[product/neverCalledInclude])\
     \ : Variable 'include' of type 'Boolean' used in position expecting type 'Boolean!'"
@@ -296,19 +296,19 @@ RequirementArgumentTests/Multiple_Plain_Field_And_Requires_With_Args_That_Confli
   steps: 3
   depth: 3
   fusionOperations: 5
-  fusionDepth: 2
+  fusionDepth: 3
 RequirementArgumentTests/Multiple_Plain_Field_And_Requires_With_Args_That_Does_Not_Conflicts_Should_Merge:
   status: "ok"
   steps: 3
   depth: 3
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 RequirementArgumentTests/Multiple_Requires_With_Args_That_Conflicts:
   status: "ok"
   steps: 3
   depth: 3
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 RequirementArgumentTests/Plan_Should_Succeed_When_Require_Only_Input_Type_And_Upload_Scalar_Exist:
   status: "ok"
   steps: 2
@@ -339,7 +339,7 @@ RequirementArgumentTests/Requires_Arguments_Reentrant_Comments_Collides_With_Cli
   steps: 0
   depth: 0
   fusionOperations: 5
-  fusionDepth: 3
+  fusionDepth: 4
 RequirementArgumentTests/Requires_With_Arguments:
   status: "ok"
   steps: 3
@@ -351,7 +351,7 @@ RequirementArgumentTests/Simple_Requires_Arguments:
   steps: 3
   depth: 3
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 RequirementChainTests/Requires_Circular_1:
   status: "ok"
   steps: 2
@@ -363,13 +363,13 @@ RequirementChainTests/Requires_Circular_2:
   steps: 3
   depth: 3
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 RequirementChainTests/Requires_Requires_Many:
   status: "ok"
   steps: 4
   depth: 4
   fusionOperations: 6
-  fusionDepth: 3
+  fusionDepth: 4
 RequirementChainTests/Requires_Requires_One:
   status: "ok"
   steps: 3
@@ -381,7 +381,7 @@ RequirementChainTests/Requires_Requires_Two_Fields_Same_Requirement_Different_Or
   steps: 4
   depth: 4
   fusionOperations: 6
-  fusionDepth: 3
+  fusionDepth: 4
 RequirementCrossEntityTests/Plan_Should_Keep_Requirement_And_Client_List_Field_Separate_When_Arguments_Differ:
   status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.author(comments)'\
     \ in schema 'd' references field 'comments' on type 'Post' which only exists in\
@@ -389,7 +389,7 @@ RequirementCrossEntityTests/Plan_Should_Keep_Requirement_And_Client_List_Field_S
   steps: 0
   depth: 0
   fusionOperations: 5
-  fusionDepth: 3
+  fusionDepth: 4
 RequirementCrossEntityTests/Plan_Should_Reenter_Requiring_Schema_When_Requiring_Type_Has_Lookup:
   status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
     \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
@@ -421,7 +421,7 @@ RequirementCrossEntityTests/Plan_Should_Resolve_ByExpert_When_Circular_Require_C
   steps: 0
   depth: 0
   fusionOperations: 6
-  fusionDepth: 4
+  fusionDepth: 5
 RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Both_Providers_Have_Author_Lookup:
   status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.byNovice(yearsOfExperience)'\
     \ in schema 'b' references field 'author' on type 'Post' which only exists in\
@@ -449,7 +449,7 @@ RequirementCrossEntityTests/Plan_Should_Resolve_NeedsFlag_When_Require_Is_Same_E
   steps: 3
   depth: 3
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice:
   status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
     \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
@@ -457,7 +457,7 @@ RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Fi
   steps: 0
   depth: 0
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice_Next_To_Required_Parent:
   status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
     \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
@@ -465,7 +465,7 @@ RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Fi
   steps: 0
   depth: 0
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 ? RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice_Next_To_Required_Parent_Under_Interface
 : status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
     \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
@@ -473,7 +473,7 @@ RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Fi
   steps: 0
   depth: 0
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 RequirementParityTests/Deep_Requires:
   status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.author(commentAuthorIds)'\
     \ in schema 'd': 'Post.comments' is selected without its required argument 'limit'."
@@ -488,7 +488,7 @@ RequirementParityTests/Keys_Mashup:
   steps: 0
   depth: 0
   fusionOperations: 4
-  fusionDepth: 2
+  fusionDepth: 3
 RequirementParityTests/Requires_With_Fragments_On_Interfaces:
   status: "ok"
   steps: 2
@@ -518,13 +518,13 @@ RequirementParityTests/Two_Same_Service_Calls_With_Args_Conflicts:
   steps: 3
   depth: 3
   fusionOperations: 5
-  fusionDepth: 2
+  fusionDepth: 3
 RequirementParityTests/Two_Same_Service_Calls_With_Different_Requirement_Args_Do_Not_Merge:
   status: "ok"
   steps: 3
   depth: 3
   fusionOperations: 5
-  fusionDepth: 2
+  fusionDepth: 3
 RequirementReentrancyTests/Plan_Should_Inline_Separate_LookupRequirements_When_Targeting_Same_NodeBranch:
   status: "ok"
   steps: 3

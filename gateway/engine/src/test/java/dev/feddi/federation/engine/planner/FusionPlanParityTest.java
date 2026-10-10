@@ -132,6 +132,18 @@ class FusionPlanParityTest {
             node.path("dependencies").forEach(d -> dependencies.add(d.path("id").asInt()));
             fusionDependencies.put(node.path("id").asInt(), dependencies);
         }
+        // A dependency can name a batching group (batchingGroupId) instead of a node: it stands for its members
+        Map<Integer, List<Integer>> groups = new HashMap<>();
+        for (JsonNode node : fusionPlan.path("nodes")) {
+            if (node.has("batchingGroupId")) {
+                groups.computeIfAbsent(node.path("batchingGroupId").asInt(), k -> new ArrayList<>())
+                    .add(node.path("id").asInt());
+            }
+        }
+        fusionDependencies.replaceAll((id, dependencies) -> dependencies.stream()
+            .flatMap(d -> !fusionDependencies.containsKey(d) && groups.containsKey(d)
+                ? groups.get(d).stream() : Stream.of(d))
+            .toList());
         int fusionDepth = depth(fusionDependencies);
 
         CompositionResult composition;
