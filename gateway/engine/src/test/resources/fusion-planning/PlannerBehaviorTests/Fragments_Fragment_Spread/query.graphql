@@ -1,0 +1,13 @@
+fragment ProductInfo on Product {
+  isAvailable
+}
+
+query {
+  products {
+    price {
+      amount
+      currency
+    }
+    ...ProductInfo
+  }
+}

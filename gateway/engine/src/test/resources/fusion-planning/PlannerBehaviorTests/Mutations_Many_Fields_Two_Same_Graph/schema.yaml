@@ -1,0 +1,61 @@
+name: Fusion PlannerBehaviorTests.Mutations_Many_Fields_Two_Same_Graph
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/PlannerBehaviorTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+      mutation: Mutation
+    }
+
+    type Query {
+      product(id: ID!): Product!
+      products: [Product!]!
+    }
+
+    type Mutation {
+      addProduct(input: AddProductInput!): Product!
+      multiply(by: Int!): Int!
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String!
+      price: Float!
+    }
+
+    input AddProductInput {
+      name: String!
+      price: Float!
+    }
+  b: |-
+    schema {
+      query: Query
+      mutation: Mutation
+    }
+
+    type Query {
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
+    }
+
+    type Mutation {
+      delete: Int!
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      isExpensive(price: Float! @require(field: "price")): Boolean!
+      isAvailable: Boolean!
+    }
+  c: |-
+    schema {
+      query: Query
+      mutation: Mutation
+    }
+
+    type Query {
+      version: String
+    }
+
+    type Mutation {
+      add(num: Int!): Int!
+    }

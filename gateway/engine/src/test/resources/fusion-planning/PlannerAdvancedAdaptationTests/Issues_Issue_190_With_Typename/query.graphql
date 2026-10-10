@@ -1,0 +1,14 @@
+query ($included: Boolean!) {
+  recommender @include(if: $included) {
+    id
+    results {
+      ...Recommendable_Product
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment Recommendable_Product on Product {
+  id
+}

@@ -1,0 +1,47 @@
+name: Fusion PlannerBehaviorTests.Include_Skip_Include_Fragment
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/PlannerBehaviorTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      price: Float!
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      isExpensive(price: Float! @require(field: "price")): Boolean!
+    }
+  c: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      include(isExpensive: Boolean! @require(field: "isExpensive")): Boolean!
+      skip(isExpensive: Boolean! @require(field: "isExpensive")): Boolean!
+      neverCalledInclude(
+        isExpensive: Boolean! @require(field: "isExpensive")): Boolean!
+      neverCalledSkip(
+        isExpensive: Boolean! @require(field: "isExpensive")): Boolean!
+    }

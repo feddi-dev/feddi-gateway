@@ -1,0 +1,39 @@
+name: Fusion RequirementChainTests.Requires_Circular_1
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/RequirementChainTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      feed: [Post]
+      postById(id: ID!): Post @lookup @internal
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      author: Author!
+      byExpert(byNovice: Boolean! @require(field: "byNovice")): Boolean!
+    }
+
+    type Author @key(fields: "id") {
+      id: ID!
+      name: String!
+      yearsOfExperience: Int!
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      postById(id: ID!): Post @lookup @internal
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      byNovice(
+        yearsOfExperience: Int!
+          @require(field: "author.yearsOfExperience")): Boolean!
+    }

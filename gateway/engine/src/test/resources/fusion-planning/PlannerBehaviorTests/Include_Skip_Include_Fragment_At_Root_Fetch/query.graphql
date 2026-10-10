@@ -1,0 +1,8 @@
+query ($include: Boolean) {
+  product {
+    id
+    ... on Product @include(if: $include) {
+      price
+    }
+  }
+}

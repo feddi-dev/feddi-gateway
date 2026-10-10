@@ -1,0 +1,35 @@
+name: Fusion ProvidesPlannerTests.Provides_With_Requires_Interaction
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/ProvidesPlannerTests.cs. MIT License.
+subgraphs:
+  orders: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      orders: [Order]
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      item: Item @provides(fields: "weight")
+    }
+
+    type Item @key(fields: "sku") {
+      sku: String!
+      weight: Int @external
+    }
+  shipping: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      itemBySku(sku: String! @is(field: "sku")): Item @lookup @internal
+    }
+
+    type Item @key(fields: "sku") {
+      sku: String!
+      weight: Int
+      shippingCost(weight: Int @require(field: "weight")): Float
+    }

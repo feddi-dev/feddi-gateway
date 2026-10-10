@@ -1,0 +1,19 @@
+{
+  viewer {
+    review {
+      ... on AnonymousReview {
+        __typename
+        product {
+          b
+        }
+      }
+      ... on UserReview {
+        __typename
+        product {
+          c
+          d
+        }
+      }
+    }
+  }
+}

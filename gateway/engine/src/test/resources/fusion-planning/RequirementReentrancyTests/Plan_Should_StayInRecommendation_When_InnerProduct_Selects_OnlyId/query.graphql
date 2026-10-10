@@ -1,0 +1,10 @@
+query getProducts {
+  products {
+    category
+    recommendations {
+      product {
+        id
+      }
+    }
+  }
+}

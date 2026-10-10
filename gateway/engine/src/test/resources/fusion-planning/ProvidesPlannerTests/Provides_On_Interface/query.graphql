@@ -1,0 +1,12 @@
+query {
+  book {
+    featured {
+      ... on Cat {
+        age
+      }
+      ... on Dog {
+        tricks
+      }
+    }
+  }
+}

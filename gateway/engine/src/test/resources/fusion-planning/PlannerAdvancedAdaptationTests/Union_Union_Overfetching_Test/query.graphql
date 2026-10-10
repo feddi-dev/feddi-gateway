@@ -1,0 +1,15 @@
+query {
+  review {
+    ... on AnonymousReview {
+      product {
+        b
+      }
+    }
+    ... on UserReview {
+      product {
+        c
+        d
+      }
+    }
+  }
+}

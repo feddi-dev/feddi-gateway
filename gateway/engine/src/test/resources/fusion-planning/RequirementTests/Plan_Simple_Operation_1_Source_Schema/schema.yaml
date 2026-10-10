@@ -1,0 +1,29 @@
+name: Fusion RequirementTests.Plan_Simple_Operation_1_Source_Schema
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/RequirementTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      books: [Book]
+    }
+
+    type Book @key(fields: "id") {
+      id: String!
+      title: String!
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      bookById(id: String!): Book @lookup @internal
+    }
+
+    type Book {
+      id: String!
+      titleAndId(title: String @require(field: "title")): String!
+    }

@@ -1,0 +1,42 @@
+name: Fusion OperationPlannerTests.Plan_Key_Requirement
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/OperationPlannerTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      topProducts: [Product!]
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      region: String!
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productById(id: ID!): Product @lookup @internal
+    }
+
+    type Product {
+      id: ID!
+      sku(region: String! @require(field: "region")): String! @shareable
+    }
+  c: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productBySku(sku: String!): Product @lookup @internal
+    }
+
+    type Product {
+      sku: String!
+      name: String!
+    }

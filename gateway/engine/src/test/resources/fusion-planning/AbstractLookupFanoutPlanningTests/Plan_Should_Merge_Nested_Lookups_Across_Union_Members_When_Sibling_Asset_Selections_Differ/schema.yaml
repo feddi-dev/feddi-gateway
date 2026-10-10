@@ -1,0 +1,51 @@
+name: Fusion AbstractLookupFanoutPlanningTests.Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/AbstractLookupFanoutPlanningTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema { query: Query }
+
+    type Query {
+      search: [CandidateResult!]!
+      meterTypeById(id: Int!): MeterType @lookup @internal
+      categoryByDbId(dbId: Int!): Category @lookup @internal
+    }
+
+    union CandidateResult =
+      | NotSubmissableResult
+      | ExistingResult
+      | ConfigMatchesResult
+      | CustomResult
+
+    type ExistingResult { asset: Asset }
+    type ConfigMatchesResult { asset: Asset }
+    type NotSubmissableResult { asset: Asset }
+    type CustomResult { asset: Asset }
+
+    type Asset @key(fields: "dbId") { dbId: Int! }
+
+    type MeterType @key(fields: "id") {
+      id: Int!
+      type: String!
+    }
+
+    type Category @key(fields: "dbId") {
+      dbId: Int!
+      allowedMeterTypes: [MeterType!]!
+    }
+  b: |-
+    schema { query: Query }
+
+    type Query {
+      assetByDbId(dbId: Int!): Asset @lookup @internal
+    }
+
+    type Asset @key(fields: "dbId") {
+      dbId: Int!
+      statusMessage: String
+      meterType: MeterType
+      category: Category
+    }
+
+    type MeterType @key(fields: "id") { id: Int! }
+
+    type Category @key(fields: "dbId") { dbId: Int! }

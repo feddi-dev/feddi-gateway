@@ -1,0 +1,43 @@
+name: Fusion AbstractLookupFanoutPlanningTests.Plan_Should_Prune_Impossible_Concrete_Fragment_When_Parent_Is_Object
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/AbstractLookupFanoutPlanningTests.cs. MIT License.
+subgraphs:
+  products: |-
+    schema { query: Query }
+
+    type Query {
+      products: [Product]
+      bookById(id: ID! @is(field: "id")): Book @lookup @internal
+      magazineById(id: ID! @is(field: "id")): Magazine @lookup @internal
+    }
+
+    interface Product { id: ID! sku: String }
+    type Book implements Product @key(fields: "id") { id: ID! sku: String }
+    type Magazine implements Product @key(fields: "id") { id: ID! sku: String }
+  reviews: |-
+    schema { query: Query }
+
+    type Query {
+      bookById(id: ID! @is(field: "id")): Book @lookup @internal
+      magazineById(id: ID! @is(field: "id")): Magazine @lookup @internal
+    }
+
+    interface Product { id: ID! reviews: [Review] reviewsCount: Int }
+    type Book implements Product @key(fields: "id") {
+      id: ID!
+      reviews: [Review]
+      reviewsCount: Int
+    }
+    type Magazine implements Product @key(fields: "id") {
+      id: ID!
+      reviews: [Review]
+      reviewsCount: Int
+    }
+    type Review { product: Product }
+  magazines: |-
+    schema { query: Query }
+
+    type Query {
+      magazineById(id: ID! @is(field: "id")): Magazine @lookup @internal
+    }
+
+    type Magazine @key(fields: "id") { id: ID! title: String }

@@ -1,0 +1,21 @@
+query ($limit: Int = 1) {
+  feed {
+    author {
+      id
+    }
+    ...Foo
+    ...Bar
+  }
+}
+
+fragment Foo on Post {
+  comments(limit: $limit) {
+    id
+  }
+}
+
+fragment Bar on Post {
+  comments(limit: $limit) {
+    id
+  }
+}

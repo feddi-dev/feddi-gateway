@@ -1,0 +1,55 @@
+name: Fusion ProvidesPlannerTests.Provides_Deeply_Nested_Chain
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/ProvidesPlannerTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      root: Root
+    }
+
+    type Root {
+      level1: Level1 @provides(fields: "level2 { level3 { value } }")
+    }
+
+    type Level1 @key(fields: "id") {
+      id: ID!
+      level2: Level2 @external
+    }
+
+    type Level2 @key(fields: "id") {
+      id: ID!
+      level3: Level3 @external
+    }
+
+    type Level3 @key(fields: "id") {
+      id: ID!
+      value: String @external
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      level1ById(id: ID! @is(field: "id")): Level1 @lookup @internal
+      level2ById(id: ID! @is(field: "id")): Level2 @lookup @internal
+      level3ById(id: ID! @is(field: "id")): Level3 @lookup @internal
+    }
+
+    type Level1 @key(fields: "id") {
+      id: ID!
+      level2: Level2
+    }
+
+    type Level2 @key(fields: "id") {
+      id: ID!
+      level3: Level3
+    }
+
+    type Level3 @key(fields: "id") {
+      id: ID!
+      value: String
+    }

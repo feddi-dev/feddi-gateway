@@ -1,0 +1,53 @@
+name: Fusion ProvidesPlannerTests.Provides_On_Interface
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/ProvidesPlannerTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      book: Book
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      featured: Animal @provides(fields: "... on Cat { age } ... on Dog { tricks }")
+    }
+
+    interface Animal {
+      id: ID!
+    }
+
+    type Cat implements Animal @key(fields: "id") {
+      id: ID!
+      age: Int @external
+    }
+
+    type Dog implements Animal @key(fields: "id") {
+      id: ID!
+      tricks: [String] @external
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      catById(id: ID! @is(field: "id")): Cat @lookup @internal
+      dogById(id: ID! @is(field: "id")): Dog @lookup @internal
+    }
+
+    interface Animal {
+      id: ID!
+    }
+
+    type Cat implements Animal @key(fields: "id") {
+      id: ID!
+      age: Int
+    }
+
+    type Dog implements Animal @key(fields: "id") {
+      id: ID!
+      tricks: [String]
+    }

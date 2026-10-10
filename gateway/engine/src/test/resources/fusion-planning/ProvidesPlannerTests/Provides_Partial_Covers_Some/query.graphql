@@ -1,0 +1,10 @@
+query {
+  products {
+    reviews {
+      author {
+        username
+        email
+      }
+    }
+  }
+}

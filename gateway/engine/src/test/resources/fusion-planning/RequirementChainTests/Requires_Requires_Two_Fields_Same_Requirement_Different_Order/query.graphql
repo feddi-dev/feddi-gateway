@@ -1,0 +1,6 @@
+query {
+  product {
+    canAffordWithAndWithoutDiscount
+    canAffordWithAndWithoutDiscount2
+  }
+}

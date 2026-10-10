@@ -1,0 +1,11 @@
+query GetProduct($id: ID!, $include: Boolean!) {
+  node(id: $id) {
+    ... on Product @include(if: $include) {
+      reviews {
+        author {
+          name
+        }
+      }
+    }
+  }
+}

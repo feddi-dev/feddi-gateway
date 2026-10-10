@@ -1,0 +1,38 @@
+name: Fusion ProvidesPlannerTests.Planner_Should_Route_To_Owning_Source_When_Local_Field_Is_Orphan_External
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/ProvidesPlannerTests.cs. MIT License.
+subgraphs:
+  reviews: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      reviews: [Review]
+      # off-path @provides exists only to satisfy the ExternalUnusedRule;
+      # it is never exercised by the query under test.
+      productByName(name: String!): Product @provides(fields: "name")
+    }
+
+    type Review @key(fields: "id") {
+      id: ID!
+      body: String
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String @external
+    }
+  products: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }

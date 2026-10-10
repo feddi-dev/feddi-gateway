@@ -1,0 +1,47 @@
+name: Fusion RequirementArgumentTests.Fed_Audit_Requires_With_Argument_Conflict
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/RequirementArgumentTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productByUpc(upc: String! @is(field: "upc")): Product @lookup @internal
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      shippingEstimate(
+        price: Int @require(field: "price")
+        weight: Int @require(field: "weight")): Int
+      shippingEstimateEUR(
+        price: Int @require(field: "priceEur")
+        weight: Int @require(field: "weight")): Int
+      isExpensiveCategory(
+        averagePrice: Int @require(field: "category.averagePrice")): Boolean
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      products: [Product]
+      productByUpc(upc: String! @is(field: "upc")): Product @lookup @internal
+      categoryById(id: ID! @is(field: "id")): Category @lookup @internal
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      name: String
+      price: Int
+      priceEur: Int
+      weight: Int
+      category: Category
+    }
+
+    type Category @key(fields: "id") {
+      id: ID!
+      averagePrice: Int
+    }

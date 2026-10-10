@@ -1,0 +1,11 @@
+{
+  item {
+    ... on CartItem {
+      unitPrice
+      u2: unitPrice
+      product {
+        id
+      }
+    }
+  }
+}

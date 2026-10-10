@@ -1,0 +1,8 @@
+query {
+  media {
+    __typename
+    ... on Book {
+      title
+    }
+  }
+}

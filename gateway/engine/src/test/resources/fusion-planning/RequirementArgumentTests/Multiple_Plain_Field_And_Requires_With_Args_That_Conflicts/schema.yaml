@@ -1,0 +1,36 @@
+name: Fusion RequirementArgumentTests.Multiple_Plain_Field_And_Requires_With_Args_That_Conflicts
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/RequirementArgumentTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      test: Test
+      testById(id: ID! @is(field: "id")): Test @lookup @internal
+    }
+
+    type Test @key(fields: "id") {
+      id: ID!
+      name: String!
+      fieldWithRequiresAndArgs(
+        otherField: String! @require(field: "otherField")): String!
+      fieldWithSameRequiresAndArgs(
+        otherField: String! @require(field: "otherField")): String!
+      anotherWithRequiresAndArgs(
+        otherField: String! @require(field: "otherField")): String!
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      testById(id: ID! @is(field: "id")): Test @lookup @internal
+    }
+
+    type Test @key(fields: "id") {
+      id: ID!
+      otherField(arg: Int): String!
+    }
