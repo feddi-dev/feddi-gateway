@@ -7,11 +7,33 @@ subgraphs:
     }
 
     type Query {
-      feed: [Post]
+      userFromA: User
     }
 
-    type Post @key(fields: "id") {
+    type User @key(fields: "id") {
       id: ID!
+      profile: Profile! @shareable
+    }
+
+    interface Profile {
+      displayName: String!
+    }
+
+    interface Account implements Profile {
+      displayName: String!
+      accountType: String!
+    }
+
+    type GuestAccount implements Profile & Account {
+      displayName: String! @shareable
+      accountType: String! @shareable
+      guestToken: String! @shareable
+    }
+
+    type AdminAccount implements Profile & Account {
+      displayName: String! @shareable
+      accountType: String! @shareable
+      adminLevel: String! @shareable
     }
   b: |-
     schema {
@@ -19,48 +41,40 @@ subgraphs:
     }
 
     type Query {
-      postById(id: ID! @is(field: "id")): Post @lookup @internal
+      userById(id: ID! @is(field: "id")): User @lookup @internal
     }
 
-    type Post @key(fields: "id") {
+    type User @key(fields: "id") {
       id: ID!
-      comments(limit: Int!): [Comment]
+      profile: Profile! @shareable
+      permissions(
+        displayName: String! @require(field: "profile.displayName")
+        accountType: String
+          @require(field:
+            "profile<AdminAccount>.accountType | profile<GuestAccount>.accountType")
+        adminLevel: String
+          @require(field: "profile<AdminAccount>.adminLevel")
+        guestToken: String
+          @require(field: "profile<GuestAccount>.guestToken")): String!
     }
 
-    type Comment @key(fields: "id") {
-      id: ID!
-    }
-  c: |-
-    schema {
-      query: Query
+    interface Profile {
+      displayName: String!
     }
 
-    type Query {
-      commentById(id: ID! @is(field: "id")): Comment @lookup @internal
+    interface Account implements Profile {
+      displayName: String!
+      accountType: String!
     }
 
-    type Comment @key(fields: "id") {
-      id: ID!
-      authorId: ID
-      body: String!
-    }
-  d: |-
-    schema {
-      query: Query
+    type GuestAccount implements Profile & Account {
+      displayName: String! @shareable
+      accountType: String! @shareable
+      guestToken: String! @shareable
     }
 
-    type Query {
-      postById(id: ID! @is(field: "id")): Post @lookup @internal
-    }
-
-    type Post @key(fields: "id") {
-      id: ID!
-      author(
-        commentAuthorIds: [ID]
-          @require(field: "comments[authorId]")): Author
-    }
-
-    type Author {
-      id: ID!
-      name: String
+    type AdminAccount implements Profile & Account {
+      displayName: String! @shareable
+      accountType: String! @shareable
+      adminLevel: String! @shareable
     }

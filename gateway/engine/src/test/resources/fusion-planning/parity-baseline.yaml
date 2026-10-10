@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (10 with an invalid query), 47 planned by feddi, 46 with no more steps than Fusion, 37 with no more depth
+# 91 tests (4 with an invalid query), 52 planned by feddi, 51 with no more steps than Fusion, 42 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -41,15 +41,14 @@ EntityChainTests/Complex_Entity_Call:
   fusionOperations: 3
   fusionDepth: 3
 EntityChainTests/Parent_Entity_Call_Complex:
-  status: "composition: SATISFIABILITY_ERROR: Field 'Product.price' cannot be resolved\
-    \ from Product/products. No path exists in the planning graph to resolve this\
-    \ field."
+  status: "composition: NO_QUERIES: The merged schema must have at least one accessible\
+    \ Query field"
   steps: 0
   depth: 0
   fusionOperations: 4
   fusionDepth: 3
 InterfaceFieldOverridePlanningTests/Plan_Should_Keep_Owning_Branch_And_Route_Only_Diverged_Branch:
-  status: "composition: INVALID_FIELD_SHARING: Field 'ImagePost.createdAt' is defined\
+  status: "composition: INVALID_FIELD_SHARING: Field 'TextPost.createdAt' is defined\
     \ in multiple subgraphs [a, b] but is not marked as @shareable in schema 'a'."
   steps: 0
   depth: 0
@@ -123,10 +122,9 @@ OperationPlannerTests/Plan_Simple_Union_Lookup:
   fusionOperations: 2
   fusionDepth: 2
 PlannerAdvancedAdaptationTests/Issues_Issue_190_Inline_Fragment:
-  status: "invalid query: Validation error (FieldUndefined@[recommender]) : Field\
-    \ 'recommender' in type 'Query' is undefined"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 1
+  depth: 1
   fusionOperations: 1
   fusionDepth: 1
 PlannerAdvancedAdaptationTests/Issues_Issue_190_With_Typename:
@@ -240,10 +238,9 @@ PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph:
   fusionOperations: 4
   fusionDepth: 1
 PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph_Contiguous_Same_Service:
-  status: "invalid query: Validation error (UnknownOperation): The 'Mutation' operation\
-    \ is not supported by the schema"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 3
+  depth: 1
   fusionOperations: 5
   fusionDepth: 1
 PlannerBehaviorTests/Root_Types_Shared_Root:
@@ -291,10 +288,9 @@ ProvidesPlannerTests/Provides_Partial_Covers_Some:
   fusionOperations: 3
   fusionDepth: 3
 ProvidesPlannerTests/Provides_Shareable_Override:
-  status: "invalid query: Validation error (FieldUndefined@[products/reviews/author/displayName])\
-    \ : Field 'displayName' in type 'User' is undefined"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 1
+  depth: 1
   fusionOperations: 1
   fusionDepth: 1
 ProvidesPlannerTests/Provides_With_Requires_Interaction:
@@ -328,10 +324,9 @@ RequirementArgumentTests/Multiple_Requires_With_Args_That_Conflicts:
   fusionOperations: 4
   fusionDepth: 2
 RequirementArgumentTests/Plan_Should_Succeed_When_Require_Only_Input_Type_And_Upload_Scalar_Exist:
-  status: "invalid query: Validation error (FieldUndefined@[products]) : Field 'products'\
-    \ in type 'Query' is undefined"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 2
+  depth: 2
   fusionOperations: 2
   fusionDepth: 2
 RequirementArgumentTests/Requires_Arguments_Deeply_Nested_Requires:
@@ -379,8 +374,8 @@ RequirementChainTests/Requires_Circular_1:
   fusionOperations: 2
   fusionDepth: 2
 RequirementChainTests/Requires_Circular_2:
-  status: "invalid query: Validation error (FieldUndefined@[feed]) : Field 'feed'\
-    \ in type 'Query' is undefined"
+  status: "invalid subgraph operation: step 3 (b): Validation error (MissingFieldArgument@[postById/byNovice])\
+    \ : Missing field argument 'yearsOfExperience'"
   steps: 0
   depth: 0
   fusionOperations: 4
@@ -412,9 +407,9 @@ RequirementCrossEntityTests/Plan_Should_Keep_Requirement_And_Client_List_Field_S
   fusionOperations: 5
   fusionDepth: 3
 RequirementCrossEntityTests/Plan_Should_Reenter_Requiring_Schema_When_Requiring_Type_Has_Lookup:
-  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.byNovice(yearsOfExperience)'\
-    \ in schema 'b' references field 'author' on type 'Post' which only exists in\
-    \ the"
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
+    \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
+    \ in th"
   steps: 0
   depth: 0
   fusionOperations: 4
@@ -510,10 +505,9 @@ RequirementParityTests/Keys_Mashup:
   fusionOperations: 4
   fusionDepth: 2
 RequirementParityTests/Requires_With_Fragments_On_Interfaces:
-  status: "invalid query: Validation error (FieldUndefined@[userFromA]) : Field 'userFromA'\
-    \ in type 'Query' is undefined"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 2
+  depth: 2
   fusionOperations: 2
   fusionDepth: 2
 RequirementParityTests/Simple_Requires:

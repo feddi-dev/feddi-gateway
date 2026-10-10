@@ -12,31 +12,17 @@ subgraphs:
 
     type Product @key(fields: "upc") {
       upc: String!
-      name: String
-    }
-  reviews: |-
-    schema {
-      query: Query
-    }
-
-    type Query {
-      productByUpc(upc: String! @is(field: "upc")): Product @lookup @internal
-      userById(id: ID! @is(field: "id")): User @lookup @internal
-    }
-
-    type Product @key(fields: "upc") {
-      upc: String!
       reviews: [Review]
     }
 
     type Review @key(fields: "id") {
       id: ID!
-      author: User @provides(fields: "username")
+      author: User @provides(fields: "displayName")
     }
 
     type User @key(fields: "id") {
       id: ID!
-      username: String @external
+      displayName: String @external
     }
   users: |-
     schema {
@@ -49,7 +35,18 @@ subgraphs:
 
     type User @key(fields: "id") {
       id: ID!
-      username: String
-      email: String
-      name: String
+      displayName: String @shareable
+    }
+  accounts: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      userById(id: ID! @is(field: "id")): User @lookup @internal
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      displayName: String @shareable
     }

@@ -1,29 +1,7 @@
 name: Fusion EntityChainTests.Parent_Entity_Call_Complex
 description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/EntityChainTests.cs. MIT License.
 subgraphs:
-  products: |-
-    schema {
-      query: Query
-    }
-
-    type Query {
-      topProducts: ProductList!
-    }
-
-    type ProductList {
-      products: [Product!]!
-    }
-
-    type Product @key(fields: "id") {
-      id: ID!
-      category: Category! @shareable
-    }
-
-    type Category {
-      id: ID! @shareable
-      tag: String @shareable
-    }
-  link: |-
+  a: |-
     schema {
       query: Query
     }
@@ -34,33 +12,53 @@ subgraphs:
 
     type Product @key(fields: "id") {
       id: ID!
-      pid: ID! @shareable
+      category: Category @shareable
     }
-  price: |-
+
+    type Category {
+      details: String
+    }
+  b: |-
     schema {
       query: Query
     }
 
     type Query {
-      productByIdPidAndCategory(
-        id: ID! @is(field: "id")
-        pid: ID! @is(field: "pid")
-        categoryId: ID! @is(field: "category.id")
-        categoryTag: String @is(field: "category.tag")): Product @lookup @internal
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
     }
 
-    type Product @key(fields: "id pid category { id tag }") {
+    type Product @key(fields: "id") {
       id: ID!
-      pid: ID! @shareable
-      category: Category! @shareable
-      price: Price
+      category: Category @shareable
     }
 
-    type Category {
-      id: ID! @shareable
-      tag: String @shareable
+    type Category @key(fields: "id") {
+      id: ID!
+    }
+  c: |-
+    schema {
+      query: Query
     }
 
-    type Price {
-      price: Float!
+    type Query {
+      categoryById(id: ID! @is(field: "id")): Category @lookup @internal
+    }
+
+    type Category @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+  d: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productFromD(id: ID!): Product
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
     }

@@ -102,16 +102,34 @@ console.log(reasons);
 
 // --- C# parsing ---------------------------------------------------------------------------------
 
-/** Splits a test class into [Fact] methods; [Theory] methods are marked. */
+/** Splits a test class into [Fact] methods (just the method body); [Theory] methods are marked. */
 function splitTests(text) {
-  const tests = [];
   const pattern = /\[(Fact|Theory)[^\]]*\]\s*(?:\[[^\]]*\]\s*)*public\s+(?:async\s+)?(?:void|Task)\s+(\w+)\s*\(/g;
-  const matches = [...text.matchAll(pattern)];
-  matches.forEach((m, i) => {
-    const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
-    tests.push({ kind: m[1], name: m[2], body: text.slice(m.index, end) });
-  });
-  return tests;
+  return [...text.matchAll(pattern)].map(m => ({ kind: m[1], name: m[2], body: blockFrom(text, m.index) }));
+}
+
+/** The text from `start` to the end of the first {...} block after it, skipping string literals. */
+function blockFrom(text, start) {
+  let i = text.indexOf("{", start);
+  if (i < 0) return text.slice(start);
+  let depth = 0;
+  while (i < text.length) {
+    const quotes = text.slice(i).match(/^"{3,}/);
+    if (quotes) {
+      i = text.indexOf(quotes[0], i + quotes[0].length) + quotes[0].length;
+      continue;
+    }
+    if (text[i] === '"') {
+      i++;
+      while (i < text.length && text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
+      i++;
+      continue;
+    }
+    if (text[i] === "{") depth++;
+    if (text[i] === "}" && --depth === 0) return text.slice(start, i + 1);
+    i++;
+  }
+  return text.slice(start);
 }
 
 function extract(test, sources) {
@@ -138,11 +156,13 @@ function extract(test, sources) {
   return { schemas, query: queries[0] };
 }
 
-/** Body of a parameterless method with the given name, or null. */
+/** Body of a parameterless method with the given name (block or expression body), or null. */
 function methodBody(text, name) {
   const m = text.match(new RegExp(`\\b${name}\\s*\\(\\s*\\)\\s*(=>|\\{)`));
   if (!m) return null;
-  return text.slice(m.index, m.index + 20000);
+  if (m[1] === "{") return blockFrom(text, m.index);
+  const end = callArguments(text.slice(m.index), "ComposeSchema(");
+  return end === null ? null : `ComposeSchema(${end})`;
 }
 
 /** Source schema names as in Fusion's tests: "# name: X" on the first line, otherwise a, b, c, ... */

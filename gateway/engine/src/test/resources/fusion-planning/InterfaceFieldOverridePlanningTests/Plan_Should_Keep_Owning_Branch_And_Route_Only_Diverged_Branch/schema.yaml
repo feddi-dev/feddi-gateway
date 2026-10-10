@@ -7,6 +7,7 @@ subgraphs:
     type Query {
       feed: [Post]
       imagePostById(id: ID! @is(field: "id")): ImagePost @lookup @internal
+      textPostById(id: ID! @is(field: "id")): TextPost @lookup @internal
     }
 
     interface Post {
@@ -18,12 +19,15 @@ subgraphs:
       id: ID!
       createdAt: String!
     }
+
+    type TextPost implements Post @key(fields: "id") {
+      id: ID!
+      createdAt: String!
+    }
   b: |-
     schema { query: Query }
 
     type Query {
-      anotherFeed: [AnotherPost]
-      imagePostById(id: ID! @is(field: "id")): ImagePost @lookup @internal
       textPostById(id: ID! @is(field: "id")): TextPost @lookup @internal
     }
 
@@ -33,17 +37,6 @@ subgraphs:
     }
 
     type TextPost implements Post @key(fields: "id") {
-      id: ID!
-      createdAt: String!
-      body: String!
-    }
-
-    interface AnotherPost {
-      id: ID!
-      createdAt: String!
-    }
-
-    type ImagePost implements AnotherPost @key(fields: "id") {
       id: ID!
       createdAt: String! @override(from: "a")
     }

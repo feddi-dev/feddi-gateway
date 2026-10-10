@@ -1,44 +1,41 @@
 name: Fusion RequirementCrossEntityTests.Plan_Should_Reenter_Requiring_Schema_When_Requiring_Type_Has_Lookup
 description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/RequirementCrossEntityTests.cs. MIT License.
 subgraphs:
-  a: |-
+  cart: |-
     schema {
       query: Query
     }
 
     type Query {
-      feed: [Post]
-      postById(id: ID! @is(field: "id")): Post @lookup @internal
-      authorById(id: ID! @is(field: "id")): Author @lookup @internal
+      cart: Cart
+      cartItemById(id: ID! @is(field: "id")): CartItem @lookup @internal
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
     }
 
-    type Post @key(fields: "id") {
+    type Cart {
       id: ID!
-      byExpert(byNovice: Boolean! @require(field: "byNovice")): Boolean!
+      items: [CartItem!]
     }
 
-    type Author @key(fields: "id") {
+    type CartItem {
       id: ID!
-      name: String!
-      yearsOfExperience: Int!
+      product: Product!
+      unitPrice(price: Float! @require(field: "product.discountedPrice")): Float!
     }
-  b: |-
+
+    type Product @key(fields: "id") {
+      id: ID!
+    }
+  promotions: |-
     schema {
       query: Query
     }
 
     type Query {
-      postById(id: ID! @is(field: "id")): Post @lookup @internal
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
     }
 
-    type Post @key(fields: "id") {
+    type Product @key(fields: "id") {
       id: ID!
-      author: Author!
-      byNovice(
-        yearsOfExperience: Int!
-          @require(field: "author.yearsOfExperience")): Boolean!
-    }
-
-    type Author @key(fields: "id") {
-      id: ID!
+      discountedPrice: Float!
     }

@@ -47,16 +47,16 @@
 | DeferPlannerTests.Defer_FieldAlreadyRequiredByParent_Should_NotDefer | @defer, @stream or subscription |
 | DeferPlannerTests.Defer_FieldAlreadyRequiredByParent_Should_NotDefer_When_TypenameInsideDefer | @defer, @stream or subscription |
 | DeferPlannerTests.Defer_ProviderServesTwoRequirements_Should_KeepEdge_When_OnlyOneIsRerouted | @defer, @stream or subscription |
-| EntityChainTests.Complex_Entity_Call_Nested_List_Key_Depends_On_Producing_Hop | no plan snapshot |
+| EntityChainTests.Complex_Entity_Call_Nested_List_Key_Depends_On_Producing_Hop | schema from CreateComplexEntityCallWithListSchema() without ComposeSchema(...) |
 | EventStreamPlannerTests.CreatePlan_Should_UseStandardDependents_When_EventStreamHasSingleMessageShape | no ComposeSchema(...) |
 | EventStreamPlannerTests.CreatePlan_Should_ResolveNestedEntityFields_When_EventStreamReturnsWrapperType | ComposeSchema with options or shared schemas |
 | EventStreamPlannerTests.FormatPlan_Should_WriteTopics_When_EventStreamHasSource | no ComposeSchema(...) |
 | FusionBenchmarkTests.Simple_Query_With_Requirements | schema from CreateSchema() without ComposeSchema(...) |
 | FusionBenchmarkTests.Complex_Query | schema from CreateSchema() without ComposeSchema(...) |
 | FusionBenchmarkTests.Conditional_Redundancy_Query | schema from CreateSchema() without ComposeSchema(...) |
-| GeneratedOperationNameTests.CreatePlan_Should_KeepTheShortHash_When_ItHoldsNameCharactersOnly | ComposeSchema with options or shared schemas |
-| GeneratedOperationNameTests.CreatePlan_Should_ReplaceTheCharacter_When_TheShortHashHoldsANonNameCharacter | ComposeSchema with options or shared schemas |
-| GeneratedOperationNameTests.CreatePlan_Should_KeepTheShortHash_When_TheOperationShortHashIsRead | ComposeSchema with options or shared schemas |
+| GeneratedOperationNameTests.CreatePlan_Should_KeepTheShortHash_When_ItHoldsNameCharactersOnly | schema from CreateCompositeSchema() without ComposeSchema(...) |
+| GeneratedOperationNameTests.CreatePlan_Should_ReplaceTheCharacter_When_TheShortHashHoldsANonNameCharacter | schema from CreateCompositeSchema() without ComposeSchema(...) |
+| GeneratedOperationNameTests.CreatePlan_Should_KeepTheShortHash_When_TheOperationShortHashIsRead | schema from CreateCompositeSchema() without ComposeSchema(...) |
 | InterfaceInheritanceLookupPlanningTests.Plan_Should_TargetAbstractTypeCondition_When_LookupReachedThroughInterfaceFragment_Issue10045 | ComposeSchema with options or shared schemas |
 | InterfaceInheritanceLookupPlanningTests.Plan_Should_TargetConcreteTypeConditions_When_LookupReachedThroughConcreteFragments_Issue10045 | ComposeSchema with options or shared schemas |
 | InterfaceLookupPlanningTests.Abstract_Customer_Interface_With_Id_Only_Is_Plannable | no plan snapshot |
@@ -82,29 +82,29 @@
 | OperationPlannerBatchingGroupIdTests.Plan_NonQuery_Operation_Nodes_Do_Not_Get_BatchingGroupId | @defer, @stream or subscription |
 | OperationPlannerBatchingGroupIdTests.Serialization_Includes_BatchingGroupId_When_Present | PlanOperation without a raw string query |
 | OperationPlannerBatchingGroupIdTests.Serialization_Omits_BatchingGroupId_When_Null | PlanOperation without a raw string query |
-| OperationPlannerBatchingGroupIdTests.Snapshot_Plan_Shows_BatchingGroup_When_Group_Is_Created | several PlanOperation(...) calls |
-| OperationPlannerCancellationTests.CreatePlan_Throws_When_CancellationToken_Is_Already_Canceled | ComposeSchema with options or shared schemas |
-| OperationPlannerCancellationTests.CreatePlan_Throws_When_CancellationToken_Is_Canceled_During_Planning | ComposeSchema with options or shared schemas |
+| OperationPlannerBatchingGroupIdTests.Snapshot_Plan_Shows_BatchingGroup_When_Group_Is_Created | PlanOperation without a raw string query |
+| OperationPlannerCancellationTests.CreatePlan_Throws_When_CancellationToken_Is_Already_Canceled | schema from CreateCompositeSchema() without ComposeSchema(...) |
+| OperationPlannerCancellationTests.CreatePlan_Throws_When_CancellationToken_Is_Canceled_During_Planning | schema from CreateCompositeSchema() without ComposeSchema(...) |
 | OperationPlannerCostModelTests.PathCost_Defaults_Prefer_ModerateFanout_To_SequentialChain | no ComposeSchema(...) |
 | OperationPlannerCostModelTests.PathCost_Defaults_Penalize_ExcessiveFanout | no ComposeSchema(...) |
-| OperationPlannerCostModelTests.Constructors_Wire_Default_And_Custom_Options | ComposeSchema with options or shared schemas |
+| OperationPlannerCostModelTests.Constructors_Wire_Default_And_Custom_Options | schema from CreateCompositeSchema() without ComposeSchema(...) |
 | OperationPlannerCostModelTests.RemainingCost_Projects_RemainingDepth_For_EqualOperationFloor | no ComposeSchema(...) |
-| OperationPlannerCostModelTests.RemainingCost_Projects_ExcessFanout_For_EqualOperationFloor | ComposeSchema with options or shared schemas |
-| OperationPlannerGuardrailTests.CreatePlan_Throws_When_MaxExpandedNodes_Guardrail_Is_Exceeded | ComposeSchema with options or shared schemas |
+| OperationPlannerCostModelTests.RemainingCost_Projects_ExcessFanout_For_EqualOperationFloor | no ComposeSchema(...) |
+| OperationPlannerGuardrailTests.CreatePlan_Throws_When_MaxExpandedNodes_Guardrail_Is_Exceeded | schema from CreateCompositeSchema() without ComposeSchema(...) |
 | OperationPlannerGuardrailTests.CreatePlan_Throws_When_MaxQueueSize_Guardrail_Is_Exceeded | no PlanOperation(...) |
-| OperationPlannerGuardrailTests.CreatePlan_Throws_When_MaxPlanningTime_Guardrail_Is_Exceeded | ComposeSchema with options or shared schemas |
+| OperationPlannerGuardrailTests.CreatePlan_Throws_When_MaxPlanningTime_Guardrail_Is_Exceeded | schema from CreateCompositeSchema() without ComposeSchema(...) |
 | OperationPlannerGuardrailTests.CreatePlan_Throws_When_MaxGeneratedOptions_Guardrail_Is_Exceeded | no PlanOperation(...) |
 | OperationPlannerSelectionPathTests.ContainsSelectionsAtPath_Should_NotMatch_When_RuntimeTypeIsSibling | no ComposeSchema(...) |
 | OperationPlannerSelectionPathTests.ContainsSelectionsAtPath_Should_NotMatch_When_RuntimeTypeIsConditional | no ComposeSchema(...) |
-| OperationPlannerTests.Plan_Simple_Operation_1_Source_Schema | ComposeSchema with options or shared schemas |
+| OperationPlannerTests.Plan_Simple_Operation_1_Source_Schema | schema from CreateCompositeSchema() without ComposeSchema(...) |
 | OperationPlannerTests.Plan_Simple_Operation_2_Source_Schema | no ComposeSchema(...) |
 | OperationPlannerTests.Plan_Simple_Operation_3_Source_Schema | no ComposeSchema(...) |
 | PlannerBehaviorTests.CreatePlan_Should_Succeed_When_Inlined_Fragment_Expansion_Exceeds_Parser_Field_Limit | ComposeSchema with options or shared schemas |
 | PlannerBehaviorTests.CreatePlan_Should_Succeed_When_Each_Fragment_Is_Spread_Once | ComposeSchema with options or shared schemas |
-| PlannerEventSourceTests.PlannerEventSource_Emits_Start_And_Stop_With_Perf_Metrics | ComposeSchema with options or shared schemas |
+| PlannerEventSourceTests.PlannerEventSource_Emits_Start_And_Stop_With_Perf_Metrics | schema from CreateCompositeSchema() without ComposeSchema(...) |
 | PlannerEventSourceTests.PlannerEventSource_Emits_Error_When_Planning_Fails | no PlanOperation(...) |
-| PlannerEventSourceTests.PlannerEventSource_Can_Aggregate_Perf_Metrics_Across_Plans | ComposeSchema with options or shared schemas |
-| PlannerEventSourceTests.PlannerEventSource_Emits_Guardrail_Event_When_Guardrail_Is_Exceeded | ComposeSchema with options or shared schemas |
+| PlannerEventSourceTests.PlannerEventSource_Can_Aggregate_Perf_Metrics_Across_Plans | schema from CreateCompositeSchema() without ComposeSchema(...) |
+| PlannerEventSourceTests.PlannerEventSource_Emits_Guardrail_Event_When_Guardrail_Is_Exceeded | schema from CreateCompositeSchema() without ComposeSchema(...) |
 | RequirementCrossEntityTests.Plan_Should_Resolve_Subtotal_When_Require_Traverses_Connection_With_Nested_Require | no ComposeSchema(...) |
 | RequirementCrossEntityTests.Plan_Should_Resolve_Subtotal_When_Require_Traverses_Connection_With_Input_Object_List_Form | no ComposeSchema(...) |
 | RequirementCrossEntityTests.Plan_Should_Resolve_Subtotal_When_Connection_Leaf_Has_No_Nested_Require | no ComposeSchema(...) |
