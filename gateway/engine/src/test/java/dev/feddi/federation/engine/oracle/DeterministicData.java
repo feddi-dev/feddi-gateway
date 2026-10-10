@@ -56,10 +56,31 @@ public final class DeterministicData {
     private final Set<String> requireArguments = new HashSet<>();
     private final Map<String, List<String>> compositePossibleTypes = new HashMap<>();
     private final List<String> objectTypes = new ArrayList<>();
+    private final Map<String, List<String>> fieldPossibleTypes = new HashMap<>();
 
     public DeterministicData(List<Subgraph> subgraphs, GraphQLSchema compositeSchema) {
         for (Subgraph subgraph : subgraphs) {
             collect(subgraph.schema());
+        }
+        // Per abstract field: the types every schema that defines the field can return (a's "feed: [Post]" can only
+        // return a's Post implementations, even if another schema adds more)
+        for (Subgraph subgraph : subgraphs) {
+            for (GraphQLNamedType type : subgraph.schema().getAllTypesAsList()) {
+                if (!(type instanceof GraphQLFieldsContainer container) || type.getName().startsWith("__")) {
+                    continue;
+                }
+                for (GraphQLFieldDefinition field : container.getFieldDefinitions()) {
+                    GraphQLNamedType returned = GraphQLTypeUtil.unwrapAllAs(field.getType());
+                    if (returned instanceof GraphQLInterfaceType || returned instanceof GraphQLUnionType) {
+                        List<String> local = possibleTypes(subgraph.schema(), returned);
+                        fieldPossibleTypes.merge(type.getName() + "." + field.getName(), local, (a, b) -> {
+                            List<String> common = new ArrayList<>(a);
+                            common.retainAll(b);
+                            return common;
+                        });
+                    }
+                }
+            }
         }
         for (GraphQLNamedType type : compositeSchema.getAllTypesAsList()) {
             if (type instanceof GraphQLObjectType && !type.getName().startsWith("__")) {
@@ -112,16 +133,16 @@ public final class DeterministicData {
             if (list) {
                 List<Object> items = new ArrayList<>();
                 if (!argSeeds.isEmpty()) {
-                    argSeeds.forEach(seed -> items.add(entity(env.getGraphQLSchema(), named, seed, true)));
+                    argSeeds.forEach(seed -> items.add(entity(env.getGraphQLSchema(), named, seed, true, parentType + "." + field)));
                 } else {
                     for (int i = 0; i < LIST_SIZE; i++) {
-                        items.add(entity(env.getGraphQLSchema(), named, hash(base + "|" + i), false));
+                        items.add(entity(env.getGraphQLSchema(), named, hash(base + "|" + i), false, parentType + "." + field));
                     }
                 }
                 return items;
             }
-            return argSeeds.isEmpty() ? entity(env.getGraphQLSchema(), named, hash(base), false)
-                : entity(env.getGraphQLSchema(), named, argSeeds.get(0), true);
+            return argSeeds.isEmpty() ? entity(env.getGraphQLSchema(), named, hash(base), false, parentType + "." + field)
+                : entity(env.getGraphQLSchema(), named, argSeeds.get(0), true, parentType + "." + field);
         }
         return scalars(GraphQLTypeUtil.unwrapNonNull(type), named, parentType, field, parentSeed, args, 0);
     }
@@ -144,12 +165,15 @@ public final class DeterministicData {
      * An object of {@code type} (its concrete type, for an interface or union). A seed from a key keeps the concrete
      * type its object was created with, like a global ID does; a new object's seed is aligned to its concrete type.
      */
-    private Map<String, Object> entity(GraphQLSchema schema, GraphQLNamedType type, long seed, boolean fromKey) {
+    private Map<String, Object> entity(GraphQLSchema schema, GraphQLNamedType type, long seed, boolean fromKey,
+                                       String fieldKey) {
         String concrete = type.getName();
         if (type instanceof GraphQLInterfaceType || type instanceof GraphQLUnionType) {
-            // Choose from the composite schema's possible types, so source schemas and the monolith agree.
+            // Choose from the types all schemas with this field can return, so source schemas and the monolith agree.
             List<String> local = possibleTypes(schema, type);
-            List<String> candidates = compositePossibleTypes.getOrDefault(type.getName(), local);
+            List<String> fieldTypes = fieldPossibleTypes.get(fieldKey);
+            List<String> candidates = fieldTypes != null && !fieldTypes.isEmpty() ? fieldTypes
+                : compositePossibleTypes.getOrDefault(type.getName(), local);
             String encoded = fromKey && !objectTypes.isEmpty() ? objectTypes.get((int) (seed % objectTypes.size())) : null;
             String chosen = local.contains(encoded) ? encoded
                 : candidates.isEmpty() ? null : candidates.get((int) (seed % candidates.size()));
