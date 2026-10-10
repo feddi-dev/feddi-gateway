@@ -37,6 +37,8 @@ import java.util.stream.Collectors;
  *                        segments that lead to them (1 is the object at the first response key); objects of
  *                        other types are skipped. A lookup below {@code ... on UserReview { product }} must not
  *                        run for an {@code AnonymousReview}'s product.
+ * @param possibleTypes the possible object types of the interfaces and unions used as type conditions in
+ *                      {@code requirements}, so that {@code <Bar>.bar} matches a {@code Qux} implementing Bar
  */
 public record ExecutionStep(
     int id,
@@ -50,7 +52,8 @@ public record ExecutionStep(
     Set<String> requestedFieldPaths,
     List<String> entityPath,
     Set<String> entityTypes,
-    Map<Integer, Set<String>> entityPathTypes
+    Map<Integer, Set<String>> entityPathTypes,
+    Map<String, Set<String>> possibleTypes
 ) {
 
     /**
@@ -78,6 +81,19 @@ public record ExecutionStep(
     }
 
     /**
+     * Constructor without possible types for the requirements' type conditions.
+     */
+    public ExecutionStep(int id, String subgraph, OperationDefinition operation,
+                         List<Integer> dependsOn, List<Integer> parallelWith,
+                         Map<String, SelectedValue> requirements, boolean repeatedExecution,
+                         Set<String> artificialFieldPaths, Set<String> requestedFieldPaths,
+                         List<String> entityPath, Set<String> entityTypes,
+                         Map<Integer, Set<String>> entityPathTypes) {
+        this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, Map.of());
+    }
+
+    /**
      * Constructor without type conditions along the entity path.
      */
     public ExecutionStep(int id, String subgraph, OperationDefinition operation,
@@ -93,6 +109,7 @@ public record ExecutionStep(
         entityPath = entityPath == null ? null : List.copyOf(entityPath);
         entityTypes = entityTypes == null ? Set.of() : Set.copyOf(entityTypes);
         entityPathTypes = entityPathTypes == null ? Map.of() : Map.copyOf(entityPathTypes);
+        possibleTypes = possibleTypes == null ? Map.of() : Map.copyOf(possibleTypes);
         if (id < 1) {
             throw new IllegalArgumentException("id must be positive");
         }

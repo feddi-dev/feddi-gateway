@@ -14,6 +14,7 @@ import dev.feddi.federation.engine.query.InlineFragmentSelection;
 import dev.feddi.federation.engine.query.Operation;
 import dev.feddi.federation.engine.query.Selection;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.Alternative;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.ListSelection;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.ObjectSelection;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.Path;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment;
@@ -1799,7 +1800,8 @@ public final class OperationPlanner {
                     requestedPaths,
                     plan.lookupEntryPath,
                     concreteTypes(plan.lookupTargetType),
-                    concreteTypesByDepth(plan.lookupPathTypes)
+                    concreteTypesByDepth(plan.lookupPathTypes),
+                    possibleTypesOfConditions(stepRequirements.values())
                 );
 
                 steps.add(step);
@@ -1828,6 +1830,53 @@ public final class OperationPlanner {
             }
             Set<String> members = graph.getUnionMembers(typeName);
             return members.isEmpty() ? Set.of(typeName) : members;
+        }
+
+        /** The possible types of the abstract types that the requirements use as type conditions. */
+        private Map<String, Set<String>> possibleTypesOfConditions(Iterable<SelectedValue> requirements) {
+            Set<String> conditions = new HashSet<>();
+            for (SelectedValue requirement : requirements) {
+                collectTypeConditions(requirement, conditions);
+            }
+            Map<String, Set<String>> result = new HashMap<>();
+            for (String condition : conditions) {
+                Set<String> types = concreteTypes(condition);
+                if (!types.equals(Set.of(condition))) {
+                    result.put(condition, types);
+                }
+            }
+            return result;
+        }
+
+        private static void collectTypeConditions(SelectedValue value, Set<String> conditions) {
+            for (Alternative alternative : value.alternatives()) {
+                switch (alternative) {
+                    case Path path -> collectTypeConditions(path, conditions);
+                    case ObjectSelection object -> {
+                        if (object.pathPrefix() != null) {
+                            collectTypeConditions(object.pathPrefix(), conditions);
+                        }
+                        object.fields().forEach(field -> collectTypeConditions(field.value(), conditions));
+                    }
+                    case ListSelection list -> {
+                        if (list.pathPrefix() != null) {
+                            collectTypeConditions(list.pathPrefix(), conditions);
+                        }
+                        collectTypeConditions(list.elementValue(), conditions);
+                    }
+                }
+            }
+        }
+
+        private static void collectTypeConditions(Path path, Set<String> conditions) {
+            if (path.hasInitialTypeCondition()) {
+                conditions.add(path.initialTypeCondition());
+            }
+            for (PathSegment segment : path.segments()) {
+                if (segment.hasTypeCondition()) {
+                    conditions.add(segment.typeCondition());
+                }
+            }
         }
 
         private Map<Integer, Set<String>> concreteTypesByDepth(Map<Integer, String> typesByDepth) {
@@ -1870,7 +1919,8 @@ public final class OperationPlanner {
                     step.requestedFieldPaths(),
                     step.entityPath(),
                     step.entityTypes(),
-                    step.entityPathTypes()
+                    step.entityPathTypes(),
+                    step.possibleTypes()
                 ));
             }
 

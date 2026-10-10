@@ -50,9 +50,9 @@ subgraphs:
       data: Foo @shareable
       requirer(
         dataFoo: String @require(field: "data.foo")
-        dataBar: String @require(field: "data.bar")
-        dataBaz: String @require(field: "data.baz")
-        dataQux: String @require(field: "data.qux")
+        dataBar: String @require(field: "data<Bar>.bar")
+        dataBaz: String @require(field: "data<Baz>.baz")
+        dataQux: String @require(field: "data<Qux>.qux")
       ): String!
       requirer2(
         dataFoo: String @require(field: "data.foo")
