@@ -2330,6 +2330,14 @@ public final class OperationPlanner {
             for (SelectionNode child : node.children.values()) {
                 collectUsedQueryVariablesRecursive(child, usedVars);
             }
+            for (InlineFragmentNode fragment : node.inlineFragments) {
+                for (Directive directive : fragment.directives) {
+                    for (Argument arg : directive.getArguments()) {
+                        collectVariableReferencesFromValue(arg.getValue(), usedVars);
+                    }
+                }
+                collectUsedQueryVariablesRecursive(fragment.root, usedVars);
+            }
         }
 
         private void collectVariableReferencesFromValue(graphql.language.Value<?> value, Set<String> usedVars) {

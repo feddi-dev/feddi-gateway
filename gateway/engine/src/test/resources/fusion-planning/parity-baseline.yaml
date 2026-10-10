@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 59 planned by feddi, 57 with no more steps than Fusion, 49 with no more depth
+# 91 tests (4 with an invalid query), 60 planned by feddi, 58 with no more steps than Fusion, 50 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -550,10 +550,9 @@ RequirementReentrancyTests/Plan_Should_Reenter_Catalog_When_EnteringFromRecommen
   fusionOperations: 2
   fusionDepth: 2
 RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_ConcreteFragment_IsConditional:
-  status: "invalid subgraph operation: step 1 (PRODUCTS): Validation error (UndefinedVariable@[node])\
-    \ : Undefined variable 'include'"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 3
+  depth: 3
   fusionOperations: 5
   fusionDepth: 4
 RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_Entry_Crosses_Required_Field:
