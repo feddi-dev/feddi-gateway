@@ -690,11 +690,22 @@ public final class OperationPlanner {
                     for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
                         Map<String, String> combinedResponseKeys = new LinkedHashMap<>();
                         for (Path altPath : lookupArg.extractPaths()) {
-                            Map<String, String> nestedResponseKeys =
-                                keyFragment != null && keyFragment.subgraph.equals(sourceSubgraph)
-                                    && entryPath.equals(parentPath)
-                                    ? keyFragment.addKeyPath(altPath)
-                                    : addNestedFieldPath(sourcePlan, altPath, entryPath, FieldOrigin.ARTIFICIAL_KEY);
+                            Map<String, String> nestedResponseKeys;
+                            if (keyFragment != null && keyFragment.subgraph.equals(sourceSubgraph)
+                                    && entryPath.equals(parentPath)) {
+                                nestedResponseKeys = keyFragment.addKeyPath(altPath);
+                            } else if (!keyInSourceSubgraph(sourceSubgraph, lookupEdge.source().typeName(), altPath)) {
+                                // A key field the source subgraph does not have, fetched like a requirement
+                                RequireFieldResolution resolution = resolved(resolveRequireField(sourceSubgraph,
+                                    lookupEdge.source().typeName(), altPath, entryPath,
+                                    new HashSet<>(Set.of(lookupEdge.target().subgraph()))), altPath,
+                                    lookupEdge.source().typeName());
+                                addPlanDependency(lookupTargetPlan, resolution.plan());
+                                nestedResponseKeys = resolution.fieldToResponseKey();
+                            } else {
+                                nestedResponseKeys = addNestedFieldPath(sourcePlan, altPath, entryPath,
+                                    FieldOrigin.ARTIFICIAL_KEY);
+                            }
                             combinedResponseKeys.putAll(nestedResponseKeys);
                         }
                         lookupArgNestedResponseKeys.put(lookupArg.argumentName(), combinedResponseKeys);
@@ -1233,6 +1244,16 @@ public final class OperationPlanner {
                 List<String> parentPath,
                 Set<String> visitedSubgraphs) {
             return resolveRequireField(sourceSubgraph, sourceTypeName, path, parentPath, visitedSubgraphs, null);
+        }
+
+        /** Whether the source subgraph has a key path on the type or one of its possible types. */
+        private boolean keyInSourceSubgraph(String subgraph, String typeName, Path path) {
+            if (canResolveFieldPathInSubgraph(subgraph, typeName, path)) {
+                return true;
+            }
+            Set<String> possibleTypes = new HashSet<>(graph.getImplementingTypesForInterface(typeName));
+            possibleTypes.addAll(graph.getUnionMembers(typeName));
+            return possibleTypes.stream().anyMatch(type -> canResolveFieldPathInSubgraph(subgraph, type, path));
         }
 
         /** Fails planning for a requirement that no subgraph can provide, instead of omitting its value. */

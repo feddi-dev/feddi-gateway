@@ -56,6 +56,11 @@ public final class PathFinder {
             fieldName, 
             currentPath.copyVisitedSubgraphs()
         );
+        if (indirectPaths.isEmpty()) {
+            // Last resort: lookups whose keys the current subgraph only partly has, the rest fetched through
+            // another lookup (a lookup by id, pid and category, with pid in another subgraph)
+            indirectPaths = findIndirectPaths(currentPath, fieldName, currentPath.copyVisitedSubgraphs(), true);
+        }
         
         return BestPathTracker.findBestPaths(indirectPaths);
     }
@@ -257,6 +262,15 @@ public final class PathFinder {
         String fieldName,
         Set<String> excludedSubgraphs
     ) {
+        return findIndirectPaths(currentPath, fieldName, excludedSubgraphs, false);
+    }
+
+    private List<OperationPath> findIndirectPaths(
+        OperationPath currentPath,
+        String fieldName,
+        Set<String> excludedSubgraphs,
+        boolean keysThroughLookups
+    ) {
         BestPathTracker tracker = new BestPathTracker();
 
         // Queue: (visited subgraphs, visited key requirements, visited lookups, current path)
@@ -339,7 +353,7 @@ public final class PathFinder {
                 }
                 
                 // Check if we can satisfy the lookup requirements
-                if (!canSatisfyRequirements(state.path(), lookupEdge)) {
+                if (!canSatisfyRequirements(state.path(), lookupEdge, keysThroughLookups)) {
                     continue;
                 }
                 
@@ -386,7 +400,7 @@ public final class PathFinder {
      * at least ONE alternative must be fully resolvable. This is because alternatives represent
      * different type-conditioned paths and only the matching one is used at runtime.
      */
-    private boolean canSatisfyRequirements(OperationPath path, LookupMoveEdge lookupEdge) {
+    private boolean canSatisfyRequirements(OperationPath path, LookupMoveEdge lookupEdge, boolean keysThroughLookups) {
         Node sourceNode = path.tail();
         String typeContext = path.typeContext();
 
@@ -394,9 +408,10 @@ public final class PathFinder {
             var alternatives = lookupArg.selection().alternatives();
 
             if (alternatives.size() <= 1) {
-                // Single alternative: all paths must be resolvable
+                // Single alternative: all paths must be resolvable, here or through one other lookup
                 for (var argPath : lookupArg.extractPaths()) {
-                    if (!canResolvePath(sourceNode, argPath, typeContext)) {
+                    if (!canResolvePath(sourceNode, argPath, typeContext)
+                        && !(keysThroughLookups && canResolveThroughLookup(sourceNode, argPath, typeContext, lookupEdge))) {
                         return false;
                     }
                 }
@@ -424,6 +439,19 @@ public final class PathFinder {
         }
 
         return true;
+    }
+
+    /**
+     * Whether a key path of {@code lookupEdge} that the source subgraph does not have can be fetched through
+     * another lookup whose own keys are in the source subgraph (e.g. a product's pid from the subgraph that has it,
+     * for a lookup by id, pid and category).
+     */
+    private boolean canResolveThroughLookup(Node sourceNode, Path path, String typeContext, LookupMoveEdge lookupEdge) {
+        return graph.lookupEdgesFrom(sourceNode).anyMatch(other ->
+            !other.target().subgraph().equals(lookupEdge.target().subgraph())
+                && other.lookupArguments().stream().allMatch(argument -> argument.extractPaths().stream()
+                    .allMatch(keyPath -> canResolvePath(sourceNode, keyPath, typeContext)))
+                && canResolvePath(other.target(), path, typeContext));
     }
 
     /**
