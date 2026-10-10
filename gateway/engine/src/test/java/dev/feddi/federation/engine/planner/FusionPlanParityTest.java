@@ -3,10 +3,11 @@ package dev.feddi.federation.engine.planner;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import dev.feddi.federation.engine.compose.Composer;
+import dev.feddi.federation.engine.compose.CompositionResult;
+import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.query.Operation;
 import dev.feddi.federation.engine.query.OperationNormalizer;
-import dev.feddi.federation.engine.testcase.SchemaDefinition;
-import dev.feddi.federation.engine.testcase.TestCaseLoader;
 import graphql.parser.Parser;
 import graphql.schema.GraphQLSchema;
 import graphql.validation.ValidationError;
@@ -34,7 +35,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Plans every query of the imported Fusion planner tests ({@code fusion-planning/}, see its
  * README) with feddi and compares the plan with Fusion's: how many subgraph operations it needs
- * and how many of them run one after another (depth).
+ * and how many of them run one after another (depth). Composition goes through {@link Composer},
+ * like a gateway reload, so schemas that the gateway rejects count as failures.
  *
  * <p>Every result is recorded in {@code fusion-planning/parity-baseline.yaml}. A result that differs
  * from the baseline fails the test in either direction, so planner changes come with their
@@ -129,25 +131,33 @@ class FusionPlanParityTest {
         }
         int fusionDepth = depth(fusionDependencies);
 
-        SchemaDefinition schema;
+        CompositionResult composition;
         try {
-            schema = new TestCaseLoader().loadSchema(dir.resolve("schema.yaml"));
+            List<Composer.SubgraphInput> inputs = new ArrayList<>();
+            YAML.readTree(dir.resolve("schema.yaml").toFile()).path("subgraphs").properties()
+                .forEach(e -> inputs.add(Composer.SubgraphInput.of(e.getKey(), e.getValue().asText())));
+            composition = new Composer().compose(inputs);
         } catch (RuntimeException e) {
             return new Outcome("composition: " + message(e), 0, 0, fusionOperations, fusionDepth);
+        }
+        if (!composition.isSuccess()) {
+            String error = composition.validationResult().errors().stream().findFirst()
+                .map(d -> d.code() + ": " + d.message()).orElse("failed");
+            return new Outcome("composition: " + firstLine(error), 0, 0, fusionOperations, fusionDepth);
         }
 
         ExecutionPlan plan;
         try {
-            var normalizer = OperationNormalizer.builder(schema.supergraphSchema())
+            var normalizer = OperationNormalizer.builder(composition.supergraph())
                 .inlineFragments(true).deduplicateFields(true).sortSelections(false)
                 .processSkipInclude(true).build();
-            plan = new OperationPlanner(schema.graph()).plan(
+            plan = new OperationPlanner(composition.graph()).plan(
                 Operation.parse(Files.readString(dir.resolve("query.graphql")), normalizer));
         } catch (RuntimeException e) {
             return new Outcome("planning: " + message(e), 0, 0, fusionOperations, fusionDepth);
         }
 
-        String invalid = invalidStep(plan, schema);
+        String invalid = invalidStep(plan, composition.subgraphs());
         if (invalid != null) {
             return new Outcome("invalid subgraph operation: " + invalid, 0, 0, fusionOperations, fusionDepth);
         }
@@ -164,10 +174,12 @@ class FusionPlanParityTest {
     }
 
     /** First step whose operation is not valid against its subgraph schema, or null. */
-    private static String invalidStep(ExecutionPlan plan, SchemaDefinition schema) {
+    private static String invalidStep(ExecutionPlan plan, List<Subgraph> subgraphs) {
+        Map<String, GraphQLSchema> schemas = new HashMap<>();
+        subgraphs.forEach(s -> schemas.put(s.name(), s.schema()));
         Validator validator = new Validator();
         for (ExecutionStep step : plan.steps()) {
-            GraphQLSchema subgraphSchema = schema.getSubgraphSchema(step.subgraph());
+            GraphQLSchema subgraphSchema = schemas.get(step.subgraph());
             if (subgraphSchema == null) {
                 continue;
             }

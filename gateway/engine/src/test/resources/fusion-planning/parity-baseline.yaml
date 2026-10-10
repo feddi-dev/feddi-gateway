@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests, 55 planned by feddi, 54 with no more steps than Fusion, 45 with no more depth
+# 91 tests, 47 planned by feddi, 46 with no more steps than Fusion, 37 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -33,52 +33,60 @@ AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_Nod
   fusionOperations: 3
   fusionDepth: 2
 EntityChainTests/Complex_Entity_Call:
-  status: "planning: Cannot find path to resolve field: price"
+  status: "composition: SATISFIABILITY_ERROR: Field 'Product.price' cannot be resolved\
+    \ from Product/products. No path exists in the planning graph to resolve this\
+    \ field."
   steps: 0
   depth: 0
   fusionOperations: 3
   fusionDepth: 3
 EntityChainTests/Parent_Entity_Call_Complex:
-  status: "planning: Cannot find path to resolve field: productFromD"
+  status: "composition: SATISFIABILITY_ERROR: Field 'Product.price' cannot be resolved\
+    \ from Product/products. No path exists in the planning graph to resolve this\
+    \ field."
   steps: 0
   depth: 0
   fusionOperations: 4
   fusionDepth: 3
 InterfaceFieldOverridePlanningTests/Plan_Should_Keep_Owning_Branch_And_Route_Only_Diverged_Branch:
-  status: "ok"
-  steps: 1
-  depth: 1
+  status: "composition: INVALID_FIELD_SHARING: Field 'ImagePost.createdAt' is defined\
+    \ in multiple subgraphs [a, b] but is not marked as @shareable in schema 'a'."
+  steps: 0
+  depth: 0
   fusionOperations: 2
   fusionDepth: 2
 InterfaceFieldOverridePlanningTests/Plan_Should_Spill_Interface_Field_When_Concrete_Ownership_Diverges:
-  status: "ok"
-  steps: 1
-  depth: 1
+  status: "composition: INVALID_FIELD_SHARING: Field 'ImagePost.createdAt' is defined\
+    \ in multiple subgraphs [a, b] but is not marked as @shareable in schema 'a'."
+  steps: 0
+  depth: 0
   fusionOperations: 2
   fusionDepth: 2
 InterfaceLookupPlanningTests/Abstract_Customer_Interface_With_Email_Is_Plannable:
-  status: "composition: errors=[The object type 'de_Customer' [@-1:-1] does not have\
-    \ a field 'email' required via interface 'Customer' [@-1:-1]]"
+  status: "composition: SCHEMA_BUILD_ERROR: Failed to build merged schema: errors=[The\
+    \ object type 'de_Customer' [@-1:-1] does not have a field 'email' required via\
+    \ interface 'Customer"
   steps: 0
   depth: 0
   fusionOperations: 3
   fusionDepth: 2
 LookupTests/Nested_Lookup:
-  status: "invalid subgraph operation: step 2 (b): Validation error (FieldUndefined@[brandById])\
-    \ : Field 'brandById' in type 'Query' is undefined"
+  status: "composition: LOOKUP_RETURNS_NON_NULLABLE_TYPE: The @lookup field 'InternalLookups.brandById'\
+    \ in schema 'b' should return a nullable type."
   steps: 0
   depth: 0
   fusionOperations: 2
   fusionDepth: 2
 LookupTests/Require_Inaccessible_Data:
-  status: "ok"
-  steps: 2
-  depth: 2
+  status: "composition: LOOKUP_RETURNS_NON_NULLABLE_TYPE: The @lookup field 'Query.brandById'\
+    \ in schema 'b' should return a nullable type."
+  steps: 0
+  depth: 0
   fusionOperations: 2
   fusionDepth: 2
 OperationPlannerTests/Plan_Key_Requirement:
-  status: "invalid subgraph operation: step 3 (b): Validation error (MissingFieldArgument@[productById/sku])\
-    \ : Missing field argument 'region'"
+  status: "composition: INVALID_FIELD_SHARING: Field 'Product.sku' is defined in multiple\
+    \ subgraphs [b, c] but is not marked as @shareable in schema 'c'."
   steps: 0
   depth: 0
   fusionOperations: 3
@@ -90,7 +98,8 @@ OperationPlannerTests/Plan_Requirement_That_Cannot_Be_Inlined:
   fusionOperations: 2
   fusionDepth: 2
 OperationPlannerTests/Plan_Simple_Interface_Lookup:
-  status: "planning: Cannot find path to resolve field: price"
+  status: "composition: INVALID_FIELD_SHARING: Field 'Product.id' is defined in multiple\
+    \ subgraphs [a, b] but is not marked as @shareable in schema 'a'."
   steps: 0
   depth: 0
   fusionOperations: 2
@@ -108,7 +117,8 @@ OperationPlannerTests/Plan_Simple_Requirement:
   fusionOperations: 2
   fusionDepth: 2
 OperationPlannerTests/Plan_Simple_Union_Lookup:
-  status: "planning: Cannot find path to resolve field: price"
+  status: "composition: INVALID_FIELD_SHARING: Field 'Product.id' is defined in multiple\
+    \ subgraphs [a, b] but is not marked as @shareable in schema 'a'."
   steps: 0
   depth: 0
   fusionOperations: 2
@@ -139,9 +149,11 @@ PlannerAdvancedAdaptationTests/Issues_Issue_281:
   fusionOperations: 5
   fusionDepth: 3
 PlannerAdvancedAdaptationTests/Provides_Nested_Provides:
-  status: "ok"
-  steps: 1
-  depth: 1
+  status: "composition: SATISFIABILITY_ERROR: Field 'Category.details' cannot be resolved\
+    \ from Category/all-products. No path exists in the planning graph to resolve\
+    \ this field."
+  steps: 0
+  depth: 0
   fusionOperations: 1
   fusionDepth: 1
 PlannerAdvancedAdaptationTests/Provides_Simple_Provides:
@@ -157,9 +169,11 @@ PlannerAdvancedAdaptationTests/Requires_Provides_Simple_Requires_Provides:
   fusionOperations: 3
   fusionDepth: 3
 PlannerAdvancedAdaptationTests/Union_Union_Member_Mix:
-  status: "ok"
-  steps: 1
-  depth: 1
+  status: "composition: UNREACHABLE_TYPE: Type 'Media' in subgraph 'b' is not reachable\
+    \ from any root type (Query/Mutation/Subscription). Remove unused types to keep\
+    \ the schema clean."
+  steps: 0
+  depth: 0
   fusionOperations: 1
   fusionDepth: 1
 PlannerAdvancedAdaptationTests/Union_Union_Overfetching_Test:
@@ -232,7 +246,9 @@ PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph_Contiguous_Same_Servic
   fusionOperations: 5
   fusionDepth: 1
 PlannerBehaviorTests/Root_Types_Shared_Root:
-  status: "planning: Cannot find path to resolve field: name"
+  status: "composition: SATISFIABILITY_ERROR: Field 'Product.name' cannot be resolved\
+    \ from Product/category. No path exists in the planning graph to resolve this\
+    \ field."
   steps: 0
   depth: 0
   fusionOperations: 3
@@ -334,8 +350,9 @@ RequirementArgumentTests/Requires_Arguments_Deeply_Nested_Requires_With_Variable
   fusionOperations: 2
   fusionDepth: 2
 RequirementArgumentTests/Requires_Arguments_Reentrant_Comments_Collides_With_Client_Comments:
-  status: "composition: Invalid @require field selection on argument 'somethingElse':\
-    \ Invalid syntax: token recognition error at: '('"
+  status: "composition: REQUIRE_INVALID_SYNTAX: Invalid FieldSelectionMap syntax in\
+    \ @require(field: \"comments(limit: 3)[somethingElse]\") on argument 'Post.author(somethingElse)'\
+    \ in sch"
   steps: 0
   depth: 0
   fusionOperations: 5
@@ -383,48 +400,59 @@ RequirementChainTests/Requires_Requires_Two_Fields_Same_Requirement_Different_Or
   fusionOperations: 6
   fusionDepth: 3
 RequirementCrossEntityTests/Plan_Should_Keep_Requirement_And_Client_List_Field_Separate_When_Arguments_Differ:
-  status: "composition: Invalid @require field selection on argument 'comments': Invalid\
-    \ syntax: token recognition error at: '('"
+  status: "composition: REQUIRE_INVALID_SYNTAX: Invalid FieldSelectionMap syntax in\
+    \ @require(field: \"comments(limit: 3)[{ authorId: authorId }]\") on argument\
+    \ 'Post.author(comments)' in"
   steps: 0
   depth: 0
   fusionOperations: 5
   fusionDepth: 3
 RequirementCrossEntityTests/Plan_Should_Reenter_Requiring_Schema_When_Requiring_Type_Has_Lookup:
-  status: "planning: Cannot find path to resolve field: cart"
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.byNovice(yearsOfExperience)'\
+    \ in schema 'b' references field 'author' on type 'Post' which only exists in\
+    \ the"
   steps: 0
   depth: 0
   fusionOperations: 4
   fusionDepth: 3
 RequirementCrossEntityTests/Plan_Should_Resolve_Author_When_Require_Crosses_List_Entity_Boundary:
-  status: "ok"
-  steps: 2
-  depth: 2
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.author(commentAuthorIds)'\
+    \ in schema 'd' references field 'comments' on type 'Post' which only exists in\
+    \ the "
+  steps: 0
+  depth: 0
   fusionOperations: 4
   fusionDepth: 4
 RequirementCrossEntityTests/Plan_Should_Resolve_Author_When_Require_Uses_Input_Object_List_Form:
-  status: "composition: Invalid @require field selection on argument 'comments': Invalid\
-    \ syntax: token recognition error at: '('"
+  status: "composition: REQUIRE_INVALID_SYNTAX: Invalid FieldSelectionMap syntax in\
+    \ @require(field: \"comments(limit: 3)[{ authorId: authorId }]\") on argument\
+    \ 'Post.author(comments)' in"
   steps: 0
   depth: 0
   fusionOperations: 4
   fusionDepth: 4
 RequirementCrossEntityTests/Plan_Should_Resolve_ByExpert_When_Circular_Require_Chains_Through_ByNovice:
-  status: "invalid subgraph operation: step 3 (b): Validation error (MissingFieldArgument@[postById/byNovice])\
-    \ : Missing field argument 'yearsOfExperience'"
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.byNovice(yearsOfExperience)'\
+    \ in schema 'b' references field 'author' on type 'Post' which only exists in\
+    \ the"
   steps: 0
   depth: 0
   fusionOperations: 6
   fusionDepth: 4
 RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Both_Providers_Have_Author_Lookup:
-  status: "ok"
-  steps: 2
-  depth: 2
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.byNovice(yearsOfExperience)'\
+    \ in schema 'b' references field 'author' on type 'Post' which only exists in\
+    \ the"
+  steps: 0
+  depth: 0
   fusionOperations: 4
   fusionDepth: 4
 RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Require_Crosses_Entity_Boundary:
-  status: "ok"
-  steps: 2
-  depth: 2
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.byNovice(yearsOfExperience)'\
+    \ in schema 'b' references field 'author' on type 'Post' which only exists in\
+    \ the"
+  steps: 0
+  depth: 0
   fusionOperations: 4
   fusionDepth: 4
 RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Require_Is_Single_Provider:
@@ -440,22 +468,25 @@ RequirementCrossEntityTests/Plan_Should_Resolve_NeedsFlag_When_Require_Is_Same_E
   fusionOperations: 4
   fusionDepth: 2
 RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice:
-  status: "invalid subgraph operation: step 1 (cart): Validation error (MissingFieldArgument@[item/unitPrice])\
-    \ : Missing field argument 'price'"
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
+    \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
+    \ in th"
   steps: 0
   depth: 0
   fusionOperations: 4
   fusionDepth: 2
 RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice_Next_To_Required_Parent:
-  status: "invalid subgraph operation: step 1 (cart): Validation error (MissingFieldArgument@[item/unitPrice])\
-    \ : Missing field argument 'price'"
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
+    \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
+    \ in th"
   steps: 0
   depth: 0
   fusionOperations: 4
   fusionDepth: 2
 ? RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice_Next_To_Required_Parent_Under_Interface
-: status: "invalid subgraph operation: step 1 (cart): Validation error (MissingFieldArgument@[item/unitPrice])\
-    \ : Missing field argument 'price'"
+: status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
+    \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
+    \ in th"
   steps: 0
   depth: 0
   fusionOperations: 4
@@ -505,8 +536,9 @@ RequirementParityTests/Two_Same_Service_Calls_With_Args_Conflicts:
   fusionOperations: 5
   fusionDepth: 2
 RequirementParityTests/Two_Same_Service_Calls_With_Different_Requirement_Args_Do_Not_Merge:
-  status: "composition: Invalid @require field selection on argument 'price': Invalid\
-    \ syntax: token recognition error at: '('"
+  status: "composition: REQUIRE_INVALID_SYNTAX: Invalid FieldSelectionMap syntax in\
+    \ @require(field: \"price(withDiscount: true)\") on argument 'Product.isExpensive(price)'\
+    \ in schema 'inv"
   steps: 0
   depth: 0
   fusionOperations: 5
