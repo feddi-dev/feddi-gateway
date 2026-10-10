@@ -30,6 +30,7 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.INTERNAL;
 import static dev.feddi.federation.engine.compose.FederationDirectives.IS;
 import static dev.feddi.federation.engine.compose.FederationDirectives.KEY;
 import static dev.feddi.federation.engine.compose.FederationDirectives.LOOKUP;
+import static dev.feddi.federation.engine.compose.FederationDirectives.OVERRIDE;
 import static dev.feddi.federation.engine.compose.FederationDirectives.SHAREABLE;
 
 /**
@@ -43,6 +44,7 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.SHAREABLE
  *   omitted", spec section @key)
  * - External fields are allowed (they reference fields from other subgraphs)
  * - Types and fields marked @internal do not take part
+ * - Overridden fields (one definition has @override) are exempt
  *
  * Root fields follow the same rule: a lookup that several source schemas define needs @shareable
  * (or @internal), like any other field.
@@ -215,6 +217,11 @@ public final class InvalidFieldSharingRule implements ValidationRule {
             return; // Key fields are implicitly shareable
         }
         
+        // Overridden fields are exempt (spec: field names "part of a @key directive, or overridden")
+        if (fields.stream().anyMatch(f -> f.field().hasAppliedDirective(OVERRIDE))) {
+            return;
+        }
+
         // Count non-external definitions - only flag if multiple non-external instances exist
         List<FieldInfo> nonExternalFields = fields.stream()
             .filter(f -> !f.field().hasAppliedDirective(EXTERNAL) && !f.typeIsExternal())

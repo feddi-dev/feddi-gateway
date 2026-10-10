@@ -40,6 +40,7 @@ import java.util.Set;
 import static dev.feddi.federation.engine.compose.FederationDirectives.EXTERNAL;
 import static dev.feddi.federation.engine.compose.FederationDirectives.IS;
 import static dev.feddi.federation.engine.compose.FederationDirectives.LOOKUP;
+import static dev.feddi.federation.engine.compose.FederationDirectives.OVERRIDE;
 import static dev.feddi.federation.engine.compose.FederationDirectives.PROVIDES;
 import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
 
@@ -55,6 +56,8 @@ public final class GraphBuilder {
     
     private static final int FIELD_MOVE_COST = 1;
     private static final int LOOKUP_MOVE_COST = 10;
+
+    private Set<String> overridden = Set.of();
     
     /**
      * Builds a Graph from the given subgraphs.
@@ -64,6 +67,7 @@ public final class GraphBuilder {
      */
     public Graph build(List<Subgraph> subgraphs) {
         Graph.GraphBuilder builder = Graph.builder();
+        overridden = collectOverriddenFields(subgraphs);
         
         // Track all types and their subgraphs
         Map<String, Set<String>> typeToSubgraphs = new HashMap<>();
@@ -94,6 +98,25 @@ public final class GraphBuilder {
         return builder.build();
     }
     
+    /** "subgraph|type|field" for each field definition that another subgraph overrides. */
+    private static Set<String> collectOverriddenFields(List<Subgraph> subgraphs) {
+        Set<String> overridden = new HashSet<>();
+        for (Subgraph subgraph : subgraphs) {
+            for (GraphQLNamedType type : subgraph.schema().getAllTypesAsList()) {
+                if (!(type instanceof GraphQLObjectType objectType)) {
+                    continue;
+                }
+                for (GraphQLFieldDefinition field : objectType.getFieldDefinitions()) {
+                    GraphQLAppliedDirective override = field.getAppliedDirective(OVERRIDE);
+                    if (override != null && override.getArgument("from").getValue() instanceof String from) {
+                        overridden.add(from + "|" + type.getName() + "|" + field.getName());
+                    }
+                }
+            }
+        }
+        return overridden;
+    }
+
     private void processSubgraph(Subgraph subgraph, Graph.GraphBuilder builder,
             Map<String, Set<String>> typeToSubgraphs,
             List<LookupInfo> lookupFields,
@@ -162,9 +185,14 @@ public final class GraphBuilder {
                     builder.addTypeImplementsInterfaces(interfaceType.getName(), parentInterfaceNames);
                 }
 
-                // Process fields on the interface
+                // Process fields on the interface. A field that an implementation no longer resolves here
+                // (@override from this subgraph) cannot be resolved on the interface as a whole.
                 for (GraphQLFieldDefinition field : interfaceType.getFieldDefinitions()) {
-                    processField(interfaceType.getName(), field, subgraphName, builder, lookupFields, providesList);
+                    boolean overriddenOnImplementation = schema.getImplementations(interfaceType).stream()
+                        .anyMatch(impl -> overridden.contains(subgraphName + "|" + impl.getName() + "|" + field.getName()));
+                    if (!overriddenOnImplementation) {
+                        processField(interfaceType.getName(), field, subgraphName, builder, lookupFields, providesList);
+                    }
 
                     // Collect @require directives from regular fields.
                     // Note: @require is NOT allowed on @lookup fields (see comment above).
@@ -203,8 +231,10 @@ public final class GraphBuilder {
         GraphQLOutputType fieldType = field.getType();
         String targetTypeName = GraphQLTypeUtil.unwrapAll(fieldType).getName();
 
-        // Skip @external fields - they can't be resolved directly by this subgraph
-        boolean isExternal = field.hasAppliedDirective(EXTERNAL);
+        // Skip @external fields - they can't be resolved directly by this subgraph - and fields another
+        // subgraph took over with @override(from: "this subgraph")
+        boolean isExternal = field.hasAppliedDirective(EXTERNAL)
+            || overridden.contains(subgraphName + "|" + parentTypeName + "|" + field.getName());
 
         // Create FieldMoveEdge for this field (unless it's @external)
         if (!isExternal) {

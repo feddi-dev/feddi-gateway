@@ -1,10 +1,10 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 60 planned by feddi, 58 with no more steps than Fusion, 49 with no more depth
+# 91 tests (4 with an invalid query), 63 planned by feddi, 61 with no more steps than Fusion, 52 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
-  status: "planning: Cannot find path to resolve field: reviews"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 4
+  depth: 2
   fusionOperations: 4
   fusionDepth: 2
 AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ:
@@ -14,7 +14,7 @@ AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_
   fusionOperations: 6
   fusionDepth: 3
 AbstractLookupFanoutPlanningTests/Plan_Should_Prune_Impossible_Concrete_Fragment_When_Parent_Is_Object:
-  status: "planning: Cannot find path to resolve field: reviews"
+  status: "planning: Cannot find path to resolve field: sku"
   steps: 0
   depth: 0
   fusionOperations: 6
@@ -45,17 +45,15 @@ EntityChainTests/Parent_Entity_Call_Complex:
   fusionOperations: 4
   fusionDepth: 3
 InterfaceFieldOverridePlanningTests/Plan_Should_Keep_Owning_Branch_And_Route_Only_Diverged_Branch:
-  status: "composition: INVALID_FIELD_SHARING: Field 'TextPost.createdAt' is defined\
-    \ in multiple subgraphs [a, b] but is not marked as @shareable in schema 'a'."
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 2
+  depth: 2
   fusionOperations: 2
   fusionDepth: 2
 InterfaceFieldOverridePlanningTests/Plan_Should_Spill_Interface_Field_When_Concrete_Ownership_Diverges:
-  status: "composition: INVALID_FIELD_SHARING: Field 'ImagePost.createdAt' is defined\
-    \ in multiple subgraphs [a, b] but is not marked as @shareable in schema 'a'."
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 2
+  depth: 2
   fusionOperations: 2
   fusionDepth: 2
 InterfaceLookupPlanningTests/Abstract_Customer_Interface_With_Email_Is_Plannable:

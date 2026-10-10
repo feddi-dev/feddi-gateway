@@ -238,4 +238,30 @@ class InvalidFieldSharingRuleTest {
 
         assertThat(sharingErrors(result)).containsExactly("Product.name");
     }
+
+    @Test
+    void overriddenFieldNeedsNoShareable() {
+        CompositionResult result = compose("""
+            type Query {
+              posts: [TextPost]
+              textPostById(id: ID!): TextPost @lookup @internal
+            }
+
+            type TextPost @key(fields: "id") {
+              id: ID!
+              createdAt: String!
+            }
+            """, """
+            type Query {
+              textPostById(id: ID!): TextPost @lookup @internal
+            }
+
+            type TextPost @key(fields: "id") {
+              id: ID!
+              createdAt: String! @override(from: "a")
+            }
+            """);
+
+        assertThat(sharingErrors(result)).doesNotContain("TextPost.createdAt");
+    }
 }

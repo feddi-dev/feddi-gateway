@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -137,6 +138,9 @@ public final class OperationPlanner {
         List<OperationPath> paths = pathFinder.findPaths(currentPath, fieldName);
 
         if (paths.isEmpty()) {
+            if (fragmentContext == null && planPerPossibleType(currentPath, selection, parentPath, context)) {
+                return;
+            }
             throw new PlanningException("Cannot find path to resolve field: " + fieldName);
         }
 
@@ -192,6 +196,33 @@ public final class OperationPlanner {
                 fragmentContext.exitField();
             }
         }
+    }
+
+    /**
+     * A field of an interface or union that cannot be resolved on the abstract type as a whole (e.g. one
+     * implementation's field was moved to another subgraph with @override) is selected per possible type:
+     * {@code createdAt} becomes {@code ... on ImagePost { createdAt } ... on TextPost { createdAt }}, each resolved
+     * where that type has it. Only the types the current subgraph can return are considered.
+     *
+     * @return false if the current type is not abstract or the field cannot be resolved for its types either
+     */
+    private boolean planPerPossibleType(OperationPath currentPath, FieldSelection selection, List<String> parentPath,
+                                        PlanningContext context) {
+        String typeName = currentPath.typeContext() != null ? currentPath.typeContext() : currentPath.tail().typeName();
+        String subgraph = currentPath.currentSubgraph();
+        Set<String> possibleTypes = new TreeSet<>(graph.getImplementingTypesForInterface(typeName));
+        possibleTypes.addAll(graph.getUnionMembers(typeName));
+        possibleTypes.removeIf(type -> !graph.containsNode(new Node(type, subgraph))
+            || !graph.getImplementingTypesForInterface(type).isEmpty());
+        if (possibleTypes.isEmpty() || possibleTypes.stream()
+                .anyMatch(type -> pathFinder.findPaths(currentPath.withTypeContext(type), selection.fieldName()).isEmpty())) {
+            return false;
+        }
+        for (String type : possibleTypes) {
+            planInlineFragment(currentPath, new InlineFragmentSelection(type, List.of(), List.of(selection)),
+                parentPath, context);
+        }
+        return true;
     }
 
     /**
