@@ -33,8 +33,10 @@ import graphql.language.TypeName;
 import graphql.language.VariableDefinition;
 import graphql.language.VariableReference;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -376,6 +378,12 @@ public final class OperationPlanner {
         // Maps LookupPlanKey -> (fieldName -> responseKey)
         private final Map<LookupPlanKey, Map<String, String>> requireFieldResponseKeys = new HashMap<>();
 
+        // Plans whose @require fields are being resolved (innermost first): plans waiting for them are no source
+        private final Deque<SubgraphPlan> requirementTargets = new ArrayDeque<>();
+
+        // Fields added by the planner whose own @require arguments were processed ("planId|field")
+        private final Set<String> requirementsOfAddedFields = new HashSet<>();
+
         // Map from lookup edge plus response entry path to the plan that was created for it
         private final Map<LookupPlanKey, SubgraphPlan> lookupEdgeToPlan = new HashMap<>();
 
@@ -623,7 +631,18 @@ public final class OperationPlanner {
 
             Set<String> visitedForRequire = new HashSet<>();
             visitedForRequire.add(targetPlan.subgraph); // Don't resolve @require in the target subgraph itself
+            requirementTargets.push(targetPlan);
+            try {
+                processRequireFieldsFor(lookupEdge, fieldName, parentPath, sourcePlan, targetPlan, sourceSubgraph,
+                    sourceTypeName, visitedForRequire);
+            } finally {
+                requirementTargets.pop();
+            }
+        }
 
+        private void processRequireFieldsFor(LookupMoveEdge lookupEdge, String fieldName, List<String> parentPath,
+                                             SubgraphPlan sourcePlan, SubgraphPlan targetPlan, String sourceSubgraph,
+                                             String sourceTypeName, Set<String> visitedForRequire) {
             // Get or create the response keys map for this lookup edge
             List<String> entryPath = targetPlan.lookupEntryPath != null ? targetPlan.lookupEntryPath : parentPath;
             Map<String, String> reqResponseKeys = requireFieldResponseKeys.computeIfAbsent(
@@ -734,6 +753,36 @@ public final class OperationPlanner {
          */
         private Map<String, String> addNestedFieldPathWithSubgraph(SubgraphPlan plan, Path path, List<String> parentPath,
                                                                      FieldOrigin origin, String subgraph, String startTypeName) {
+            Map<String, String> responseKeys =
+                addNestedFieldPathOnly(plan, path, parentPath, origin, subgraph, startTypeName);
+            processRequirementsOfAddedField(plan, path, parentPath);
+            return responseKeys;
+        }
+
+        /**
+         * A field the planner adds itself (a lookup key, a required field) can have @require arguments of its own,
+         * like one the client selects: those requirements are resolved for it too.
+         */
+        private void processRequirementsOfAddedField(SubgraphPlan plan, Path path, List<String> parentPath) {
+            LookupMoveEdge lookupEdge = plan.lookupEdge;
+            if (lookupEdge == null || path.segments().isEmpty() || path.hasInitialTypeCondition()
+                || !plan.adjustPath(parentPath).isEmpty()) {
+                return;
+            }
+            String fieldName = path.segments().get(0).fieldName();
+            if (lookupEdge.requires().stream().noneMatch(r -> fieldName.equals(r.fieldName()))
+                || !requirementsOfAddedFields.add(plan.id + "|" + fieldName)) {
+                return;
+            }
+            SubgraphPlan sourcePlan = findExistingPlanForSubgraph(lookupEdge.source().subgraph(), plan.lookupEntryPath);
+            if (sourcePlan == null) {
+                sourcePlan = getOrCreateRootPlan(lookupEdge.source().subgraph());
+            }
+            processRequireFields(lookupEdge, fieldName, plan.lookupEntryPath, sourcePlan, plan);
+        }
+
+        private Map<String, String> addNestedFieldPathOnly(SubgraphPlan plan, Path path, List<String> parentPath,
+                                                           FieldOrigin origin, String subgraph, String startTypeName) {
             List<String> currentPath = new ArrayList<>(parentPath);
             Map<String, String> fieldToResponseKey = new LinkedHashMap<>();
 
@@ -1232,7 +1281,7 @@ public final class OperationPlanner {
 
             for (var entry : subgraphPlans.entrySet()) {
                 SubgraphPlanKey key = entry.getKey();
-                if (!key.subgraph().equals(subgraph)) {
+                if (!key.subgraph().equals(subgraph) || waitsForRequirementTarget(entry.getValue())) {
                     continue;
                 }
                 if (key.isRootEntry()) {
@@ -1246,6 +1295,33 @@ public final class OperationPlanner {
             }
 
             return bestLookupPlan != null ? bestLookupPlan : rootPlan;
+        }
+
+        /**
+         * Whether a plan (transitively) waits for a plan whose requirements are being resolved: it cannot provide
+         * them without a cycle.
+         */
+        private boolean waitsForRequirementTarget(SubgraphPlan plan) {
+            if (requirementTargets.isEmpty()) {
+                return false;
+            }
+            Set<Integer> targets = new HashSet<>();
+            requirementTargets.forEach(target -> targets.add(target.id));
+            Deque<Integer> pending = new ArrayDeque<>(List.of(plan.id));
+            Set<Integer> seen = new HashSet<>();
+            while (!pending.isEmpty()) {
+                int id = pending.pop();
+                if (!seen.add(id)) {
+                    continue;
+                }
+                for (int dependency : planDependencies.getOrDefault(id, Set.of())) {
+                    if (targets.contains(dependency)) {
+                        return true;
+                    }
+                    pending.push(dependency);
+                }
+            }
+            return false;
         }
 
         private boolean isPathPrefix(List<String> prefix, List<String> path) {
@@ -1942,6 +2018,7 @@ public final class OperationPlanner {
         String lookupTargetType;                    // the entity type the lookup resolves, e.g. "Book"
         String lookupReturnType;                    // the lookup field's type: lookupTargetType or an abstract type
         Map<Integer, String> lookupPathTypes = Map.of(); // type conditions along the lookup's entry path
+        LookupMoveEdge lookupEdge;                  // the lookup that enters this plan, null for root plans
         List<LookupArgument> lookupArguments;  // Key fields with argument info
         List<String> lookupEntryPath;               // The parentPath when we entered via lookup
 
@@ -1977,6 +2054,7 @@ public final class OperationPlanner {
          * Sets the lookup origin information for a subgraph entered via a @lookup edge.
          */
         void setLookupOrigin(LookupMoveEdge lookupEdge, List<String> entryPath, Map<Integer, String> pathTypes) {
+            this.lookupEdge = lookupEdge;
             this.lookupPathTypes = pathTypes;
             this.lookupTargetType = lookupEdge.target().typeName();
             this.lookupReturnType = lookupEdge.returnType();

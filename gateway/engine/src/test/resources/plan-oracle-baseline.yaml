@@ -1,6 +1,6 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 227 queries {composition failed=19, feddi error=5, invalid query=4, planning failed=5, same data=194}
+# 227 queries {composition failed=19, feddi error=3, invalid query=4, planning failed=5, same data=196}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "planning\
   \ failed"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
@@ -22,8 +22,7 @@ fusion/InterfaceLookupPlanningTests/Abstract_Customer_Interface_With_Email_Is_Pl
 fusion/LookupTests/Nested_Lookup: "feddi error: Validation error (FieldUndefined@[brandById])\
   \ : Field 'brandById' in type 'Query' is undefined"
 fusion/LookupTests/Require_Inaccessible_Data: "same data"
-fusion/OperationPlannerTests/Plan_Key_Requirement: "feddi error: Validation error\
-  \ (MissingFieldArgument@[productById/sku]) : Missing field argument 'region'"
+fusion/OperationPlannerTests/Plan_Key_Requirement: "same data"
 fusion/OperationPlannerTests/Plan_Requirement_That_Cannot_Be_Inlined: "same data"
 fusion/OperationPlannerTests/Plan_Simple_Interface_Lookup: "same data"
 fusion/OperationPlannerTests/Plan_Simple_Lookup: "same data"
@@ -81,8 +80,7 @@ fusion/RequirementArgumentTests/Requires_Arguments_Reentrant_Comments_Collides_W
 fusion/RequirementArgumentTests/Requires_With_Arguments: "same data"
 fusion/RequirementArgumentTests/Simple_Requires_Arguments: "same data"
 fusion/RequirementChainTests/Requires_Circular_1: "same data"
-fusion/RequirementChainTests/Requires_Circular_2: "feddi error: Validation error (MissingFieldArgument@[postById/byNovice])\
-  \ : Missing field argument 'yearsOfExperience'"
+fusion/RequirementChainTests/Requires_Circular_2: "same data"
 fusion/RequirementChainTests/Requires_Requires_Many: "same data"
 fusion/RequirementChainTests/Requires_Requires_One: "same data"
 fusion/RequirementChainTests/Requires_Requires_Two_Fields_Same_Requirement_Different_Order: "same\

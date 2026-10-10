@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 58 planned by feddi, 56 with no more steps than Fusion, 48 with no more depth
+# 91 tests (4 with an invalid query), 60 planned by feddi, 58 with no more steps than Fusion, 49 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -80,10 +80,9 @@ LookupTests/Require_Inaccessible_Data:
   fusionOperations: 2
   fusionDepth: 2
 OperationPlannerTests/Plan_Key_Requirement:
-  status: "invalid subgraph operation: step 3 (b): Validation error (MissingFieldArgument@[productById/sku])\
-    \ : Missing field argument 'region'"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 3
+  depth: 3
   fusionOperations: 3
   fusionDepth: 3
 OperationPlannerTests/Plan_Requirement_That_Cannot_Be_Inlined:
@@ -367,10 +366,9 @@ RequirementChainTests/Requires_Circular_1:
   fusionOperations: 2
   fusionDepth: 2
 RequirementChainTests/Requires_Circular_2:
-  status: "invalid subgraph operation: step 3 (b): Validation error (MissingFieldArgument@[postById/byNovice])\
-    \ : Missing field argument 'yearsOfExperience'"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 3
+  depth: 3
   fusionOperations: 4
   fusionDepth: 2
 RequirementChainTests/Requires_Requires_Many:
