@@ -209,7 +209,7 @@ public final class IsInvalidFieldsRule implements ValidationRule {
 
             // Check if field exists in ANY schema (including current one)
             // @is maps arguments to fields on the return type, which can be from any schema
-            if (!CrossSchemaFieldResolver.isFieldInAnySchema(allSubgraphs, typeName, fieldName)) {
+            if (!CrossSchemaFieldResolver.isFieldDefinedOn(allSubgraphs, typeName, fieldName)) {
                 String message = String.format(
                     "@is directive at '%s' in schema '%s' references field '%s' on type '%s' " +
                     "which does not exist in any schema.",

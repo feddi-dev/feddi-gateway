@@ -219,8 +219,9 @@ public final class RequireInvalidFieldsRule implements ValidationRule {
 
             // Check if field exists in other schemas (including on subtypes/implementing types)
             // For @require, fields must come from OTHER schemas
-            boolean existsInOtherSchemas = CrossSchemaFieldResolver.isFieldInOtherSchemasWithSubtypes(
-                typeName, fieldName, allSubgraphs, schemaName);
+            boolean existsInOtherSchemas = CrossSchemaFieldResolver.isFieldDefinedOn(
+                allSubgraphs.stream().filter(subgraph -> !subgraph.name().equals(schemaName)).toList(),
+                typeName, fieldName);
 
             if (!existsInOtherSchemas) {
                 // Check if field exists in same schema (for better error message)
