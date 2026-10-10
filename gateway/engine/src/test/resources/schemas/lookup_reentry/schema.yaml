@@ -1,0 +1,35 @@
+name: "Lookup re-entry"
+description: "A query path that uses the same lookup twice, at different response paths."
+
+subgraphs:
+  posts: |
+    type Query {
+      topPost: Post
+      postById(id: ID!): Post @lookup @internal
+      tagById(id: ID!): Tag @lookup @internal
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      title: String
+    }
+
+    type Tag @key(fields: "id") {
+      id: ID!
+      relatedPosts: [Post]
+    }
+
+  tags: |
+    type Query {
+      postById(id: ID!): Post @lookup @internal
+      tagById(id: ID!): Tag @lookup @internal
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      tags: [Tag]
+    }
+
+    type Tag @key(fields: "id") {
+      id: ID!
+    }

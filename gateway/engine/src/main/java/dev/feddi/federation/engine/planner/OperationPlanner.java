@@ -573,19 +573,37 @@ public final class OperationPlanner {
             }
         }
 
+        /**
+         * The response path where the last occurrence of {@code lookupEdge} on the path starts (the same lookup can
+         * occur twice, e.g. s1 -> s0 -> s1 -> s0 with the same lookup into s0).
+         */
         private List<String> lookupEntryPath(OperationPath path, LookupMoveEdge lookupEdge, List<String> fallbackParentPath) {
+            List<String> entryPath = fallbackParentPath;
+            for (LookupStep step : lookupSteps(path, fallbackParentPath)) {
+                if (step.edge().equals(lookupEdge)) {
+                    entryPath = step.entryPath();
+                }
+            }
+            return entryPath;
+        }
+
+        /** A lookup on a path, with the response path where it starts. */
+        private record LookupStep(LookupMoveEdge edge, List<String> entryPath) {
+        }
+
+        /** The lookups on a path in order, each with its own entry path (in the client's response keys). */
+        private static List<LookupStep> lookupSteps(OperationPath path, List<String> parentPath) {
+            List<LookupStep> steps = new ArrayList<>();
             int depth = 0;
             for (Edge edge : path.getEdges()) {
-                if (edge.equals(lookupEdge)) {
-                    // Graph edges use schema field names. Preserve the client's response
-                    // keys (including aliases) at the same depth in the operation.
-                    return List.copyOf(fallbackParentPath.subList(0, depth));
-                }
-                if (!(edge instanceof LookupMoveEdge)) {
+                if (edge instanceof LookupMoveEdge lookupEdge) {
+                    steps.add(new LookupStep(lookupEdge,
+                        depth <= parentPath.size() ? List.copyOf(parentPath.subList(0, depth)) : parentPath));
+                } else {
                     depth++;
                 }
             }
-            return fallbackParentPath;
+            return steps;
         }
         
         /**
@@ -643,25 +661,20 @@ public final class OperationPlanner {
 
             // Build a chain of lookup edges and their corresponding plans
             // Each lookup's source needs to have key fields added
-            List<LookupMoveEdge> lookupChain = new ArrayList<>();
-            for (Edge edge : path.getEdges()) {
-                if (edge instanceof LookupMoveEdge lookupEdge) {
-                    lookupChain.add(lookupEdge);
-                }
-            }
+            List<LookupStep> lookupChain = lookupSteps(path, parentPath);
 
             // Process each lookup edge in the chain
             for (int i = 0; i < lookupChain.size(); i++) {
-                LookupMoveEdge lookupEdge = lookupChain.get(i);
+                LookupMoveEdge lookupEdge = lookupChain.get(i).edge();
                 String sourceSubgraph = lookupEdge.source().subgraph();
-                List<String> entryPath = lookupEntryPath(path, lookupEdge, parentPath);
+                List<String> entryPath = lookupChain.get(i).entryPath();
 
                 // Find the source plan - it's either a previous lookup's target or the root plan
                 SubgraphPlan sourcePlan;
                 if (i > 0) {
                     // Source is the previous lookup's target
-                    LookupMoveEdge prevLookup = lookupChain.get(i - 1);
-                    List<String> prevEntryPath = lookupEntryPath(path, prevLookup, parentPath);
+                    LookupMoveEdge prevLookup = lookupChain.get(i - 1).edge();
+                    List<String> prevEntryPath = lookupChain.get(i - 1).entryPath();
                     sourcePlan = lookupEdgeToPlan.get(lookupKey(prevLookup, prevEntryPath));
                     if (sourcePlan == null) {
                         throw new PlanningException("Source plan not found for lookup edge from '" +
@@ -827,19 +840,28 @@ public final class OperationPlanner {
          * its source subgraph, or the source subgraph's root plan. (A search by subgraph and response path cannot
          * tell apart lookups under different type conditions on the same path.)
          */
-        SubgraphPlan sourcePlanOf(OperationPath path, LookupMoveEdge lookupEdge, List<String> parentPath) {
-            String sourceSubgraph = lookupEdge.source().subgraph();
-            LookupMoveEdge previous = null;
-            for (Edge edge : path.getEdges()) {
-                if (edge.equals(lookupEdge)) {
-                    break;
-                }
-                if (edge instanceof LookupMoveEdge earlier && earlier.target().subgraph().equals(sourceSubgraph)) {
-                    previous = earlier;
+        SubgraphPlan sourcePlanOf(OperationPath path, int lookupIndex, List<String> parentPath) {
+            List<LookupStep> steps = lookupSteps(path, parentPath);
+            String sourceSubgraph = steps.get(lookupIndex).edge().source().subgraph();
+            LookupStep previous = null;
+            for (int i = 0; i < lookupIndex; i++) {
+                if (steps.get(i).edge().target().subgraph().equals(sourceSubgraph)) {
+                    previous = steps.get(i);
                 }
             }
             return previous == null ? getOrCreateRootPlan(sourceSubgraph)
-                : getOrCreateLookupPlan(previous, lookupEntryPath(path, previous, parentPath));
+                : getOrCreateLookupPlan(previous.edge(), previous.entryPath());
+        }
+
+        /** The index of the last lookup on the path that enters {@code subgraph}, or -1. */
+        private static int enteringLookupIndex(OperationPath path, List<String> parentPath, String subgraph) {
+            List<LookupStep> steps = lookupSteps(path, parentPath);
+            for (int i = steps.size() - 1; i >= 0; i--) {
+                if (steps.get(i).edge().target().subgraph().equals(subgraph)) {
+                    return i;
+                }
+            }
+            return -1;
         }
 
         /**
@@ -1695,7 +1717,7 @@ public final class OperationPlanner {
             if (enteringLookupEdge != null) {
                 // Find or create source plan
                 String sourceSubgraph = enteringLookupEdge.source().subgraph();
-                SubgraphPlan sourcePlan = sourcePlanOf(path, enteringLookupEdge, parentPath);
+                SubgraphPlan sourcePlan = sourcePlanOf(path, enteringLookupIndex(path, parentPath, subgraph), parentPath);
 
                 // Track dependency
                 addPlanDependency(plan, sourcePlan);
@@ -1842,144 +1864,144 @@ public final class OperationPlanner {
             }
 
             // Track dependencies from lookups (same as regular field resolution)
-            for (Edge edge : path.getEdges()) {
-                if (edge instanceof LookupMoveEdge lookupEdge) {
-                    String sourceSubgraph = lookupEdge.source().subgraph();
-                    List<String> edgeEntryPath = lookupEntryPath(path, lookupEdge, parentPath);
+            List<LookupStep> lookupSteps = lookupSteps(path, parentPath);
+            for (int lookupIndex = 0; lookupIndex < lookupSteps.size(); lookupIndex++) {
+                LookupMoveEdge lookupEdge = lookupSteps.get(lookupIndex).edge();
+                String sourceSubgraph = lookupEdge.source().subgraph();
+                List<String> edgeEntryPath = lookupSteps.get(lookupIndex).entryPath();
 
-                    // The source plan: the one the path was in before this lookup
-                    SubgraphPlan sourcePlan = sourcePlanOf(path, lookupEdge, parentPath);
+                // The source plan: the one the path was in before this lookup
+                SubgraphPlan sourcePlan = sourcePlanOf(path, lookupIndex, parentPath);
 
-                    // Get the lookup target plan
-                    SubgraphPlan lookupTargetPlan = getOrCreateLookupPlan(lookupEdge, edgeEntryPath);
+                // Get the lookup target plan
+                SubgraphPlan lookupTargetPlan = getOrCreateLookupPlan(lookupEdge, edgeEntryPath);
 
-                    // Add dependency if this lookup edge enters the current subgraph
-                    if (lookupEdge.target().subgraph().equals(subgraph)) {
-                        addPlanDependency(lookupTargetPlan, sourcePlan);
-                    }
+                // Add dependency if this lookup edge enters the current subgraph
+                if (lookupEdge.target().subgraph().equals(subgraph)) {
+                    addPlanDependency(lookupTargetPlan, sourcePlan);
+                }
 
-                    // Handle key fields - ARTIFICIAL_KEY
-                    // When we're in a fragment context (e.g., ... on Book inside a union),
-                    // key fields must be added inside the fragment, not at the parent level.
-                    // Process ALL paths from all alternatives (e.g., <Book>.isbn | <Electronics>.sku)
-                    LookupPlanKey lookupPlanKey = lookupKey(lookupEdge, edgeEntryPath);
-                    if (!processedLookupEdges.contains(lookupPlanKey)) {
-                        processedLookupEdges.add(lookupPlanKey);
+                // Handle key fields - ARTIFICIAL_KEY
+                // When we're in a fragment context (e.g., ... on Book inside a union),
+                // key fields must be added inside the fragment, not at the parent level.
+                // Process ALL paths from all alternatives (e.g., <Book>.isbn | <Electronics>.sku)
+                LookupPlanKey lookupPlanKey = lookupKey(lookupEdge, edgeEntryPath);
+                if (!processedLookupEdges.contains(lookupPlanKey)) {
+                    processedLookupEdges.add(lookupPlanKey);
 
-                        Map<String, Map<String, String>> lookupArgCombinedResponseKeys = new HashMap<>();
-                        List<String> lookupArgPath = edgeEntryPath; // adjustPath handles lookup prefix stripping
+                    Map<String, Map<String, String>> lookupArgCombinedResponseKeys = new HashMap<>();
+                    List<String> lookupArgPath = edgeEntryPath; // adjustPath handles lookup prefix stripping
 
-                        for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
-                            Map<String, String> combinedResponseKeys = new LinkedHashMap<>();
+                    for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
+                        Map<String, String> combinedResponseKeys = new LinkedHashMap<>();
 
-                            for (Path altPath : lookupArg.extractPaths()) {
-                                Map<String, String> nestedResponseKeys;
+                        for (Path altPath : lookupArg.extractPaths()) {
+                            Map<String, String> nestedResponseKeys;
 
-                                // Use the path's initialTypeCondition to find the correct inline fragment,
-                                // falling back to the lookup edge's source type
-                                String typeCondForFragment = altPath.hasInitialTypeCondition()
-                                    ? altPath.initialTypeCondition()
-                                    : lookupEdge.source().typeName();
+                            // Use the path's initialTypeCondition to find the correct inline fragment,
+                            // falling back to the lookup edge's source type
+                            String typeCondForFragment = altPath.hasInitialTypeCondition()
+                                ? altPath.initialTypeCondition()
+                                : lookupEdge.source().typeName();
 
-                                // Check if we have a fragment context in the SOURCE subgraph
-                                // and if so, add key field to that fragment
-                                InlineFragmentContext sourceFragmentContext =
-                                    getInlineFragmentContext(sourceSubgraph, parentPath,
-                                        typeCondForFragment, List.of());
+                            // Check if we have a fragment context in the SOURCE subgraph
+                            // and if so, add key field to that fragment
+                            InlineFragmentContext sourceFragmentContext =
+                                getInlineFragmentContext(sourceSubgraph, parentPath,
+                                    typeCondForFragment, List.of());
 
-                                if (sourceFragmentContext != null) {
-                                    // Add key field inside the inline fragment
-                                    // Handle nested paths by adding each segment
-                                    List<PathSegment> segments = altPath.segments();
-                                    nestedResponseKeys = new LinkedHashMap<>();
-                                    for (int k = 0; k < segments.size(); k++) {
-                                        String segFieldName = segments.get(k).fieldName();
-                                        boolean hasChildrenSeg = (k < segments.size() - 1);
-                                        sourceFragmentContext.addField(null, segFieldName, hasChildrenSeg, List.of(), List.of(), FieldOrigin.ARTIFICIAL_KEY);
-                                        nestedResponseKeys.put(segFieldName, segFieldName);
-                                        if (hasChildrenSeg) {
-                                            sourceFragmentContext.enterField(segFieldName);
-                                        }
+                            if (sourceFragmentContext != null) {
+                                // Add key field inside the inline fragment
+                                // Handle nested paths by adding each segment
+                                List<PathSegment> segments = altPath.segments();
+                                nestedResponseKeys = new LinkedHashMap<>();
+                                for (int k = 0; k < segments.size(); k++) {
+                                    String segFieldName = segments.get(k).fieldName();
+                                    boolean hasChildrenSeg = (k < segments.size() - 1);
+                                    sourceFragmentContext.addField(null, segFieldName, hasChildrenSeg, List.of(), List.of(), FieldOrigin.ARTIFICIAL_KEY);
+                                    nestedResponseKeys.put(segFieldName, segFieldName);
+                                    if (hasChildrenSeg) {
+                                        sourceFragmentContext.enterField(segFieldName);
                                     }
-                                    // Exit all entered fields
-                                    for (int k = 0; k < segments.size() - 1; k++) {
-                                        sourceFragmentContext.exitField();
-                                    }
-                                } else {
-                                    // Add key field at parent level (regular case for object types)
-                                    // Use addNestedFieldPath for nested paths like "compositeId.two"
-                                    nestedResponseKeys = addNestedFieldPath(sourcePlan, altPath, lookupArgPath, FieldOrigin.ARTIFICIAL_KEY);
                                 }
-                                combinedResponseKeys.putAll(nestedResponseKeys);
+                                // Exit all entered fields
+                                for (int k = 0; k < segments.size() - 1; k++) {
+                                    sourceFragmentContext.exitField();
+                                }
+                            } else {
+                                // Add key field at parent level (regular case for object types)
+                                // Use addNestedFieldPath for nested paths like "compositeId.two"
+                                nestedResponseKeys = addNestedFieldPath(sourcePlan, altPath, lookupArgPath, FieldOrigin.ARTIFICIAL_KEY);
                             }
-                            lookupArgCombinedResponseKeys.put(lookupArg.argumentName(), combinedResponseKeys);
+                            combinedResponseKeys.putAll(nestedResponseKeys);
                         }
-
-                        // Add key field requirements to lookup target plan
-                        for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
-                            Map<String, String> nestedResponseKeys = lookupArgCombinedResponseKeys.get(lookupArg.argumentName());
-                            SelectedValue requirement = createRequirementSelectedValue(lookupArg, nestedResponseKeys);
-                            lookupTargetPlan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType());
-                        }
+                        lookupArgCombinedResponseKeys.put(lookupArg.argumentName(), combinedResponseKeys);
                     }
 
-                    // Add @require fields - this handles cases where fields inside inline fragments
-                    // have @require dependencies that need to be resolved
-                    if (lookupEdge.hasRequirements() && lookupEdge.target().subgraph().equals(subgraph)) {
-                        String sourceTypeName = lookupEdge.source().typeName();
-                        Set<String> visitedForRequire = new HashSet<>();
-                        visitedForRequire.add(subgraph); // Don't resolve @require in the target subgraph itself
+                    // Add key field requirements to lookup target plan
+                    for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
+                        Map<String, String> nestedResponseKeys = lookupArgCombinedResponseKeys.get(lookupArg.argumentName());
+                        SelectedValue requirement = createRequirementSelectedValue(lookupArg, nestedResponseKeys);
+                        lookupTargetPlan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType());
+                    }
+                }
 
-                        // Get or create the response keys map for this lookup edge
-                        Map<String, String> reqResponseKeys = requireFieldResponseKeys.computeIfAbsent(
-                            lookupKey(lookupEdge, edgeEntryPath), k -> new HashMap<>());
+                // Add @require fields - this handles cases where fields inside inline fragments
+                // have @require dependencies that need to be resolved
+                if (lookupEdge.hasRequirements() && lookupEdge.target().subgraph().equals(subgraph)) {
+                    String sourceTypeName = lookupEdge.source().typeName();
+                    Set<String> visitedForRequire = new HashSet<>();
+                    visitedForRequire.add(subgraph); // Don't resolve @require in the target subgraph itself
 
-                        Set<Path> resolvedPaths = new HashSet<>();
-                        for (var req : lookupEdge.requires()) {
-                            // Only resolve requirements for the current field being processed
-                            if (req.fieldName() != null && !req.fieldName().equals(fieldName)) {
+                    // Get or create the response keys map for this lookup edge
+                    Map<String, String> reqResponseKeys = requireFieldResponseKeys.computeIfAbsent(
+                        lookupKey(lookupEdge, edgeEntryPath), k -> new HashMap<>());
+
+                    Set<Path> resolvedPaths = new HashSet<>();
+                    for (var req : lookupEdge.requires()) {
+                        // Only resolve requirements for the current field being processed
+                        if (req.fieldName() != null && !req.fieldName().equals(fieldName)) {
+                            continue;
+                        }
+                        for (Path fieldPath : req.extractPaths()) {
+                            // Skip if already resolved (another field might have triggered it)
+                            if (resolvedPaths.contains(fieldPath)) {
                                 continue;
                             }
-                            for (Path fieldPath : req.extractPaths()) {
-                                // Skip if already resolved (another field might have triggered it)
-                                if (resolvedPaths.contains(fieldPath)) {
-                                    continue;
-                                }
-                                resolvedPaths.add(fieldPath);
-                                // Use recursive resolution to find where to get this field
-                                List<String> reqParentPath = parentPath; // adjustPath handles lookup prefix stripping
-                                RequireFieldResolution resolution = resolved(resolveRequireField(
-                                    sourceSubgraph, sourceTypeName, fieldPath, reqParentPath, visitedForRequire),
-                                    fieldPath, sourceTypeName);
+                            resolvedPaths.add(fieldPath);
+                            // Use recursive resolution to find where to get this field
+                            List<String> reqParentPath = parentPath; // adjustPath handles lookup prefix stripping
+                            RequireFieldResolution resolution = resolved(resolveRequireField(
+                                sourceSubgraph, sourceTypeName, fieldPath, reqParentPath, visitedForRequire),
+                                fieldPath, sourceTypeName);
 
-                                if (resolution != null) {
-                                    reqResponseKeys.putAll(resolution.fieldToResponseKey());
+                            if (resolution != null) {
+                                reqResponseKeys.putAll(resolution.fieldToResponseKey());
 
-                                    // Add dependency from target to where the require was resolved
-                                    addPlanDependency(targetPlan, resolution.plan());
-                                }
+                                // Add dependency from target to where the require was resolved
+                                addPlanDependency(targetPlan, resolution.plan());
                             }
                         }
+                    }
 
-                        // Add @require field arguments
-                        for (Requirement req : lookupEdge.requires()) {
-                            if (req.fieldName() == null || req.fieldName().equals(fieldName)) {
-                                List<String> adjustedFieldPath = new ArrayList<>();
-                                if (targetPlan.lookupEntryPath != null) {
-                                    if (parentPath.size() >= targetPlan.lookupEntryPath.size()) {
-                                        adjustedFieldPath = new ArrayList<>(
-                                            parentPath.subList(targetPlan.lookupEntryPath.size(), parentPath.size()));
-                                    }
-                                } else {
-                                    adjustedFieldPath = new ArrayList<>(parentPath);
+                    // Add @require field arguments
+                    for (Requirement req : lookupEdge.requires()) {
+                        if (req.fieldName() == null || req.fieldName().equals(fieldName)) {
+                            List<String> adjustedFieldPath = new ArrayList<>();
+                            if (targetPlan.lookupEntryPath != null) {
+                                if (parentPath.size() >= targetPlan.lookupEntryPath.size()) {
+                                    adjustedFieldPath = new ArrayList<>(
+                                        parentPath.subList(targetPlan.lookupEntryPath.size(), parentPath.size()));
                                 }
-                                adjustedFieldPath.add(fieldName);
-                                SelectedValue transformedSelection = transformSelectionWithResponseKeys(
-                                    req.selection(), reqResponseKeys);
-                                String variable = targetPlan.addRequirementVariable(req.argumentName(),
-                                    transformedSelection, req.argumentType());
-                                targetPlan.addFieldArgument(adjustedFieldPath, req.argumentName(), variable);
+                            } else {
+                                adjustedFieldPath = new ArrayList<>(parentPath);
                             }
+                            adjustedFieldPath.add(fieldName);
+                            SelectedValue transformedSelection = transformSelectionWithResponseKeys(
+                                req.selection(), reqResponseKeys);
+                            String variable = targetPlan.addRequirementVariable(req.argumentName(),
+                                transformedSelection, req.argumentType());
+                            targetPlan.addFieldArgument(adjustedFieldPath, req.argumentName(), variable);
                         }
                     }
                 }
