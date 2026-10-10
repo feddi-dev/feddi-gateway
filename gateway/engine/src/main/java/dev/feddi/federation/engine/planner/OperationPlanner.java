@@ -1747,7 +1747,8 @@ public final class OperationPlanner {
 
         // Lookup origin tracking (for dependent subgraphs entered via @lookup)
         String lookupFieldName;                     // e.g., "productById"
-        String lookupTargetType;                    // the lookup's return type, e.g. "Book"
+        String lookupTargetType;                    // the entity type the lookup resolves, e.g. "Book"
+        String lookupReturnType;                    // the lookup field's type: lookupTargetType or an abstract type
         List<LookupArgument> lookupArguments;  // Key fields with argument info
         List<String> lookupEntryPath;               // The parentPath when we entered via lookup
 
@@ -1784,6 +1785,7 @@ public final class OperationPlanner {
          */
         void setLookupOrigin(LookupMoveEdge lookupEdge, List<String> entryPath) {
             this.lookupTargetType = lookupEdge.target().typeName();
+            this.lookupReturnType = lookupEdge.returnType();
             this.lookupFieldName = lookupEdge.lookupField();
             this.lookupArguments = lookupEdge.lookupArguments();
             this.lookupEntryPath = new ArrayList<>(entryPath);
@@ -2168,6 +2170,15 @@ public final class OperationPlanner {
                         .build());
                 }
 
+                if (!lookupTargetType.equals(lookupReturnType)) {
+                    // The lookup returns an interface or union: select the entity type's fields
+                    innerSelectionSet = SelectionSet.newSelectionSet()
+                        .selection(InlineFragment.newInlineFragment()
+                            .typeCondition(TypeName.newTypeName(lookupTargetType).build())
+                            .selectionSet(innerSelectionSet)
+                            .build())
+                        .build();
+                }
                 Field lookupField = Field.newField()
                     .name(lookupFieldName)
                     .arguments(args)

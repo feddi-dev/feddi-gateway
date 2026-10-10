@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 54 planned by feddi, 53 with no more steps than Fusion, 44 with no more depth
+# 91 tests (4 with an invalid query), 56 planned by feddi, 55 with no more steps than Fusion, 46 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -96,10 +96,9 @@ OperationPlannerTests/Plan_Requirement_That_Cannot_Be_Inlined:
   fusionOperations: 2
   fusionDepth: 2
 OperationPlannerTests/Plan_Simple_Interface_Lookup:
-  status: "composition: SATISFIABILITY_ERROR: Field 'Product.price' cannot be resolved\
-    \ from Product/a. No path exists in the planning graph to resolve this field."
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 2
+  depth: 2
   fusionOperations: 2
   fusionDepth: 2
 OperationPlannerTests/Plan_Simple_Lookup:
@@ -115,10 +114,9 @@ OperationPlannerTests/Plan_Simple_Requirement:
   fusionOperations: 2
   fusionDepth: 2
 OperationPlannerTests/Plan_Simple_Union_Lookup:
-  status: "composition: SATISFIABILITY_ERROR: Field 'Product.price' cannot be resolved\
-    \ from Product/a. No path exists in the planning graph to resolve this field."
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 2
+  depth: 2
   fusionOperations: 2
   fusionDepth: 2
 PlannerAdvancedAdaptationTests/Issues_Issue_190_Inline_Fragment:

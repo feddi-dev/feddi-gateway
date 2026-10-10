@@ -1,0 +1,44 @@
+name: "Abstract lookup"
+description: "Lookups that return an interface or union resolve its object types, also from subgraphs that do not define the abstract type."
+
+subgraphs:
+  catalog: |
+    type Query {
+      topProduct: Product
+      feed: [Node]
+      productById(id: ID!): Product @lookup @internal
+      articleById(id: ID!): Article @lookup @internal
+    }
+
+    interface Node {
+      id: ID!
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String!
+    }
+
+    type Article implements Node @key(fields: "id") {
+      id: ID!
+      title: String!
+    }
+
+  details: |
+    type Query {
+      node(id: ID!): Node @lookup
+    }
+
+    interface Node {
+      id: ID!
+    }
+
+    type Product implements Node @key(fields: "id") {
+      id: ID!
+      price: Float!
+    }
+
+    type Article implements Node @key(fields: "id") {
+      id: ID!
+      body: String!
+    }

@@ -3,6 +3,7 @@ package dev.feddi.federation.engine.graph;
 import dev.feddi.federation.engine.Constants;
 
 import dev.feddi.federation.engine.compose.Subgraph;
+import dev.feddi.federation.engine.parser.FieldSelectionMap;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.FieldSelectionSet;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectedValue;
 import dev.feddi.federation.engine.parser.FieldSelectionMapParser;
@@ -271,6 +272,8 @@ public final class GraphBuilder {
                 // Don't create a lookup edge to the same subgraph
                 if (sourceSubgraph.equals(lookup.subgraphName())) continue;
 
+                createAbstractLookupEdges(builder, lookup, targetSubgraph, subgraph, typeRequirements);
+
                 // Check if this subgraph has the target type (can be object, interface, or union)
                 GraphQLNamedType sourceType = (GraphQLNamedType) subgraph.schema()
                     .getType(targetTypeName);
@@ -302,7 +305,8 @@ public final class GraphBuilder {
                     targetNode,
                     LOOKUP_MOVE_COST,
                     lookupArguments,
-                    allRequirements
+                    allRequirements,
+                    targetTypeName
                 ));
 
                 // If the target type is an interface, also create edges to implementing types
@@ -326,7 +330,8 @@ public final class GraphBuilder {
                             implTargetNode,
                             LOOKUP_MOVE_COST,
                             lookupArguments,
-                            allRequirements
+                            allRequirements,
+                            targetTypeName
                         ));
                     }
                 } else if (targetType instanceof GraphQLUnionType unionType) {
@@ -345,7 +350,8 @@ public final class GraphBuilder {
                             memberTargetNode,
                             LOOKUP_MOVE_COST,
                             lookupArguments,
-                            allRequirements
+                            allRequirements,
+                            targetTypeName
                         ));
                     }
                 }
@@ -353,6 +359,63 @@ public final class GraphBuilder {
         }
     }
     
+    /**
+     * A lookup that returns an interface or union also resolves its object types: creates an edge from each of
+     * them that the source subgraph defines with the lookup's key fields (e.g. {@code Product} in a subgraph without
+     * {@code Node} to {@code node(id:)}). It costs a little more than a lookup that returns the type itself.
+     */
+    private void createAbstractLookupEdges(Graph.GraphBuilder builder, LookupInfo lookup, Subgraph targetSubgraph,
+                                           Subgraph sourceSubgraph,
+                                           Map<TypeSubgraphKey, List<Requirement>> typeRequirements) {
+        GraphQLSchema targetSchema = targetSubgraph.schema();
+        List<GraphQLObjectType> possibleTypes = switch (targetSchema.getType(lookup.targetTypeName())) {
+            case GraphQLInterfaceType interfaceType -> targetSchema.getImplementations(interfaceType);
+            case GraphQLUnionType unionType -> unionType.getTypes().stream()
+                .filter(GraphQLObjectType.class::isInstance)
+                .map(GraphQLObjectType.class::cast)
+                .toList();
+            case null, default -> List.of();
+        };
+        for (GraphQLObjectType possibleType : possibleTypes) {
+            String typeName = possibleType.getName();
+            if (!(sourceSubgraph.schema().getType(typeName) instanceof GraphQLObjectType sourceType)
+                || !hasLookupKeyFields(sourceType, lookup.lookupArguments())) {
+                continue;
+            }
+            builder.addEdge(new LookupMoveEdge(
+                lookup.fieldName(),
+                new Node(typeName, sourceSubgraph.name()),
+                new Node(typeName, targetSubgraph.name()),
+                LOOKUP_MOVE_COST + 1,
+                lookup.lookupArguments(),
+                typeRequirements.getOrDefault(new TypeSubgraphKey(typeName, targetSubgraph.name()), List.of()),
+                lookup.targetTypeName()
+            ));
+        }
+    }
+
+    /** Whether {@code type} has the first field of one alternative of every lookup argument. */
+    private static boolean hasLookupKeyFields(GraphQLObjectType type, List<LookupArgument> lookupArguments) {
+        for (LookupArgument argument : lookupArguments) {
+            boolean found = false;
+            for (FieldSelectionMap.Path path : argument.extractPaths()) {
+                if (path.hasInitialTypeCondition() && !path.initialTypeCondition().equals(type.getName())) {
+                    continue;
+                }
+                String firstField = path.segments().isEmpty()
+                    ? argument.argumentName() : path.segments().get(0).fieldName();
+                if (type.getFieldDefinition(firstField) != null) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Special subgraph name for the unified root nodes.
      * These nodes aggregate all Query/Mutation fields from all subgraphs.

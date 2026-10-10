@@ -13,6 +13,7 @@ import java.util.List;
  * @param cost the cost of this edge (typically higher than direct field access, e.g., 10)
  * @param lookupArguments the lookup arguments needed for the lookup (from @is mappings), with type info
  * @param requires the field requirements (from @require directive), with type info
+ * @param returnType the lookup field's return type: the target type, or an interface or union it belongs to
  */
 public record LookupMoveEdge(
     String lookupField,
@@ -20,7 +21,8 @@ public record LookupMoveEdge(
     Node target,
     int cost,
     List<LookupArgument> lookupArguments,
-    List<Requirement> requires
+    List<Requirement> requires,
+    String returnType
 ) implements Edge {
 
     public LookupMoveEdge {
@@ -38,6 +40,17 @@ public record LookupMoveEdge(
         }
         lookupArguments = lookupArguments == null ? List.of() : List.copyOf(lookupArguments);
         requires = requires == null ? List.of() : List.copyOf(requires);
+        if (returnType == null) {
+            returnType = target.typeName();
+        }
+    }
+
+    /**
+     * Creates a LookupMoveEdge whose lookup field returns the target type.
+     */
+    public LookupMoveEdge(String lookupField, Node source, Node target, int cost,
+                          List<LookupArgument> lookupArguments, List<Requirement> requires) {
+        this(lookupField, source, target, cost, lookupArguments, requires, null);
     }
 
     /**
