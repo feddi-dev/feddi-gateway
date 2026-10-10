@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 52 planned by feddi, 51 with no more steps than Fusion, 42 with no more depth
+# 91 tests (4 with an invalid query), 53 planned by feddi, 52 with no more steps than Fusion, 43 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -543,10 +543,9 @@ RequirementParityTests/Two_Same_Service_Calls_With_Different_Requirement_Args_Do
   fusionOperations: 5
   fusionDepth: 2
 RequirementReentrancyTests/Plan_Should_Inline_Separate_LookupRequirements_When_Targeting_Same_NodeBranch:
-  status: "invalid subgraph operation: step 1 (PRODUCTS): Validation error (FieldUndefined@[node/reviewAudience])\
-    \ : Field 'reviewAudience' in type 'Node' is undefined"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 3
+  depth: 2
   fusionOperations: 5
   fusionDepth: 3
 RequirementReentrancyTests/Plan_Should_Reenter_Catalog_When_EnteringFromRecommendation_Standalone:
@@ -556,15 +555,15 @@ RequirementReentrancyTests/Plan_Should_Reenter_Catalog_When_EnteringFromRecommen
   fusionOperations: 2
   fusionDepth: 2
 RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_ConcreteFragment_IsConditional:
-  status: "invalid subgraph operation: step 1 (PRODUCTS): Validation error (FieldUndefined@[node/reviewAudience])\
-    \ : Field 'reviewAudience' in type 'Node' is undefined"
+  status: "invalid subgraph operation: step 1 (PRODUCTS): Validation error (UndefinedVariable@[node])\
+    \ : Undefined variable 'include'"
   steps: 0
   depth: 0
   fusionOperations: 5
   fusionDepth: 4
 RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_Entry_Crosses_Required_Field:
-  status: "invalid subgraph operation: step 1 (PRODUCTS): Validation error (FieldUndefined@[node/reviewAudience])\
-    \ : Field 'reviewAudience' in type 'Node' is undefined"
+  status: "invalid subgraph operation: step 2 (REVIEWS): Validation error (FieldUndefined@[productById/reviews/author/name])\
+    \ : Field 'name' in type 'User' is undefined"
   steps: 0
   depth: 0
   fusionOperations: 5

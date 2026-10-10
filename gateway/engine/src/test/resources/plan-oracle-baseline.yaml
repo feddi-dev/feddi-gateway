@@ -1,6 +1,6 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 223 queries {composition failed=22, different data=4, feddi error=10, invalid query=4, planning failed=3, same data=180}
+# 223 queries {composition failed=22, different data=4, feddi error=9, invalid query=4, planning failed=3, same data=181}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "planning\
   \ failed"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
@@ -125,17 +125,15 @@ fusion/RequirementParityTests/Two_Fields_Same_Subgraph_Same_Requirement: "same d
 fusion/RequirementParityTests/Two_Same_Service_Calls_With_Args_Conflicts: "same data"
 fusion/RequirementParityTests/Two_Same_Service_Calls_With_Different_Requirement_Args_Do_Not_Merge: "composition\
   \ failed"
-fusion/RequirementReentrancyTests/Plan_Should_Inline_Separate_LookupRequirements_When_Targeting_Same_NodeBranch: "feddi\
-  \ error: Validation error (FieldUndefined@[node/reviewAudience]) : Field 'reviewAudience'\
-  \ in type 'Node' is undefined"
+fusion/RequirementReentrancyTests/Plan_Should_Inline_Separate_LookupRequirements_When_Targeting_Same_NodeBranch: "same\
+  \ data"
 fusion/RequirementReentrancyTests/Plan_Should_Reenter_Catalog_When_EnteringFromRecommendation_Standalone: "same\
   \ data"
 fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_ConcreteFragment_IsConditional: "feddi\
-  \ error: Validation error (FieldUndefined@[node/reviewAudience]) : Field 'reviewAudience'\
-  \ in type 'Node' is undefined"
+  \ error: Validation error (UndefinedVariable@[node]) : Undefined variable 'include'"
 fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_Entry_Crosses_Required_Field: "feddi\
-  \ error: Validation error (FieldUndefined@[node/reviewAudience]) : Field 'reviewAudience'\
-  \ in type 'Node' is undefined"
+  \ error: Validation error (MissingFieldArgument@[node]) : Missing field argument\
+  \ 'id'"
 fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Union_Entry_Crosses_Required_Field: "feddi\
   \ error: Validation error (FieldUndefined@[searchProduct/product]) : Field 'product'\
   \ in type 'SearchResult' is undefined"

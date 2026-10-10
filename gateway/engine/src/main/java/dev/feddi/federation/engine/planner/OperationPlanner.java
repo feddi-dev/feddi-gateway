@@ -673,7 +673,32 @@ public final class OperationPlanner {
             List<PathSegment> pathSegments = path.segments();
             InlineFragmentNode inlineFragment = null;  // Track if we're inside an inline fragment
             List<String> fragmentPath = null;          // Path within the inline fragment
-            String currentTypeName = startTypeName;    // Track current type for implementing type checks
+            // Track current type for implementing type checks. Without a start type, use the type the
+            // plan declares at this position, so a field that only a concrete type has (e.g. a key or
+            // requirement below an interface field) ends up in an inline fragment.
+            String declaredTypeName = subgraph.equals(plan.subgraph) ? plan.declaredTypeAt(parentPath, graph) : null;
+            String currentTypeName = startTypeName != null ? startTypeName : declaredTypeName;
+
+            // The entity is a concrete type below an abstract field (e.g. Product below node: Node):
+            // its fields go into an inline fragment on that type.
+            if (startTypeName != null && declaredTypeName != null && !startTypeName.equals(declaredTypeName)
+                && (graph.getInterfacesForType(startTypeName).contains(declaredTypeName)
+                    || graph.getUnionsForType(startTypeName).contains(declaredTypeName))) {
+                plan.addArtificialField(IntrospectionFields.TYPENAME, currentPath, false, FieldOrigin.ARTIFICIAL_KEY);
+                InlineFragmentNode fragment = plan.getOrCreateInlineFragment(currentPath, startTypeName, List.of());
+                List<String> fragPath = new ArrayList<>();
+                List<PathSegment> segments = path.segments();
+                for (int j = 0; j < segments.size(); j++) {
+                    boolean segHasChildren = j < segments.size() - 1;
+                    fragment.addFieldAtPath(null, segments.get(j).fieldName(), fragPath, segHasChildren,
+                        List.of(), List.of(), origin);
+                    fieldToResponseKey.put(segments.get(j).fieldName(), segments.get(j).fieldName());
+                    if (segHasChildren) {
+                        fragPath.add(segments.get(j).fieldName());
+                    }
+                }
+                return fieldToResponseKey;
+            }
 
             for (int i = 0; i < pathSegments.size(); i++) {
                 PathSegment segment = pathSegments.get(i);
@@ -723,6 +748,10 @@ public final class OperationPlanner {
                         implementingTypesWithField.addAll(concreteTypesWithField);
 
                         needsInlineFragments = !implementingTypesWithField.isEmpty();
+                        if (!needsInlineFragments) {
+                            // Not on this type nor its implementations (e.g. __typename): stop type checks
+                            currentTypeName = null;
+                        }
                     } else {
                         // Update current type to the field's target type for next iteration
                         currentTypeName = matchingEdge.get().target().typeName();
@@ -1819,6 +1848,31 @@ public final class OperationPlanner {
         /**
          * Adjusts a parent path by stripping the lookup entry path prefix if applicable.
          */
+        /**
+         * The type this plan declares at a response path: from the plan's root type (the lookup's
+         * return type, or the operation's root type) along the selection tree and the subgraph's
+         * fields. Null if a field on the way is not known.
+         */
+        String declaredTypeAt(List<String> parentPath, Graph graph) {
+            String type = lookupTargetType != null ? lookupTargetType
+                : operationType == OperationDefinition.Operation.MUTATION ? Constants.MUTATION : Constants.QUERY;
+            SelectionNode node = root;
+            for (String responseKey : adjustPath(parentPath)) {
+                SelectionNode child = node == null ? null : node.children.get(responseKey);
+                String fieldName = child != null ? child.fieldName : responseKey;
+                String current = type;
+                var edge = graph.fieldEdgesFrom(new Node(current, subgraph))
+                    .filter(e -> e.fieldName().equals(fieldName))
+                    .findFirst();
+                if (edge.isEmpty()) {
+                    return null;
+                }
+                type = edge.get().target().typeName();
+                node = child;
+            }
+            return type;
+        }
+
         private List<String> adjustPath(List<String> parentPath) {
             if (lookupEntryPath != null && parentPath.size() >= lookupEntryPath.size()) {
                 boolean prefixMatches = true;
