@@ -53,4 +53,7 @@ tasks.named('test') {
     def baseline = file('src/test/resources/fusion-planning/parity-baseline.yaml')
     systemProperty 'fusionParity.baseline', baseline.absolutePath
     systemProperty 'fusionParity.update', project.hasProperty('updateFusionParity')
+    // PlanExecutionOracleTest compares feddi's results with a monolith; -PupdatePlanOracle rewrites its baseline.
+    systemProperty 'planOracle.baseline', file('src/test/resources/plan-oracle-baseline.yaml').absolutePath
+    systemProperty 'planOracle.update', project.hasProperty('updatePlanOracle')
 }

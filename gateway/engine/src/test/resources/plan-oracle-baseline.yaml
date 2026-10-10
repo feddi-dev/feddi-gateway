@@ -1,0 +1,284 @@
+# feddi's result compared with a monolith for every planner fixture and imported Fusion
+# test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
+# 223 queries {composition failed=22, different data=13, feddi error=11, invalid query=4, planning failed=3, same data=170}
+fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "planning\
+  \ failed"
+? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
+: "feddi error: Validation error (FieldUndefined@[search/asset]) : Field 'asset' in\
+  \ type 'CandidateResult' is undefined"
+fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_Impossible_Concrete_Fragment_When_Parent_Is_Object: "planning\
+  \ failed"
+fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_InterfaceFragment_Is_In_NodeSelectionSet: "same\
+  \ data"
+fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_NodeSelectionSet_Has_No_Shared_Selections: "same\
+  \ data"
+fusion/EntityChainTests/Complex_Entity_Call: "composition failed"
+fusion/EntityChainTests/Parent_Entity_Call_Complex: "composition failed"
+fusion/InterfaceFieldOverridePlanningTests/Plan_Should_Keep_Owning_Branch_And_Route_Only_Diverged_Branch: "composition\
+  \ failed"
+fusion/InterfaceFieldOverridePlanningTests/Plan_Should_Spill_Interface_Field_When_Concrete_Ownership_Diverges: "composition\
+  \ failed"
+fusion/InterfaceLookupPlanningTests/Abstract_Customer_Interface_With_Email_Is_Plannable: "composition\
+  \ failed"
+fusion/LookupTests/Nested_Lookup: "feddi error: Validation error (FieldUndefined@[brandById])\
+  \ : Field 'brandById' in type 'Query' is undefined"
+fusion/LookupTests/Require_Inaccessible_Data: "same data"
+fusion/OperationPlannerTests/Plan_Key_Requirement: "feddi error: Validation error\
+  \ (MissingFieldArgument@[productById/sku]) : Missing field argument 'region'"
+fusion/OperationPlannerTests/Plan_Requirement_That_Cannot_Be_Inlined: "same data"
+fusion/OperationPlannerTests/Plan_Simple_Interface_Lookup: "composition failed"
+fusion/OperationPlannerTests/Plan_Simple_Lookup: "same data"
+fusion/OperationPlannerTests/Plan_Simple_Requirement: "same data"
+fusion/OperationPlannerTests/Plan_Simple_Union_Lookup: "composition failed"
+fusion/PlannerAdvancedAdaptationTests/Issues_Issue_190_Inline_Fragment: "same data"
+fusion/PlannerAdvancedAdaptationTests/Issues_Issue_190_With_Typename: "same data"
+fusion/PlannerAdvancedAdaptationTests/Issues_Issue_190_Without_Typename: "same data"
+fusion/PlannerAdvancedAdaptationTests/Issues_Issue_281: "feddi error: Validation error\
+  \ (FieldUndefined@[viewer/review/product]) : Field 'product' in type 'Review' is\
+  \ undefined"
+fusion/PlannerAdvancedAdaptationTests/Provides_Nested_Provides: "composition failed"
+fusion/PlannerAdvancedAdaptationTests/Provides_Simple_Provides: "same data"
+fusion/PlannerAdvancedAdaptationTests/Requires_Provides_Simple_Requires_Provides: "same\
+  \ data"
+fusion/PlannerAdvancedAdaptationTests/Union_Union_Member_Mix: "different data"
+fusion/PlannerAdvancedAdaptationTests/Union_Union_Overfetching_Test: "feddi error:\
+  \ Validation error (FieldUndefined@[review/product]) : Field 'product' in type 'Review'\
+  \ is undefined"
+fusion/PlannerBehaviorTests/Fragments_Fragment_Spread: "same data"
+fusion/PlannerBehaviorTests/Fragments_Simple_Inline_Fragment: "same data"
+fusion/PlannerBehaviorTests/Include_Skip_Basic_Include: "invalid query"
+fusion/PlannerBehaviorTests/Include_Skip_Basic_Skip: "same data"
+fusion/PlannerBehaviorTests/Include_Skip_Include_At_Root_Fetch: "invalid query"
+fusion/PlannerBehaviorTests/Include_Skip_Include_Fragment: "invalid query"
+fusion/PlannerBehaviorTests/Include_Skip_Include_Fragment_At_Root_Fetch: "invalid\
+  \ query"
+fusion/PlannerBehaviorTests/Mutations: "same data"
+fusion/PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph: "same data"
+fusion/PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph_Contiguous_Same_Service: "same\
+  \ data"
+fusion/PlannerBehaviorTests/Root_Types_Shared_Root: "composition failed"
+fusion/ProvidesPlannerTests/PlanOperation_Should_CoverOnlyMatchingUnionMember_When_ProvidesIsTypeConditioned: "different\
+  \ data"
+fusion/ProvidesPlannerTests/Planner_Should_Route_To_Owning_Source_When_Local_Field_Is_Orphan_External: "same\
+  \ data"
+fusion/ProvidesPlannerTests/Provides_Deeply_Nested_Chain: "planning failed"
+fusion/ProvidesPlannerTests/Provides_External_Without_Cover: "same data"
+fusion/ProvidesPlannerTests/Provides_On_Interface: "same data"
+fusion/ProvidesPlannerTests/Provides_Partial_Covers_Some: "same data"
+fusion/ProvidesPlannerTests/Provides_Shareable_Override: "same data"
+fusion/ProvidesPlannerTests/Provides_With_Requires_Interaction: "different data"
+fusion/RequirementArgumentTests/Fed_Audit_Requires_With_Argument_Conflict: "same data"
+fusion/RequirementArgumentTests/Multiple_Plain_Field_And_Requires_With_Args_That_Conflicts: "same\
+  \ data"
+fusion/RequirementArgumentTests/Multiple_Plain_Field_And_Requires_With_Args_That_Does_Not_Conflicts_Should_Merge: "same\
+  \ data"
+fusion/RequirementArgumentTests/Multiple_Requires_With_Args_That_Conflicts: "same\
+  \ data"
+fusion/RequirementArgumentTests/Plan_Should_Succeed_When_Require_Only_Input_Type_And_Upload_Scalar_Exist: "same\
+  \ data"
+fusion/RequirementArgumentTests/Requires_Arguments_Deeply_Nested_Requires: "same data"
+fusion/RequirementArgumentTests/Requires_Arguments_Deeply_Nested_Requires_With_Variable: "same\
+  \ data"
+fusion/RequirementArgumentTests/Requires_Arguments_Deeply_Nested_Requires_With_Variables_And_Fragments: "same\
+  \ data"
+fusion/RequirementArgumentTests/Requires_Arguments_Reentrant_Comments_Collides_With_Client_Comments: "composition\
+  \ failed"
+fusion/RequirementArgumentTests/Requires_With_Arguments: "different data"
+fusion/RequirementArgumentTests/Simple_Requires_Arguments: "same data"
+fusion/RequirementChainTests/Requires_Circular_1: "same data"
+fusion/RequirementChainTests/Requires_Circular_2: "feddi error: Validation error (MissingFieldArgument@[postById/byNovice])\
+  \ : Missing field argument 'yearsOfExperience'"
+fusion/RequirementChainTests/Requires_Requires_Many: "same data"
+fusion/RequirementChainTests/Requires_Requires_One: "same data"
+fusion/RequirementChainTests/Requires_Requires_Two_Fields_Same_Requirement_Different_Order: "same\
+  \ data"
+fusion/RequirementCrossEntityTests/Plan_Should_Keep_Requirement_And_Client_List_Field_Separate_When_Arguments_Differ: "composition\
+  \ failed"
+fusion/RequirementCrossEntityTests/Plan_Should_Reenter_Requiring_Schema_When_Requiring_Type_Has_Lookup: "composition\
+  \ failed"
+fusion/RequirementCrossEntityTests/Plan_Should_Resolve_Author_When_Require_Crosses_List_Entity_Boundary: "composition\
+  \ failed"
+fusion/RequirementCrossEntityTests/Plan_Should_Resolve_Author_When_Require_Uses_Input_Object_List_Form: "composition\
+  \ failed"
+fusion/RequirementCrossEntityTests/Plan_Should_Resolve_ByExpert_When_Circular_Require_Chains_Through_ByNovice: "composition\
+  \ failed"
+fusion/RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Both_Providers_Have_Author_Lookup: "composition\
+  \ failed"
+fusion/RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Require_Crosses_Entity_Boundary: "composition\
+  \ failed"
+fusion/RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Require_Is_Single_Provider: "same\
+  \ data"
+fusion/RequirementCrossEntityTests/Plan_Should_Resolve_NeedsFlag_When_Require_Is_Same_Entity_Direct_Field: "same\
+  \ data"
+fusion/RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice: "composition\
+  \ failed"
+? fusion/RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice_Next_To_Required_Parent
+: "composition failed"
+? fusion/RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice_Next_To_Required_Parent_Under_Interface
+: "composition failed"
+fusion/RequirementParityTests/Deep_Requires: "different data"
+fusion/RequirementParityTests/Keys_Mashup: "composition failed"
+fusion/RequirementParityTests/Requires_With_Fragments_On_Interfaces: "same data"
+fusion/RequirementParityTests/Simple_Requires: "same data"
+fusion/RequirementParityTests/Simplest_Requires: "same data"
+fusion/RequirementParityTests/Two_Fields_Same_Subgraph_Same_Requirement: "same data"
+fusion/RequirementParityTests/Two_Same_Service_Calls_With_Args_Conflicts: "same data"
+fusion/RequirementParityTests/Two_Same_Service_Calls_With_Different_Requirement_Args_Do_Not_Merge: "composition\
+  \ failed"
+fusion/RequirementReentrancyTests/Plan_Should_Inline_Separate_LookupRequirements_When_Targeting_Same_NodeBranch: "feddi\
+  \ error: Validation error (FieldUndefined@[node/reviewAudience]) : Field 'reviewAudience'\
+  \ in type 'Node' is undefined"
+fusion/RequirementReentrancyTests/Plan_Should_Reenter_Catalog_When_EnteringFromRecommendation_Standalone: "same\
+  \ data"
+fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_ConcreteFragment_IsConditional: "feddi\
+  \ error: Validation error (FieldUndefined@[node/reviewAudience]) : Field 'reviewAudience'\
+  \ in type 'Node' is undefined"
+fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_Entry_Crosses_Required_Field: "feddi\
+  \ error: Validation error (FieldUndefined@[node/reviewAudience]) : Field 'reviewAudience'\
+  \ in type 'Node' is undefined"
+fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Union_Entry_Crosses_Required_Field: "feddi\
+  \ error: Validation error (FieldUndefined@[searchProduct/product]) : Field 'product'\
+  \ in type 'SearchResult' is undefined"
+fusion/RequirementReentrancyTests/Plan_Should_StayInRecommendation_When_InnerProduct_Selects_OnlyId: "same\
+  \ data"
+fusion/RequirementTests/Plan_Simple_Operation_1_Source_Schema: "same data"
+fusion/RequirementTests/Requirement_Merged_Into_SelectionSet_With_Non_Lead_Field: "same\
+  \ data"
+? fusion/SupertypeNarrowingPlanningTests/Plan_Should_Preserve_Interface_And_Union_Supertype_Directives_When_Parent_Is_Concrete_Object
+: "different data"
+schemas/abstract_types/01_inline_fragment_all_fields_cross_subgraph: "different data"
+schemas/arguments_basic/01_single_argument: "same data"
+schemas/arguments_basic/02_multiple_arguments: "same data"
+schemas/arguments_basic/03_nested_field_arguments: "same data"
+schemas/arguments_basic/04_cross_subgraph_arguments: "same data"
+schemas/benchmark_heavy_query/01_heavy_query: "same data"
+schemas/circular_reference_interface/01_circular_product: "same data"
+schemas/complex_is_require/multiple_is_args: "same data"
+schemas/complex_is_require/orders_only: "same data"
+schemas/complex_is_require/require_list_selection: "same data"
+schemas/complex_is_require/require_path_prefixed_object: "same data"
+schemas/complex_nested/full_depth: "same data"
+schemas/complex_nested/orgs_only: "same data"
+schemas/complex_nested/orgs_to_projects: "same data"
+schemas/complex_nested/tasks_only: "same data"
+schemas/cyclic_graph/both_branches: "same data"
+schemas/cyclic_graph/orders_branch: "same data"
+schemas/cyclic_graph/reviews_branch: "same data"
+schemas/default_arguments/01_schema_default_used: "same data"
+schemas/default_arguments/02_schema_default_overridden: "same data"
+schemas/default_arguments/03_cross_subgraph_default: "same data"
+schemas/directive_preservation/01_skip_with_variable: "same data"
+schemas/directive_preservation/02_include_with_variable: "same data"
+schemas/directive_preservation/03_multiple_directives: "same data"
+schemas/external_extends_repeatable/01_root_and_lookup_same_subgraph: "same data"
+schemas/field_requirements/all_shipping_fields: "same data"
+schemas/field_requirements/catalog_only: "same data"
+schemas/field_requirements/complex_require: "same data"
+schemas/field_requirements/lookup_with_require: "same data"
+schemas/field_requirements/multiple_lookups: "same data"
+schemas/field_requirements/product_details_with_shipping: "same data"
+schemas/field_requirements/simple_key_lookup: "same data"
+schemas/fragments_comprehensive/01_same_subgraph_narrowing: "same data"
+schemas/fragments_comprehensive/02_cross_subgraph_narrowing: "same data"
+schemas/fragments_comprehensive/03_multiple_types_cross_subgraph: "same data"
+schemas/fragments_comprehensive/04_mixed_same_and_cross_subgraph: "same data"
+schemas/fragments_comprehensive/05_three_subgraphs: "same data"
+schemas/fragments_comprehensive/06_nested_cross_subgraph: "same data"
+schemas/fragments_comprehensive/07_concrete_type_start: "same data"
+schemas/fragments_comprehensive/08_named_fragment: "same data"
+schemas/fragments_comprehensive/09_interface_field_in_fragment: "same data"
+schemas/fragments_comprehensive/10_multiple_fragments_different_subgraphs: "same data"
+schemas/fragments_comprehensive/11_deeply_nested_fragments: "same data"
+schemas/fragments_comprehensive/12_type_widening: "same data"
+schemas/fragments_comprehensive/13_type_widening_cross_subgraph: "same data"
+schemas/fragments_comprehensive/14_external_key_field_in_nested: "same data"
+schemas/fragments_comprehensive/15_nested_field_in_cross_subgraph_fragment: "same\
+  \ data"
+schemas/fragments_comprehensive/16_deeply_nested_cross_subgraph_fragment: "same data"
+schemas/fragments_inline/01_simple_inline_fragment: "same data"
+schemas/fragments_inline/02_multiple_inline_fragments: "same data"
+schemas/fragments_inline/03_inline_fragment_cross_subgraph: "same data"
+schemas/fragments_inline/04_nested_inline_fragments: "same data"
+schemas/fragments_inline/05_inline_fragment_same_type: "same data"
+schemas/fragments_named/01_simple_named_fragment: "same data"
+schemas/fragments_named/02_fragment_reuse: "same data"
+schemas/fragments_named/03_nested_fragments: "same data"
+schemas/fragments_named/04_cross_subgraph_fragment: "same data"
+schemas/fragments_named/05_multiple_cross_subgraph_fragments: "same data"
+schemas/include_skip/01_skip_literal_true: "same data"
+schemas/include_skip/02_include_literal_false: "same data"
+schemas/include_skip/03_skip_literal_false: "same data"
+schemas/include_skip/04_include_literal_true: "same data"
+schemas/include_skip/05_skip_variable_preserved: "same data"
+schemas/include_skip/06_include_variable_preserved: "same data"
+schemas/input_objects/01_simple_input: "same data"
+schemas/input_objects/02_nested_input: "same data"
+schemas/input_objects/03_mutation_input: "same data"
+schemas/input_objects/04_cross_subgraph_input: "same data"
+schemas/interface_types/01_interface_fields_only: "same data"
+schemas/interface_types/02_widening_inside_narrowing: "same data"
+schemas/interface_types/03_widening_on_concrete_type: "same data"
+schemas/interface_types/04_widening_cross_subgraph: "same data"
+schemas/introspection/01_schema_introspection: "same data"
+schemas/introspection/02_type_introspection: "same data"
+schemas/introspection/03_mixed_introspection_data: "same data"
+schemas/is_require_advanced/01_alternatives_type_conditions: "different data"
+schemas/is_require_advanced/02_nested_lists: "feddi error: Can't resolve value (/podcastById/episodeIds[0])\
+  \ : type mismatch error, expected type LIST"
+schemas/is_require_advanced/03_require_type_conditions: "same data"
+schemas/is_require_advanced/04_require_infix_type_condition: "same data"
+schemas/is_require_advanced/08_multiple_infix_type_conditions: "same data"
+schemas/is_type_condition_alternatives/01_is_alternatives_type_conditions: "different\
+  \ data"
+schemas/keys_mashup/01_nested_entity_require: "different data"
+schemas/multi_subgraph_query/01_products_only: "same data"
+schemas/multi_subgraph_query/02_reviews_only: "same data"
+schemas/multi_subgraph_query/03_users_only: "same data"
+schemas/multi_subgraph_query/04_all_subgraphs: "same data"
+schemas/multiple_paths/all_pricing_fields: "same data"
+schemas/multiple_paths/inventory_only: "same data"
+schemas/multiple_paths/multiple_subgraphs: "same data"
+schemas/multiple_paths/price_field: "same data"
+schemas/mutation_basic/01_simple_mutation: "same data"
+schemas/mutation_basic/02_mutation_with_variables: "same data"
+schemas/mutation_basic/03_mutation_cross_subgraph: "same data"
+schemas/mutation_basic/04_mutation_in_reviews_subgraph: "same data"
+schemas/mutation_basic/05_mutation_returns_scalar: "same data"
+schemas/node_interface/01_product_node_name: "different data"
+schemas/null_keys/01_book_author: "same data"
+schemas/path_scoped_lookup_plans/01_same_lookup_edge_different_paths: "same data"
+schemas/path_scoped_lookup_plans/02_same_lookup_edge_with_require_different_paths: "same\
+  \ data"
+schemas/products_reviews/basic_lookup: "same data"
+schemas/products_reviews/complex_multi_dependency: "same data"
+schemas/products_reviews/local_fields_only: "same data"
+schemas/products_reviews/nested_review_fields: "same data"
+schemas/products_reviews/remote_fields_only: "same data"
+schemas/provides_basic/direct_price_lookup: "same data"
+schemas/provides_basic/provides_avoids_lookup: "same data"
+schemas/provides_basic/provides_with_non_provided_field: "same data"
+schemas/provides_on_union/01_media_with_titles: "different data"
+schemas/require_nested_nonentity/02_require_referencing_nested: "same data"
+schemas/require_object_alternatives/01_object_require_per_type: "same data"
+schemas/requires_requires/01_recursive_require_chain: "same data"
+schemas/single_subgraph/all_fields: "same data"
+schemas/single_subgraph/nested_profile: "same data"
+schemas/single_subgraph/partial_fields: "same data"
+schemas/typename/01_typename_on_union: "same data"
+schemas/typename/02_typename_on_interface: "same data"
+schemas/typename/03_typename_at_root: "same data"
+schemas/union_interface_distributed/01_products_with_warranty: "different data"
+schemas/union_lookup/01_single_subgraph_union: "same data"
+schemas/union_lookup/02_union_lookup_cross_subgraph: "same data"
+schemas/users_orders_fulfillment/multi_hop: "same data"
+schemas/users_orders_fulfillment/order_status_only: "same data"
+schemas/users_orders_fulfillment/users_and_orders: "same data"
+schemas/users_orders_fulfillment/users_only: "same data"
+schemas/variables_basic/01_single_id_variable: "same data"
+schemas/variables_basic/02_multiple_scalar_variables: "same data"
+schemas/variables_basic/03_optional_variable: "same data"
+schemas/variables_basic/04_required_variable: "same data"
+schemas/variables_basic/05_cross_subgraph_with_variables: "same data"
+schemas/variables_list/01_required_list: "same data"
+schemas/variables_list/02_optional_list: "same data"
+schemas/variables_list/03_multiple_list_variables: "same data"
