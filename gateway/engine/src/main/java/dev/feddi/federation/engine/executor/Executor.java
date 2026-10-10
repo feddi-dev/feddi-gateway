@@ -416,23 +416,25 @@ public final class Executor {
 
                         if (lookupReturnedNull) {
                             // Lookup returned null - set the expected fields to null
-                            // Synchronize: parallel steps may share the same context map
-                            synchronized (er.context()) {
+                            // One lock for all merges (root and lookup results are merged deeply, so they
+                            // can write to the same nested objects)
+                            synchronized (ctx) {
                                 for (String fieldName : nullFieldNames) {
                                     er.context().put(fieldName, null);
                                 }
                             }
                         } else {
-                            // Synchronize: parallel steps may share the same context map
-                            synchronized (er.context()) {
+                            // One lock for all merges (root and lookup results are merged deeply, so they
+                            // can write to the same nested objects)
+                            synchronized (ctx) {
                                 mergeIntoContext(er.context(), data);
                             }
                         }
                     } else {
                         // For skipped/failed entities (null result), set the expected fields to null
                         // This ensures the response shows null for fields that couldn't be fetched
-                        // Synchronize: parallel steps may share the same context map
-                        synchronized (er.context()) {
+                        // One lock for all merges, as above
+                        synchronized (ctx) {
                             for (String fieldName : nullFieldNames) {
                                 er.context().put(fieldName, null);
                             }
