@@ -1,6 +1,6 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 227 queries {composition failed=17, feddi error=3, invalid query=4, planning failed=4, same data=199}
+# 227 queries {composition failed=15, feddi error=3, invalid query=4, planning failed=5, same data=200}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "same\
   \ data"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
@@ -12,13 +12,13 @@ fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_W
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_NodeSelectionSet_Has_No_Shared_Selections: "same\
   \ data"
 fusion/EntityChainTests/Complex_Entity_Call: "planning failed"
-fusion/EntityChainTests/Parent_Entity_Call_Complex: "composition failed"
+fusion/EntityChainTests/Parent_Entity_Call_Complex: "planning failed"
 fusion/InterfaceFieldOverridePlanningTests/Plan_Should_Keep_Owning_Branch_And_Route_Only_Diverged_Branch: "same\
   \ data"
 fusion/InterfaceFieldOverridePlanningTests/Plan_Should_Spill_Interface_Field_When_Concrete_Ownership_Diverges: "same\
   \ data"
-fusion/InterfaceLookupPlanningTests/Abstract_Customer_Interface_With_Email_Is_Plannable: "composition\
-  \ failed"
+fusion/InterfaceLookupPlanningTests/Abstract_Customer_Interface_With_Email_Is_Plannable: "same\
+  \ data"
 fusion/LookupTests/Nested_Lookup: "feddi error: Validation error (FieldUndefined@[brandById])\
   \ : Field 'brandById' in type 'Query' is undefined"
 fusion/LookupTests/Require_Inaccessible_Data: "same data"

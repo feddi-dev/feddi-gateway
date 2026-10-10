@@ -86,8 +86,11 @@ public final class SchemaMerger {
         stripInternalFromRegistry(secondRegistry);
 
         // Merge the registries
-        TypeDefinitionRegistry mergedRegistry = mergeRegistries(firstRegistry, secondRegistry);
+        return buildMerged(mergeRegistries(firstRegistry, secondRegistry));
+    }
 
+    /** Removes what the public schema does not show from merged source registries, and builds it. */
+    private GraphQLSchema buildMerged(TypeDefinitionRegistry mergedRegistry) {
         // Remove @inaccessible types from the merged registry
         Set<String> removedTypes = removeInaccessibleTypes(mergedRegistry);
 
@@ -432,11 +435,15 @@ public final class SchemaMerger {
             return stripFederationDirectives(schemas.get(0));
         }
 
-        GraphQLSchema result = schemas.get(0);
-        for (int i = 1; i < schemas.size(); i++) {
-            result = merge(result, schemas.get(i));
+        // Merge all source schemas before building: an intermediate schema can be invalid (an interface
+        // field from one schema whose implementation only gets it from a later one)
+        TypeDefinitionRegistry merged = null;
+        for (GraphQLSchema schema : schemas) {
+            TypeDefinitionRegistry registry = toTypeDefinitionRegistry(normalizeRootTypes(schema));
+            stripInternalFromRegistry(registry);
+            merged = merged == null ? registry : mergeRegistries(merged, registry);
         }
-        return result;
+        return buildMerged(merged);
     }
 
     /**

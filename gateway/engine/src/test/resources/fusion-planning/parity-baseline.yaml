@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 63 planned by feddi, 61 with no more steps than Fusion, 52 with no more depth
+# 91 tests (4 with an invalid query), 64 planned by feddi, 62 with no more steps than Fusion, 53 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "ok"
   steps: 4
@@ -38,8 +38,7 @@ EntityChainTests/Complex_Entity_Call:
   fusionOperations: 3
   fusionDepth: 3
 EntityChainTests/Parent_Entity_Call_Complex:
-  status: "composition: NO_QUERIES: The merged schema must have at least one accessible\
-    \ Query field"
+  status: "planning: Cannot find path to resolve field: id"
   steps: 0
   depth: 0
   fusionOperations: 4
@@ -57,11 +56,9 @@ InterfaceFieldOverridePlanningTests/Plan_Should_Spill_Interface_Field_When_Concr
   fusionOperations: 2
   fusionDepth: 2
 InterfaceLookupPlanningTests/Abstract_Customer_Interface_With_Email_Is_Plannable:
-  status: "composition: SCHEMA_BUILD_ERROR: Failed to build merged schema: errors=[The\
-    \ object type 'de_Customer' [@-1:-1] does not have a field 'email' required via\
-    \ interface 'Customer"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 3
+  depth: 2
   fusionOperations: 3
   fusionDepth: 2
 LookupTests/Nested_Lookup:
