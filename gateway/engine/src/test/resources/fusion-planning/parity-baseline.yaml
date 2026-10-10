@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests, 49 planned by feddi, 48 with no more steps than Fusion, 39 with no more depth
+# 91 tests (10 with an invalid query), 47 planned by feddi, 46 with no more steps than Fusion, 37 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -123,7 +123,8 @@ OperationPlannerTests/Plan_Simple_Union_Lookup:
   fusionOperations: 2
   fusionDepth: 2
 PlannerAdvancedAdaptationTests/Issues_Issue_190_Inline_Fragment:
-  status: "planning: Cannot find path to resolve field: recommender"
+  status: "invalid query: Validation error (FieldUndefined@[recommender]) : Field\
+    \ 'recommender' in type 'Query' is undefined"
   steps: 0
   depth: 0
   fusionOperations: 1
@@ -193,7 +194,7 @@ PlannerBehaviorTests/Fragments_Simple_Inline_Fragment:
   fusionOperations: 4
   fusionDepth: 2
 PlannerBehaviorTests/Include_Skip_Basic_Include:
-  status: "invalid subgraph operation: step 2 (c): Validation error (VariableTypeMismatch@[productById/neverCalledInclude])\
+  status: "invalid query: Validation error (VariableTypeMismatch@[product/neverCalledInclude])\
     \ : Variable 'include' of type 'Boolean' used in position expecting type 'Boolean!'"
   steps: 0
   depth: 0
@@ -206,22 +207,24 @@ PlannerBehaviorTests/Include_Skip_Basic_Skip:
   fusionOperations: 3
   fusionDepth: 3
 PlannerBehaviorTests/Include_Skip_Include_At_Root_Fetch:
-  status: "invalid subgraph operation: step 1 (a): Validation error (VariableTypeMismatch@[product/price])\
+  status: "invalid query: Validation error (VariableTypeMismatch@[product/price])\
     \ : Variable 'include' of type 'Boolean' used in position expecting type 'Boolean!'"
   steps: 0
   depth: 0
   fusionOperations: 1
   fusionDepth: 1
 PlannerBehaviorTests/Include_Skip_Include_Fragment:
-  status: "ok"
-  steps: 3
-  depth: 3
+  status: "invalid query: Validation error (VariableTypeMismatch@[product]) : Variable\
+    \ 'include' of type 'Boolean' used in position expecting type 'Boolean!'"
+  steps: 0
+  depth: 0
   fusionOperations: 3
   fusionDepth: 3
 PlannerBehaviorTests/Include_Skip_Include_Fragment_At_Root_Fetch:
-  status: "ok"
-  steps: 1
-  depth: 1
+  status: "invalid query: Validation error (VariableTypeMismatch@[product]) : Variable\
+    \ 'include' of type 'Boolean' used in position expecting type 'Boolean!'"
+  steps: 0
+  depth: 0
   fusionOperations: 1
   fusionDepth: 1
 PlannerBehaviorTests/Mutations:
@@ -237,7 +240,8 @@ PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph:
   fusionOperations: 4
   fusionDepth: 1
 PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph_Contiguous_Same_Service:
-  status: "planning: No root node found for operation type 'Mutation'"
+  status: "invalid query: Validation error (UnknownOperation): The 'Mutation' operation\
+    \ is not supported by the schema"
   steps: 0
   depth: 0
   fusionOperations: 5
@@ -287,7 +291,8 @@ ProvidesPlannerTests/Provides_Partial_Covers_Some:
   fusionOperations: 3
   fusionDepth: 3
 ProvidesPlannerTests/Provides_Shareable_Override:
-  status: "planning: Cannot find path to resolve field: displayName"
+  status: "invalid query: Validation error (FieldUndefined@[products/reviews/author/displayName])\
+    \ : Field 'displayName' in type 'User' is undefined"
   steps: 0
   depth: 0
   fusionOperations: 1
@@ -323,7 +328,8 @@ RequirementArgumentTests/Multiple_Requires_With_Args_That_Conflicts:
   fusionOperations: 4
   fusionDepth: 2
 RequirementArgumentTests/Plan_Should_Succeed_When_Require_Only_Input_Type_And_Upload_Scalar_Exist:
-  status: "planning: Cannot find path to resolve field: products"
+  status: "invalid query: Validation error (FieldUndefined@[products]) : Field 'products'\
+    \ in type 'Query' is undefined"
   steps: 0
   depth: 0
   fusionOperations: 2
@@ -373,7 +379,8 @@ RequirementChainTests/Requires_Circular_1:
   fusionOperations: 2
   fusionDepth: 2
 RequirementChainTests/Requires_Circular_2:
-  status: "planning: Cannot find path to resolve field: feed"
+  status: "invalid query: Validation error (FieldUndefined@[feed]) : Field 'feed'\
+    \ in type 'Query' is undefined"
   steps: 0
   depth: 0
   fusionOperations: 4
@@ -503,7 +510,8 @@ RequirementParityTests/Keys_Mashup:
   fusionOperations: 4
   fusionDepth: 2
 RequirementParityTests/Requires_With_Fragments_On_Interfaces:
-  status: "planning: Cannot find path to resolve field: userFromA"
+  status: "invalid query: Validation error (FieldUndefined@[userFromA]) : Field 'userFromA'\
+    \ in type 'Query' is undefined"
   steps: 0
   depth: 0
   fusionOperations: 2

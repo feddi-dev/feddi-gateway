@@ -100,18 +100,21 @@ class FusionPlanParityTest {
     @AfterAll
     static void writeBaselineAndSummary() throws IOException {
         List<Outcome> planned = OUTCOMES.values().stream().filter(Outcome::planned).toList();
+        long invalidQueries = OUTCOMES.values().stream().filter(o -> o.status().startsWith("invalid query")).count();
         long fewerOrEqualSteps = planned.stream().filter(o -> o.steps() <= o.fusionOperations()).count();
         long sameOrLowerDepth = planned.stream().filter(o -> o.depth() <= o.fusionDepth()).count();
-        System.out.printf("Fusion plan parity: %d tests, %d planned by feddi, %d with no more steps than Fusion, "
-                + "%d with no more depth%n", OUTCOMES.size(), planned.size(), fewerOrEqualSteps, sameOrLowerDepth);
+        System.out.printf("Fusion plan parity: %d tests (%d with an invalid query), %d planned by feddi, %d with no "
+                + "more steps than Fusion, %d with no more depth%n", OUTCOMES.size(), invalidQueries, planned.size(),
+            fewerOrEqualSteps, sameOrLowerDepth);
 
         if (updating() && !OUTCOMES.isEmpty()) {
             Map<String, Object> document = new LinkedHashMap<>();
             OUTCOMES.forEach((id, outcome) -> document.put(id, outcome.toMap()));
             String header = "# feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest\n"
                 + "# (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.\n"
-                + String.format("# %d tests, %d planned by feddi, %d with no more steps than Fusion, %d with no more depth%n",
-                    OUTCOMES.size(), planned.size(), fewerOrEqualSteps, sameOrLowerDepth);
+                + String.format("# %d tests (%d with an invalid query), %d planned by feddi, %d with no more steps than "
+                    + "Fusion, %d with no more depth%n",
+                    OUTCOMES.size(), invalidQueries, planned.size(), fewerOrEqualSteps, sameOrLowerDepth);
             Files.writeString(baselinePath(), header + YAML.writeValueAsString(document).replaceFirst("^---\\n", ""));
         }
     }
@@ -146,13 +149,21 @@ class FusionPlanParityTest {
             return new Outcome("composition: " + firstLine(error), 0, 0, fusionOperations, fusionDepth);
         }
 
+        String query = Files.readString(dir.resolve("query.graphql"));
+        List<ValidationError> queryErrors = new Validator().validateDocument(composition.supergraph(),
+            new Parser().parseDocument(query), Locale.ENGLISH);
+        if (!queryErrors.isEmpty()) {
+            // Fusion's planner tests do not validate the query; a gateway rejects these requests.
+            return new Outcome("invalid query: " + firstLine(queryErrors.get(0).getMessage()), 0, 0,
+                fusionOperations, fusionDepth);
+        }
+
         ExecutionPlan plan;
         try {
             var normalizer = OperationNormalizer.builder(composition.supergraph())
                 .inlineFragments(true).deduplicateFields(true).sortSelections(false)
                 .processSkipInclude(true).build();
-            plan = new OperationPlanner(composition.graph()).plan(
-                Operation.parse(Files.readString(dir.resolve("query.graphql")), normalizer));
+            plan = new OperationPlanner(composition.graph()).plan(Operation.parse(query, normalizer));
         } catch (RuntimeException e) {
             return new Outcome("planning: " + message(e), 0, 0, fusionOperations, fusionDepth);
         }
