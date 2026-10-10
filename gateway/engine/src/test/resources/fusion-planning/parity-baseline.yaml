@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests, 47 planned by feddi, 46 with no more steps than Fusion, 37 with no more depth
+# 91 tests, 48 planned by feddi, 47 with no more steps than Fusion, 38 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -71,17 +71,16 @@ InterfaceLookupPlanningTests/Abstract_Customer_Interface_With_Email_Is_Plannable
   fusionOperations: 3
   fusionDepth: 2
 LookupTests/Nested_Lookup:
-  status: "composition: LOOKUP_RETURNS_NON_NULLABLE_TYPE: The @lookup field 'InternalLookups.brandById'\
-    \ in schema 'b' should return a nullable type."
+  status: "invalid subgraph operation: step 2 (b): Validation error (FieldUndefined@[brandById])\
+    \ : Field 'brandById' in type 'Query' is undefined"
   steps: 0
   depth: 0
   fusionOperations: 2
   fusionDepth: 2
 LookupTests/Require_Inaccessible_Data:
-  status: "composition: LOOKUP_RETURNS_NON_NULLABLE_TYPE: The @lookup field 'Query.brandById'\
-    \ in schema 'b' should return a nullable type."
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 2
+  depth: 2
   fusionOperations: 2
   fusionDepth: 2
 OperationPlannerTests/Plan_Key_Requirement:

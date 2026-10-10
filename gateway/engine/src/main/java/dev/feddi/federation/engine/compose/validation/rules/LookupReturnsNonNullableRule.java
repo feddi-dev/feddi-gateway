@@ -15,8 +15,8 @@ import java.util.List;
 import static dev.feddi.federation.engine.compose.FederationDirectives.LOOKUP;
 
 /**
- * Validates that @lookup fields return nullable types.
- * Lookup fields should return null when an entity is not found.
+ * Warns when a @lookup field returns a non-null type. Lookup fields should return null when an
+ * entity is not found; the spec gives this rule the severity WARNING, so composition continues.
  * 
  * Spec: https://graphql.github.io/composite-schemas-spec/draft/#sec-Lookup-Returns-Non-Nullable-Type
  */
@@ -64,7 +64,7 @@ public final class LookupReturnsNonNullableRule implements ValidationRule {
                         "The @lookup field '%s' in schema '%s' should return a nullable type.",
                         coordinate, schemaName
                     );
-                    builder.addError(CODE, message, coordinate, schemaName, LOOKUP);
+                    builder.addWarning(CODE, message, coordinate, schemaName);
                 }
             }
         }
