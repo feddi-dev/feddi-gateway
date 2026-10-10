@@ -21,23 +21,14 @@ query: |
 variables: {}
 
 subgraphCalls:
-  # Step 1: Just fetch product id (provides only adds external fields)
+  # products @provides the whole categories selection: one request
   - subgraph: category
-    operation: '{items:products{productId:id}}'
+    operation: '{items:products{productId:id productCategories:categories{catId:id catName:name subCats:subCategories{subCatId:id subCatName:name}}}}'
     variables: {}
     response: {
       data: {
-        items: [{ productId: "p1" }]
-      }
-    }
-
-  # Step 2: Fetch categories from subcategories subgraph
-  - subgraph: subcategories
-    operation: 'query ($id:ID!){productById(id:$id){productCategories:categories{catId:id catName:name subCats:subCategories{subCatId:id subCatName:name}}}}'
-    variables: { id: "p1" }
-    response: {
-      data: {
-        productById: {
+        items: [{
+          productId: "p1",
           productCategories: [
             {
               catId: "c1",
@@ -45,7 +36,7 @@ subgraphCalls:
               subCats: [{ subCatId: "sc1", subCatName: "Laptops" }]
             }
           ]
-        }
+        }]
       }
     }
 

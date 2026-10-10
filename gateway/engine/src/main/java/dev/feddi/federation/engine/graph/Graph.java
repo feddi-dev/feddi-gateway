@@ -166,7 +166,18 @@ public final class Graph {
      * @return the FieldSelectionSet provided by this edge, or empty selection set if none
      */
     public FieldSelectionSet getProvidedFields(FieldMoveEdge edge) {
-        return providesMap.getOrDefault(edge, new FieldSelectionSet(List.of()));
+        FieldSelectionSet provided = providesMap.get(edge);
+        if (provided == null && edge.source().subgraph().equals(dev.feddi.federation.engine.graph.GraphBuilder.ROOT_SUBGRAPH)) {
+            // A root field is reached from the unified root node; @provides is on the subgraph's own edge
+            for (var entry : providesMap.entrySet()) {
+                FieldMoveEdge own = entry.getKey();
+                if (own.fieldName().equals(edge.fieldName()) && own.target().equals(edge.target())
+                    && own.source().typeName().equals(edge.source().typeName())) {
+                    provided = entry.getValue();
+                }
+            }
+        }
+        return provided != null ? provided : new FieldSelectionSet(List.of());
     }
 
     /**

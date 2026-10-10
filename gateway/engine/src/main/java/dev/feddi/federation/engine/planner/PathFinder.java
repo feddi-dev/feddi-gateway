@@ -209,7 +209,7 @@ public final class PathFinder {
             List<SelectionItem> provided = graph.getProvidedFields(providing).items();
             for (int j = i + 1; j < edges.size() && provided != null; j++) {
                 provided = edges.get(j) instanceof FieldMoveEdge next
-                    && next.source().subgraph().equals(providing.source().subgraph())
+                    && next.source().subgraph().equals(providing.target().subgraph())
                     ? subSelection(provided, next.fieldName(), typeContext) : null;
             }
             if (provided == null || subSelection(provided, fieldName, typeContext) == null) {
