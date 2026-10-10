@@ -22,6 +22,25 @@ Fusion composes all of them, 9 failed to plan, 9 produced an invalid subgraph op
 `tools/planner-compare` on feddi's own fixtures (132 queries, 119 ran on both gateways): feddi sent more operations
 than Fusion for 17 queries and had more depth for 5; it was better in 1.
 
+## Status (2026-10-10, overnight run)
+
+| | v1 start | now |
+|---|---|---|
+| Fusion parity: tests planned (`FusionPlanParityTest`) | 47 of 91 | 53 of 91 (4 have invalid queries) |
+| Correct data vs monolith (`PlanExecutionOracleTest`) | 170 of 223 | 181 of 223 |
+
+Done: comparison tool, Fusion test import, parity and oracle tests, four composition rules aligned with the
+spec, lookups below a type condition only run for that type, entity fields below abstract fields go into inline
+fragments.
+
+Next, in order: (1) fields inside an inline fragment that resolve in another subgraph are still added to the
+fragment (wrong subgraph, bogus extra root step); a first fix is in `git stash` ("WIP planner-v2"), it still
+leaves an empty `author` selection when the fragment's type equals the lookup's type. (2) Requirements that need
+their own lookup (`comments[somethingElse]`). (3) Depth gaps against Fusion (sibling-aware subgraph choice).
+(4) Arguments in FieldSelectionMap (`price(withDiscount: true)`), nested lookups, lookups with extra arguments.
+feddi keeps rejecting `@require` fields from the requiring schema itself (spec: other schemas only; Fusion is
+more lenient there, 8 tests).
+
 ## Composition: aligning with the spec
 
 Fusion composes all of its tests; feddi rejected 26. Each deviation is checked against the spec text
