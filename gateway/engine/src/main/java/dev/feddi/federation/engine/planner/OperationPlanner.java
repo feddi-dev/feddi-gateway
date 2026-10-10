@@ -88,6 +88,7 @@ public final class OperationPlanner {
 
         // Collect all planning results, with query variable definitions for pass-through
         PlanningContext context = new PlanningContext(query.variableDefinitions(), operationType, graph);
+        collectClientFields(query.selections(), List.of(), context.clientFields);
 
         // Plan each top-level selection
         for (Selection selection : query.selections()) {
@@ -98,6 +99,26 @@ public final class OperationPlanner {
         return context.buildPlan();
     }
     
+    /**
+     * Records the arguments of each field the client selects, by response path and response key (inline fragments
+     * add no path), so that a field the planner adds itself does not merge with one the client selects with other
+     * arguments.
+     */
+    private static void collectClientFields(List<Selection> selections, List<String> parentPath,
+                                            Map<List<String>, Map<String, List<String>>> clientFields) {
+        for (Selection selection : selections) {
+            if (selection instanceof FieldSelection field) {
+                clientFields.computeIfAbsent(parentPath, k -> new HashMap<>())
+                    .putIfAbsent(field.responseKey(), PlanningContext.printedArguments(field.arguments()));
+                List<String> childPath = new ArrayList<>(parentPath);
+                childPath.add(field.responseKey());
+                collectClientFields(field.subSelections(), List.copyOf(childPath), clientFields);
+            } else if (selection instanceof InlineFragmentSelection fragment) {
+                collectClientFields(fragment.subSelections(), parentPath, clientFields);
+            }
+        }
+    }
+
     /**
      * Plans a single selection (field or inline fragment) recursively.
      *
@@ -449,6 +470,9 @@ public final class OperationPlanner {
 
         // Plans whose @require fields are being resolved (innermost first): plans waiting for them are no source
         private final Deque<SubgraphPlan> requirementTargets = new ArrayDeque<>();
+
+        // Arguments of the fields the client selects, by response path and response key
+        final Map<List<String>, Map<String, List<String>>> clientFields = new HashMap<>();
 
         // Fields added by the planner whose own @require arguments were processed ("planId|field")
         private final Set<String> requirementsOfAddedFields = new HashSet<>();
@@ -983,8 +1007,11 @@ public final class OperationPlanner {
                     fragmentPath.add(fieldName);
                 } else {
                     // Add field normally to the plan
+                    List<String> clientArguments = clientFields.getOrDefault(currentPath, Map.of()).get(fieldName);
+                    boolean clientUsesOtherArguments = clientArguments != null
+                        && !clientArguments.equals(printedArguments(segment.arguments()));
                     String responseKey = plan.addArtificialField(fieldName, segment.arguments(), currentPath,
-                        hasChildren, origin);
+                        hasChildren, origin, clientUsesOtherArguments);
                     fieldToResponseKey.put(segmentKey(segment), responseKey);
                     currentPath.add(responseKey);
                 }
@@ -1015,6 +1042,13 @@ public final class OperationPlanner {
             }
 
             return fieldToResponseKey;
+        }
+
+        static List<String> printedArguments(List<Argument> arguments) {
+            return arguments.stream()
+                .map(argument -> argument.getName() + ": " + AstPrinter.printAstCompact(argument.getValue()))
+                .sorted()
+                .toList();
         }
 
         /** Identifies a path segment's field in response key maps: its name, and its arguments if any. */
@@ -2143,7 +2177,7 @@ public final class OperationPlanner {
          * @return the response key where the value will be found (may be aliased)
          */
         String addArtificialField(String fieldName, List<String> parentPath, boolean hasChildren, FieldOrigin origin) {
-            return addArtificialField(fieldName, List.of(), parentPath, hasChildren, origin);
+            return addArtificialField(fieldName, List.of(), parentPath, hasChildren, origin, false);
         }
 
         /**
@@ -2152,7 +2186,7 @@ public final class OperationPlanner {
          * the artificial one gets an alias.
          */
         String addArtificialField(String fieldName, List<Argument> arguments, List<String> parentPath,
-                                  boolean hasChildren, FieldOrigin origin) {
+                                  boolean hasChildren, FieldOrigin origin, boolean alias) {
             // Adjust parentPath if we entered via lookup
             List<String> adjustedPath = adjustPath(parentPath);
 
@@ -2185,7 +2219,7 @@ public final class OperationPlanner {
 
             // Phase 2: Check for response key clash
             String effectiveAlias = null;
-            if (!arguments.isEmpty() || parent.hasChildWithResponseKey(fieldName)) {
+            if (alias || !arguments.isEmpty() || parent.hasChildWithResponseKey(fieldName)) {
                 // With arguments always aliased: a field the client selects later without them must not merge into it
                 // Different field has same response key - generate unique alias
                 effectiveAlias = generateUniqueAlias(fieldName, parent);
