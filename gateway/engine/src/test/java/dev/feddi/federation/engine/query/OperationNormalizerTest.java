@@ -998,6 +998,31 @@ class OperationNormalizerTest {
                 "{ animals { ... on Cat { color } ... on Dog { breed id } } }"
             );
         }
+
+        @Test
+        @DisplayName("Keeps @skip/@include of a redundant type condition, without the type condition")
+        void redundantTypeConditionKeepsDirectives() {
+            assertSimplifiedEquals(
+                "query($a: Boolean!) { dog { ... on Animal @include(if: $a) { id } } }",
+                "query($a: Boolean!) { dog { ... @include(if: $a) { id } } }"
+            );
+        }
+
+        @Test
+        @DisplayName("Keeps fragments with different directives apart, inside one narrowed to the parent type")
+        void conditionalWideningFragmentsStayApart() {
+            assertSimplifiedEquals(
+                """
+                query($a: Boolean!, $b: Boolean!) {
+                    dog {
+                        ... on Animal @include(if: $a) { id }
+                        ... on SearchResult @skip(if: $b) { ... on Dog { breed } }
+                    }
+                }
+                """,
+                "query($a: Boolean!, $b: Boolean!) { dog { ... @include(if: $a) { id } ... @skip(if: $b) { breed } } }"
+            );
+        }
     }
 
     // ==================== UNION TYPES ====================

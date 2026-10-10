@@ -21,6 +21,7 @@ import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectedValue;
 import dev.feddi.federation.engine.parser.FieldSelectionMapParser;
 import dev.feddi.federation.engine.parser.InvalidSyntaxException;
 import graphql.language.Argument;
+import graphql.language.AstPrinter;
 import graphql.language.Directive;
 import graphql.language.Field;
 import graphql.language.InlineFragment;
@@ -38,6 +39,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -2605,14 +2607,19 @@ public final class OperationPlanner {
                 .anyMatch(child -> responseKey.equals(child.responseKey()));
         }
 
+        private static List<String> printed(List<Directive> directives) {
+            return directives.stream().map(AstPrinter::printAstCompact).toList();
+        }
+
         /**
-         * Gets or creates an inline fragment node with the given type condition.
+         * Gets or creates an inline fragment node with the given type condition and directives.
          */
         InlineFragmentNode getOrCreateInlineFragment(String typeCondition, List<Directive> directives) {
-            // Look for existing inline fragment with same type condition
+            // Look for existing inline fragment with same type condition and directives
+            List<Directive> wanted = directives != null ? directives : List.of();
             for (InlineFragmentNode fragment : inlineFragments) {
-                if ((typeCondition == null && fragment.typeCondition == null) ||
-                    (typeCondition != null && typeCondition.equals(fragment.typeCondition))) {
+                if (Objects.equals(typeCondition, fragment.typeCondition)
+                    && printed(wanted).equals(printed(fragment.directives))) {
                     return fragment;
                 }
             }

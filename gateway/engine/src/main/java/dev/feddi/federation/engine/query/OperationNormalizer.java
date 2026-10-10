@@ -2,6 +2,7 @@ package dev.feddi.federation.engine.query;
 
 import graphql.Directives;
 import graphql.language.Argument;
+import graphql.language.AstPrinter;
 import graphql.language.BooleanValue;
 import graphql.language.Definition;
 import graphql.language.Directive;
@@ -312,9 +313,12 @@ public final class OperationNormalizer {
             ? inlineFragment.getTypeCondition().getName()
             : null;
 
-        // Determine the type context for children
+        boolean redundantTypeCondition = typeConditionName != null && currentType != null
+            && isTypeConditionRedundant(currentType, typeConditionName);
+
+        // Determine the type context for children (the parent's type if it is narrower than the condition)
         GraphQLCompositeType fragmentType;
-        if (typeConditionName != null) {
+        if (typeConditionName != null && !redundantTypeCondition) {
             GraphQLCompositeType resolved = getCompositeType(typeConditionName);
             fragmentType = resolved != null ? resolved : currentType;
         } else {
@@ -327,17 +331,20 @@ public final class OperationNormalizer {
         );
 
         // Type condition simplification: unwrap if redundant
-        if (typeConditionName != null && currentType != null
-                && isTypeConditionRedundant(currentType, typeConditionName)) {
+        if (redundantTypeCondition && inlineFragment.getDirectives().isEmpty()) {
             if (normalizedChildren != null) {
                 for (Selection<?> child : normalizedChildren.getSelections()) {
                     output.add(child);
                 }
             }
         } else {
-            InlineFragment result = inlineFragment.transform(builder ->
-                builder.selectionSet(normalizedChildren)
-            );
+            // A redundant type condition is dropped; the fragment stays for its directives (@skip, @include)
+            InlineFragment result = inlineFragment.transform(builder -> {
+                builder.selectionSet(normalizedChildren);
+                if (redundantTypeCondition) {
+                    builder.typeCondition(null);
+                }
+            });
 
             if (sortSelections) {
                 List<Directive> sortedDirs = sortDirectiveList(result.getDirectives());
@@ -712,9 +719,14 @@ public final class OperationNormalizer {
         return field.getAlias() != null ? field.getAlias() : field.getName();
     }
 
+    /** Fragments merge when their type conditions and their directives (@skip, @include) are the same. */
     private String getTypeKey(InlineFragment fragment) {
         TypeName typeCondition = fragment.getTypeCondition();
-        return typeCondition != null ? typeCondition.getName() : "";
+        StringBuilder key = new StringBuilder(typeCondition != null ? typeCondition.getName() : "");
+        for (Directive directive : fragment.getDirectives()) {
+            key.append(' ').append(AstPrinter.printAstCompact(directive));
+        }
+        return key.toString();
     }
 
     private String getTypeConditionName(InlineFragment fragment) {
