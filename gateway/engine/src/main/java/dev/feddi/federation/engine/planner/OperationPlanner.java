@@ -1476,6 +1476,23 @@ public final class OperationPlanner {
          * Returns null if no plan exists.
          */
         private SubgraphPlan findExistingPlanForSubgraph(String subgraph, List<String> parentPath) {
+            // Prefer the most specific plan that already selects the object at the path: requirements of a nested
+            // object go to the plan that fetched it, not to a later lookup whose entry path is merely a prefix
+            SubgraphPlan containing = null;
+            int containingLength = -1;
+            for (var entry : subgraphPlans.entrySet()) {
+                SubgraphPlanKey key = entry.getKey();
+                if (key.subgraph().equals(subgraph) && !waitsForRequirementTarget(entry.getValue())
+                    && isPathPrefix(key.entryPath(), parentPath) && key.entryPath().size() > containingLength
+                    && entry.getValue().selectsPath(parentPath)) {
+                    containing = entry.getValue();
+                    containingLength = key.entryPath().size();
+                }
+            }
+            if (containing != null) {
+                return containing;
+            }
+
             SubgraphPlan rootPlan = null;
             SubgraphPlan bestLookupPlan = null;
             int bestLookupPathLength = -1;
@@ -2436,6 +2453,22 @@ public final class OperationPlanner {
                 candidate = base + "_" + counter;
             }
             return candidate;
+        }
+
+        /** Whether this plan's selection selects the object at {@code parentPath} (a response path). */
+        boolean selectsPath(List<String> parentPath) {
+            SelectionNode node = root;
+            for (String responseKey : adjustPath(parentPath)) {
+                SelectionNode child = node.children.get(responseKey);
+                if (child == null) {
+                    child = fragmentChild(node, responseKey);
+                }
+                if (child == null) {
+                    return false;
+                }
+                node = child;
+            }
+            return true;
         }
 
         /**

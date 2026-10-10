@@ -1,0 +1,69 @@
+name: "Requirements at several levels, with aliases"
+description: |
+  score at three levels (aliased n, s, nn): each Item gets its own weight and its own score lookup. The
+  requirement of topItem.n.nn is fetched where nn was selected (step 2), not in the later lookup at
+  topItem.n, which does not select nn.
+
+query: |
+  {
+    topItem {
+      score
+      n: next {
+        s: score
+        nn: next {
+          score
+        }
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: weights
+      operation: "{ topItem { id weight } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: graph
+      operation: "query($id: ID!, $weight: Int) { itemById(id: $id) { score(weight: $weight) n: next { id nn: next { id } } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+        weight: "weight"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: graph
+      operation: "query($id: ID!, $weight: Int) { itemById(id: $id) { s: score(weight: $weight) } }"
+      dependsOn: [4]
+      requirements:
+        id: "id"
+        weight: "weight"
+      repeatedExecution: true
+
+    - id: 4
+      subgraph: weights
+      operation: "query($id: ID!) { itemById(id: $id) { id weight } }"
+      dependsOn: [2]
+      requirements:
+        id: "id"
+      repeatedExecution: true
+
+    - id: 5
+      subgraph: graph
+      operation: "query($id: ID!, $weight: Int) { itemById(id: $id) { score(weight: $weight) } }"
+      dependsOn: [6]
+      requirements:
+        id: "id"
+        weight: "weight"
+      repeatedExecution: true
+
+    - id: 6
+      subgraph: weights
+      operation: "query($id: ID!) { itemById(id: $id) { id weight } }"
+      dependsOn: [2]
+      requirements:
+        id: "id"
+      repeatedExecution: true
