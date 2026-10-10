@@ -34,11 +34,13 @@ public final class Graph {
     private final Map<String, Set<String>> interfaceToImplementingTypes;
     // Maps type name to the unions it is a member of (across all subgraphs)
     private final Map<String, Set<String>> typeMemberOfUnions;
+    // Return types of @external fields per node ("Level1/a" -> level2 -> "Level2"), for fields reached via @provides
+    private final Map<Node, Map<String, String>> externalFieldTypes;
 
     private Graph(Set<Node> nodes, List<Edge> edges, Map<String, Node> rootNodes,
                   Map<FieldMoveEdge, FieldSelectionSet> providesMap, Map<String, Set<String>> typeImplementsInterfaces,
                   Map<String, Set<String>> interfaceToImplementingTypes,
-                  Map<String, Set<String>> typeMemberOfUnions) {
+                  Map<String, Set<String>> typeMemberOfUnions, Map<Node, Map<String, String>> externalFieldTypes) {
         this.nodes = Set.copyOf(nodes);
         this.edges = List.copyOf(edges);
         this.rootNodes = Map.copyOf(rootNodes);
@@ -46,6 +48,7 @@ public final class Graph {
         this.typeImplementsInterfaces = Map.copyOf(typeImplementsInterfaces);
         this.interfaceToImplementingTypes = Map.copyOf(interfaceToImplementingTypes);
         this.typeMemberOfUnions = Map.copyOf(typeMemberOfUnions);
+        this.externalFieldTypes = Map.copyOf(externalFieldTypes);
 
         // Build adjacency list for efficient edge lookup
         this.outgoingEdges = new HashMap<>();
@@ -150,6 +153,13 @@ public final class Graph {
         return nodes.contains(node);
     }
     
+    /**
+     * The named return type of an @external field of {@code source}, or null.
+     */
+    public String externalFieldType(Node source, String fieldName) {
+        return externalFieldTypes.getOrDefault(source, Map.of()).get(fieldName);
+    }
+
     /**
      * Gets the FieldSelectionSet provided by a field edge via @provides directive.
      * @param edge the field edge to check
@@ -291,8 +301,17 @@ public final class Graph {
         private final Map<String, Set<String>> typeImplementsInterfaces = new HashMap<>();
         private final Map<String, Set<String>> interfaceToImplementingTypes = new HashMap<>();
         private final Map<String, Set<String>> typeMemberOfUnions = new HashMap<>();
+        private final Map<Node, Map<String, String>> externalFieldTypes = new HashMap<>();
 
         private GraphBuilder() {}
+
+        /**
+         * Records the (named) return type of an @external field, which has no field edge.
+         */
+        public GraphBuilder addExternalFieldType(Node source, String fieldName, String typeName) {
+            externalFieldTypes.computeIfAbsent(source, k -> new HashMap<>()).put(fieldName, typeName);
+            return this;
+        }
         
         /**
          * Adds a node to the graph.
@@ -426,7 +445,7 @@ public final class Graph {
                 }
             }
             return new Graph(nodes, edges, rootNodes, providesMap, typeImplementsInterfaces,
-                interfaceToImplementingTypes, typeMemberOfUnions);
+                interfaceToImplementingTypes, typeMemberOfUnions, externalFieldTypes);
         }
     }
 }

@@ -237,6 +237,10 @@ public final class GraphBuilder {
         boolean isExternal = field.hasAppliedDirective(EXTERNAL)
             || overridden.contains(subgraphName + "|" + parentTypeName + "|" + field.getName());
 
+        if (field.hasAppliedDirective(EXTERNAL)) {
+            builder.addExternalFieldType(sourceNode, field.getName(), targetTypeName);
+        }
+
         // Create FieldMoveEdge for this field (unless it's @external)
         if (!isExternal) {
             if (GraphQLTypeUtil.isLeaf(fieldType)) {

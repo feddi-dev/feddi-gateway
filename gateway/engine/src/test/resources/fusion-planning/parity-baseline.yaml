@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 70 planned by feddi, 67 with no more steps than Fusion, 58 with no more depth
+# 91 tests (4 with an invalid query), 71 planned by feddi, 68 with no more steps than Fusion, 59 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "ok"
   steps: 4
@@ -248,9 +248,9 @@ ProvidesPlannerTests/Planner_Should_Route_To_Owning_Source_When_Local_Field_Is_O
   fusionOperations: 2
   fusionDepth: 2
 ProvidesPlannerTests/Provides_Deeply_Nested_Chain:
-  status: "planning: Cannot find path to resolve field: level3"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 1
+  depth: 1
   fusionOperations: 1
   fusionDepth: 1
 ProvidesPlannerTests/Provides_External_Without_Cover:

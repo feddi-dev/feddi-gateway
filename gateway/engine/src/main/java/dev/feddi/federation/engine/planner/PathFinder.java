@@ -7,6 +7,9 @@ import dev.feddi.federation.engine.graph.FieldMoveEdge;
 import dev.feddi.federation.engine.graph.Graph;
 import dev.feddi.federation.engine.graph.LookupMoveEdge;
 import dev.feddi.federation.engine.graph.Node;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.FieldSelection;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.InlineFragment;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectionItem;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.Path;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectedValue;
@@ -189,29 +192,57 @@ public final class PathFinder {
         List<OperationPath> result = new ArrayList<>();
         Node currentNode = currentPath.tail();
         String typeContext = currentPath.typeContext();
+        List<Edge> edges = currentPath.getEdges();
 
-        // Check if any edge in the path provides this field
-        for (Edge edge : currentPath.getEdges()) {
-            if (edge instanceof FieldMoveEdge fieldEdge) {
-                // Check if this edge provides the field we're looking for
-                // Pass typeContext to handle inline fragments with type conditions
-                if (graph.providesField(fieldEdge, fieldName, typeContext)) {
-                    // The field is provided - check if we're at the right target node
-                    if (fieldEdge.target().equals(currentNode)) {
-                        // Create a synthetic field edge for the provided field (self-referential for scalars)
-                        FieldMoveEdge providedFieldEdge = new FieldMoveEdge(
-                            fieldName, currentNode, currentNode, 1
-                        );
-                        OperationPath newPath = currentPath.advance(providedFieldEdge);
-                        result.add(newPath);
-                    }
-                }
+        // A field edge with @provides makes its selection available below it: follow the fields after it on the
+        // path through that selection (level1 @provides "level2 { level3 { value } }" provides value below
+        // level1.level2.level3), staying in the same subgraph.
+        for (int i = 0; i < edges.size(); i++) {
+            if (!(edges.get(i) instanceof FieldMoveEdge providing)) {
+                continue;
             }
+            List<SelectionItem> provided = graph.getProvidedFields(providing).items();
+            for (int j = i + 1; j < edges.size() && provided != null; j++) {
+                provided = edges.get(j) instanceof FieldMoveEdge next
+                    && next.source().subgraph().equals(providing.source().subgraph())
+                    ? subSelection(provided, next.fieldName(), typeContext) : null;
+            }
+            if (provided == null || subSelection(provided, fieldName, typeContext) == null) {
+                continue;
+            }
+            // A provided field leads to its type's node (external fields have no edge of their own)
+            String externalType = graph.externalFieldType(new Node(currentNode.typeName(), currentNode.subgraph()), fieldName);
+            Node target = externalType != null && !subSelection(provided, fieldName, typeContext).isEmpty()
+                ? new Node(externalType, currentNode.subgraph()) : currentNode;
+            result.add(currentPath.advance(new FieldMoveEdge(fieldName, currentNode, target, 1)));
+            break;
         }
 
         return result;
     }
-    
+
+    /** The sub-selection of a field in a provided selection (also inside matching fragments), or null. */
+    private static List<SelectionItem> subSelection(List<SelectionItem> items, String fieldName, String typeContext) {
+        for (SelectionItem item : items) {
+            switch (item) {
+                case FieldSelection field -> {
+                    if (field.fieldName().equals(fieldName)) {
+                        return field.subSelections();
+                    }
+                }
+                case InlineFragment fragment -> {
+                    if (typeContext == null || fragment.typeName().equals(typeContext)) {
+                        List<SelectionItem> nested = subSelection(fragment.selections(), fieldName, typeContext);
+                        if (nested != null) {
+                            return nested;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     /**
      * Finds indirect paths to a field via lookup edges.
      * Uses BFS-style exploration with cycle prevention.
