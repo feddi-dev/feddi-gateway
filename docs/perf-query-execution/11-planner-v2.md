@@ -22,35 +22,55 @@ Fusion composes all of them, 9 failed to plan, 9 produced an invalid subgraph op
 `tools/planner-compare` on feddi's own fixtures (132 queries, 119 ran on both gateways): feddi sent more operations
 than Fusion for 17 queries and had more depth for 5; it was better in 1.
 
-## Status (2026-10-10)
+## Status (2026-10-10, evening): all Fusion planner tests green
 
 | | v1 start | overnight run | now |
 |---|---|---|---|
-| Fusion parity: tests planned (`FusionPlanParityTest`) | 47 of 91 | 53 of 91 | 58 of 91 (4 have invalid queries) |
-| Correct data vs monolith (`PlanExecutionOracleTest`) | 170 of 223 | 181 of 223 | 194 of 227 |
-| Wrong data without an error (oracle "different data") | | 4 | 0 |
+| Fusion planner tests planned with the monolith's data | 47 of 91 planned, data unchecked | 53 | **72 of 91** |
+| Fusion planner tests rejected for a spec reason | | | **19 of 91** (`fusion-planning/spec-rejections.yaml`) |
+| Correct data vs monolith (`PlanExecutionOracleTest`, all fixtures) | 170 of 223 | 181 of 223 | 213 of 232 (the rest: the 19 rejections) |
+| Wrong data without an error | | 4 | 0 (now also checking `@require` values) |
+| Planned with no more steps / depth than Fusion | | | 69 / 60 of 72 |
 
-Done: comparison tool, Fusion test import, parity and oracle tests, four composition rules aligned with the
-spec, lookups below a type condition only run for that type, entity fields below abstract fields go into inline
-fragments. Since the overnight run:
+`FusionTestsGreenTest` fails unless every imported Fusion test is either planned with the monolith's data or
+rejected with the reason listed in `spec-rejections.yaml`. Fusion's tests do not validate their inputs; the 19
+rejections are invalid queries (a nullable variable for `@include(if: Boolean!)`; valid variants are checked
+instead), an undeclared directive argument, paths only satisfiable through `@provides`, a missing required
+argument in a FieldSelectionMap, an unused `@external` field, and `@require` paths whose fields exist only in the
+requiring schema.
 
-- Fields in an inline fragment that resolve in another subgraph go to that subgraph's plan; their lookup keys are
-  selected inside the fragment, and lookup steps carry the type conditions along their entity path
-  (`ExecutionStep.entityPathTypes`), so `... on UserReview { product { x } }` only looks up UserReview products.
-- Lookups that return an interface or union (`node(id:): Node`) resolve the types that implement it, also from
-  subgraphs without the abstract type; the step selects the type's fields in `... on Product`.
-- `@skip`/`@include` on a fragment with a redundant type condition are kept (they were dropped, so the fields were
-  always selected); variables used only inside fragments are declared in the subgraph operation.
-- Requirements like `comments[authorId]`, whose leaf needs a lookup per list item, are resolved; a requirement
-  that cannot be resolved fails planning instead of running the step without its value.
+What changed for that, roughly in order (each a commit with numbers):
 
-Next, in order: (1) `@provides` for requirements (`Provides_With_Requires_Interaction` now fails planning).
-(2) "Cannot find path" for fields below duplicate or impossible type fragments (2 tests). (3) Nested lookups
-(`lookups { brandById }`), lookups with extra arguments, key requirements (`Plan_Key_Requirement`,
-`Requires_Circular_2`). (4) Step and depth gaps against Fusion: equal lookups of several union members are not
-merged (13 steps vs 6 in one test), sibling-aware subgraph choice. (5) Arguments in FieldSelectionMap
-(`price(withDiscount: true)`). feddi keeps rejecting `@require` fields from the requiring schema itself (spec:
-other schemas only; Fusion is more lenient there, 8 tests).
+- **Planner**: per-child path choice (a field is selected in several subgraphs when its children need it,
+  e.g. a shared root field); fields of abstract types per possible type when the abstract type cannot resolve
+  them as a whole; lookups returning interfaces/unions; nested lookups (`Query.lookups.brandById`); lookup keys
+  from other subgraphs; requirements below lists (`comments[authorId]`) and of fields the planner adds itself;
+  FieldSelectionMap arguments (`price(withDiscount: true)`, aliased apart from the client's fields, own
+  variables); `@override`; `@provides` at any depth; fragments inside lookup steps; type conditions along entity
+  paths (`ExecutionStep.entityPathTypes`) and for requirements (`ExecutionStep.possibleTypes`).
+- **Executor**: deep merge of step results (one lock); requirement reading moved to `RequirementReader`.
+- **Composition**: satisfiability as the spec specifies it (per query path, `UNSATISFIABLE_QUERY_PATH`); all
+  source schemas merged before building; FieldSelectionMap argument validity and fields on the type in scope;
+  `@override` exempt from field sharing.
+- **Oracle**: the mock keeps an entity's type across lookups, picks abstract results per field, and checks every
+  `@require` argument value against the required data.
+
+Open (not needed for green, plan quality only): Fusion batches equal lookups of several type branches into one
+operation (`Plan_Should_Merge_Nested_Lookups_Across_Union_Members...`: 13 steps vs 6); 12 plans are deeper than
+Fusion's.
+
+## Spec readings
+
+Where the draft (graphql/composite-schemas-spec at e5ce483, 2026-10-04) is ambiguous, feddi reads it as follows
+(also documented on `SatisfiabilityValidationRule`):
+
+- `ResolveRequirements` restricts candidates to the schemas other than the requiring one and passes that set on
+  to `IsReachable`. Taken literally, a lookup's own key (the `id` of the entity the path is on) could then not
+  come from the requiring schema either, which makes almost every requirement unsatisfiable, including the
+  draft's examples. feddi restricts only the required fields; lookup inputs may come from any schema.
+- `CollectExecutablePaths` walks into every possible type of an abstract field in the composite schema. A type
+  that only another schema adds to the union (Fusion's `Union_Union_Member_Mix`) is no executable path from a
+  schema whose field cannot return it; feddi walks into a possible type only from schemas that can return it.
 
 ## Composition: aligning with the spec
 
@@ -71,10 +91,21 @@ Fusion composes all of its tests; feddi rejected 26. Each deviation is checked a
   (`INVALID_FIELD_SHARING`). Before, feddi accepted lookup fields like `Query.productById` in several subgraphs
   without `@shareable`. Fix: add `@shareable` to every definition, or `@internal` to the ones that only serve
   entity resolution (like the benchmark's Reviews and Inventory subgraphs do).
+- **Satisfiability errors use the spec's code `UNSATISFIABLE_QUERY_PATH`** (was `SATISFIABILITY_ERROR`) and name
+  the failing query path. The check follows the spec: it accepts schemas the old check rejected (e.g. a shared
+  root field whose schemas each resolve different fields), and rejects paths that only `@provides` makes
+  satisfiable.
+- **FieldSelectionMap paths (`@require`, `@is`) must select fields defined on the type in scope.** A field that
+  only an interface's implementations or a union's members define needs a type condition (`data<Bar>.bar`,
+  `<Product>.id | <Category>.id`). Arguments in paths are now supported and validated (required arguments must
+  be given).
 - Non-null `@lookup` fields compose with a warning instead of failing.
 - Types that are unreachable from a source schema's root types compose with a warning instead of failing.
 
 ## Open questions for Andi
+
+- The two spec readings above (requirements and lookup inputs; possible types of abstract fields). Both could
+  be raised upstream as clarifications of the draft.
 
 - `composition/errors/lookup_does_not_imply_shareable.yaml` (June) asserted that a lookup does not make fields
   shareable. Spec PR #224 (July 9) added that keys may be inferred from lookup arguments, and Fusion treats such
