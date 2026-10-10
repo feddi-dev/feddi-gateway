@@ -113,6 +113,16 @@ class PlanExecutionOracleTest {
         List<Composer.SubgraphInput> inputs = new ArrayList<>();
         YAML.readTree(c.schemaFile().toFile()).path("subgraphs").properties()
             .forEach(e -> inputs.add(Composer.SubgraphInput.of(e.getKey(), e.getValue().asText())));
+        return check(c.id(), inputs, c.query(), c.variables());
+    }
+
+    /**
+     * Composes the source schemas, runs the query through feddi and through a monolith of the composite schema
+     * (both on {@link DeterministicData}), and compares the data: "same data", or what went wrong.
+     */
+    static String check(String id, List<Composer.SubgraphInput> inputs, String query, Map<String, Object> givenVariables)
+            throws IOException {
+        Case c = new Case(id, null, query, givenVariables);
         CompositionResult composition;
         try {
             composition = new Composer().compose(inputs);
