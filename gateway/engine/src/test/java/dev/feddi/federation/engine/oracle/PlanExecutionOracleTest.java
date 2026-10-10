@@ -255,6 +255,12 @@ class PlanExecutionOracleTest {
                 Path dir = query.getParent();
                 cases.add(new Case("fusion/" + fusion.relativize(dir).toString().replace('\\', '/'),
                     dir.resolve("schema.yaml"), Files.readString(query), Map.of()));
+                // A spec-valid variant of a query the spec rejects (see spec-rejections.yaml)
+                Path valid = dir.resolve("query.valid.graphql");
+                if (Files.exists(valid)) {
+                    cases.add(new Case("fusion/" + fusion.relativize(dir).toString().replace('\\', '/') + "/valid",
+                        dir.resolve("schema.yaml"), Files.readString(valid), Map.of()));
+                }
             }
         }
         return cases;

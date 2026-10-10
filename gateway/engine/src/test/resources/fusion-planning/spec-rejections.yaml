@@ -1,0 +1,78 @@
+# Imported Fusion tests whose schema or query the specs reject. Fusion's planner tests do not validate their
+# inputs; feddi does. FusionTestsGreenTest checks that each of these is rejected with `expect` (a part of the
+# status in parity-baseline.yaml) and that every other Fusion test is planned and returns the monolith's data.
+#
+# Specs: composite-schemas draft (graphql/composite-schemas-spec, 2026-10-04); GraphQL (September 2025).
+
+PlannerBehaviorTests/Include_Skip_Basic_Include:
+  expect: "invalid query: Validation error (VariableTypeMismatch"
+  spec: "GraphQL, All Variable Usages Are Allowed: $include: Boolean (nullable, no default) is used for
+    @include(if: Boolean!). query.valid.graphql declares Boolean! and is checked by the oracle."
+PlannerBehaviorTests/Include_Skip_Include_At_Root_Fetch:
+  expect: "invalid query: Validation error (VariableTypeMismatch"
+  spec: "GraphQL, All Variable Usages Are Allowed (as above); query.valid.graphql is checked instead."
+PlannerBehaviorTests/Include_Skip_Include_Fragment:
+  expect: "invalid query: Validation error (VariableTypeMismatch"
+  spec: "GraphQL, All Variable Usages Are Allowed (as above); query.valid.graphql is checked instead."
+PlannerBehaviorTests/Include_Skip_Include_Fragment_At_Root_Fetch:
+  expect: "invalid query: Validation error (VariableTypeMismatch"
+  spec: "GraphQL, All Variable Usages Are Allowed (as above); query.valid.graphql is checked instead."
+
+RequirementParityTests/Keys_Mashup:
+  expect: "use an unknown argument 'resolvable' on"
+  spec: "Section 2 defines @key(fields: FieldSelectionSet!); TYPE_DEFINITION_INVALID allows extra directive
+    arguments only when the schema declares them. The schema uses @key(resolvable:) without declaring it."
+
+PlannerAdvancedAdaptationTests/Provides_Nested_Provides:
+  expect: "UNSATISFIABLE_QUERY_PATH: Field 'Category.details'"
+  spec: "Validate Satisfiability: @provides is ignored and @external fields are no candidates in their schema.
+    Category.id is external in all-products, so no lookup into category can get its key."
+ProvidesPlannerTests/Provides_With_Requires_Interaction:
+  expect: "UNSATISFIABLE_QUERY_PATH: Field 'Item.shippingCost'"
+  spec: "Validate Satisfiability: the requirement weight is only available through @provides (external in
+    orders), which satisfiability ignores."
+
+RequirementParityTests/Deep_Requires:
+  expect: "is selected without its required argument 'limit'"
+  spec: "Appendix A, Path Field Argument Validity: comments(limit: Int!) is required in comments[authorId]
+    without its required argument."
+
+RequirementArgumentTests/Requires_Arguments_Reentrant_Comments_Collides_With_Client_Comments:
+  expect: "EXTERNAL_UNUSED: External field 'somethingElse'"
+  spec: "EXTERNAL_UNUSED: Comment.somethingElse is @external in d but no @key or @provides uses it (also,
+    Post.comments exists only in the requiring schema d: REQUIRE_INVALID_FIELDS)."
+
+# REQUIRE_INVALID_FIELDS: "Required fields must exist on the parent type in a different schema than the one
+# defining the requirement" (the path is validated against the other schemas only); satisfiability's
+# ResolveRequirements excludes the requiring schema as well. In each of these, the first field of the
+# requirement exists only in the requiring schema.
+RequirementCrossEntityTests/Plan_Should_Keep_Requirement_And_Client_List_Field_Separate_When_Arguments_Differ:
+  expect: "references field 'comments' on type 'Post' which only exists in"
+  spec: "REQUIRE_INVALID_FIELDS: Post.comments exists only in d, which requires comments(limit: 3)[...]."
+RequirementCrossEntityTests/Plan_Should_Resolve_Author_When_Require_Uses_Input_Object_List_Form:
+  expect: "references field 'comments' on type 'Post' which only exists in"
+  spec: "REQUIRE_INVALID_FIELDS: Post.comments exists only in d, which requires it."
+RequirementCrossEntityTests/Plan_Should_Resolve_Author_When_Require_Crosses_List_Entity_Boundary:
+  expect: "references field 'comments' on type 'Post' which only exists in"
+  spec: "REQUIRE_INVALID_FIELDS: Post.comments exists only in d, which requires it."
+RequirementCrossEntityTests/Plan_Should_Reenter_Requiring_Schema_When_Requiring_Type_Has_Lookup:
+  expect: "references field 'product' on type 'CartItem' which only exists in"
+  spec: "REQUIRE_INVALID_FIELDS: CartItem.product exists only in cart, which requires product.discountedPrice."
+RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice:
+  expect: "references field 'product' on type 'CartItem' which only exists in"
+  spec: "REQUIRE_INVALID_FIELDS: CartItem.product exists only in cart, which requires it."
+RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice_Next_To_Required_Parent:
+  expect: "references field 'product' on type 'CartItem' which only exists in"
+  spec: "REQUIRE_INVALID_FIELDS: CartItem.product exists only in cart, which requires it."
+RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice_Next_To_Required_Parent_Under_Interface:
+  expect: "references field 'product' on type 'CartItem' which only exists in"
+  spec: "REQUIRE_INVALID_FIELDS: CartItem.product exists only in cart, which requires it."
+RequirementCrossEntityTests/Plan_Should_Resolve_ByExpert_When_Circular_Require_Chains_Through_ByNovice:
+  expect: "references field 'author' on type 'Post' which only exists in"
+  spec: "REQUIRE_INVALID_FIELDS: Post.author exists only in b, which requires author.yearsOfExperience."
+RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Both_Providers_Have_Author_Lookup:
+  expect: "references field 'author' on type 'Post' which only exists in"
+  spec: "REQUIRE_INVALID_FIELDS: Post.author exists only in b, which requires it."
+RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Require_Crosses_Entity_Boundary:
+  expect: "references field 'author' on type 'Post' which only exists in"
+  spec: "REQUIRE_INVALID_FIELDS: Post.author exists only in b, which requires it."
