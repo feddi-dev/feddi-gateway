@@ -10,6 +10,7 @@ import dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectedValue;
 import dev.feddi.federation.engine.parser.FieldSelectionMapParser;
 import dev.feddi.federation.engine.compose.validation.CrossSchemaFieldResolver;
+import dev.feddi.federation.engine.compose.validation.FieldSelectionArguments;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
@@ -18,6 +19,7 @@ import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
 import graphql.schema.GraphQLArgument;
 import graphql.schema.GraphQLFieldDefinition;
+import graphql.schema.GraphQLFieldsContainer;
 import graphql.schema.GraphQLInputObjectField;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInterfaceType;
@@ -245,6 +247,12 @@ public final class RequireInvalidFieldsRule implements ValidationRule {
                 return;
             }
 
+            // The arguments the field is selected with (Appendix A, Path Field Argument Validity)
+            for (String problem : argumentProblems(typeName, segment, allSubgraphs, schemaName)) {
+                builder.addError(CODE, String.format("@require directive at '%s' in schema '%s': %s.",
+                    coordinate, schemaName, problem), coordinate, schemaName);
+            }
+
             // Update type for next segment:
             // - If segment has infix type condition (e.g., field<Book>), use that type (return type narrowing)
             // - Otherwise, use the field's return type
@@ -267,6 +275,20 @@ public final class RequireInvalidFieldsRule implements ValidationRule {
                 }
             }
         }
+    }
+
+    /** Argument problems of a path segment, checked against the field's definition in another schema. */
+    private static List<String> argumentProblems(String typeName, PathSegment segment, List<Subgraph> allSubgraphs,
+                                                 String schemaName) {
+        for (Subgraph subgraph : allSubgraphs) {
+            if (!subgraph.name().equals(schemaName)
+                && subgraph.schema().getType(typeName) instanceof GraphQLFieldsContainer container
+                && container.getFieldDefinition(segment.fieldName()) != null) {
+                return FieldSelectionArguments.problems(typeName + "." + segment.fieldName(),
+                    container.getFieldDefinition(segment.fieldName()), segment.arguments(), subgraph.schema());
+            }
+        }
+        return List.of();
     }
 
     private void validateObjectSelection(ObjectSelection objectSelection, String currentTypeName,

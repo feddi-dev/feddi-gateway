@@ -10,6 +10,7 @@ import dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectedValue;
 import dev.feddi.federation.engine.parser.FieldSelectionMapParser;
 import dev.feddi.federation.engine.compose.validation.CrossSchemaFieldResolver;
+import dev.feddi.federation.engine.compose.validation.FieldSelectionArguments;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
@@ -18,6 +19,7 @@ import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
 import graphql.schema.GraphQLArgument;
 import graphql.schema.GraphQLFieldDefinition;
+import graphql.schema.GraphQLFieldsContainer;
 import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLNamedType;
 import graphql.schema.GraphQLObjectType;
@@ -215,6 +217,19 @@ public final class IsInvalidFieldsRule implements ValidationRule {
                 );
                 builder.addError(CODE, message, coordinate, schemaName);
                 return;
+            }
+
+            // The arguments the field is selected with (Appendix A, Path Field Argument Validity)
+            for (Subgraph subgraph : allSubgraphs) {
+                if (subgraph.schema().getType(typeName) instanceof GraphQLFieldsContainer container
+                    && container.getFieldDefinition(fieldName) != null) {
+                    for (String problem : FieldSelectionArguments.problems(typeName + "." + fieldName,
+                            container.getFieldDefinition(fieldName), segment.arguments(), subgraph.schema())) {
+                        builder.addError(CODE, String.format("@is directive at '%s' in schema '%s': %s.",
+                            coordinate, schemaName, problem), coordinate, schemaName);
+                    }
+                    break;
+                }
             }
 
             // Update type for next segment:

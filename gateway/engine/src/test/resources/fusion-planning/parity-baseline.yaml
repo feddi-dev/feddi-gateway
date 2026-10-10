@@ -476,8 +476,8 @@ RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Fi
   fusionOperations: 4
   fusionDepth: 2
 RequirementParityTests/Deep_Requires:
-  status: "invalid subgraph operation: step 3 (b): Validation error (MissingFieldArgument@[postById/comments])\
-    \ : Missing field argument 'limit'"
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.author(commentAuthorIds)'\
+    \ in schema 'd': 'Post.comments' is selected without its required argument 'limit'."
   steps: 0
   depth: 0
   fusionOperations: 4
