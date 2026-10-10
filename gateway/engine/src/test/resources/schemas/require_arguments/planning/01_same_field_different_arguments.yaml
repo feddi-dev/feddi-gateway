@@ -1,0 +1,40 @@
+name: "Same field required with different arguments"
+description: |
+  isExpensive and reducedPrice both have a "price" argument, requiring price(withDiscount: true) and
+  price(withDiscount: false). Each requirement is selected with its arguments under its own alias, the
+  client's price stays as it is, and each argument gets its own variable.
+
+query: |
+  {
+    products {
+      isExpensive
+      reducedPrice
+      price
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: inventory
+      operation: "{ products { upc } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: inventory
+      operation: "query($upc: String!, $price: Int, $price_2: Int) { productByUpc(upc: $upc) { isExpensive(price: $price) reducedPrice(price: $price_2) } }"
+      dependsOn: [3]
+      requirements:
+        upc: "upc"
+        price: "__gql_price"
+        price_2: "__gql_price_1"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: pricing
+      operation: "query($upc: String!) { productByUpc(upc: $upc) { upc __gql_price: price(withDiscount: true) __gql_price_1: price(withDiscount: false) price } }"
+      dependsOn: [1]
+      requirements:
+        upc: "upc"
+      repeatedExecution: true

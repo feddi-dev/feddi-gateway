@@ -1,0 +1,25 @@
+name: "Require with arguments"
+description: "Requirements that select the same field with different arguments, next to the client selecting it without."
+
+subgraphs:
+  inventory: |
+    type Query {
+      products: [Product]
+      productByUpc(upc: String!): Product @lookup @internal
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      isExpensive(price: Int @require(field: "price(withDiscount: true)")): Boolean
+      reducedPrice(price: Int @require(field: "price(withDiscount: false)")): Boolean
+    }
+
+  pricing: |
+    type Query {
+      productByUpc(upc: String!): Product @lookup @internal
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      price(withDiscount: Boolean): Int
+    }

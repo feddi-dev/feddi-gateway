@@ -1,6 +1,6 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 227 queries {composition failed=15, feddi error=2, invalid query=4, planning failed=3, same data=203}
+# 228 queries {composition failed=15, feddi error=2, invalid query=4, planning failed=3, same data=204}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "same\
   \ data"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
@@ -248,6 +248,7 @@ schemas/provides_basic/direct_price_lookup: "same data"
 schemas/provides_basic/provides_avoids_lookup: "same data"
 schemas/provides_basic/provides_with_non_provided_field: "same data"
 schemas/provides_on_union/01_media_with_titles: "same data"
+schemas/require_arguments/01_same_field_different_arguments: "same data"
 schemas/require_nested_nonentity/02_require_referencing_nested: "same data"
 schemas/require_object_alternatives/01_object_require_per_type: "same data"
 schemas/require_through_list/01_require_list_item_field_from_lookup: "same data"

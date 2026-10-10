@@ -755,13 +755,12 @@ public final class OperationPlanner {
                             parentPath.subList(targetPlan.lookupEntryPath.size(), parentPath.size()));
                     }
                     adjustedFieldPath.add(fieldName);
-                    targetPlan.addFieldArgument(adjustedFieldPath, req.argumentName(), req.argumentName());
+                    SelectedValue transformedSelection = transformSelectionWithResponseKeys(
+                        req.selection(), reqResponseKeys);
+                    String variable = targetPlan.addRequirementVariable(req.argumentName(), transformedSelection,
+                        req.argumentType());
+                    targetPlan.addFieldArgument(adjustedFieldPath, req.argumentName(), variable);
                 }
-
-                // Add @require variable as requirement for the target plan
-                SelectedValue transformedSelection = transformSelectionWithResponseKeys(
-                    req.selection(), reqResponseKeys);
-                targetPlan.addRequirement(req.argumentName(), transformedSelection, req.argumentType());
             }
         }
         
@@ -882,8 +881,8 @@ public final class OperationPlanner {
                 for (int j = 0; j < segments.size(); j++) {
                     boolean segHasChildren = j < segments.size() - 1;
                     fragment.addFieldAtPath(null, segments.get(j).fieldName(), fragPath, segHasChildren,
-                        List.of(), List.of(), origin);
-                    fieldToResponseKey.put(segments.get(j).fieldName(), segments.get(j).fieldName());
+                        segments.get(j).arguments(), List.of(), origin);
+                    fieldToResponseKey.put(segmentKey(segments.get(j)), segments.get(j).fieldName());
                     if (segHasChildren) {
                         fragPath.add(segments.get(j).fieldName());
                     }
@@ -964,8 +963,8 @@ public final class OperationPlanner {
                             PathSegment seg = pathSegments.get(j);
                             boolean segHasChildren = (j < pathSegments.size() - 1);
                             fragment.addFieldAtPath(null, seg.fieldName(), fragPath, segHasChildren,
-                                List.of(), List.of(), origin);
-                            fieldToResponseKey.put(seg.fieldName(), seg.fieldName());
+                                seg.arguments(), List.of(), origin);
+                            fieldToResponseKey.put(segmentKey(seg), seg.fieldName());
                             if (segHasChildren) {
                                 fragPath.add(seg.fieldName());
                             }
@@ -979,14 +978,15 @@ public final class OperationPlanner {
                 if (inlineFragment != null) {
                     // Add field inside inline fragment
                     inlineFragment.addFieldAtPath(null, fieldName, fragmentPath, hasChildren,
-                        List.of(), List.of(), origin);
-                    fieldToResponseKey.put(fieldName, fieldName);
+                        segment.arguments(), List.of(), origin);
+                    fieldToResponseKey.put(segmentKey(segment), fieldName);
                     fragmentPath.add(fieldName);
                 } else {
                     // Add field normally to the plan
-                    String responseKey = plan.addArtificialField(fieldName, currentPath, hasChildren, origin);
-                    fieldToResponseKey.put(fieldName, responseKey);
-                    currentPath.add(fieldName);
+                    String responseKey = plan.addArtificialField(fieldName, segment.arguments(), currentPath,
+                        hasChildren, origin);
+                    fieldToResponseKey.put(segmentKey(segment), responseKey);
+                    currentPath.add(responseKey);
                 }
 
                 // If this segment has an infix type condition (e.g., relatedMedia<Movie>.imdbCode),
@@ -1017,6 +1017,12 @@ public final class OperationPlanner {
             return fieldToResponseKey;
         }
 
+        /** Identifies a path segment's field in response key maps: its name, and its arguments if any. */
+        private static String segmentKey(PathSegment segment) {
+            return segment.hasArguments() ? segment.fieldName() + "(" + segment.printedArguments() + ")"
+                : segment.fieldName();
+        }
+
         /**
          * Creates a Path with response keys substituted for field names.
          * Used for building requirement paths where field names may be aliased.
@@ -1028,8 +1034,7 @@ public final class OperationPlanner {
         private Path createNestedPath(Path path, Map<String, String> fieldToResponseKey) {
             List<PathSegment> pathSegments = new ArrayList<>();
             for (PathSegment segment : path.segments()) {
-                String fieldName = segment.fieldName();
-                String responseKey = fieldToResponseKey.getOrDefault(fieldName, fieldName);
+                String responseKey = fieldToResponseKey.getOrDefault(segmentKey(segment), segment.fieldName());
                 pathSegments.add(new PathSegment(responseKey));
             }
             return new Path(path.initialTypeCondition(), pathSegments);
@@ -1333,7 +1338,7 @@ public final class OperationPlanner {
                 return null;
             }
             Map<String, String> responseKeys = new LinkedHashMap<>();
-            responseKeys.put(firstField, responseKey);
+            responseKeys.put(segmentKey(segments.get(0)), responseKey);
             responseKeys.putAll(rest.fieldToResponseKey());
             return new RequireFieldResolution(rest.plan(), rest.subgraph(), responseKeys);
         }
@@ -1484,11 +1489,12 @@ public final class OperationPlanner {
                     // Add the @require variable requirement to intermediate plan
                     SelectedValue transformedSelection = transformSelectionWithResponseKeys(
                         req.selection(), reqResponseKeys);
-                    intermediatePlan.addRequirement(req.argumentName(), transformedSelection, req.argumentType());
+                    String variable = intermediatePlan.addRequirementVariable(req.argumentName(), transformedSelection,
+                        req.argumentType());
 
                     // Add the field argument for this @require
                     List<String> fieldArgPath = List.of(fieldName);
-                    intermediatePlan.addFieldArgument(fieldArgPath, req.argumentName(), req.argumentName());
+                    intermediatePlan.addFieldArgument(fieldArgPath, req.argumentName(), variable);
                 }
             }
 
@@ -1525,8 +1531,7 @@ public final class OperationPlanner {
         private Path transformPathWithResponseKeys(Path path, Map<String, String> responseKeys) {
             List<dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment> transformedSegments = new ArrayList<>();
             for (var segment : path.segments()) {
-                String fieldName = segment.fieldName();
-                String responseKey = responseKeys.getOrDefault(fieldName, fieldName);
+                String responseKey = responseKeys.getOrDefault(segmentKey(segment), segment.fieldName());
                 transformedSegments.add(new dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment(
                     responseKey, segment.typeCondition()));
             }
@@ -1887,16 +1892,11 @@ public final class OperationPlanner {
                                     adjustedFieldPath = new ArrayList<>(parentPath);
                                 }
                                 adjustedFieldPath.add(fieldName);
-                                targetPlan.addFieldArgument(adjustedFieldPath, req.argumentName(), req.argumentName());
-                            }
-                        }
-
-                        // Add @require variable requirements to target plan
-                        for (Requirement req : lookupEdge.requires()) {
-                            if (req.fieldName() == null || req.fieldName().equals(fieldName)) {
                                 SelectedValue transformedSelection = transformSelectionWithResponseKeys(
                                     req.selection(), reqResponseKeys);
-                                targetPlan.addRequirement(req.argumentName(), transformedSelection, req.argumentType());
+                                String variable = targetPlan.addRequirementVariable(req.argumentName(),
+                                    transformedSelection, req.argumentType());
+                                targetPlan.addFieldArgument(adjustedFieldPath, req.argumentName(), variable);
                             }
                         }
                     }
@@ -2143,6 +2143,16 @@ public final class OperationPlanner {
          * @return the response key where the value will be found (may be aliased)
          */
         String addArtificialField(String fieldName, List<String> parentPath, boolean hasChildren, FieldOrigin origin) {
+            return addArtificialField(fieldName, List.of(), parentPath, hasChildren, origin);
+        }
+
+        /**
+         * Adds an artificial field selected with {@code arguments}. A field selected with other arguments under the
+         * same response key (e.g. the client's price next to a required price(withDiscount: true)) is not reused:
+         * the artificial one gets an alias.
+         */
+        String addArtificialField(String fieldName, List<Argument> arguments, List<String> parentPath,
+                                  boolean hasChildren, FieldOrigin origin) {
             // Adjust parentPath if we entered via lookup
             List<String> adjustedPath = adjustPath(parentPath);
 
@@ -2161,7 +2171,12 @@ public final class OperationPlanner {
 
             // Phase 1: Check if same field already exists (search by fieldName, not key)
             // Children are keyed by responseKey (alias), so we need to search by fieldName
-            SelectionNode existingNode = findLastChildByFieldName(parent, fieldName);
+            SelectionNode existingNode = null;
+            for (SelectionNode child : parent.children.values()) {
+                if (child.fieldName.equals(fieldName) && sameArguments(child.queryArguments, arguments)) {
+                    existingNode = child;
+                }
+            }
             if (existingNode != null) {
                 // Field already exists - reuse it, return its response key
                 // Don't change origin - if it was REQUESTED, keep it REQUESTED
@@ -2170,7 +2185,8 @@ public final class OperationPlanner {
 
             // Phase 2: Check for response key clash
             String effectiveAlias = null;
-            if (parent.hasChildWithResponseKey(fieldName)) {
+            if (!arguments.isEmpty() || parent.hasChildWithResponseKey(fieldName)) {
+                // With arguments always aliased: a field the client selects later without them must not merge into it
                 // Different field has same response key - generate unique alias
                 effectiveAlias = generateUniqueAlias(fieldName, parent);
             }
@@ -2179,10 +2195,22 @@ public final class OperationPlanner {
             // Use the effective responseKey (alias if generated, otherwise fieldName) as the map key
             SelectionNode fieldNode = new SelectionNode(fieldName, hasChildren, origin);
             fieldNode.setAlias(effectiveAlias);
+            fieldNode.setQueryArguments(arguments);
             String responseKey = fieldNode.responseKey();
             parent.children.put(responseKey, fieldNode);
 
             return responseKey;
+        }
+
+        private static boolean sameArguments(List<Argument> a, List<Argument> b) {
+            return printedArguments(a).equals(printedArguments(b));
+        }
+
+        private static List<String> printedArguments(List<Argument> arguments) {
+            return arguments.stream()
+                .map(argument -> argument.getName() + ": " + AstPrinter.printAstCompact(argument.getValue()))
+                .sorted()
+                .toList();
         }
 
         /**
@@ -2338,6 +2366,20 @@ public final class OperationPlanner {
 
         void addRequirement(String name, SelectedValue selection, Type<?> type) {
             requirements.putIfAbsent(name, new RequirementInfo(selection, type));
+        }
+
+        /**
+         * Adds the value of a @require argument as a variable named after the argument, or numbered when another
+         * requirement with a different value already has that name (two fields' "price" arguments requiring
+         * price(withDiscount: true) and price(withDiscount: false)). Returns the variable name.
+         */
+        String addRequirementVariable(String argumentName, SelectedValue selection, Type<?> type) {
+            String name = argumentName;
+            for (int n = 2; requirements.containsKey(name) && !requirements.get(name).selection().equals(selection); n++) {
+                name = argumentName + "_" + n;
+            }
+            addRequirement(name, selection, type);
+            return name;
         }
 
         /**
