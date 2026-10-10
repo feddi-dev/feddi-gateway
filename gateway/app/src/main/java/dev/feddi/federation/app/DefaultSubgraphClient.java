@@ -2,7 +2,9 @@ package dev.feddi.federation.app;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import dev.feddi.federation.engine.IntrospectionFields;
 import dev.feddi.federation.engine.executor.OperationTexts;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
@@ -19,6 +21,8 @@ import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +41,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() { };
     private static final TypeReference<List<Map<String, Object>>> LIST_OF_MAPS = new TypeReference<>() { };
+    private static final ObjectReader MAP_READER = JSON.readerFor(MAP);
+    private static final byte[] EMPTY = new byte[0];
 
     private final WebClient webClient;
     private final String subgraphName;
@@ -122,11 +128,12 @@ public class DefaultSubgraphClient implements SubgraphClient {
             .accept(JSONL, MediaType.APPLICATION_JSON)
             .headers(headers -> applyHeaders(headers, context))
             .bodyValue(requestBody)
-            .exchangeToMono(response -> response.bodyToMono(String.class)
-                .defaultIfEmpty("")
+            .exchangeToMono(response -> response.bodyToMono(byte[].class)
+                .defaultIfEmpty(EMPTY)
                 .flatMap(body -> {
                     if (!response.statusCode().is2xxSuccessful()) {
-                        log.warn("[{}] Variable batch returned HTTP {}: {}", subgraphName, response.statusCode(), body);
+                        log.warn("[{}] Variable batch returned HTTP {}: {}", subgraphName, response.statusCode(),
+                            new String(body, StandardCharsets.UTF_8));
                         return Mono.error(new RuntimeException(
                             "Subgraph variable batch failed: " + response.statusCode()));
                     }
@@ -162,8 +169,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
             // Not a client request: only the customizer's headers (e.g. internal auth) apply.
             .headers(headers -> applyHeaders(headers, FeddiGatewayRequestContext.empty()))
             .bodyValue(requestBody)
-            .exchangeToMono(response -> response.bodyToMono(String.class)
-                .defaultIfEmpty("")
+            .exchangeToMono(response -> response.bodyToMono(byte[].class)
+                .defaultIfEmpty(EMPTY)
                 .flatMap(body -> {
                     int status = response.statusCode().value();
                     if (isInconclusiveProbeStatus(status)) {
@@ -202,23 +209,32 @@ public class DefaultSubgraphClient implements SubgraphClient {
      * @throws IllegalArgumentException if the body is not a valid batch response of the expected size
      */
     static List<Map<String, Object>> parseBatchResponse(String body, int expected) {
-        String trimmed = body.trim();
-        List<Map<String, Object>> responses = new ArrayList<>();
+        return parseBatchResponse(body.getBytes(StandardCharsets.UTF_8), expected);
+    }
+
+    /**
+     * Parses a variable batch response: a JSON array in order, or JSON lines with a
+     * {@code variableIndex}. JSON lines are read as a sequence of root-level values straight
+     * from the bytes; whitespace (any line ending) separates them.
+     *
+     * @throws IllegalArgumentException if the body is not a valid batch response of the expected size
+     */
+    static List<Map<String, Object>> parseBatchResponse(byte[] body, int expected) {
+        List<Map<String, Object>> responses = new ArrayList<>(expected);
         try {
-            if (trimmed.startsWith("[")) {
-                responses.addAll(JSON.readValue(trimmed, LIST_OF_MAPS));
+            if (startsWithArray(body)) {
+                responses.addAll(JSON.readValue(body, LIST_OF_MAPS));
             } else {
                 Map<String, Object>[] ordered = new Map[expected];
-                for (String line : trimmed.split("\\R")) {
-                    if (line.isBlank()) {
-                        continue;
+                try (MappingIterator<Map<String, Object>> lines = MAP_READER.readValues(body)) {
+                    while (lines.hasNextValue()) {
+                        Map<String, Object> response = lines.nextValue();
+                        Object index = response.get("variableIndex");
+                        if (!(index instanceof Number number) || number.intValue() < 0 || number.intValue() >= expected) {
+                            throw new IllegalArgumentException("missing or invalid variableIndex: " + index);
+                        }
+                        ordered[number.intValue()] = response;
                     }
-                    Map<String, Object> response = JSON.readValue(line, MAP);
-                    Object index = response.get("variableIndex");
-                    if (!(index instanceof Number number) || number.intValue() < 0 || number.intValue() >= expected) {
-                        throw new IllegalArgumentException("missing or invalid variableIndex: " + index);
-                    }
-                    ordered[number.intValue()] = response;
                 }
                 for (Map<String, Object> response : ordered) {
                     if (response == null) {
@@ -229,11 +245,22 @@ public class DefaultSubgraphClient implements SubgraphClient {
             }
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("not JSON: " + e.getOriginalMessage(), e);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("not JSON: " + e.getMessage(), e);
         }
         if (responses.size() != expected) {
             throw new IllegalArgumentException("expected " + expected + " results, got " + responses.size());
         }
         return responses;
+    }
+
+    private static boolean startsWithArray(byte[] body) {
+        for (byte b : body) {
+            if (!Character.isWhitespace(b)) {
+                return b == '[';
+            }
+        }
+        return false;
     }
 
     private ExecutionResult buildExecutionResult(Map<?, ?> response) {

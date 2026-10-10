@@ -200,6 +200,23 @@ class DefaultSubgraphClientBatchTest {
     }
 
     @Test
+    void parseReadsJsonLinesWithAnyLineEndingAndBlankLines() {
+        String body = "\r\n{\"data\":{\"n\":1},\"variableIndex\":1}\r\n\n"
+            + "  {\"data\":{\"n\":0},\"variableIndex\":0}";
+
+        assertThat(DefaultSubgraphClient.parseBatchResponse(body, 2))
+            .extracting(r -> r.get("data"))
+            .containsExactly(Map.of("n", 0), Map.of("n", 1));
+    }
+
+    @Test
+    void parseRejectsInvalidJsonAfterValidLines() {
+        assertThatThrownBy(() -> DefaultSubgraphClient.parseBatchResponse(
+            "{\"data\":{},\"variableIndex\":0}\n{\"data\":", 2))
+            .hasMessageContaining("not JSON");
+    }
+
+    @Test
     void parseRejectsMissingOrInvalidIndexes() {
         assertThatThrownBy(() -> DefaultSubgraphClient.parseBatchResponse("{\"data\":{}}", 1))
             .hasMessageContaining("variableIndex");

@@ -11,7 +11,7 @@ All work stays on this branch until it is finished. Andi then reviews it before 
 | | |
 |---|---|
 | Branch | `perf/query-execution` (from `main` @ `912aeb5`) |
-| Current step | 6 decision / 7 CPU (done: 5 Spring e2e, 0 tests, 1 plan cache, 2 entity dedup, 3a shared calls, 4 batching; 8 calls, ~690 req/s locally with `alias`/`variables` vs 22.6 at baseline) |
+| Current step | 7 CPU (done: 5 Spring e2e, 0 tests, 1 plan cache, 2 entity dedup, 3a shared calls, 4 batching, 7.1 JSONL parsing; 8 calls). Step 6 (planner v2) continues on `perf/planner-v2` |
 | Benchmark result (published, commit `5ff8b61`) | Rust subgraphs: wrong results · .NET subgraphs: ~19 RPS (leaders ~2,400–2,900) · Burst: not run |
 
 ## Files
