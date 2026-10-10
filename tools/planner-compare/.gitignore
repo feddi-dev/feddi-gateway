@@ -1,0 +1,5 @@
+node_modules/
+.work/
+out/
+fusion-gateway/bin/
+fusion-gateway/obj/
