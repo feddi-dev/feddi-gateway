@@ -17,6 +17,7 @@ import { parse as parseYaml } from "yaml";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "../..");
 const FIXTURES = join(REPO, "gateway/engine/src/test/resources/schemas");
+const FUSION_FIXTURES = join(REPO, "gateway/engine/src/test/resources/fusion-planning");
 const FEDDI_ZIP = join(REPO, "gateway/app/build/distributions/feddi-gateway.zip");
 const NITRO = join(HERE, "node_modules/.bin/nitro");
 const WORK = join(HERE, ".work");
@@ -44,15 +45,13 @@ async function main() {
   ensureFusionImage();
   await startFeddi();
 
-  const cases = readdirSync(FIXTURES)
-    .filter(name => existsSync(join(FIXTURES, name, "schema.yaml")) && existsSync(join(FIXTURES, name, "planning")))
-    .filter(name => !options.cases || options.cases.includes(name))
-    .sort();
+  const cases = discoverCases()
+    .filter(c => !options.cases || options.cases.some(filter => c.name === filter || c.name.startsWith(`${filter}/`)));
 
   const results = [];
-  for (const name of cases) {
-    console.log(`\n== ${name}`);
-    results.push(...await runCase(name));
+  for (const testCase of cases) {
+    console.log(`\n== ${testCase.name}`);
+    results.push(...await runCase(testCase));
     writeFileSync(join(OUT, "results.json"), JSON.stringify(results, null, 2));
   }
   writeFileSync(join(OUT, "report.md"), report(results));
@@ -61,10 +60,44 @@ async function main() {
 
 // --- One fixture ------------------------------------------------------------------------------
 
-async function runCase(name) {
-  const schema = parseYaml(readFileSync(join(FIXTURES, name, "schema.yaml"), "utf8"));
-  const queries = readdirSync(join(FIXTURES, name, "planning")).filter(f => f.endsWith(".yaml")).sort()
-    .map(file => ({ file, ...parseYaml(readFileSync(join(FIXTURES, name, "planning", file), "utf8")) }));
+/**
+ * Fixtures to run: feddi's planner fixtures (schemas/<case>/planning/*.yaml, suite "schemas") and the
+ * imported Fusion planner tests (fusion-planning/<class>/<test>/query.graphql, suite "fusion").
+ */
+function discoverCases() {
+  const cases = [];
+  if (options.suite !== "fusion") {
+    for (const name of readdirSync(FIXTURES).sort()) {
+      const dir = join(FIXTURES, name);
+      if (!existsSync(join(dir, "schema.yaml")) || !existsSync(join(dir, "planning"))) continue;
+      const queries = readdirSync(join(dir, "planning")).filter(f => f.endsWith(".yaml")).sort()
+        .map(file => ({ file, ...parseYaml(readFileSync(join(dir, "planning", file), "utf8")) }));
+      cases.push({ name, schemaFile: join(dir, "schema.yaml"), queries, globalObjectIdentification: false });
+    }
+  }
+  if (options.suite !== "schemas" && existsSync(FUSION_FIXTURES)) {
+    for (const className of readdirSync(FUSION_FIXTURES).sort()) {
+      if (!statSync(join(FUSION_FIXTURES, className)).isDirectory()) continue;
+      for (const test of readdirSync(join(FUSION_FIXTURES, className)).sort()) {
+        const dir = join(FUSION_FIXTURES, className, test);
+        if (!existsSync(join(dir, "query.graphql"))) continue;
+        cases.push({
+          name: `fusion/${className}/${test}`,
+          schemaFile: join(dir, "schema.yaml"),
+          queries: [{ file: "query.graphql", query: readFileSync(join(dir, "query.graphql"), "utf8") }],
+          // Fusion's planner tests compose with global object identification (FusionTestBase.ComposeSchema).
+          globalObjectIdentification: true,
+        });
+      }
+    }
+  }
+  return cases;
+}
+
+async function runCase(testCase) {
+  const name = testCase.name;
+  const schema = parseYaml(readFileSync(testCase.schemaFile, "utf8"));
+  const queries = testCase.queries.map(q => ({ ...q }));
   const subgraphs = Object.entries(schema.subgraphs ?? {})
     .map(([subgraph, sdl], i) => ({ name: subgraph, port: PORTS.firstSubgraph + i, sdl }));
   const dir = join(WORK, "cases", name);
@@ -78,14 +111,14 @@ async function runCase(name) {
     await waitFor(() => readFileSync(join(dir, "mock.log"), "utf8").includes("ready"), "mock subgraphs");
 
     const feddi = await uploadToFeddi(dir, subgraphs);
-    const fusion = await startFusion(dir, subgraphs);
+    const fusion = await startFusion(dir, subgraphs, testCase.globalObjectIdentification);
     console.log(`   feddi: ${feddi.ok ? "ok" : feddi.error}; fusion: ${fusion.ok ? "ok" : fusion.error}`);
 
     const types = typeDefinitions(subgraphs);
     const results = [];
     for (const query of queries) {
       query.variables = { ...requiredVariables(query.query, types), ...(query.variables ?? {}) };
-      const row = { case: name, query: query.file.replace(/\.yaml$/, ""), name: query.name, fusionAdjustments: fusion.adjustments ?? [] };
+      const row = { case: name, query: query.file.replace(/\.(yaml|graphql)$/, ""), name: query.name, fusionAdjustments: fusion.adjustments ?? [] };
       row.feddi = feddi.ok ? await measure(PORTS.feddi, query, false) : { error: `composition: ${feddi.error}` };
       row.fusion = fusion.ok ? await measure(PORTS.fusion, query, true) : { error: `composition: ${fusion.error}` };
       if (row.fusion.plan) {
@@ -190,7 +223,7 @@ function ensureFusionImage() {
   execFileSync("docker", ["build", "-q", "-t", FUSION_IMAGE, join(HERE, "fusion-gateway")], { stdio: ["ignore", "ignore", "inherit"] });
 }
 
-async function startFusion(dir, subgraphs) {
+async function startFusion(dir, subgraphs, globalObjectIdentification) {
   const fusionDir = join(dir, "fusion");
   const files = [];
   const { sdls, adjustments } = shareRootFields(subgraphs);
@@ -203,7 +236,8 @@ async function startFusion(dir, subgraphs) {
     files.push("-f", join(name, "schema.graphqls"));
   }
   try {
-    execFileSync(NITRO, ["fusion", "compose", ...files, "--archive", "gateway.far"],
+    execFileSync(NITRO, ["fusion", "compose", ...files, "--archive", "gateway.far",
+      ...(globalObjectIdentification ? ["--enable-global-object-identification"] : [])],
       { cwd: fusionDir, encoding: "utf8", stdio: "pipe" });
   } catch (e) {
     return { ok: false, adjustments, error: firstLine(`${e.stdout ?? ""}${e.stderr ?? ""}`.split("\n").find(l => /ERR|error|fail/i.test(l)) ?? e.message) };
@@ -449,9 +483,10 @@ function firstLine(text) {
 }
 
 function parseArgs(args) {
-  const result = { delay: 50, batching: "variables", cases: null };
+  const result = { delay: 50, batching: "variables", cases: null, suite: "all" };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--cases") result.cases = args[++i].split(",");
+    else if (args[i] === "--suite") result.suite = args[++i];
     else if (args[i] === "--delay") result.delay = Number(args[++i]);
     else if (args[i] === "--batching") result.batching = args[++i];
     else throw new Error(`unknown option ${args[i]}`);
