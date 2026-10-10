@@ -32,6 +32,7 @@ Fusion composes all of its tests; feddi rejected 26. Each deviation is checked a
 | `LOOKUP_RETURNS_NON_NULLABLE_TYPE` | error | severity WARNING (the only warning-level rule) | warning |
 | `INVALID_FIELD_SHARING`, key exemption | only `@key` fields | fields of a key; a key "that could be inferred from a lookup field's arguments MAY be omitted" (#224, 2026-07-09) | lookup argument fields count as keys; `@internal` types skipped |
 | `INVALID_FIELD_SHARING`, root lookups | exempt | no exemption for root fields | root lookups in several schemas need `@shareable` or `@internal` |
+| `UNREACHABLE_TYPE` (feddi-only lint) | error | not a spec rule; Fusion composes such schemas (e.g. a union in one schema that only contributes members) | warning |
 
 ## Release notes (breaking)
 
@@ -41,6 +42,7 @@ Fusion composes all of its tests; feddi rejected 26. Each deviation is checked a
   without `@shareable`. Fix: add `@shareable` to every definition, or `@internal` to the ones that only serve
   entity resolution (like the benchmark's Reviews and Inventory subgraphs do).
 - Non-null `@lookup` fields compose with a warning instead of failing.
+- Types that are unreachable from a source schema's root types compose with a warning instead of failing.
 
 ## Open questions for Andi
 

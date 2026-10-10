@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests, 48 planned by feddi, 47 with no more steps than Fusion, 38 with no more depth
+# 91 tests, 49 planned by feddi, 48 with no more steps than Fusion, 39 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -168,11 +168,9 @@ PlannerAdvancedAdaptationTests/Requires_Provides_Simple_Requires_Provides:
   fusionOperations: 3
   fusionDepth: 3
 PlannerAdvancedAdaptationTests/Union_Union_Member_Mix:
-  status: "composition: UNREACHABLE_TYPE: Type 'Media' in subgraph 'b' is not reachable\
-    \ from any root type (Query/Mutation/Subscription). Remove unused types to keep\
-    \ the schema clean."
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 1
+  depth: 1
   fusionOperations: 1
   fusionDepth: 1
 PlannerAdvancedAdaptationTests/Union_Union_Overfetching_Test:

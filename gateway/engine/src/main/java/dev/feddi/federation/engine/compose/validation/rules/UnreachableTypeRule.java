@@ -28,8 +28,11 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSI
  * Validates that all Interface, Object, and Union types in a subgraph are reachable
  * from the root types (Query, Mutation, Subscription).
  *
- * <p>Unreachable types indicate dead code in the schema that should be removed.
- * This rule helps maintain clean, focused subgraph schemas.
+ * <p>Unreachable types usually indicate dead code in the schema that should be removed.
+ * This rule helps maintain clean, focused subgraph schemas. It is not a rule of the
+ * composite-schema spec, so it warns instead of failing composition: a type can be unreachable
+ * in one source schema and still matter for the composite schema, e.g. a union that contributes
+ * members.
  *
  * <p><b>Note on @key directive:</b> The @key directive does NOT make a type automatically
  * reachable. In this federation implementation, @key is only used as a convenient way to
@@ -119,7 +122,7 @@ public final class UnreachableTypeRule implements ValidationRule {
                     "Remove unused types to keep the schema clean.",
                     typeName, subgraph.name()
                 );
-                builder.addError(CODE, message, typeName, subgraph.name(), null);
+                builder.addWarning(CODE, message, typeName, subgraph.name());
             }
         }
     }
