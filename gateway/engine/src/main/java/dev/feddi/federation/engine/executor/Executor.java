@@ -636,7 +636,34 @@ public final class Executor {
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> innerData = (Map<String, Object>) value;
-                context.putAll(innerData);
+                deepMerge(context, innerData);
+            }
+        }
+    }
+
+    /**
+     * Merges {@code source} into {@code target} in place: objects that several steps return for the same response
+     * path (e.g. {@code category} with {@code details} from one subgraph and {@code id} from another) are combined
+     * field by field, also inside lists of the same length. Nested objects are updated in place, because later
+     * steps may already hold them as lookup targets. A null does not replace a value another step returned.
+     */
+    @SuppressWarnings("unchecked")
+    static void deepMerge(Map<String, Object> target, Map<String, Object> source) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            Object existing = target.get(entry.getKey());
+            Object incoming = entry.getValue();
+            if (existing instanceof Map<?, ?> existingMap && incoming instanceof Map<?, ?> incomingMap) {
+                deepMerge((Map<String, Object>) existingMap, (Map<String, Object>) incomingMap);
+            } else if (existing instanceof List<?> existingList && incoming instanceof List<?> incomingList
+                && existingList.size() == incomingList.size()) {
+                for (int i = 0; i < existingList.size(); i++) {
+                    if (existingList.get(i) instanceof Map<?, ?> existingItem
+                        && incomingList.get(i) instanceof Map<?, ?> incomingItem) {
+                        deepMerge((Map<String, Object>) existingItem, (Map<String, Object>) incomingItem);
+                    }
+                }
+            } else if (incoming != null || !target.containsKey(entry.getKey())) {
+                target.put(entry.getKey(), incoming);
             }
         }
     }
@@ -785,7 +812,7 @@ public final class Executor {
 
         synchronized void merge(StepResult result) {
             if (result.getRootData() != null) {
-                mergedData.putAll(result.getRootData());
+                deepMerge(mergedData, result.getRootData());
             }
             if (result.getErrors() != null && !result.getErrors().isEmpty()) {
                 errors.addAll(result.getErrors());

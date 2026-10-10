@@ -187,8 +187,25 @@ public final class OperationPlanner {
                 fragmentContext.enterField(selection.responseKey());
             }
 
+            Set<OperationPath> recordedPaths = new HashSet<>(List.of(bestPath));
             for (Selection subSelection : selection.subSelections()) {
-                planSelection(bestPath, subSelection, childParentPath, context, fragmentContext);
+                OperationPath parentForSub = bestPath;
+                if (fragmentContext == null && !resolvable(bestPath, subSelection)) {
+                    // Sibling-aware choice: a child the best path cannot resolve may be resolvable when this field
+                    // is also selected in another subgraph (e.g. a shared root field whose schemas each have
+                    // different fields of its type).
+                    for (OperationPath alternative : paths.subList(1, paths.size())) {
+                        if (resolvable(alternative, subSelection)) {
+                            parentForSub = alternative;
+                            if (recordedPaths.add(alternative)) {
+                                context.recordFieldResolution(alternative, selection.alias(), fieldName, parentPath,
+                                    true, selection.arguments(), selection.directives());
+                            }
+                            break;
+                        }
+                    }
+                }
+                planSelection(parentForSub, subSelection, childParentPath, context, fragmentContext);
             }
 
             // Exit the field in the fragment context
@@ -196,6 +213,27 @@ public final class OperationPlanner {
                 fragmentContext.exitField();
             }
         }
+    }
+
+    /**
+     * Whether a selection can be planned from {@code parent}: its field has a path, and each of its children can
+     * be resolved from one of the field's paths (not necessarily the same one). Inline fragments count as
+     * resolvable; they are planned with their own fallbacks.
+     */
+    private boolean resolvable(OperationPath parent, Selection selection) {
+        if (!(selection instanceof FieldSelection field)) {
+            return true;
+        }
+        List<OperationPath> fieldPaths = pathFinder.findPaths(parent, field.fieldName());
+        if (fieldPaths.isEmpty()) {
+            return false;
+        }
+        for (Selection child : field.subSelections()) {
+            if (fieldPaths.stream().noneMatch(path -> resolvable(path, child))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

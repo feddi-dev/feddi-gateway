@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 64 planned by feddi, 62 with no more steps than Fusion, 53 with no more depth
+# 91 tests (4 with an invalid query), 66 planned by feddi, 64 with no more steps than Fusion, 55 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "ok"
   steps: 4
@@ -38,9 +38,9 @@ EntityChainTests/Complex_Entity_Call:
   fusionOperations: 3
   fusionDepth: 3
 EntityChainTests/Parent_Entity_Call_Complex:
-  status: "planning: Cannot find path to resolve field: id"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 4
+  depth: 3
   fusionOperations: 4
   fusionDepth: 3
 InterfaceFieldOverridePlanningTests/Plan_Should_Keep_Owning_Branch_And_Route_Only_Diverged_Branch:
@@ -231,9 +231,9 @@ PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph_Contiguous_Same_Servic
   fusionOperations: 5
   fusionDepth: 1
 PlannerBehaviorTests/Root_Types_Shared_Root:
-  status: "planning: Cannot find path to resolve field: name"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 3
+  depth: 1
   fusionOperations: 3
   fusionDepth: 1
 ProvidesPlannerTests/PlanOperation_Should_CoverOnlyMatchingUnionMember_When_ProvidesIsTypeConditioned:
