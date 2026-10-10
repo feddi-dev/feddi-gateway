@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 72 planned by feddi, 69 with no more steps than Fusion, 60 with no more depth
+# 91 tests (4 with an invalid query), 72 planned by feddi, 71 with no more steps than Fusion, 60 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "ok"
   steps: 4
@@ -9,13 +9,13 @@ AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Dupl
   fusionDepth: 2
 AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ:
   status: "ok"
-  steps: 13
+  steps: 6
   depth: 3
   fusionOperations: 6
   fusionDepth: 3
 AbstractLookupFanoutPlanningTests/Plan_Should_Prune_Impossible_Concrete_Fragment_When_Parent_Is_Object:
   status: "ok"
-  steps: 9
+  steps: 6
   depth: 3
   fusionOperations: 6
   fusionDepth: 4

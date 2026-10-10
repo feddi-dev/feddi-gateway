@@ -2034,6 +2034,8 @@ public final class OperationPlanner {
                 steps.add(step);
             }
 
+            steps = mergeLookupsOfTypeBranches(steps);
+
             // Sort steps by dependencies (topological order)
             steps.sort(Comparator.comparingInt(ExecutionStep::id));
 
@@ -2041,6 +2043,87 @@ public final class OperationPlanner {
             List<ExecutionStep> stepsWithParallel = computeParallelWith(steps);
 
             return ExecutionPlan.of(stepsWithParallel);
+        }
+
+        /**
+         * Merges lookup steps that only differ in the type condition at one depth of their entity path: the same
+         * operation with the same requirements below {@code ... on Book} and below {@code ... on Magazine} becomes
+         * one step for both types (one request instead of two). Steps that depended on a merged step depend on
+         * the remaining one.
+         */
+        private List<ExecutionStep> mergeLookupsOfTypeBranches(List<ExecutionStep> steps) {
+            List<ExecutionStep> result = new ArrayList<>(steps);
+            Map<Integer, Integer> replacedBy = new HashMap<>();
+            boolean merged = true;
+            while (merged) {
+                merged = false;
+                search:
+                for (int i = 0; i < result.size(); i++) {
+                    for (int j = i + 1; j < result.size(); j++) {
+                        ExecutionStep a = result.get(i);
+                        ExecutionStep b = result.get(j);
+                        Map<Integer, Set<String>> pathTypes = mergedPathTypes(a, b);
+                        if (pathTypes == null) {
+                            continue;
+                        }
+                        Set<Integer> dependsOn = new TreeSet<>(a.dependsOn());
+                        dependsOn.addAll(b.dependsOn());
+                        dependsOn.remove(a.id());
+                        dependsOn.remove(b.id());
+                        result.set(i, new ExecutionStep(a.id(), a.subgraph(), a.operation(), List.copyOf(dependsOn),
+                            List.of(), a.requirements(), a.repeatedExecution(), a.artificialFieldPaths(),
+                            a.requestedFieldPaths(), a.entityPath(), a.entityTypes(), pathTypes, a.possibleTypes()));
+                        result.remove(j);
+                        replacedBy.put(b.id(), a.id());
+                        merged = true;
+                        break search;
+                    }
+                }
+            }
+            if (replacedBy.isEmpty()) {
+                return result;
+            }
+            List<ExecutionStep> remapped = new ArrayList<>();
+            for (ExecutionStep step : result) {
+                Set<Integer> dependsOn = new TreeSet<>();
+                for (int dependency : step.dependsOn()) {
+                    int target = dependency;
+                    while (replacedBy.containsKey(target)) {
+                        target = replacedBy.get(target);
+                    }
+                    if (target != step.id()) {
+                        dependsOn.add(target);
+                    }
+                }
+                remapped.add(new ExecutionStep(step.id(), step.subgraph(), step.operation(), List.copyOf(dependsOn),
+                    List.of(), step.requirements(), step.repeatedExecution(), step.artificialFieldPaths(),
+                    step.requestedFieldPaths(), step.entityPath(), step.entityTypes(), step.entityPathTypes(),
+                    step.possibleTypes()));
+            }
+            return remapped;
+        }
+
+        /** The entity path types of a step for both a and b, or null if they cannot be merged. */
+        private static Map<Integer, Set<String>> mergedPathTypes(ExecutionStep a, ExecutionStep b) {
+            if (!a.repeatedExecution() || !b.repeatedExecution() || !a.subgraph().equals(b.subgraph())
+                || !Objects.equals(a.entityPath(), b.entityPath()) || !a.entityTypes().equals(b.entityTypes())
+                || !a.requirements().equals(b.requirements()) || !a.possibleTypes().equals(b.possibleTypes())
+                || !a.entityPathTypes().keySet().equals(b.entityPathTypes().keySet())
+                || !AstPrinter.printAstCompact(a.operation()).equals(AstPrinter.printAstCompact(b.operation()))) {
+                return null;
+            }
+            Map<Integer, Set<String>> merged = new HashMap<>(a.entityPathTypes());
+            int differing = 0;
+            for (var entry : b.entityPathTypes().entrySet()) {
+                if (!entry.getValue().equals(merged.get(entry.getKey()))) {
+                    differing++;
+                    Set<String> union = new HashSet<>(merged.get(entry.getKey()));
+                    union.addAll(entry.getValue());
+                    merged.put(entry.getKey(), union);
+                }
+            }
+            // Types at two depths cannot be combined: their union would also match mixed branches
+            return differing == 1 ? merged : null;
         }
 
         /**
