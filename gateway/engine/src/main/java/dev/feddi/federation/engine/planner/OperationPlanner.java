@@ -2225,6 +2225,9 @@ public final class OperationPlanner {
             for (String pathSegment : adjustedPath) {
                 SelectionNode child = parent.children.get(pathSegment);
                 if (child == null) {
+                    child = fragmentChild(parent, pathSegment);
+                }
+                if (child == null) {
                     // Create an intermediate node for an internal field path
                     child = new SelectionNode(pathSegment, true);
                     parent.children.put(pathSegment, child);
@@ -2378,6 +2381,9 @@ public final class OperationPlanner {
             for (String pathSegment : adjustedPath) {
                 SelectionNode child = parent.children.get(pathSegment);
                 if (child == null) {
+                    child = fragmentChild(parent, pathSegment);
+                }
+                if (child == null) {
                     // Create an intermediate node for an internal field path
                     child = new SelectionNode(pathSegment, true);
                     parent.children.put(pathSegment, child);
@@ -2524,6 +2530,9 @@ public final class OperationPlanner {
                     child = findLastChildByFieldName(parent, pathSegment);
                 }
                 if (child == null) {
+                    child = fragmentChild(parent, pathSegment);
+                }
+                if (child == null) {
                     // Still not found - create new node
                     child = new SelectionNode(pathSegment, true);
                     parent.children.put(pathSegment, child);
@@ -2582,6 +2591,9 @@ public final class OperationPlanner {
                 if (child == null) {
                     // Not found by direct key - search children by field name
                     child = findLastChildByFieldName(parent, pathSegment);
+                }
+                if (child == null) {
+                    child = fragmentChild(parent, pathSegment);
                 }
                 if (child == null) {
                     // Still not found - create new node
@@ -3005,6 +3017,28 @@ public final class OperationPlanner {
             inlineFragments.add(fragment);
             return fragment;
         }
+    }
+
+    /**
+     * The field with this response key inside the node's inline fragments, when exactly one of them selects it: a
+     * response path through a union or interface field ({@code searchProduct.product}) continues in the fragment
+     * that selects it ({@code ... on ProductSearchResult { product }}).
+     */
+    private static SelectionNode fragmentChild(SelectionNode parent, String responseKey) {
+        SelectionNode found = null;
+        for (InlineFragmentNode fragment : parent.inlineFragments) {
+            SelectionNode child = fragment.root.children.get(responseKey);
+            if (child == null) {
+                child = fragmentChild(fragment.root, responseKey);
+            }
+            if (child != null) {
+                if (found != null) {
+                    return null;
+                }
+                found = child;
+            }
+        }
+        return found;
     }
 
     /**

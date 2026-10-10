@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 69 planned by feddi, 66 with no more steps than Fusion, 57 with no more depth
+# 91 tests (4 with an invalid query), 70 planned by feddi, 67 with no more steps than Fusion, 58 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "ok"
   steps: 4
@@ -550,10 +550,9 @@ RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_Entry_Crosses_Requ
   fusionOperations: 5
   fusionDepth: 4
 RequirementReentrancyTests/Plan_Should_Resolve_User_When_Union_Entry_Crosses_Required_Field:
-  status: "invalid subgraph operation: step 1 (PRODUCTS): Validation error (FieldUndefined@[searchProduct/product])\
-    \ : Field 'product' in type 'SearchResult' is undefined"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 3
+  depth: 3
   fusionOperations: 3
   fusionDepth: 3
 RequirementReentrancyTests/Plan_Should_StayInRecommendation_When_InnerProduct_Selects_OnlyId:

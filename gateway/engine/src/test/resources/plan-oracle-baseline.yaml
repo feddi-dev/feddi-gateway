@@ -1,6 +1,6 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 228 queries {composition failed=15, feddi error=1, invalid query=4, planning failed=2, same data=206}
+# 228 queries {composition failed=15, invalid query=4, planning failed=2, same data=207}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "same\
   \ data"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
@@ -125,9 +125,8 @@ fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_ConcreteFra
   \ data"
 fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_Entry_Crosses_Required_Field: "same\
   \ data"
-fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Union_Entry_Crosses_Required_Field: "feddi\
-  \ error: Validation error (FieldUndefined@[searchProduct/product]) : Field 'product'\
-  \ in type 'SearchResult' is undefined"
+fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Union_Entry_Crosses_Required_Field: "same\
+  \ data"
 fusion/RequirementReentrancyTests/Plan_Should_StayInRecommendation_When_InnerProduct_Selects_OnlyId: "same\
   \ data"
 fusion/RequirementTests/Plan_Simple_Operation_1_Source_Schema: "same data"
