@@ -33,6 +33,10 @@ import java.util.stream.Collectors;
  * @param entityTypes concrete types an entity at {@code entityPath} must have for this step to apply
  *                    (by its {@code __typename}); empty means any. A lookup for {@code Book} below an
  *                    abstract field must not run for the list's {@code Magazine} items.
+ * @param entityPathTypes concrete types the objects along {@code entityPath} must have, by the number of path
+ *                        segments that lead to them (1 is the object at the first response key); objects of
+ *                        other types are skipped. A lookup below {@code ... on UserReview { product }} must not
+ *                        run for an {@code AnonymousReview}'s product.
  */
 public record ExecutionStep(
     int id,
@@ -45,7 +49,8 @@ public record ExecutionStep(
     Set<String> artificialFieldPaths,
     Set<String> requestedFieldPaths,
     List<String> entityPath,
-    Set<String> entityTypes
+    Set<String> entityTypes,
+    Map<Integer, Set<String>> entityPathTypes
 ) {
 
     /**
@@ -57,7 +62,7 @@ public record ExecutionStep(
                          Map<String, SelectedValue> requirements, boolean repeatedExecution,
                          Set<String> artificialFieldPaths, Set<String> requestedFieldPaths) {
         this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
-            artificialFieldPaths, requestedFieldPaths, null, Set.of());
+            artificialFieldPaths, requestedFieldPaths, null, Set.of(), Map.of());
     }
 
     /**
@@ -69,12 +74,25 @@ public record ExecutionStep(
                          Set<String> artificialFieldPaths, Set<String> requestedFieldPaths,
                          List<String> entityPath) {
         this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
-            artificialFieldPaths, requestedFieldPaths, entityPath, Set.of());
+            artificialFieldPaths, requestedFieldPaths, entityPath, Set.of(), Map.of());
+    }
+
+    /**
+     * Constructor without type conditions along the entity path.
+     */
+    public ExecutionStep(int id, String subgraph, OperationDefinition operation,
+                         List<Integer> dependsOn, List<Integer> parallelWith,
+                         Map<String, SelectedValue> requirements, boolean repeatedExecution,
+                         Set<String> artificialFieldPaths, Set<String> requestedFieldPaths,
+                         List<String> entityPath, Set<String> entityTypes) {
+        this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, Map.of());
     }
 
     public ExecutionStep {
         entityPath = entityPath == null ? null : List.copyOf(entityPath);
         entityTypes = entityTypes == null ? Set.of() : Set.copyOf(entityTypes);
+        entityPathTypes = entityPathTypes == null ? Map.of() : Map.copyOf(entityPathTypes);
         if (id < 1) {
             throw new IllegalArgumentException("id must be positive");
         }

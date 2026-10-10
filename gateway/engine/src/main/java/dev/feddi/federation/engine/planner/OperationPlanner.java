@@ -148,11 +148,12 @@ public final class OperationPlanner {
 
         if (fragmentContext != null && !fragmentContext.subgraph.equals(bestPath.currentSubgraph())) {
             // The field resolves in another subgraph (through a lookup): it belongs to that
-            // subgraph's plan, not to this fragment, and so do its sub-selections.
+            // subgraph's plan, not to this fragment, and so do its sub-selections. The lookup's
+            // key fields are selected in the fragment.
+            context.recordFieldResolution(bestPath, selection.alias(), fieldName, parentPath,
+                selection.hasSubSelections(), selection.arguments(), selection.directives(), fragmentContext);
             fragmentContext = null;
-        }
-
-        if (fragmentContext != null) {
+        } else if (fragmentContext != null) {
             // Add to inline fragment's selection tree
             fragmentContext.addField(selection.alias(), fieldName, selection.hasSubSelections(),
                 selection.arguments(), selection.directives());
@@ -226,7 +227,9 @@ public final class OperationPlanner {
         // when we find fields that resolve in the same subgraph. This avoids creating
         // empty inline fragments when all fields go to a different subgraph.
 
-        // Plan each selection within the fragment
+        // Plan each selection within the fragment; lookups below it only apply to objects of its type
+        String outerTypeCondition = typeCondition != null
+            ? context.enterTypeCondition(parentPath.size(), typeCondition) : null;
         for (Selection subSelection : fragment.subSelections()) {
             if (subSelection instanceof FieldSelection fieldSelection) {
                 // Add field to the inline fragment's selection set using narrowed path
@@ -236,6 +239,9 @@ public final class OperationPlanner {
                 // Nested inline fragments are rare but possible
                 planInlineFragment(narrowedPath, nestedFragment, parentPath, context);
             }
+        }
+        if (typeCondition != null) {
+            context.exitTypeCondition(parentPath.size(), outerTypeCondition);
         }
     }
 
@@ -315,17 +321,20 @@ public final class OperationPlanner {
      * @param subgraph the subgraph name
      * @param entryLookup the lookup edge used to enter this subgraph, or null for root queries
      */
-    private record SubgraphPlanKey(String subgraph, LookupMoveEdge entryLookup, List<String> entryPath) {
+    private record SubgraphPlanKey(String subgraph, LookupMoveEdge entryLookup, List<String> entryPath,
+                                   Map<Integer, String> pathTypes) {
         SubgraphPlanKey {
             entryPath = entryPath == null ? List.of() : List.copyOf(entryPath);
+            pathTypes = pathTypes == null ? Map.of() : Map.copyOf(pathTypes);
         }
 
         static SubgraphPlanKey forRoot(String subgraph) {
-            return new SubgraphPlanKey(subgraph, null, List.of());
+            return new SubgraphPlanKey(subgraph, null, List.of(), Map.of());
         }
 
-        static SubgraphPlanKey forLookup(String subgraph, LookupMoveEdge entryLookup, List<String> entryPath) {
-            return new SubgraphPlanKey(subgraph, entryLookup, entryPath);
+        static SubgraphPlanKey forLookup(String subgraph, LookupMoveEdge entryLookup, List<String> entryPath,
+                                         Map<Integer, String> pathTypes) {
+            return new SubgraphPlanKey(subgraph, entryLookup, entryPath, pathTypes);
         }
 
         boolean isRootEntry() {
@@ -333,9 +342,14 @@ public final class OperationPlanner {
         }
     }
 
-    private record LookupPlanKey(LookupMoveEdge lookupEdge, List<String> entryPath) {
+    /**
+     * A lookup at a response path; {@code pathTypes} are the type conditions of the inline fragments along
+     * the path (see {@link ExecutionStep#entityPathTypes()}), so that each fragment gets its own lookup.
+     */
+    private record LookupPlanKey(LookupMoveEdge lookupEdge, List<String> entryPath, Map<Integer, String> pathTypes) {
         LookupPlanKey {
             entryPath = entryPath == null ? List.of() : List.copyOf(entryPath);
+            pathTypes = pathTypes == null ? Map.of() : Map.copyOf(pathTypes);
         }
     }
 
@@ -370,11 +384,43 @@ public final class OperationPlanner {
         // Graph reference for checking field resolution
         private final Graph graph;
 
+        // Type conditions of the inline fragments around the selection being planned, by the length of the
+        // response path to the object they apply to
+        private final Map<Integer, String> branchTypes = new HashMap<>();
+
         PlanningContext(List<VariableDefinition> queryVariableDefinitions, OperationDefinition.Operation operationType, Graph graph) {
             this.queryVariableDefinitions = queryVariableDefinitions != null
                 ? queryVariableDefinitions : List.of();
             this.operationType = operationType;
             this.graph = graph;
+        }
+
+        /** Enters an inline fragment on the object at {@code depth}; returns the condition it replaces. */
+        String enterTypeCondition(int depth, String typeCondition) {
+            return branchTypes.put(depth, typeCondition);
+        }
+
+        void exitTypeCondition(int depth, String previous) {
+            if (previous == null) {
+                branchTypes.remove(depth);
+            } else {
+                branchTypes.put(depth, previous);
+            }
+        }
+
+        /** The current type conditions on the objects above the end of {@code entryPath}. */
+        private Map<Integer, String> pathTypes(List<String> entryPath) {
+            Map<Integer, String> types = new HashMap<>();
+            branchTypes.forEach((depth, type) -> {
+                if (depth > 0 && depth < entryPath.size()) {
+                    types.put(depth, type);
+                }
+            });
+            return types;
+        }
+
+        private LookupPlanKey lookupKey(LookupMoveEdge lookupEdge, List<String> entryPath) {
+            return new LookupPlanKey(lookupEdge, entryPath, pathTypes(entryPath == null ? List.of() : entryPath));
         }
 
         /**
@@ -390,7 +436,7 @@ public final class OperationPlanner {
          * Gets or creates a plan for a lookup entry.
          */
         SubgraphPlan getOrCreateLookupPlan(LookupMoveEdge lookupEdge, List<String> parentPath) {
-            LookupPlanKey lookupPlanKey = new LookupPlanKey(lookupEdge, parentPath);
+            LookupPlanKey lookupPlanKey = lookupKey(lookupEdge, parentPath);
 
             // Check if we already have a plan for this lookup edge at this response path
             SubgraphPlan existingPlan = lookupEdgeToPlan.get(lookupPlanKey);
@@ -399,10 +445,10 @@ public final class OperationPlanner {
             }
 
             String subgraph = lookupEdge.target().subgraph();
-            SubgraphPlanKey key = SubgraphPlanKey.forLookup(subgraph, lookupEdge, parentPath);
+            SubgraphPlanKey key = SubgraphPlanKey.forLookup(subgraph, lookupEdge, parentPath, lookupPlanKey.pathTypes());
             SubgraphPlan plan = subgraphPlans.computeIfAbsent(key, k -> {
                 SubgraphPlan newPlan = new SubgraphPlan(stepIdGenerator.incrementAndGet(), subgraph, queryVariableDefinitions, operationType);
-                newPlan.setLookupOrigin(lookupEdge, parentPath);
+                newPlan.setLookupOrigin(lookupEdge, parentPath, lookupPlanKey.pathTypes());
                 return newPlan;
             });
             lookupEdgeToPlan.put(lookupPlanKey, plan);
@@ -441,6 +487,18 @@ public final class OperationPlanner {
         void recordFieldResolution(OperationPath path, String alias, String fieldName,
                                    List<String> parentPath, boolean hasChildren,
                                    List<Argument> queryArguments, List<Directive> queryDirectives) {
+            recordFieldResolution(path, alias, fieldName, parentPath, hasChildren, queryArguments, queryDirectives,
+                null);
+        }
+
+        /**
+         * Records a field resolution; {@code keyFragment}, if not null, is the inline fragment the field is
+         * selected in: a lookup that starts at the field's parent selects its key fields there.
+         */
+        void recordFieldResolution(OperationPath path, String alias, String fieldName,
+                                   List<String> parentPath, boolean hasChildren,
+                                   List<Argument> queryArguments, List<Directive> queryDirectives,
+                                   InlineFragmentContext keyFragment) {
             String subgraph = path.currentSubgraph();
 
             // Find the last lookup edge that enters the current subgraph (if any)
@@ -465,14 +523,15 @@ public final class OperationPlanner {
             plan.addFieldWithAlias(alias, fieldName, parentPath, hasChildren, queryArguments, queryDirectives);
 
             // Process all lookup edges in the path to set up dependencies and key fields
-            processLookupEdgesInPath(path, fieldName, parentPath, plan);
+            processLookupEdgesInPath(path, fieldName, parentPath, plan, keyFragment);
         }
 
         /**
          * Processes lookup edges in a path to set up dependencies and key fields.
          */
         private void processLookupEdgesInPath(OperationPath path, String fieldName,
-                                               List<String> parentPath, SubgraphPlan targetPlan) {
+                                               List<String> parentPath, SubgraphPlan targetPlan,
+                                               InlineFragmentContext keyFragment) {
             String targetSubgraph = targetPlan.subgraph;
 
             // Build a chain of lookup edges and their corresponding plans
@@ -496,7 +555,7 @@ public final class OperationPlanner {
                     // Source is the previous lookup's target
                     LookupMoveEdge prevLookup = lookupChain.get(i - 1);
                     List<String> prevEntryPath = lookupEntryPath(path, prevLookup, parentPath);
-                    sourcePlan = lookupEdgeToPlan.get(new LookupPlanKey(prevLookup, prevEntryPath));
+                    sourcePlan = lookupEdgeToPlan.get(lookupKey(prevLookup, prevEntryPath));
                     if (sourcePlan == null) {
                         throw new PlanningException("Source plan not found for lookup edge from '" +
                             sourceSubgraph + "' - previous lookup in chain was not properly registered");
@@ -513,7 +572,7 @@ public final class OperationPlanner {
                 addPlanDependency(lookupTargetPlan, sourcePlan);
 
                 // Only process key fields once per lookup entry to avoid duplicates
-                LookupPlanKey lookupPlanKey = new LookupPlanKey(lookupEdge, entryPath);
+                LookupPlanKey lookupPlanKey = lookupKey(lookupEdge, entryPath);
                 if (!processedLookupEdges.contains(lookupPlanKey)) {
                     processedLookupEdges.add(lookupPlanKey);
 
@@ -524,7 +583,11 @@ public final class OperationPlanner {
                     for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
                         Map<String, String> combinedResponseKeys = new LinkedHashMap<>();
                         for (Path altPath : lookupArg.extractPaths()) {
-                            Map<String, String> nestedResponseKeys = addNestedFieldPath(sourcePlan, altPath, entryPath, FieldOrigin.ARTIFICIAL_KEY);
+                            Map<String, String> nestedResponseKeys =
+                                keyFragment != null && keyFragment.subgraph.equals(sourceSubgraph)
+                                    && entryPath.equals(parentPath)
+                                    ? keyFragment.addKeyPath(altPath)
+                                    : addNestedFieldPath(sourcePlan, altPath, entryPath, FieldOrigin.ARTIFICIAL_KEY);
                             combinedResponseKeys.putAll(nestedResponseKeys);
                         }
                         lookupArgNestedResponseKeys.put(lookupArg.argumentName(), combinedResponseKeys);
@@ -560,7 +623,7 @@ public final class OperationPlanner {
             // Get or create the response keys map for this lookup edge
             List<String> entryPath = targetPlan.lookupEntryPath != null ? targetPlan.lookupEntryPath : parentPath;
             Map<String, String> reqResponseKeys = requireFieldResponseKeys.computeIfAbsent(
-                new LookupPlanKey(lookupEdge, entryPath), k -> new HashMap<>());
+                lookupKey(lookupEdge, entryPath), k -> new HashMap<>());
 
             Set<Path> resolvedPaths = new HashSet<>();
             for (var req : lookupEdge.requires()) {
@@ -1051,7 +1114,7 @@ public final class OperationPlanner {
 
                     SubgraphPlan intermediatePlan = getOrCreateLookupPlan(lookupEdge, parentPath);
 
-                    LookupPlanKey lookupPlanKey = new LookupPlanKey(lookupEdge, parentPath);
+                    LookupPlanKey lookupPlanKey = lookupKey(lookupEdge, parentPath);
                     if (!processedLookupEdges.contains(lookupPlanKey)) {
                         processedLookupEdges.add(lookupPlanKey);
 
@@ -1149,7 +1212,7 @@ public final class OperationPlanner {
             // Add dependency: intermediate depends on source
             addPlanDependency(intermediatePlan, sourcePlan);
 
-            LookupPlanKey lookupPlanKey = new LookupPlanKey(lookupEdge, parentPath);
+            LookupPlanKey lookupPlanKey = lookupKey(lookupEdge, parentPath);
             if (!processedLookupEdges.contains(lookupPlanKey)) {
                 processedLookupEdges.add(lookupPlanKey);
 
@@ -1334,7 +1397,7 @@ public final class OperationPlanner {
                 // Add key fields to source subgraph (ARTIFICIAL_KEY)
                 // For unions (which don't have fields), key fields must be added inside the inline fragment.
                 // For interfaces and object types (which have fields), key fields can be at the parent level.
-                LookupPlanKey enteringLookupPlanKey = new LookupPlanKey(enteringLookupEdge, enteringEntryPath);
+                LookupPlanKey enteringLookupPlanKey = lookupKey(enteringLookupEdge, enteringEntryPath);
                 if (!processedLookupEdges.contains(enteringLookupPlanKey)) {
                     processedLookupEdges.add(enteringLookupPlanKey);
                     Map<Path, Map<String, String>> lookupArgNestedResponseKeys = new HashMap<>();
@@ -1496,7 +1559,7 @@ public final class OperationPlanner {
                     // When we're in a fragment context (e.g., ... on Book inside a union),
                     // key fields must be added inside the fragment, not at the parent level.
                     // Process ALL paths from all alternatives (e.g., <Book>.isbn | <Electronics>.sku)
-                    LookupPlanKey lookupPlanKey = new LookupPlanKey(lookupEdge, edgeEntryPath);
+                    LookupPlanKey lookupPlanKey = lookupKey(lookupEdge, edgeEntryPath);
                     if (!processedLookupEdges.contains(lookupPlanKey)) {
                         processedLookupEdges.add(lookupPlanKey);
 
@@ -1566,7 +1629,7 @@ public final class OperationPlanner {
 
                         // Get or create the response keys map for this lookup edge
                         Map<String, String> reqResponseKeys = requireFieldResponseKeys.computeIfAbsent(
-                            new LookupPlanKey(lookupEdge, edgeEntryPath), k -> new HashMap<>());
+                            lookupKey(lookupEdge, edgeEntryPath), k -> new HashMap<>());
 
                         Set<Path> resolvedPaths = new HashSet<>();
                         for (var req : lookupEdge.requires()) {
@@ -1664,7 +1727,8 @@ public final class OperationPlanner {
                     artificialPaths,
                     requestedPaths,
                     plan.lookupEntryPath,
-                    concreteTypes(plan.lookupTargetType)
+                    concreteTypes(plan.lookupTargetType),
+                    concreteTypesByDepth(plan.lookupPathTypes)
                 );
 
                 steps.add(step);
@@ -1693,6 +1757,12 @@ public final class OperationPlanner {
             }
             Set<String> members = graph.getUnionMembers(typeName);
             return members.isEmpty() ? Set.of(typeName) : members;
+        }
+
+        private Map<Integer, Set<String>> concreteTypesByDepth(Map<Integer, String> typesByDepth) {
+            Map<Integer, Set<String>> result = new HashMap<>();
+            typesByDepth.forEach((depth, type) -> result.put(depth, concreteTypes(type)));
+            return result;
         }
 
         /**
@@ -1728,7 +1798,8 @@ public final class OperationPlanner {
                     step.artificialFieldPaths(),
                     step.requestedFieldPaths(),
                     step.entityPath(),
-                    step.entityTypes()
+                    step.entityTypes(),
+                    step.entityPathTypes()
                 ));
             }
 
@@ -1749,6 +1820,7 @@ public final class OperationPlanner {
         String lookupFieldName;                     // e.g., "productById"
         String lookupTargetType;                    // the entity type the lookup resolves, e.g. "Book"
         String lookupReturnType;                    // the lookup field's type: lookupTargetType or an abstract type
+        Map<Integer, String> lookupPathTypes = Map.of(); // type conditions along the lookup's entry path
         List<LookupArgument> lookupArguments;  // Key fields with argument info
         List<String> lookupEntryPath;               // The parentPath when we entered via lookup
 
@@ -1783,7 +1855,8 @@ public final class OperationPlanner {
         /**
          * Sets the lookup origin information for a subgraph entered via a @lookup edge.
          */
-        void setLookupOrigin(LookupMoveEdge lookupEdge, List<String> entryPath) {
+        void setLookupOrigin(LookupMoveEdge lookupEdge, List<String> entryPath, Map<Integer, String> pathTypes) {
+            this.lookupPathTypes = pathTypes;
             this.lookupTargetType = lookupEdge.target().typeName();
             this.lookupReturnType = lookupEdge.returnType();
             this.lookupFieldName = lookupEdge.lookupField();
@@ -2670,6 +2743,25 @@ public final class OperationPlanner {
 
         void enterField(String fieldName) {
             currentPath.add(fieldName);
+        }
+
+        /** Selects a key path (e.g. {@code id} or {@code product.id}) at the current position. */
+        Map<String, String> addKeyPath(Path keyPath) {
+            Map<String, String> responseKeys = new LinkedHashMap<>();
+            List<PathSegment> segments = keyPath.segments();
+            for (int i = 0; i < segments.size(); i++) {
+                String segment = segments.get(i).fieldName();
+                boolean hasChildren = i < segments.size() - 1;
+                addField(null, segment, hasChildren, List.of(), List.of(), FieldOrigin.ARTIFICIAL_KEY);
+                responseKeys.put(segment, segment);
+                if (hasChildren) {
+                    enterField(segment);
+                }
+            }
+            for (int i = 0; i < segments.size() - 1; i++) {
+                exitField();
+            }
+            return responseKeys;
         }
 
         void exitField() {

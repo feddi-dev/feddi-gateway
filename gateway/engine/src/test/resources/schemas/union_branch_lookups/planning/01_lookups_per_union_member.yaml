@@ -1,0 +1,44 @@
+name: "Lookups per union member"
+description: |
+  price is only selected for AnonymousReview items and inStock only for UserReview items: the key
+  fields go into each member's fragment, and each lookup runs for its member's products only.
+
+query: |
+  {
+    reviews {
+      ... on AnonymousReview {
+        product {
+          price
+        }
+      }
+      ... on UserReview {
+        product {
+          inStock
+        }
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: reviews
+      operation: "{ reviews { __typename ... on AnonymousReview { product { id } } ... on UserReview { product { id } } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: pricing
+      operation: "query($id: ID!) { productById(id: $id) { price } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: stock
+      operation: "query($id: ID!) { productById(id: $id) { inStock } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

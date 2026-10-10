@@ -836,7 +836,7 @@ public final class Executor {
         }
         List<Map<String, Object>> targets = new ArrayList<>();
         synchronized (ctx) {
-            collectEntityTargets(ctx.getMergedData(), step.entityPath(), 0, targets);
+            collectEntityTargets(ctx.getMergedData(), step.entityPath(), step.entityPathTypes(), 0, targets);
         }
         if (!step.entityTypes().isEmpty()) {
             // A lookup for one concrete type (e.g. below "... on Book") skips entities of other types.
@@ -846,19 +846,27 @@ public final class Executor {
         return filterContextsForRequirements(targets, step.requirements());
     }
 
-    /** Follow response keys, traversing lists without consuming a path segment. */
+    /**
+     * Follow response keys, traversing lists without consuming a path segment, and skipping objects whose
+     * {@code __typename} is not one of the types required at their position.
+     */
     @SuppressWarnings("unchecked")
-    private void collectEntityTargets(Object value, List<String> path, int index,
-                                      List<Map<String, Object>> targets) {
+    private void collectEntityTargets(Object value, List<String> path, Map<Integer, Set<String>> pathTypes,
+                                      int index, List<Map<String, Object>> targets) {
         if (value instanceof List<?> list) {
             for (Object item : list) {
-                collectEntityTargets(item, path, index, targets);
+                collectEntityTargets(item, path, pathTypes, index, targets);
             }
         } else if (value instanceof Map<?, ?> map) {
+            Set<String> types = pathTypes.get(index);
+            if (types != null && map.get(IntrospectionFields.TYPENAME) instanceof String typename
+                && !types.contains(typename)) {
+                return;
+            }
             if (index == path.size()) {
                 targets.add((Map<String, Object>) map);
             } else {
-                collectEntityTargets(map.get(path.get(index)), path, index + 1, targets);
+                collectEntityTargets(map.get(path.get(index)), path, pathTypes, index + 1, targets);
             }
         }
     }

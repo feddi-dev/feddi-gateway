@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 56 planned by feddi, 55 with no more steps than Fusion, 46 with no more depth
+# 91 tests (4 with an invalid query), 59 planned by feddi, 57 with no more steps than Fusion, 49 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -8,10 +8,9 @@ AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Dupl
   fusionOperations: 4
   fusionDepth: 2
 AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ:
-  status: "invalid subgraph operation: step 1 (a): Validation error (FieldUndefined@[search/asset])\
-    \ : Field 'asset' in type 'CandidateResult' is undefined"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 13
+  depth: 3
   fusionOperations: 6
   fusionDepth: 3
 AbstractLookupFanoutPlanningTests/Plan_Should_Prune_Impossible_Concrete_Fragment_When_Parent_Is_Object:
@@ -138,10 +137,9 @@ PlannerAdvancedAdaptationTests/Issues_Issue_190_Without_Typename:
   fusionOperations: 1
   fusionDepth: 1
 PlannerAdvancedAdaptationTests/Issues_Issue_281:
-  status: "invalid subgraph operation: step 1 (a): Validation error (FieldUndefined@[viewer/review/product])\
-    \ : Field 'product' in type 'Review' is undefined"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 5
+  depth: 3
   fusionOperations: 5
   fusionDepth: 3
 PlannerAdvancedAdaptationTests/Provides_Nested_Provides:
@@ -171,10 +169,9 @@ PlannerAdvancedAdaptationTests/Union_Union_Member_Mix:
   fusionOperations: 1
   fusionDepth: 1
 PlannerAdvancedAdaptationTests/Union_Union_Overfetching_Test:
-  status: "invalid subgraph operation: step 1 (a): Validation error (FieldUndefined@[review/product])\
-    \ : Field 'product' in type 'Review' is undefined"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 4
+  depth: 2
   fusionOperations: 4
   fusionDepth: 2
 PlannerBehaviorTests/Fragments_Fragment_Spread:

@@ -1,11 +1,10 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 225 queries {composition failed=20, different data=4, feddi error=8, invalid query=4, planning failed=3, same data=186}
+# 226 queries {composition failed=20, different data=4, feddi error=5, invalid query=4, planning failed=3, same data=190}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "planning\
   \ failed"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
-: "feddi error: Validation error (FieldUndefined@[search/asset]) : Field 'asset' in\
-  \ type 'CandidateResult' is undefined"
+: "same data"
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_Impossible_Concrete_Fragment_When_Parent_Is_Object: "planning\
   \ failed"
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_InterfaceFragment_Is_In_NodeSelectionSet: "same\
@@ -33,17 +32,13 @@ fusion/OperationPlannerTests/Plan_Simple_Union_Lookup: "same data"
 fusion/PlannerAdvancedAdaptationTests/Issues_Issue_190_Inline_Fragment: "same data"
 fusion/PlannerAdvancedAdaptationTests/Issues_Issue_190_With_Typename: "same data"
 fusion/PlannerAdvancedAdaptationTests/Issues_Issue_190_Without_Typename: "same data"
-fusion/PlannerAdvancedAdaptationTests/Issues_Issue_281: "feddi error: Validation error\
-  \ (FieldUndefined@[viewer/review/product]) : Field 'product' in type 'Review' is\
-  \ undefined"
+fusion/PlannerAdvancedAdaptationTests/Issues_Issue_281: "same data"
 fusion/PlannerAdvancedAdaptationTests/Provides_Nested_Provides: "composition failed"
 fusion/PlannerAdvancedAdaptationTests/Provides_Simple_Provides: "same data"
 fusion/PlannerAdvancedAdaptationTests/Requires_Provides_Simple_Requires_Provides: "same\
   \ data"
 fusion/PlannerAdvancedAdaptationTests/Union_Union_Member_Mix: "same data"
-fusion/PlannerAdvancedAdaptationTests/Union_Union_Overfetching_Test: "feddi error:\
-  \ Validation error (FieldUndefined@[review/product]) : Field 'product' in type 'Review'\
-  \ is undefined"
+fusion/PlannerAdvancedAdaptationTests/Union_Union_Overfetching_Test: "same data"
 fusion/PlannerBehaviorTests/Fragments_Fragment_Spread: "same data"
 fusion/PlannerBehaviorTests/Fragments_Simple_Inline_Fragment: "same data"
 fusion/PlannerBehaviorTests/Include_Skip_Basic_Include: "invalid query"
@@ -264,6 +259,7 @@ schemas/single_subgraph/partial_fields: "same data"
 schemas/typename/01_typename_on_union: "same data"
 schemas/typename/02_typename_on_interface: "same data"
 schemas/typename/03_typename_at_root: "same data"
+schemas/union_branch_lookups/01_lookups_per_union_member: "same data"
 schemas/union_interface_distributed/01_products_with_warranty: "same data"
 schemas/union_lookup/01_single_subgraph_union: "same data"
 schemas/union_lookup/02_union_lookup_cross_subgraph: "same data"
