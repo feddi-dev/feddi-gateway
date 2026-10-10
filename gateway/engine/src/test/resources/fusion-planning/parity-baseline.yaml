@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 53 planned by feddi, 52 with no more steps than Fusion, 43 with no more depth
+# 91 tests (4 with an invalid query), 54 planned by feddi, 53 with no more steps than Fusion, 44 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -562,10 +562,9 @@ RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_ConcreteFragment_I
   fusionOperations: 5
   fusionDepth: 4
 RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_Entry_Crosses_Required_Field:
-  status: "invalid subgraph operation: step 2 (REVIEWS): Validation error (FieldUndefined@[productById/reviews/author/name])\
-    \ : Field 'name' in type 'User' is undefined"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 3
+  depth: 3
   fusionOperations: 5
   fusionDepth: 4
 RequirementReentrancyTests/Plan_Should_Resolve_User_When_Union_Entry_Crosses_Required_Field:

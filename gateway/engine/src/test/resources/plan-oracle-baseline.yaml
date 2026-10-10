@@ -1,6 +1,6 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 223 queries {composition failed=22, different data=4, feddi error=9, invalid query=4, planning failed=3, same data=181}
+# 223 queries {composition failed=22, different data=4, feddi error=8, invalid query=4, planning failed=3, same data=182}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "planning\
   \ failed"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
@@ -131,9 +131,8 @@ fusion/RequirementReentrancyTests/Plan_Should_Reenter_Catalog_When_EnteringFromR
   \ data"
 fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_ConcreteFragment_IsConditional: "feddi\
   \ error: Validation error (UndefinedVariable@[node]) : Undefined variable 'include'"
-fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_Entry_Crosses_Required_Field: "feddi\
-  \ error: Validation error (MissingFieldArgument@[node]) : Missing field argument\
-  \ 'id'"
+fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_Entry_Crosses_Required_Field: "same\
+  \ data"
 fusion/RequirementReentrancyTests/Plan_Should_Resolve_User_When_Union_Entry_Crosses_Required_Field: "feddi\
   \ error: Validation error (FieldUndefined@[searchProduct/product]) : Field 'product'\
   \ in type 'SearchResult' is undefined"

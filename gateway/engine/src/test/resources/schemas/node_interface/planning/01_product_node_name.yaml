@@ -28,7 +28,7 @@ expectedPlan:
     # Step 2: Look up Product in types subgraph
     - id: 2
       subgraph: types
-      operation: "query($id: ID!) { productById(id: $id) { ... on Product { name } } }"
+      operation: "query($id: ID!) { productById(id: $id) { name } }"
       dependsOn: [1]
       requirements:
         id: "id"

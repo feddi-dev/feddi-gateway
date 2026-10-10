@@ -36,18 +36,18 @@ subgraphCalls:
   # Currently the executor looks up ALL entities, including Magazine.
   # The bookById lookup returns null for non-existent Magazines.
   - subgraph: reviews
-    operation: 'query ($id: ID!) { bookById(id: $id) { ... on Book { reviewsCount } } }'
+    operation: 'query ($id: ID!) { bookById(id: $id) { reviewsCount } }'
     variables: { id: "b1" }
     response: { data: { bookById: { reviewsCount: 10 } } }
 
   - subgraph: reviews
-    operation: 'query ($id: ID!) { bookById(id: $id) { ... on Book { reviewsCount } } }'
+    operation: 'query ($id: ID!) { bookById(id: $id) { reviewsCount } }'
     variables: { id: "b2" }
     response: { data: { bookById: { reviewsCount: 25 } } }
 
   # Magazine lookup returns null (bookById doesn't find a Magazine)
   - subgraph: reviews
-    operation: 'query ($id: ID!) { bookById(id: $id) { ... on Book { reviewsCount } } }'
+    operation: 'query ($id: ID!) { bookById(id: $id) { reviewsCount } }'
     variables: { id: "m1" }
     response: { data: { bookById: null } }
 

@@ -31,7 +31,7 @@ expectedPlan:
     # This is semantically correct - the fragment is redundant but valid.
     - id: 2
       subgraph: reviews
-      operation: "query($id: ID!) { bookById(id: $id) { ... on Book { reviewsCount } } }"
+      operation: "query($id: ID!) { bookById(id: $id) { reviewsCount } }"
       dependsOn: [1]
       requirements:
         id: "id"

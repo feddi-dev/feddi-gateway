@@ -146,6 +146,12 @@ public final class OperationPlanner {
             return;
         }
 
+        if (fragmentContext != null && !fragmentContext.subgraph.equals(bestPath.currentSubgraph())) {
+            // The field resolves in another subgraph (through a lookup): it belongs to that
+            // subgraph's plan, not to this fragment, and so do its sub-selections.
+            fragmentContext = null;
+        }
+
         if (fragmentContext != null) {
             // Add to inline fragment's selection tree
             fragmentContext.addField(selection.alias(), fieldName, selection.hasSubSelections(),
@@ -1283,7 +1289,7 @@ public final class OperationPlanner {
                                                        String typeCondition, List<Directive> directives) {
             SubgraphPlan plan = getOrCreateRootPlan(subgraph);
             InlineFragmentNode fragmentNode = plan.getOrCreateInlineFragment(parentPath, typeCondition, directives);
-            return new InlineFragmentContext(fragmentNode);
+            return new InlineFragmentContext(fragmentNode, plan.subgraph);
         }
 
         /**
@@ -1426,9 +1432,15 @@ public final class OperationPlanner {
                 }
             }
 
+            if (enteringLookupEdge != null && enteringEntryPath.equals(parentPath) && directives.isEmpty()
+                && enteringLookupEdge.target().typeName().equals(typeCondition)) {
+                // The lookup already returns the fragment's type: its fields need no type condition.
+                return new InlineFragmentContext(new InlineFragmentNode(plan.root), plan.subgraph);
+            }
+
             // Create inline fragment context (path is adjusted for lookup entry in getOrCreateInlineFragment)
             InlineFragmentNode fragmentNode = plan.getOrCreateInlineFragment(parentPath, typeCondition, directives);
-            return new InlineFragmentContext(fragmentNode);
+            return new InlineFragmentContext(fragmentNode, plan.subgraph);
         }
 
         /**
@@ -2525,11 +2537,19 @@ public final class OperationPlanner {
     private static class InlineFragmentNode {
         final String typeCondition;
         final List<Directive> directives;
-        final SelectionNode root = new SelectionNode("", true);
+        final SelectionNode root;
 
         InlineFragmentNode(String typeCondition, List<Directive> directives) {
             this.typeCondition = typeCondition;
             this.directives = directives != null ? directives : List.of();
+            this.root = new SelectionNode("", true);
+        }
+
+        /** A fragment without type condition whose fields go directly into {@code selections}. */
+        InlineFragmentNode(SelectionNode selections) {
+            this.typeCondition = null;
+            this.directives = List.of();
+            this.root = selections;
         }
 
         /**
@@ -2621,10 +2641,12 @@ public final class OperationPlanner {
      */
     private static class InlineFragmentContext {
         final InlineFragmentNode fragmentNode;
+        final String subgraph;                               // subgraph of the plan that holds the fragment
         final List<String> currentPath = new ArrayList<>();  // Path within the fragment
 
-        InlineFragmentContext(InlineFragmentNode fragmentNode) {
+        InlineFragmentContext(InlineFragmentNode fragmentNode, String subgraph) {
             this.fragmentNode = fragmentNode;
+            this.subgraph = subgraph;
         }
 
         void addField(String alias, String fieldName, boolean hasChildren, List<Argument> arguments, List<Directive> directives) {
