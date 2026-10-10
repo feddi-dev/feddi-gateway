@@ -40,7 +40,8 @@ import java.util.regex.Pattern;
  *
  * <p>Every object has a numeric seed. Key fields (fields of a {@code @key}, and fields that lookup
  * arguments map to, across all source schemas) encode it: {@code "s123"} for strings and IDs,
- * {@code 123} for numbers, so a lookup by a key recovers the seed. Every other value derives from
+ * {@code 123} for numbers, so a lookup by a key recovers the seed. Other ID fields look different
+ * ({@code "i123"}), so only key values are taken for seeds. Every other value derives from
  * (type, seed, field, arguments) only, so all schemas that offer a field return the same value for
  * the same entity. Arguments annotated with {@code @require} are left out: they carry data of the
  * same entity and do not exist in the composite schema. Lists have two items; a list field whose
@@ -61,7 +62,16 @@ public final class DeterministicData {
         }
         for (GraphQLNamedType type : compositeSchema.getAllTypesAsList()) {
             if (type instanceof GraphQLInterfaceType || type instanceof GraphQLUnionType) {
-                compositePossibleTypes.put(type.getName(), possibleTypes(compositeSchema, type));
+                // Types every source schema with this abstract type can return, so that whichever
+                // schema resolves a field, it picks the same concrete type as the monolith.
+                List<String> common = new ArrayList<>(possibleTypes(compositeSchema, type));
+                for (Subgraph subgraph : subgraphs) {
+                    GraphQLType local = subgraph.schema().getType(type.getName());
+                    if (local != null) {
+                        common.retainAll(possibleTypes(subgraph.schema(), local));
+                    }
+                }
+                compositePossibleTypes.put(type.getName(), common.isEmpty() ? possibleTypes(compositeSchema, type) : common);
             }
         }
     }
@@ -108,14 +118,21 @@ public final class DeterministicData {
             }
             return entity(env.getGraphQLSchema(), named, argSeeds.isEmpty() ? hash(base) : argSeeds.get(0));
         }
-        if (list) {
+        return scalars(GraphQLTypeUtil.unwrapNonNull(type), named, parentType, field, parentSeed, args, 0);
+    }
+
+    /** A scalar or enum value, or (nested) lists of them, with one index per position. */
+    private Object scalars(GraphQLType type, GraphQLNamedType named, String parentType, String field, long seed,
+                           String args, int index) {
+        if (type instanceof GraphQLList listType) {
             List<Object> items = new ArrayList<>();
             for (int i = 0; i < LIST_SIZE; i++) {
-                items.add(scalar(named, parentType, field, parentSeed, args, i));
+                items.add(scalars(GraphQLTypeUtil.unwrapNonNull(listType.getWrappedType()), named, parentType, field,
+                    seed, args, index * LIST_SIZE + i));
             }
             return items;
         }
-        return scalar(named, parentType, field, parentSeed, args, 0);
+        return scalar(named, parentType, field, seed, args, index);
     }
 
     private Map<String, Object> entity(GraphQLSchema schema, GraphQLNamedType type, long seed) {
@@ -141,7 +158,7 @@ public final class DeterministicData {
             return values.get((int) (h % values.size()));
         }
         return switch (type.getName()) {
-            case "ID" -> "s" + h;
+            case "ID" -> (key ? "s" : "i") + h;
             case "String" -> key ? "s" + h : field + "-" + (h % 10000);
             case "Boolean" -> h % 2 == 0;
             case "Float" -> (h % 100000) / 100.0;
@@ -185,8 +202,20 @@ public final class DeterministicData {
                 List<String> targets = target instanceof GraphQLObjectType ? List.of(target.getName()) : possibleTypes(schema, target);
                 for (GraphQLArgument argument : field.getArguments()) {
                     String mapped = argument.hasAppliedDirective("is") ? stringArgument(argument.getAppliedDirective("is"), "field") : null;
-                    String keyField = mapped != null && mapped.matches("\\w+") ? mapped : argument.getName();
-                    targets.forEach(t -> keyFields.computeIfAbsent(t, k -> new HashSet<>()).add(keyField));
+                    if (mapped == null) {
+                        targets.forEach(t -> keyFields.computeIfAbsent(t, k -> new HashSet<>()).add(argument.getName()));
+                        continue;
+                    }
+                    // "id", "<Book>.isbn | <Electronics>.sku", "product.id": the first field of each alternative
+                    for (String alternative : mapped.split("\\|")) {
+                        Matcher typed = Pattern.compile("^\\s*<(\\w+)>\\s*\\.\\s*(\\w+)").matcher(alternative);
+                        Matcher plain = Pattern.compile("^\\s*\\{?\\s*(\\w+)").matcher(alternative);
+                        if (typed.find()) {
+                            keyFields.computeIfAbsent(typed.group(1), k -> new HashSet<>()).add(typed.group(2));
+                        } else if (plain.find()) {
+                            targets.forEach(t -> keyFields.computeIfAbsent(t, k -> new HashSet<>()).add(plain.group(1)));
+                        }
+                    }
                 }
             }
         }
