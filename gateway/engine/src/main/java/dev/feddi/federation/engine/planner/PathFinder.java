@@ -168,23 +168,18 @@ public final class PathFinder {
             return true;
         }
 
-        // Field has @require - check if we've gone through a lookup that provides it
-        for (Edge pathEdge : currentPath.getEdges()) {
-            if (pathEdge instanceof LookupMoveEdge lookupEdge) {
-                // Check if this lookup targets the same type/subgraph and has @require for our field
-                if (lookupEdge.target().typeName().equals(typeName)
-                    && lookupEdge.target().subgraph().equals(subgraph)) {
-                    for (var req : lookupEdge.requires()) {
-                        if (fieldName.equals(req.fieldName())) {
-                            // Found a lookup that provides the @require arguments
-                            return true;
-                        }
-                    }
+        // Field has @require: the requirement values are per object, so the object itself must have been entered
+        // through a lookup that carries them (the path's last edge); a lookup into the same type further up the
+        // path is for another object
+        List<Edge> edges = currentPath.getEdges();
+        if (!edges.isEmpty() && edges.get(edges.size() - 1) instanceof LookupMoveEdge lookupEdge
+            && lookupEdge.target().typeName().equals(typeName) && lookupEdge.target().subgraph().equals(subgraph)) {
+            for (var req : lookupEdge.requires()) {
+                if (fieldName.equals(req.fieldName())) {
+                    return true;
                 }
             }
         }
-
-        // Field has @require but no lookup in path provides it - can't access directly
         return false;
     }
 

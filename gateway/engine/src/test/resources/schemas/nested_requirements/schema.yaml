@@ -1,0 +1,25 @@
+name: "Nested requirements"
+description: "@require fields on objects below a lookup's entity: each object needs its own requirement values."
+
+subgraphs:
+  graph: |
+    type Query {
+      itemById(id: ID!): Item @lookup @internal
+    }
+
+    type Item @key(fields: "id") {
+      id: ID!
+      next: Item
+      score(weight: Int @require(field: "weight")): String
+    }
+
+  weights: |
+    type Query {
+      topItem: Item
+      itemById(id: ID!): Item @lookup @internal
+    }
+
+    type Item @key(fields: "id") {
+      id: ID!
+      weight: Int
+    }

@@ -1,0 +1,47 @@
+name: "Requirement of a nested object"
+description: |
+  score requires weight of its own Item. For topItem.next, that Item's weight is fetched with its own lookup,
+  and score is selected through a lookup at topItem.next (not in the lookup for topItem, whose requirement
+  values would be topItem's).
+
+query: |
+  {
+    topItem {
+      next {
+        score
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: weights
+      operation: "{ topItem { id } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: graph
+      operation: "query($id: ID!) { itemById(id: $id) { next { id } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: graph
+      operation: "query($id: ID!, $weight: Int) { itemById(id: $id) { score(weight: $weight) } }"
+      dependsOn: [4]
+      requirements:
+        id: "id"
+        weight: "weight"
+      repeatedExecution: true
+
+    - id: 4
+      subgraph: weights
+      operation: "query($id: ID!) { itemById(id: $id) { id weight } }"
+      dependsOn: [2]
+      requirements:
+        id: "id"
+      repeatedExecution: true

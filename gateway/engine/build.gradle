@@ -56,4 +56,6 @@ tasks.named('test') {
     // PlanExecutionOracleTest compares feddi's results with a monolith; -PupdatePlanOracle rewrites its baseline.
     systemProperty 'planOracle.baseline', file('src/test/resources/plan-oracle-baseline.yaml').absolutePath
     systemProperty 'planOracle.update', project.hasProperty('updatePlanOracle')
+    // RandomGraphOracleTest runs 150 fixed seeds; -PrandomGraphSeeds=N runs more
+    systemProperty 'randomGraph.seeds', project.findProperty('randomGraphSeeds') ?: '150'
 }

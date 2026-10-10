@@ -587,6 +587,22 @@ public final class OperationPlanner {
             return entryPath;
         }
 
+        /**
+         * Whether the {@code lookupIndex}-th lookup on a path to a field enters the field's own object (it is the
+         * edge right before the field). Only that lookup carries the field's @require values: requirements are per
+         * object, and an earlier lookup into the same type was for another object.
+         */
+        private static boolean entersFieldObject(OperationPath path, int lookupIndex) {
+            List<Edge> edges = path.getEdges();
+            int seen = -1;
+            for (int i = 0; i < edges.size(); i++) {
+                if (edges.get(i) instanceof LookupMoveEdge && ++seen == lookupIndex) {
+                    return i == edges.size() - 2;
+                }
+            }
+            return false;
+        }
+
         /** A lookup on a path, with the response path where it starts. */
         private record LookupStep(LookupMoveEdge edge, List<String> entryPath) {
         }
@@ -733,7 +749,8 @@ public final class OperationPlanner {
                 }
 
                 // Process @require fields for the last lookup in the chain that enters the target subgraph
-                if (lookupEdge.target().subgraph().equals(targetSubgraph) && lookupEdge.hasRequirements()) {
+                if (lookupEdge.target().subgraph().equals(targetSubgraph) && lookupEdge.hasRequirements()
+                    && entersFieldObject(path, i)) {
                     processRequireFields(lookupEdge, fieldName, parentPath, sourcePlan, lookupTargetPlan);
                 }
             }
@@ -1948,7 +1965,8 @@ public final class OperationPlanner {
 
                 // Add @require fields - this handles cases where fields inside inline fragments
                 // have @require dependencies that need to be resolved
-                if (lookupEdge.hasRequirements() && lookupEdge.target().subgraph().equals(subgraph)) {
+                if (lookupEdge.hasRequirements() && lookupEdge.target().subgraph().equals(subgraph)
+                    && entersFieldObject(path, lookupIndex)) {
                     String sourceTypeName = lookupEdge.source().typeName();
                     Set<String> visitedForRequire = new HashSet<>();
                     visitedForRequire.add(subgraph); // Don't resolve @require in the target subgraph itself
