@@ -55,12 +55,16 @@ public final class DeterministicData {
     private final Map<String, Set<String>> keyFields = new HashMap<>();
     private final Set<String> requireArguments = new HashSet<>();
     private final Map<String, List<String>> compositePossibleTypes = new HashMap<>();
+    private final List<String> objectTypes = new ArrayList<>();
 
     public DeterministicData(List<Subgraph> subgraphs, GraphQLSchema compositeSchema) {
         for (Subgraph subgraph : subgraphs) {
             collect(subgraph.schema());
         }
         for (GraphQLNamedType type : compositeSchema.getAllTypesAsList()) {
+            if (type instanceof GraphQLObjectType && !type.getName().startsWith("__")) {
+                objectTypes.add(type.getName());
+            }
             if (type instanceof GraphQLInterfaceType || type instanceof GraphQLUnionType) {
                 // Types every source schema with this abstract type can return, so that whichever
                 // schema resolves a field, it picks the same concrete type as the monolith.
@@ -108,15 +112,16 @@ public final class DeterministicData {
             if (list) {
                 List<Object> items = new ArrayList<>();
                 if (!argSeeds.isEmpty()) {
-                    argSeeds.forEach(seed -> items.add(entity(env.getGraphQLSchema(), named, seed)));
+                    argSeeds.forEach(seed -> items.add(entity(env.getGraphQLSchema(), named, seed, true)));
                 } else {
                     for (int i = 0; i < LIST_SIZE; i++) {
-                        items.add(entity(env.getGraphQLSchema(), named, hash(base + "|" + i)));
+                        items.add(entity(env.getGraphQLSchema(), named, hash(base + "|" + i), false));
                     }
                 }
                 return items;
             }
-            return entity(env.getGraphQLSchema(), named, argSeeds.isEmpty() ? hash(base) : argSeeds.get(0));
+            return argSeeds.isEmpty() ? entity(env.getGraphQLSchema(), named, hash(base), false)
+                : entity(env.getGraphQLSchema(), named, argSeeds.get(0), true);
         }
         return scalars(GraphQLTypeUtil.unwrapNonNull(type), named, parentType, field, parentSeed, args, 0);
     }
@@ -135,19 +140,35 @@ public final class DeterministicData {
         return scalar(named, parentType, field, seed, args, index);
     }
 
-    private Map<String, Object> entity(GraphQLSchema schema, GraphQLNamedType type, long seed) {
+    /**
+     * An object of {@code type} (its concrete type, for an interface or union). A seed from a key keeps the concrete
+     * type its object was created with, like a global ID does; a new object's seed is aligned to its concrete type.
+     */
+    private Map<String, Object> entity(GraphQLSchema schema, GraphQLNamedType type, long seed, boolean fromKey) {
         String concrete = type.getName();
         if (type instanceof GraphQLInterfaceType || type instanceof GraphQLUnionType) {
             // Choose from the composite schema's possible types, so source schemas and the monolith agree.
             List<String> local = possibleTypes(schema, type);
             List<String> candidates = compositePossibleTypes.getOrDefault(type.getName(), local);
-            String chosen = candidates.isEmpty() ? null : candidates.get((int) (seed % candidates.size()));
+            String encoded = fromKey && !objectTypes.isEmpty() ? objectTypes.get((int) (seed % objectTypes.size())) : null;
+            String chosen = local.contains(encoded) ? encoded
+                : candidates.isEmpty() ? null : candidates.get((int) (seed % candidates.size()));
             concrete = local.contains(chosen) ? chosen : local.isEmpty() ? concrete : local.get(0);
         }
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("__type", concrete);
-        value.put("__seed", seed);
+        value.put("__seed", fromKey ? seed : alignedSeed(seed, concrete));
         return value;
+    }
+
+    /** The seed next to {@code seed} that encodes {@code type} ({@code seed % objectTypes == index of type}). */
+    private long alignedSeed(long seed, String type) {
+        int index = objectTypes.indexOf(type);
+        if (index < 0) {
+            return seed;
+        }
+        long aligned = seed - seed % objectTypes.size() + index;
+        return aligned < 100000L ? aligned + objectTypes.size() : aligned;
     }
 
     private Object scalar(GraphQLNamedType type, String parentType, String field, long seed, String args, int index) {
