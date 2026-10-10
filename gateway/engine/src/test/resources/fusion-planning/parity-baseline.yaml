@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 67 planned by feddi, 65 with no more steps than Fusion, 55 with no more depth
+# 91 tests (4 with an invalid query), 68 planned by feddi, 65 with no more steps than Fusion, 56 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "ok"
   steps: 4
@@ -14,9 +14,9 @@ AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_
   fusionOperations: 6
   fusionDepth: 3
 AbstractLookupFanoutPlanningTests/Plan_Should_Prune_Impossible_Concrete_Fragment_When_Parent_Is_Object:
-  status: "planning: Cannot find path to resolve field: sku"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 9
+  depth: 3
   fusionOperations: 6
   fusionDepth: 4
 AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_InterfaceFragment_Is_In_NodeSelectionSet:

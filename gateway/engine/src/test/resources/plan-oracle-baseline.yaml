@@ -1,12 +1,12 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 228 queries {composition failed=15, feddi error=2, invalid query=4, planning failed=3, same data=204}
+# 228 queries {composition failed=15, feddi error=2, invalid query=4, planning failed=2, same data=205}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "same\
   \ data"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
 : "same data"
-fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_Impossible_Concrete_Fragment_When_Parent_Is_Object: "planning\
-  \ failed"
+fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_Impossible_Concrete_Fragment_When_Parent_Is_Object: "same\
+  \ data"
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_InterfaceFragment_Is_In_NodeSelectionSet: "same\
   \ data"
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_NodeSelectionSet_Has_No_Shared_Selections: "same\

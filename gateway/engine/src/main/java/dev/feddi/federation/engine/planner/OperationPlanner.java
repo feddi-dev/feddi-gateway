@@ -159,7 +159,7 @@ public final class OperationPlanner {
         List<OperationPath> paths = pathFinder.findPaths(currentPath, fieldName);
 
         if (paths.isEmpty()) {
-            if (fragmentContext == null && planPerPossibleType(currentPath, selection, parentPath, context)) {
+            if (planPerPossibleType(currentPath, selection, parentPath, context)) {
                 return;
             }
             throw new PlanningException("Cannot find path to resolve field: " + fieldName);
@@ -310,7 +310,8 @@ public final class OperationPlanner {
         // current type (e.g., "... on Book" when at Media union), we need __typename
         // at the parent level to determine which inline fragment to apply at runtime.
         if (typeCondition != null) {
-            context.addTypenameToSubgraph(currentPath.currentSubgraph(), parentPath);
+            context.planFor(currentPath, parentPath).addField(IntrospectionFields.TYPENAME, parentPath, false,
+                List.of(), List.of(), FieldOrigin.ARTIFICIAL_KEY);
         }
 
         // Narrow the path to the concrete type so field lookups use the correct node
@@ -372,8 +373,9 @@ public final class OperationPlanner {
                 bestPath, parentPath, typeCondition, fragmentDirectives);
         } else {
             // Same subgraph: create fragment context on demand (lazy creation)
-            targetFragmentContext = context.getInlineFragmentContext(
-                sourceSubgraph, parentPath, typeCondition, fragmentDirectives);
+            SubgraphPlan sourcePlan = context.planFor(currentPath, parentPath);
+            targetFragmentContext = new InlineFragmentContext(
+                sourcePlan.getOrCreateInlineFragment(parentPath, typeCondition, fragmentDirectives), sourcePlan.subgraph);
         }
 
         // Add field to the inline fragment's selection set
@@ -809,9 +811,40 @@ public final class OperationPlanner {
          * The field is marked as artificial so it's stripped from the final response
          * unless the user explicitly requested it.
          */
-        void addTypenameToSubgraph(String subgraph, List<String> parentPath) {
-            SubgraphPlan plan = getOrCreateRootPlan(subgraph);
-            plan.addField(IntrospectionFields.TYPENAME, parentPath, false, List.of(), List.of(), FieldOrigin.ARTIFICIAL_KEY);
+        /**
+         * The plan a lookup on {@code path} starts from: the plan of the lookup before it on the path that entered
+         * its source subgraph, or the source subgraph's root plan. (A search by subgraph and response path cannot
+         * tell apart lookups under different type conditions on the same path.)
+         */
+        SubgraphPlan sourcePlanOf(OperationPath path, LookupMoveEdge lookupEdge, List<String> parentPath) {
+            String sourceSubgraph = lookupEdge.source().subgraph();
+            LookupMoveEdge previous = null;
+            for (Edge edge : path.getEdges()) {
+                if (edge.equals(lookupEdge)) {
+                    break;
+                }
+                if (edge instanceof LookupMoveEdge earlier && earlier.target().subgraph().equals(sourceSubgraph)) {
+                    previous = earlier;
+                }
+            }
+            return previous == null ? getOrCreateRootPlan(sourceSubgraph)
+                : getOrCreateLookupPlan(previous, lookupEntryPath(path, previous, parentPath));
+        }
+
+        /**
+         * The plan that selects at the end of {@code path}: the plan of the last lookup into its subgraph, or the
+         * subgraph's root plan.
+         */
+        SubgraphPlan planFor(OperationPath path, List<String> parentPath) {
+            String subgraph = path.currentSubgraph();
+            LookupMoveEdge enteringLookupEdge = null;
+            for (Edge edge : path.getEdges()) {
+                if (edge instanceof LookupMoveEdge lookupEdge && lookupEdge.target().subgraph().equals(subgraph)) {
+                    enteringLookupEdge = lookupEdge;
+                }
+            }
+            return enteringLookupEdge == null ? getOrCreateRootPlan(subgraph)
+                : getOrCreateLookupPlan(enteringLookupEdge, lookupEntryPath(path, enteringLookupEdge, parentPath));
         }
 
         /**
@@ -1641,10 +1674,7 @@ public final class OperationPlanner {
             if (enteringLookupEdge != null) {
                 // Find or create source plan
                 String sourceSubgraph = enteringLookupEdge.source().subgraph();
-                SubgraphPlan sourcePlan = findExistingPlanForSubgraph(sourceSubgraph, enteringEntryPath);
-                if (sourcePlan == null) {
-                    sourcePlan = getOrCreateRootPlan(sourceSubgraph);
-                }
+                SubgraphPlan sourcePlan = sourcePlanOf(path, enteringLookupEdge, parentPath);
 
                 // Track dependency
                 addPlanDependency(plan, sourcePlan);
@@ -1796,11 +1826,8 @@ public final class OperationPlanner {
                     String sourceSubgraph = lookupEdge.source().subgraph();
                     List<String> edgeEntryPath = lookupEntryPath(path, lookupEdge, parentPath);
 
-                    // Find or create source plan
-                    SubgraphPlan sourcePlan = findExistingPlanForSubgraph(sourceSubgraph, edgeEntryPath);
-                    if (sourcePlan == null) {
-                        sourcePlan = getOrCreateRootPlan(sourceSubgraph);
-                    }
+                    // The source plan: the one the path was in before this lookup
+                    SubgraphPlan sourcePlan = sourcePlanOf(path, lookupEdge, parentPath);
 
                     // Get the lookup target plan
                     SubgraphPlan lookupTargetPlan = getOrCreateLookupPlan(lookupEdge, edgeEntryPath);
