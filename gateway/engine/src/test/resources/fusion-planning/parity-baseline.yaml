@@ -84,8 +84,8 @@ LookupTests/Require_Inaccessible_Data:
   fusionOperations: 2
   fusionDepth: 2
 OperationPlannerTests/Plan_Key_Requirement:
-  status: "composition: INVALID_FIELD_SHARING: Field 'Product.sku' is defined in multiple\
-    \ subgraphs [b, c] but is not marked as @shareable in schema 'c'."
+  status: "invalid subgraph operation: step 3 (b): Validation error (MissingFieldArgument@[productById/sku])\
+    \ : Missing field argument 'region'"
   steps: 0
   depth: 0
   fusionOperations: 3
@@ -97,8 +97,8 @@ OperationPlannerTests/Plan_Requirement_That_Cannot_Be_Inlined:
   fusionOperations: 2
   fusionDepth: 2
 OperationPlannerTests/Plan_Simple_Interface_Lookup:
-  status: "composition: INVALID_FIELD_SHARING: Field 'Product.id' is defined in multiple\
-    \ subgraphs [a, b] but is not marked as @shareable in schema 'a'."
+  status: "composition: SATISFIABILITY_ERROR: Field 'Product.price' cannot be resolved\
+    \ from Product/a. No path exists in the planning graph to resolve this field."
   steps: 0
   depth: 0
   fusionOperations: 2
@@ -116,8 +116,8 @@ OperationPlannerTests/Plan_Simple_Requirement:
   fusionOperations: 2
   fusionDepth: 2
 OperationPlannerTests/Plan_Simple_Union_Lookup:
-  status: "composition: INVALID_FIELD_SHARING: Field 'Product.id' is defined in multiple\
-    \ subgraphs [a, b] but is not marked as @shareable in schema 'a'."
+  status: "composition: SATISFIABILITY_ERROR: Field 'Product.price' cannot be resolved\
+    \ from Product/a. No path exists in the planning graph to resolve this field."
   steps: 0
   depth: 0
   fusionOperations: 2
