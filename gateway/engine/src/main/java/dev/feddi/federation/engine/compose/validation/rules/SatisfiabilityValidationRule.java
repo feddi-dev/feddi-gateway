@@ -1,49 +1,69 @@
 package dev.feddi.federation.engine.compose.validation.rules;
 
-import dev.feddi.federation.engine.Constants;
-
+import dev.feddi.federation.engine.compose.FederationDirectives;
 import dev.feddi.federation.engine.compose.Subgraph;
-import dev.feddi.federation.engine.graph.Graph;
-import dev.feddi.federation.engine.graph.Node;
-import dev.feddi.federation.engine.planner.OperationPath;
-import dev.feddi.federation.engine.planner.PathFinder;
 import dev.feddi.federation.engine.compose.validation.PostGraphValidationRule;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
+import dev.feddi.federation.engine.graph.Graph;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.Alternative;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.ListSelection;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.ObjectField;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.ObjectSelection;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.Path;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectedValue;
+import dev.feddi.federation.engine.parser.FieldSelectionMapParser;
+import dev.feddi.federation.engine.parser.InvalidSyntaxException;
+import graphql.schema.GraphQLAppliedDirective;
+import graphql.schema.GraphQLArgument;
 import graphql.schema.GraphQLFieldDefinition;
+import graphql.schema.GraphQLFieldsContainer;
 import graphql.schema.GraphQLInterfaceType;
-import graphql.schema.GraphQLNamedOutputType;
+import graphql.schema.GraphQLNamedType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import graphql.schema.GraphQLType;
 import graphql.schema.GraphQLTypeUtil;
 import graphql.schema.GraphQLUnionType;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
- * Validates that every field in the composed schema is satisfiable using
- * full path-based validation.
+ * Validate Satisfiability, as specified: every executable query path of the composite schema must have at least
+ * one source schema that can resolve it ({@code PlanOptions(path, allSchemas)} is not empty).
  *
- * This validation simulates query planning by tracing all possible query paths
- * from root operations and verifying that every field along every path is
- * resolvable from the specific node position reached via that path.
+ * <p>Paths are walked from the root types with the set of source schemas that can resolve the path so far. A step
+ * stays in a schema that defines the next field, or moves to another one that defines it when that schema is
+ * reachable through a {@code @lookup} whose inputs are resolvable from the current schema
+ * ({@code IsReachable}). Fields with {@code @require} arguments additionally need their requirements resolvable
+ * from schemas other than their own ({@code ResolveRequirements}). {@code @external} fields are never candidates in
+ * the schema that declares them, {@code @provides} is ignored, and a field overridden with
+ * {@code @override(from:)} is not a candidate in the schema it was taken from.
  *
- * Key insight: A field might be resolvable from one subgraph's node but not
- * from another. The path-based approach ensures fields are reachable from
- * the actual positions a query would reach at runtime.
+ * <p>The spec enumerates paths without repeating a (type, field) step; since a step only depends on the current
+ * type and candidate set, each (type, candidates) state is visited once, which covers the same paths.
  *
- * Example problem caught:
- * - Schema A: Query.getFoo returns Foo with {id, name}
- * - Schema B: Foo has {id, extra} but NO @key/@lookup
- * - Foo.extra is unreachable because no lookup path exists from A to B
+ * <p>One deviation from the letter of the draft (2026-10-04): {@code ResolveRequirements} restricts the candidate
+ * schemas to those other than the requiring one, and the draft passes that restricted set on to
+ * {@code IsReachable}, so the inputs of a lookup (e.g. the {@code id} of the entity the path is on) could not come
+ * from the requiring schema either. That makes almost every requirement unsatisfiable, which contradicts the
+ * draft's own examples. Here the restriction applies to the required fields only; lookup inputs may come from
+ * any schema, and a requirement of a field on a requirement's path only excludes that field's own schema.
  *
- * Spec: https://graphql.github.io/composite-schemas-spec/draft/#sec-Validate-Satisfiability
+ * @see <a href="https://graphql.github.io/composite-schemas-spec/draft/#sec-Validate-Satisfiability">Validate
+ *     Satisfiability</a>
  */
 public final class SatisfiabilityValidationRule implements PostGraphValidationRule {
 
-    private static final String CODE = "SATISFIABILITY_ERROR";
+    private static final String CODE = "UNSATISFIABLE_QUERY_PATH";
 
     @Override
     public String name() {
@@ -52,261 +72,431 @@ public final class SatisfiabilityValidationRule implements PostGraphValidationRu
 
     @Override
     public ValidationResult validate(Graph graph, GraphQLSchema mergedSchema, List<Subgraph> subgraphs) {
-        SatisfiabilityContext ctx = new SatisfiabilityContext(graph, mergedSchema);
-        ctx.validateFromRoots();
-        return ctx.buildResult();
+        return new Check(mergedSchema, subgraphs).run();
     }
 
-    /**
-     * Context for path-based satisfiability validation.
-     * Tracks visited (type, node) pairs to handle circular references.
-     */
-    private static class SatisfiabilityContext {
-        private final Graph graph;
-        private final PathFinder pathFinder;
+    /** One step of a path: a field on a type. */
+    private record Step(String type, String field) {
+        @Override
+        public String toString() {
+            return type + "." + field;
+        }
+    }
+
+    private static final class Check {
         private final GraphQLSchema schema;
-        private final Set<TypeNodePair> visited = new HashSet<>();
-        private final ValidationResult.Builder resultBuilder = ValidationResult.builder();
+        private final Map<String, GraphQLSchema> schemas = new LinkedHashMap<>();
+        private final Set<String> overridden = new HashSet<>();  // "schema|type|field"
+        private final Set<String> visited = new HashSet<>();
+        private final Set<String> reported = new HashSet<>();
+        private final Map<String, Boolean> reachable = new HashMap<>();
+        private final Set<String> reachableInProgress = new HashSet<>();
+        private boolean cycleCut;
+        private final ValidationResult.Builder result = ValidationResult.builder();
 
-        /**
-         * Unique key for a (type, node) pair to prevent infinite loops.
-         */
-        private record TypeNodePair(String typeName, Node node) {}
-
-        SatisfiabilityContext(Graph graph, GraphQLSchema schema) {
-            this.graph = graph;
-            this.pathFinder = new PathFinder(graph);
+        Check(GraphQLSchema schema, List<Subgraph> subgraphs) {
             this.schema = schema;
-        }
-
-        /**
-         * Returns true if this (type, node) pair should be visited.
-         * Returns false if already visited (prevents infinite loops).
-         */
-        boolean shouldVisit(String typeName, Node node) {
-            return visited.add(new TypeNodePair(typeName, node));
-        }
-
-        void addError(String typeName, String fieldName, Node currentNode, String detail) {
-            String message = String.format(
-                "Field '%s.%s' cannot be resolved from %s/%s. %s",
-                typeName, fieldName, typeName, currentNode.subgraph(), detail
-            );
-            resultBuilder.addError(CODE, message, typeName + "." + fieldName, null);
-        }
-
-        ValidationResult buildResult() {
-            return resultBuilder.build();
-        }
-
-        /**
-         * Entry point: validate from all root operation types.
-         */
-        void validateFromRoots() {
-            // Query
-            GraphQLObjectType queryType = schema.getQueryType();
-            if (queryType != null) {
-                Node rootNode = graph.getRootNode(Constants.QUERY);
-                if (rootNode != null) {
-                    validateObjectType(queryType, rootNode);
-                }
+            for (Subgraph subgraph : subgraphs) {
+                schemas.put(subgraph.name(), subgraph.schema());
             }
-
-            // Mutation
-            GraphQLObjectType mutationType = schema.getMutationType();
-            if (mutationType != null) {
-                Node rootNode = graph.getRootNode(Constants.MUTATION);
-                if (rootNode != null) {
-                    validateObjectType(mutationType, rootNode);
-                }
-            }
-
-            // Subscription
-            GraphQLObjectType subscriptionType = schema.getSubscriptionType();
-            if (subscriptionType != null) {
-                Node rootNode = graph.getRootNode(Constants.SUBSCRIPTION);
-                if (rootNode != null) {
-                    validateObjectType(subscriptionType, rootNode);
-                }
-            }
-        }
-
-        /**
-         * Validates all fields of an object type from a specific node position.
-         */
-        void validateObjectType(GraphQLObjectType type, Node currentNode) {
-            String typeName = type.getName();
-
-            // Skip if already validated from this node
-            if (!shouldVisit(typeName, currentNode)) {
-                return;
-            }
-
-            OperationPath startPath = OperationPath.startAt(currentNode);
-
-            for (GraphQLFieldDefinition field : type.getFieldDefinitions()) {
-                String fieldName = field.getName();
-
-                // Skip introspection fields
-                if (fieldName.startsWith("__")) {
-                    continue;
-                }
-
-                List<OperationPath> paths = pathFinder.findPaths(startPath, fieldName);
-
-                if (paths.isEmpty()) {
-                    addError(typeName, fieldName, currentNode,
-                        "No path exists in the planning graph to resolve this field.");
-                    continue;
-                }
-
-                // Validate nested types from ALL reachable target nodes
-                // This ensures fields are resolvable regardless of which path the planner chooses
-                GraphQLType returnType = GraphQLTypeUtil.unwrapAll(field.getType());
-                Set<Node> validatedTargets = new HashSet<>();
-
-                for (OperationPath path : paths) {
-                    Node targetNode = path.tail();
-                    // Only validate from each unique target node once
-                    if (validatedTargets.add(targetNode)) {
-                        validateNestedType(returnType, targetNode);
-                    }
-                }
-            }
-        }
-
-        /**
-         * Validates all fields of an interface type from a specific node position.
-         * Interface fields might be resolved via implementing types.
-         */
-        void validateInterfaceType(GraphQLInterfaceType interfaceType, Node currentNode) {
-            String typeName = interfaceType.getName();
-
-            if (!shouldVisit(typeName, currentNode)) {
-                return;
-            }
-
-            OperationPath startPath = OperationPath.startAt(currentNode);
-
-            // Validate fields declared on the interface
-            for (GraphQLFieldDefinition field : interfaceType.getFieldDefinitions()) {
-                String fieldName = field.getName();
-
-                if (fieldName.startsWith("__")) {
-                    continue;
-                }
-
-                List<OperationPath> paths = pathFinder.findPaths(startPath, fieldName);
-
-                if (paths.isEmpty()) {
-                    // Try to resolve via implementing types with type context
-                    boolean canResolveViaImpl = tryResolveViaImplementations(
-                        interfaceType, currentNode, field);
-
-                    if (!canResolveViaImpl) {
-                        addError(typeName, fieldName, currentNode,
-                            "No path exists to resolve this field, even via implementing types.");
-                    }
-                } else {
-                    // Validate nested types from target nodes
-                    GraphQLType returnType = GraphQLTypeUtil.unwrapAll(field.getType());
-                    Set<Node> validatedTargets = new HashSet<>();
-
-                    for (OperationPath path : paths) {
-                        Node targetNode = path.tail();
-                        if (validatedTargets.add(targetNode)) {
-                            validateNestedType(returnType, targetNode);
+            for (Subgraph subgraph : subgraphs) {
+                for (GraphQLNamedType type : subgraph.schema().getAllTypesAsList()) {
+                    if (type instanceof GraphQLFieldsContainer container) {
+                        for (GraphQLFieldDefinition field : container.getFieldDefinitions()) {
+                            GraphQLAppliedDirective override = field.getAppliedDirective(FederationDirectives.OVERRIDE);
+                            if (override != null && override.getArgument("from").getValue() instanceof String from) {
+                                overridden.add(from + "|" + type.getName() + "|" + field.getName());
+                            }
                         }
                     }
                 }
             }
-
-            // Also validate each implementing type from this position
-            // (simulates inline fragment narrowing via `... on Article { }`)
-            // When at an interface node like Content/content, implementing types
-            // are accessed via nodes like Article/content, Video/content
-            // Only validate implementing types that exist in the current subgraph
-            for (GraphQLObjectType impl : schema.getImplementations(interfaceType)) {
-                Node implNode = new Node(impl.getName(), currentNode.subgraph());
-                if (graph.containsNode(implNode)) {
-                    validateObjectType(impl, implNode);
-                }
-            }
         }
 
-        /**
-         * Try to resolve an interface field via implementing types.
-         * Returns true if the field can be resolved from at least one implementation.
-         */
-        private boolean tryResolveViaImplementations(GraphQLInterfaceType interfaceType,
-                                                      Node currentNode,
-                                                      GraphQLFieldDefinition field) {
-            OperationPath startPath = OperationPath.startAt(currentNode);
-            String fieldName = field.getName();
-            GraphQLType returnType = GraphQLTypeUtil.unwrapAll(field.getType());
-
-            for (GraphQLObjectType impl : schema.getImplementations(interfaceType)) {
-                // Try with type context narrowed to the implementing type
-                OperationPath implPath = startPath.withTypeContext(impl.getName());
-                List<OperationPath> implPaths = pathFinder.findPaths(implPath, fieldName);
-
-                if (!implPaths.isEmpty()) {
-                    // Found a path - validate nested types
-                    Set<Node> validatedTargets = new HashSet<>();
-                    for (OperationPath path : implPaths) {
-                        Node targetNode = path.tail();
-                        if (validatedTargets.add(targetNode)) {
-                            validateNestedType(returnType, targetNode);
+        ValidationResult run() {
+            List<GraphQLObjectType> roots = new ArrayList<>();
+            for (GraphQLObjectType root : new GraphQLObjectType[] {
+                    schema.getQueryType(), schema.getMutationType(), schema.getSubscriptionType()}) {
+                if (root != null) {
+                    roots.add(root);
+                }
+            }
+            for (GraphQLObjectType root : roots) {
+                for (GraphQLFieldDefinition field : root.getFieldDefinitions()) {
+                    if (field.getName().startsWith("__")) {
+                        continue;
+                    }
+                    Step step = new Step(root.getName(), field.getName());
+                    Set<String> options = new TreeSet<>();
+                    for (String name : schemas.keySet()) {
+                        if (isCandidate(name, step)) {
+                            options.add(name);
                         }
                     }
-                    return true;
+                    List<Step> path = List.of(step);
+                    if (options.isEmpty()) {
+                        report(path);
+                    } else {
+                        visitReturnType(path, field.getType(), options);
+                    }
                 }
             }
-
-            return false;
+            return result.build();
         }
 
-        /**
-         * Validates all member types of a union from a specific node position.
-         */
-        void validateUnionType(GraphQLUnionType unionType, Node currentNode) {
-            String typeName = unionType.getName();
-
-            if (!shouldVisit(typeName, currentNode)) {
+        /** Walks into every field of the possible types of the field's return type. */
+        private void visitReturnType(List<Step> path, GraphQLType fieldType, Set<String> options) {
+            if (!(GraphQLTypeUtil.unwrapAll(fieldType) instanceof GraphQLNamedType returnType)) {
                 return;
             }
-
-            // Validate each member type (simulates inline fragment narrowing)
-            // When at a union node like SearchResult/search, member types
-            // are accessed via nodes like Product/search, User/search
-            // Only validate member types that exist in the current subgraph
-            for (GraphQLNamedOutputType member : unionType.getTypes()) {
-                if (member instanceof GraphQLObjectType objectType) {
-                    Node memberNode = new Node(objectType.getName(), currentNode.subgraph());
-                    // Only validate if this type exists in the current subgraph
-                    // (the union may have been merged with additional members from other subgraphs)
-                    if (graph.containsNode(memberNode)) {
-                        validateObjectType(objectType, memberNode);
+            Step parent = path.get(path.size() - 1);
+            for (GraphQLObjectType type : possibleTypes(returnType)) {
+                // Only schemas whose field can return this type lead to it (a union member that only another
+                // schema adds is no executable path from here)
+                Set<String> typeOptions = new TreeSet<>();
+                for (String option : options) {
+                    if (canReturn(option, parent, type.getName())) {
+                        typeOptions.add(option);
+                    }
+                }
+                if (typeOptions.isEmpty() || !visited.add(type.getName() + "|" + typeOptions)) {
+                    continue;
+                }
+                for (GraphQLFieldDefinition field : type.getFieldDefinitions()) {
+                    if (field.getName().startsWith("__")) {
+                        continue;
+                    }
+                    Step step = new Step(type.getName(), field.getName());
+                    List<Step> extended = new ArrayList<>(path);
+                    extended.add(step);
+                    Set<String> next = refine(List.of(step), typeOptions, schemas.keySet());
+                    if (next.isEmpty()) {
+                        report(extended);
+                    } else {
+                        visitReturnType(extended, field.getType(), next);
                     }
                 }
             }
         }
 
-        /**
-         * Validates a nested type from a target node position.
-         * Dispatches to the appropriate type-specific validation method.
-         */
-        void validateNestedType(GraphQLType type, Node targetNode) {
-            GraphQLType unwrapped = GraphQLTypeUtil.unwrapAll(type);
-
-            if (unwrapped instanceof GraphQLObjectType objectType) {
-                validateObjectType(objectType, targetNode);
-            } else if (unwrapped instanceof GraphQLInterfaceType interfaceType) {
-                validateInterfaceType(interfaceType, targetNode);
-            } else if (unwrapped instanceof GraphQLUnionType unionType) {
-                validateUnionType(unionType, targetNode);
+        /** Whether the step's field in {@code schemaName} can return an object of {@code typeName}. */
+        private boolean canReturn(String schemaName, Step step, String typeName) {
+            GraphQLSchema source = schemas.get(schemaName);
+            GraphQLFieldDefinition field = field(source, step);
+            if (field == null || !(GraphQLTypeUtil.unwrapAll(field.getType()) instanceof GraphQLNamedType returned)) {
+                return true;  // e.g. a step reached through another schema's lookup
             }
-            // Scalars and enums don't need nested validation
+            return returned.getName().equals(typeName)
+                || possibleTypes(source, returned).stream().anyMatch(t -> t.getName().equals(typeName));
+        }
+
+        private void report(List<Step> path) {
+            Step last = path.get(path.size() - 1);
+            if (!reported.add(last.toString())) {
+                return;
+            }
+            StringBuilder text = new StringBuilder(path.get(0).type());
+            for (Step step : path) {
+                text.append('.').append(step.field());
+            }
+            result.addError(CODE, "Field '" + last + "' cannot be resolved on the query path '" + text
+                + "': no source schema can resolve it there.", last.toString(), null);
+        }
+
+        /** RefinePlanOptions: the schemas that can resolve the remaining steps, starting from {@code options}. */
+        private Set<String> refine(List<Step> steps, Set<String> options, Set<String> allowed) {
+            Set<String> current = options;
+            for (Step step : steps) {
+                Set<String> next = new TreeSet<>();
+                for (String currentSchema : current) {
+                    for (String candidate : allowed) {
+                        if (next.contains(candidate) || !isCandidate(candidate, step)) {
+                            continue;
+                        }
+                        if (!candidate.equals(currentSchema) && !isReachable(currentSchema, candidate, step.type(), allowed)) {
+                            continue;
+                        }
+                        if (hasRequirements(candidate, step)
+                            && !requirementsResolvable(currentSchema, candidate, step, allowed)) {
+                            continue;
+                        }
+                        next.add(candidate);
+                    }
+                }
+                if (next.isEmpty()) {
+                    return next;
+                }
+                current = next;
+            }
+            return current;
+        }
+
+        /** Whether {@code schemaName} defines the step's field, not as @external, and it is not overridden away. */
+        private boolean isCandidate(String schemaName, Step step) {
+            GraphQLFieldDefinition field = field(schemas.get(schemaName), step);
+            return field != null && !field.hasAppliedDirective(FederationDirectives.EXTERNAL)
+                && !overridden.contains(schemaName + "|" + step.type() + "|" + step.field());
+        }
+
+        /** IsReachable: a lookup in {@code target} resolves {@code type} with inputs resolvable from {@code source}. */
+        private boolean isReachable(String source, String target, String type, Set<String> allowed) {
+            String key = source + "|" + target + "|" + type + "|" + allowed;
+            Boolean known = reachable.get(key);
+            if (known != null) {
+                return known;
+            }
+            if (!reachableInProgress.add(key)) {
+                cycleCut = true;
+                return false;
+            }
+            boolean outerCycleCut = cycleCut;
+            cycleCut = false;
+            boolean result = false;
+            for (GraphQLFieldDefinition lookup : lookups(target, type)) {
+                for (List<List<Step>> pathSet : lookupPathSets(lookup, type)) {
+                    // Lookup inputs may come from any schema (see the class comment)
+                    if (pathSetResolvable(pathSet, source, schemas.keySet())) {
+                        result = true;
+                        break;
+                    }
+                }
+                if (result) {
+                    break;
+                }
+            }
+            reachableInProgress.remove(key);
+            if (result || !cycleCut) {
+                reachable.put(key, result);  // a negative answer cut short by a cycle depends on the caller
+            }
+            cycleCut = outerCycleCut || cycleCut;
+            return result;
+        }
+
+        /** ResolveRequirements: every @require argument resolvable from schemas other than {@code target}. */
+        private boolean requirementsResolvable(String source, String target, Step step, Set<String> allowed) {
+            Set<String> others = new TreeSet<>(schemas.keySet());  // each requirement only excludes its own schema
+            others.remove(target);
+            for (GraphQLArgument argument : field(schemas.get(target), step).getArguments()) {
+                GraphQLAppliedDirective require = argument.getAppliedDirective(FederationDirectives.REQUIRE);
+                if (require == null) {
+                    continue;
+                }
+                boolean satisfied = false;
+                for (List<List<Step>> pathSet : pathSets(stringArgument(require, "field"), step.type())) {
+                    if (pathSetResolvable(pathSet, source, others)) {
+                        satisfied = true;
+                        break;
+                    }
+                }
+                if (!satisfied) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private boolean pathSetResolvable(List<List<Step>> pathSet, String source, Set<String> candidates) {
+            for (List<Step> path : pathSet) {
+                if (refine(path, Set.of(source), candidates).isEmpty()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private boolean hasRequirements(String schemaName, Step step) {
+            return field(schemas.get(schemaName), step).getArguments().stream()
+                .anyMatch(argument -> argument.hasAppliedDirective(FederationDirectives.REQUIRE));
+        }
+
+        /** The @lookup fields of {@code schemaName} that resolve {@code type} (directly or as a possible type). */
+        private List<GraphQLFieldDefinition> lookups(String schemaName, String type) {
+            GraphQLSchema source = schemas.get(schemaName);
+            List<GraphQLFieldDefinition> lookups = new ArrayList<>();
+            List<GraphQLObjectType> holders = new ArrayList<>();
+            holders.add(source.getQueryType());
+            for (GraphQLNamedType named : source.getAllTypesAsList()) {
+                if (named instanceof GraphQLObjectType object && !object.getName().startsWith("__")
+                    && object != source.getQueryType()) {
+                    holders.add(object);
+                }
+            }
+            for (GraphQLObjectType holder : holders) {
+                if (holder == null) {
+                    continue;
+                }
+                for (GraphQLFieldDefinition field : holder.getFieldDefinitions()) {
+                    if (!field.hasAppliedDirective(FederationDirectives.LOOKUP)
+                        || !(GraphQLTypeUtil.unwrapAll(field.getType()) instanceof GraphQLNamedType returned)) {
+                        continue;
+                    }
+                    if (returned.getName().equals(type)
+                        || possibleTypes(source, returned).stream().anyMatch(t -> t.getName().equals(type))) {
+                        lookups.add(field);
+                    }
+                }
+            }
+            return lookups;
+        }
+
+        /** LookupPathSets: the cartesian product of the arguments' path-set alternatives. */
+        private List<List<List<Step>>> lookupPathSets(GraphQLFieldDefinition lookup, String rootType) {
+            List<List<List<Step>>> pathSets = new ArrayList<>();
+            pathSets.add(new ArrayList<>());
+            for (GraphQLArgument argument : lookup.getArguments()) {
+                GraphQLAppliedDirective is = argument.getAppliedDirective(FederationDirectives.IS);
+                String map = is != null ? stringArgument(is, "field") : argument.getName();
+                pathSets = product(pathSets, pathSets(map, rootType));
+            }
+            return pathSets;
+        }
+
+        /** ExtractPathSets: the alternatives of a FieldSelectionMap, each a conjunction of paths. */
+        private List<List<List<Step>>> pathSets(String map, String rootType) {
+            if (map == null) {
+                return List.of();
+            }
+            try {
+                return pathSets(FieldSelectionMapParser.parseFieldSelectionMap(map), rootType);
+            } catch (InvalidSyntaxException e) {
+                return List.of();  // reported by the syntax rules
+            }
+        }
+
+        private List<List<List<Step>>> pathSets(SelectedValue value, String rootType) {
+            List<List<List<Step>>> alternatives = new ArrayList<>();
+            for (Alternative alternative : value.alternatives()) {
+                alternatives.addAll(pathSets(alternative, rootType, List.of()));
+            }
+            return alternatives;
+        }
+
+        private List<List<List<Step>>> pathSets(Alternative alternative, String rootType, List<Step> prefix) {
+            switch (alternative) {
+                case Path path -> {
+                    List<Step> steps = steps(path, rootType, prefix);
+                    return steps == null ? List.of() : List.of(List.of(steps));
+                }
+                case ObjectSelection object -> {
+                    List<Step> objectPrefix = prefix;
+                    String type = rootType;
+                    if (object.pathPrefix() != null) {
+                        objectPrefix = steps(object.pathPrefix(), rootType, prefix);
+                        if (objectPrefix == null) {
+                            return List.of();
+                        }
+                        type = typeAfter(objectPrefix, rootType);
+                    }
+                    List<List<List<Step>>> sets = new ArrayList<>();
+                    sets.add(new ArrayList<>());
+                    for (ObjectField field : object.fields()) {
+                        List<List<List<Step>>> fieldSets = new ArrayList<>();
+                        for (Alternative fieldAlternative : field.value().alternatives()) {
+                            fieldSets.addAll(pathSets(fieldAlternative, type, objectPrefix));
+                        }
+                        sets = product(sets, fieldSets);
+                    }
+                    return sets;
+                }
+                case ListSelection list -> {
+                    List<Step> listPrefix = prefix;
+                    String type = rootType;
+                    if (list.pathPrefix() != null) {
+                        listPrefix = steps(list.pathPrefix(), rootType, prefix);
+                        if (listPrefix == null) {
+                            return List.of();
+                        }
+                        type = typeAfter(listPrefix, rootType);
+                    }
+                    List<List<List<Step>>> sets = new ArrayList<>();
+                    for (Alternative element : list.elementValue().alternatives()) {
+                        sets.addAll(pathSets(element, type, listPrefix));
+                    }
+                    return sets;
+                }
+            }
+        }
+
+        /** The steps of {@code path} from {@code type}, after {@code prefix}; null if it does not apply to it. */
+        private List<Step> steps(Path path, String type, List<Step> prefix) {
+            String current = type;
+            if (path.hasInitialTypeCondition() && !path.initialTypeCondition().equals(current)) {
+                GraphQLNamedType declared = schema.getType(current) instanceof GraphQLNamedType named ? named : null;
+                boolean narrows = declared != null && possibleTypes(declared).stream()
+                    .anyMatch(t -> t.getName().equals(path.initialTypeCondition()));
+                if (!narrows) {
+                    return null;
+                }
+                current = path.initialTypeCondition();
+            }
+            List<Step> steps = new ArrayList<>(prefix);
+            for (PathSegment segment : path.segments()) {
+                steps.add(new Step(current, segment.fieldName()));
+                current = segment.hasTypeCondition() ? segment.typeCondition() : fieldTypeName(current, segment.fieldName());
+                if (current == null) {
+                    return null;
+                }
+            }
+            return steps;
+        }
+
+        private String typeAfter(List<Step> steps, String rootType) {
+            if (steps.isEmpty()) {
+                return rootType;
+            }
+            Step last = steps.get(steps.size() - 1);
+            return fieldTypeName(last.type(), last.field());
+        }
+
+        /** The named return type of a field, from the composite schema or any source schema. */
+        private String fieldTypeName(String type, String fieldName) {
+            List<GraphQLSchema> lookIn = new ArrayList<>();
+            lookIn.add(schema);
+            lookIn.addAll(schemas.values());
+            for (GraphQLSchema candidate : lookIn) {
+                GraphQLFieldDefinition field = field(candidate, new Step(type, fieldName));
+                if (field != null) {
+                    return GraphQLTypeUtil.unwrapAll(field.getType()) instanceof GraphQLNamedType named
+                        ? named.getName() : null;
+                }
+            }
+            return null;
+        }
+
+        private static GraphQLFieldDefinition field(GraphQLSchema schema, Step step) {
+            return schema != null && schema.getType(step.type()) instanceof GraphQLFieldsContainer container
+                ? container.getFieldDefinition(step.field()) : null;
+        }
+
+        private List<GraphQLObjectType> possibleTypes(GraphQLNamedType type) {
+            return possibleTypes(schema, type);
+        }
+
+        private static List<GraphQLObjectType> possibleTypes(GraphQLSchema schema, GraphQLNamedType type) {
+            return switch (type) {
+                case GraphQLObjectType object -> List.of(object);
+                case GraphQLInterfaceType iface -> schema.getImplementations(iface);
+                case GraphQLUnionType union -> union.getTypes().stream()
+                    .filter(GraphQLObjectType.class::isInstance).map(GraphQLObjectType.class::cast).toList();
+                default -> List.of();
+            };
+        }
+
+        private static List<List<List<Step>>> product(List<List<List<Step>>> left, List<List<List<Step>>> right) {
+            List<List<List<Step>>> combined = new ArrayList<>();
+            for (List<List<Step>> a : left) {
+                for (List<List<Step>> b : right) {
+                    Set<List<Step>> union = new LinkedHashSet<>(a);
+                    union.addAll(b);
+                    combined.add(new ArrayList<>(union));
+                }
+            }
+            return combined;
+        }
+
+        private static String stringArgument(GraphQLAppliedDirective directive, String name) {
+            var argument = directive.getArgument(name);
+            return argument != null && argument.getValue() instanceof String value ? value : null;
         }
     }
 }

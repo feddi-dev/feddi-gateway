@@ -32,9 +32,7 @@ AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_Nod
   fusionOperations: 3
   fusionDepth: 2
 EntityChainTests/Complex_Entity_Call:
-  status: "composition: SATISFIABILITY_ERROR: Field 'Product.price' cannot be resolved\
-    \ from Product/products. No path exists in the planning graph to resolve this\
-    \ field."
+  status: "planning: Cannot find path to resolve field: price"
   steps: 0
   depth: 0
   fusionOperations: 3
@@ -143,9 +141,9 @@ PlannerAdvancedAdaptationTests/Issues_Issue_281:
   fusionOperations: 5
   fusionDepth: 3
 PlannerAdvancedAdaptationTests/Provides_Nested_Provides:
-  status: "composition: SATISFIABILITY_ERROR: Field 'Category.details' cannot be resolved\
-    \ from Category/all-products. No path exists in the planning graph to resolve\
-    \ this field."
+  status: "composition: UNSATISFIABLE_QUERY_PATH: Field 'Category.details' cannot\
+    \ be resolved on the query path 'Query.products.categories.details': no source\
+    \ schema can resolve it the"
   steps: 0
   depth: 0
   fusionOperations: 1
@@ -239,9 +237,7 @@ PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph_Contiguous_Same_Servic
   fusionOperations: 5
   fusionDepth: 1
 PlannerBehaviorTests/Root_Types_Shared_Root:
-  status: "composition: SATISFIABILITY_ERROR: Field 'Product.name' cannot be resolved\
-    \ from Product/category. No path exists in the planning graph to resolve this\
-    \ field."
+  status: "planning: Cannot find path to resolve field: name"
   steps: 0
   depth: 0
   fusionOperations: 3
@@ -289,7 +285,9 @@ ProvidesPlannerTests/Provides_Shareable_Override:
   fusionOperations: 1
   fusionDepth: 1
 ProvidesPlannerTests/Provides_With_Requires_Interaction:
-  status: "planning: Cannot resolve required field 'weight' of Item"
+  status: "composition: UNSATISFIABLE_QUERY_PATH: Field 'Item.shippingCost' cannot\
+    \ be resolved on the query path 'Query.orders.item.shippingCost': no source schema\
+    \ can resolve it there"
   steps: 0
   depth: 0
   fusionOperations: 3

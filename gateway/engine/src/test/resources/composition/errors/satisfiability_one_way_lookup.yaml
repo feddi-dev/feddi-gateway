@@ -30,4 +30,4 @@ subgraphs:
       user: User
     }
 
-error: "SATISFIABILITY_ERROR"
+error: "UNSATISFIABLE_QUERY_PATH"

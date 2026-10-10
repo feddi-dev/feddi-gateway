@@ -1,6 +1,6 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 227 queries {composition failed=20, feddi error=5, invalid query=4, planning failed=4, same data=194}
+# 227 queries {composition failed=19, feddi error=5, invalid query=4, planning failed=5, same data=194}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "planning\
   \ failed"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
@@ -11,7 +11,7 @@ fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_W
   \ data"
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_NodeSelectionSet_Has_No_Shared_Selections: "same\
   \ data"
-fusion/EntityChainTests/Complex_Entity_Call: "composition failed"
+fusion/EntityChainTests/Complex_Entity_Call: "planning failed"
 fusion/EntityChainTests/Parent_Entity_Call_Complex: "composition failed"
 fusion/InterfaceFieldOverridePlanningTests/Plan_Should_Keep_Owning_Branch_And_Route_Only_Diverged_Branch: "composition\
   \ failed"
@@ -51,7 +51,7 @@ fusion/PlannerBehaviorTests/Mutations: "same data"
 fusion/PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph: "same data"
 fusion/PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph_Contiguous_Same_Service: "same\
   \ data"
-fusion/PlannerBehaviorTests/Root_Types_Shared_Root: "composition failed"
+fusion/PlannerBehaviorTests/Root_Types_Shared_Root: "planning failed"
 fusion/ProvidesPlannerTests/PlanOperation_Should_CoverOnlyMatchingUnionMember_When_ProvidesIsTypeConditioned: "same\
   \ data"
 fusion/ProvidesPlannerTests/Planner_Should_Route_To_Owning_Source_When_Local_Field_Is_Orphan_External: "same\
@@ -61,7 +61,7 @@ fusion/ProvidesPlannerTests/Provides_External_Without_Cover: "same data"
 fusion/ProvidesPlannerTests/Provides_On_Interface: "same data"
 fusion/ProvidesPlannerTests/Provides_Partial_Covers_Some: "same data"
 fusion/ProvidesPlannerTests/Provides_Shareable_Override: "same data"
-fusion/ProvidesPlannerTests/Provides_With_Requires_Interaction: "planning failed"
+fusion/ProvidesPlannerTests/Provides_With_Requires_Interaction: "composition failed"
 fusion/RequirementArgumentTests/Fed_Audit_Requires_With_Argument_Conflict: "same data"
 fusion/RequirementArgumentTests/Multiple_Plain_Field_And_Requires_With_Args_That_Conflicts: "same\
   \ data"

@@ -28,4 +28,4 @@ subgraphs:
       warehouse: String
     }
 
-error: "SATISFIABILITY_ERROR"
+error: "UNSATISFIABLE_QUERY_PATH"
