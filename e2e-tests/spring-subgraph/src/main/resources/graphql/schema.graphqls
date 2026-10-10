@@ -1,0 +1,10 @@
+type Query {
+  productById(id: ID!): Product
+  inventoryRequests: Int!
+}
+
+type Product {
+  id: ID!
+  stock: Int!
+  warehouse: String!
+}

@@ -1,23 +1,28 @@
 package dev.feddi.federation.app;
 
+import dev.feddi.federation.extension.FeddiGatewayDefinition;
 import dev.feddi.federation.extension.SubgraphClientFactory;
 import graphql.ExecutionInput;
 import graphql.ExecutionResultImpl;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.DefaultApplicationArguments;
+import reactor.core.publisher.Mono;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ZipUploadServiceTest {
@@ -44,21 +49,9 @@ class ZipUploadServiceTest {
             "subgraphs/main/config.yaml", mainConfig
         );
 
-        FeddiGatewayHolder holder = new FeddiGatewayHolder();
-        SubgraphClientFactory factory = (subgraphName, config) -> (op, vars, ctx) ->
-            reactor.core.publisher.Mono.just(ExecutionResultImpl.newExecutionResult()
-                .data(Map.of("products", List.of(
-                    Map.of("id", "1", "name", "Test Product")
-                )))
-                .build());
+        ZipUploadService service = new ZipUploadService(source, reloadService(Duration.ZERO));
 
-        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
-        FeddiGatewayReloadService reloadService = new FeddiGatewayReloadService(holder, factory, new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
-        FeddiGatewayDefinitionSourceManager manager = new FeddiGatewayDefinitionSourceManager(source, reloadService);
-        manager.run(new DefaultApplicationArguments(new String[0]));
-        ZipUploadService service = new ZipUploadService(source);
-
-        assertDoesNotThrow(() -> service.processZip(zipBytes));
+        assertDoesNotThrow(() -> service.processZip(zipBytes).block());
 
         assertTrue(holder.isInitialized());
         assertNotNull(holder.get());
@@ -73,6 +66,124 @@ class ZipUploadServiceTest {
         assertEquals(Map.of(
             "data", Map.of("products", List.of(Map.of("id", "1", "name", "Test Product")))
         ), result.toSpecification());
+    }
+
+    @Test
+    void uploadCompletesOnlyWhenTheConfigurationIsActive() throws IOException {
+        ZipUploadService service = new ZipUploadService(source, reloadService(Duration.ofMillis(200)));
+
+        service.processZip(zip(MAIN_CONFIG)).block();
+
+        assertTrue(holder.isInitialized());
+        assertTrue(source.load().isPresent());
+    }
+
+    @Test
+    void rejectedUploadReportsTheErrorAndKeepsTheActiveConfiguration() throws IOException {
+        var controller = new ZipUploadController(new ZipUploadService(source, reloadService(Duration.ZERO)));
+        controller.handleUpload(zip(MAIN_CONFIG)).block();
+        var activeGateway = holder.get();
+        var activeDefinition = source.load().orElseThrow();
+
+        var response = controller.handleUpload(zip(MAIN_CONFIG + "\nbatching: sometimes")).block();
+
+        assertEquals(400, response.status());
+        assertEquals(false, response.body().get("success"));
+        assertTrue(response.body().get("error").toString().contains("batching"));
+        assertSame(activeGateway, holder.get());
+        assertSame(activeDefinition, source.load().orElseThrow());
+    }
+
+    @Test
+    void uploadThatFailsCompositionReportsTheError() throws IOException {
+        var controller = new ZipUploadController(new ZipUploadService(source, reloadService(Duration.ZERO)));
+        String lookupWithoutArguments = """
+            type Query {
+              product: Product @lookup
+            }
+
+            type Product @key(fields: "id") {
+              id: ID!
+            }
+            """;
+
+        var response = controller.handleUpload(createZip("subgraphs/main/schema.graphqls", lookupWithoutArguments,
+            "subgraphs/main/config.yaml", MAIN_CONFIG)).block();
+
+        assertEquals(400, response.status());
+        assertTrue(response.body().get("error").toString().startsWith("Schema composition failed"));
+        assertFalse(holder.isInitialized());
+    }
+
+    @Test
+    void uploadChainedAfterAnotherIsNotAConflict() throws IOException {
+        ZipUploadService service = new ZipUploadService(source, reloadService(Duration.ofMillis(50)));
+
+        assertDoesNotThrow(() -> service.processZip(zip(MAIN_CONFIG)).then(service.processZip(zip(MAIN_CONFIG))).block());
+    }
+
+    @Test
+    void cancelledUploadDoesNotBlockTheNextOne() throws IOException {
+        // The first reload would take long, the second is immediate
+        ZipUploadService service = new ZipUploadService(source,
+            reloadService(Duration.ofSeconds(30), Duration.ZERO));
+        // E.g. the uploading client disconnects while the configuration is being activated
+        service.processZip(zip(MAIN_CONFIG)).subscribe().dispose();
+
+        assertDoesNotThrow(() -> service.processZip(zip(MAIN_CONFIG)).block(Duration.ofSeconds(5)));
+        assertTrue(holder.isInitialized());
+    }
+
+    @Test
+    void uploadWhileAnotherIsBeingActivatedIsAConflict() throws IOException {
+        var controller = new ZipUploadController(new ZipUploadService(source, reloadService(Duration.ofMillis(300))));
+        var first = controller.handleUpload(zip(MAIN_CONFIG)).toFuture();
+
+        var second = controller.handleUpload(zip(MAIN_CONFIG)).block();
+
+        assertEquals(409, second.status());
+        assertEquals(200, first.join().status());
+        assertEquals(200, controller.handleUpload(zip(MAIN_CONFIG)).block().status());
+    }
+
+    private static final String MAIN_SCHEMA = """
+        type Query {
+          products: [Product]
+        }
+
+        type Product {
+          id: ID!
+          name: String
+        }
+        """;
+
+    private static final String MAIN_CONFIG = "url: http://localhost:4001/";
+
+    private final FeddiGatewayHolder holder = new FeddiGatewayHolder();
+    private final DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
+
+    private byte[] zip(String config) throws IOException {
+        return createZip("subgraphs/main/schema.graphqls", MAIN_SCHEMA, "subgraphs/main/config.yaml", config);
+    }
+
+    /**
+     * A reload service whose reloads take a while, like one waiting for a variable batching
+     * check: the n-th reload takes {@code delays[n]} (the last delay repeats).
+     */
+    private FeddiGatewayReloadService reloadService(Duration... delays) {
+        AtomicInteger reloads = new AtomicInteger();
+        SubgraphClientFactory factory = (subgraphName, config) -> (PerEntitySubgraphClient) (op, vars, ctx) ->
+            Mono.just(ExecutionResultImpl.newExecutionResult()
+                .data(Map.of("products", List.of(Map.of("id", "1", "name", "Test Product"))))
+                .build());
+        return new FeddiGatewayReloadService(holder, factory, new FeddiGatewayMetrics(new SimpleMeterRegistry()),
+            null, new FeddiGatewayConfigFile()) {
+            @Override
+            public Mono<Void> reload(FeddiGatewayDefinition gatewayDefinition) {
+                Duration delay = delays[Math.min(reloads.getAndIncrement(), delays.length - 1)];
+                return Mono.delay(delay).then(super.reload(gatewayDefinition));
+            }
+        };
     }
 
     private byte[] createZip(String... pathsAndContents) throws IOException {

@@ -132,6 +132,11 @@ public final class Executor {
         // Thread-safe context for collecting results from completed steps
         ExecutionContext sharedContext = new ExecutionContext();
 
+        // Per-execution clients that share identical query calls between steps
+        Map<String, SubgraphClient> clients = new HashMap<>();
+        subgraphClients.forEach((name, client) ->
+            clients.put(name, new SharedCallSubgraphClient(new ListeningSubgraphClient(client, name, listener))));
+
         Map<Integer, Mono<StepResult>> stepMonos = new LinkedHashMap<>();
 
         for (ExecutionStep step : sorted) {
@@ -139,7 +144,7 @@ public final class Executor {
 
             if (step.isRoot()) {
                 // Root step: execute immediately with query variables
-                stepMono = executeStepWithErrorRecovery(step, executeRootStep(step, queryVariables))
+                stepMono = executeStepWithErrorRecovery(step, executeRootStep(step, queryVariables, clients))
                     .doOnNext(sharedContext::merge);
             } else {
                 // Dependent step: wait for direct dependencies only, then execute
@@ -150,7 +155,7 @@ public final class Executor {
                 // Dependencies complete only after their results have entered the shared
                 // response tree. Absolute entity paths must start at that tree's root.
                 stepMono = Mono.zip(dependencies, results -> sharedContext)
-                    .flatMap(ctx -> executeStepWithErrorRecovery(step, executeStepWithContext(step, ctx, queryVariables)))
+                    .flatMap(ctx -> executeStepWithErrorRecovery(step, executeStepWithContext(step, ctx, queryVariables, clients)))
                     .doOnNext(sharedContext::merge);
             }
 
@@ -165,13 +170,14 @@ public final class Executor {
      * Executes a step with a pre-built context from its dependencies.
      */
     private Mono<StepResult> executeStepWithContext(ExecutionStep step, ExecutionContext ctx,
-                                                     Map<String, Object> queryVariables) {
+                                                     Map<String, Object> queryVariables,
+                                                     Map<String, SubgraphClient> clients) {
         // Introspection steps should always be root steps, but handle it just in case
         if (INTROSPECTION_SUBGRAPH.equals(step.subgraph())) {
             return executeIntrospectionStep(step, Map.of());
         }
 
-        SubgraphClient client = subgraphClients.get(step.subgraph());
+        SubgraphClient client = clients.get(step.subgraph());
         if (client == null) {
             return Mono.error(new ExecutionException("No client for subgraph: " + step.subgraph()));
         }
@@ -266,24 +272,21 @@ public final class Executor {
     /**
      * Executes a root step with the query variables.
      */
-    private Mono<StepResult> executeRootStep(ExecutionStep step, Map<String, Object> variables) {
+    private Mono<StepResult> executeRootStep(ExecutionStep step, Map<String, Object> variables,
+                                             Map<String, SubgraphClient> clients) {
         // Handle introspection subgraph internally
         if (INTROSPECTION_SUBGRAPH.equals(step.subgraph())) {
             return executeIntrospectionStep(step, variables);
         }
 
-        SubgraphClient client = subgraphClients.get(step.subgraph());
+        SubgraphClient client = clients.get(step.subgraph());
         if (client == null) {
             return Mono.error(new ExecutionException("No client for subgraph: " + step.subgraph()));
         }
 
         // Filter variables to only those defined in the step's operation
         Map<String, Object> filteredVariables = filterVariablesForOperation(step.operation(), variables);
-
-        long start = System.nanoTime();
         return client.execute(step.operation(), filteredVariables)
-            .doOnNext(result -> listener.onSubgraphFetchComplete(step.subgraph(), System.nanoTime() - start, true))
-            .doOnError(e -> listener.onSubgraphFetchComplete(step.subgraph(), System.nanoTime() - start, false))
             .map(result -> {
                 StepResult stepResult = new StepResult();
                 if (result.getData() != null) {
@@ -350,38 +353,45 @@ public final class Executor {
             return Mono.just(new StepResult());
         }
 
-        final List<Map<String, Object>> contexts = parentContexts;
         // Get field names that should be set to null for skipped entities
         final Set<String> nullFieldNames = getFirstLevelFieldNames(step.operation());
+        final Map<String, Object> operationVariables = filterVariablesForOperation(step.operation(), queryVariables);
 
-        // Execute all entity calls in parallel
-        return Flux.fromIterable(contexts)
-            .flatMap(context -> {
-                // Start with filtered query variables, then overlay requirement variables
-                // Requirement variables take precedence since they're entity-specific
-                Map<String, Object> stepVariables = new LinkedHashMap<>(
-                    filterVariablesForOperation(step.operation(), queryVariables));
-                Map<String, Object> extractedVars = extractVariables(step.requirements(), context);
-                stepVariables.putAll(extractedVars);
+        // Group entities by the variables their lookup needs: the same entity often appears
+        // at many positions (e.g. one product under many reviews), but is fetched only once.
+        Map<Map<String, Object>, UniqueEntity> uniqueEntities = new LinkedHashMap<>();
+        List<EntityResult> skipped = new ArrayList<>();
+        for (Map<String, Object> context : parentContexts) {
+            // Skip entities that don't have essential key fields (null key handling)
+            // This happens when an intermediate lookup returned null.
+            // We check if key fields EXIST in context (not if they're null).
+            if (!hasEssentialKeyFields(step.requirements(), context)) {
+                skipped.add(new EntityResult(context, null));
+                continue;
+            }
+            // Start with filtered query variables, then overlay requirement variables
+            // Requirement variables take precedence since they're entity-specific
+            Map<String, Object> stepVariables = new LinkedHashMap<>(operationVariables);
+            stepVariables.putAll(extractVariables(step.requirements(), context));
+            uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).positions().add(context);
+        }
 
-                // Skip entities that don't have essential key fields (null key handling)
-                // This happens when an intermediate lookup returned null.
-                // We check if key fields EXIST in context (not if they're null).
-                if (!hasEssentialKeyFields(step.requirements(), context)) {
-                    return Mono.just(new EntityResult(context, null));
-                }
-
-                long entityStart = System.nanoTime();
-                return client.execute(step.operation(), stepVariables)
-                    .doOnNext(result -> listener.onSubgraphFetchComplete(step.subgraph(), System.nanoTime() - entityStart, true))
-                    .doOnError(e -> listener.onSubgraphFetchComplete(step.subgraph(), System.nanoTime() - entityStart, false))
-                    .map(result -> new EntityResult(context, result))
-                    .onErrorResume(e -> {
-                        // Handle individual entity errors without failing the entire step
-                        // Capture the error so we can add it to the response
-                        return Mono.just(new EntityResult(context, null, e));
-                    });
-            })
+        // Fetch the unique entities: one request each, or batched as configured for the subgraph
+        return Flux.fromIterable(batches(List.copyOf(uniqueEntities.values()), step.operation(), client.batching()))
+            .flatMap(batch -> fetchBatch(step.operation(), client, batch)
+                .onErrorResume(e -> {
+                    // Handle failures without failing the entire step. The error is reported
+                    // once; every position of the batch's entities gets null fields.
+                    List<EntityResult> failed = new ArrayList<>();
+                    for (UniqueEntity entity : batch) {
+                        for (Map<String, Object> context : entity.positions()) {
+                            failed.add(new EntityResult(context, null, failed.isEmpty() ? e : null));
+                        }
+                    }
+                    return Mono.just(failed);
+                }))
+            .concatMapIterable(results -> results)
+            .concatWith(Flux.fromIterable(skipped))
             .collectList()
             .map(entityResults -> {
                 StepResult stepResult = new StepResult();
@@ -423,6 +433,12 @@ public final class Executor {
                         synchronized (er.context()) {
                             for (String fieldName : nullFieldNames) {
                                 er.context().put(fieldName, null);
+                            }
+                        }
+                        // A subgraph response without data can still carry GraphQL errors
+                        if (er.result() != null && er.result().getErrors() != null) {
+                            for (graphql.GraphQLError error : er.result().getErrors()) {
+                                stepResult.addError(error);
                             }
                         }
                         // If there was an error (e.g., timeout), record it
@@ -969,6 +985,83 @@ public final class Executor {
 
         void setRootData(Map<String, Object> data) { this.rootData = data; }
         void addError(GraphQLError error) { this.errors.add(error); }
+    }
+
+    /**
+     * An entity to fetch once: the variables of its lookup and every position where it appears.
+     */
+    private record UniqueEntity(Map<String, Object> variables, List<Map<String, Object>> positions) {
+        UniqueEntity(Map<String, Object> variables) {
+            this(variables, new ArrayList<>());
+        }
+    }
+
+    /**
+     * Splits the unique entities of a step into the requests to send: one entity per request
+     * without batching (or when the operation can't be alias-batched), otherwise chunks of at
+     * most {@link BatchingOptions#maxBatchSize()} entities.
+     */
+    private static List<List<UniqueEntity>> batches(List<UniqueEntity> entities, OperationDefinition operation,
+                                                    BatchingOptions batching) {
+        boolean batched = switch (batching.mode()) {
+            case NONE -> false;
+            case ALIAS -> AliasBatch.supports(operation);
+            case VARIABLES -> true;
+        };
+        int size = batched ? batching.maxBatchSize() : 1;
+        List<List<UniqueEntity>> batches = new ArrayList<>();
+        for (int start = 0; start < entities.size(); start += size) {
+            batches.add(entities.subList(start, Math.min(start + size, entities.size())));
+        }
+        return batches;
+    }
+
+    /**
+     * Fetches one batch of unique entities and distributes the results to their positions.
+     */
+    private static Mono<List<EntityResult>> fetchBatch(OperationDefinition operation, SubgraphClient client,
+                                                       List<UniqueEntity> batch) {
+        List<Map<String, Object>> variableSets = batch.stream().map(UniqueEntity::variables).toList();
+        Mono<List<ExecutionResult>> results;
+        if (variableSets.size() == 1) {
+            results = client.execute(operation, variableSets.get(0)).map(List::of);
+        } else if (client.batching().mode() == BatchingOptions.Mode.VARIABLES) {
+            results = client.executeBatch(operation, variableSets);
+        } else {
+            AliasBatch aliasBatch = AliasBatch.create(operation, variableSets, client.batching().maxBatchSize());
+            results = client.execute(aliasBatch.operation(), aliasBatch.variables()).map(aliasBatch::split);
+        }
+        return results.map(list -> {
+            if (list.size() != batch.size()) {
+                throw new ExecutionException("Subgraph returned " + list.size() + " results for a batch of "
+                    + batch.size());
+            }
+            List<EntityResult> entityResults = new ArrayList<>();
+            for (int i = 0; i < batch.size(); i++) {
+                entityResults.addAll(fanOut(batch.get(i).positions(), list.get(i)));
+            }
+            return entityResults;
+        });
+    }
+
+    /**
+     * Distributes one subgraph result to every position of a deduplicated entity. Errors are
+     * reported once, with the first position.
+     *
+     * <p>The positions share the result's data: all positions of a repeated step lie on the
+     * step's entity path, so every later step merges the same fields into all of them. (Sharing
+     * across different paths is not safe; see {@link SharedCallSubgraphClient}, which copies.)
+     */
+    private static List<EntityResult> fanOut(List<Map<String, Object>> contexts, ExecutionResult result) {
+        List<EntityResult> results = new ArrayList<>(contexts.size());
+        results.add(new EntityResult(contexts.get(0), result));
+        if (contexts.size() > 1) {
+            ExecutionResult withoutErrors = ExecutionResultImpl.newExecutionResult().data(result.getData()).build();
+            for (int i = 1; i < contexts.size(); i++) {
+                results.add(new EntityResult(contexts.get(i), withoutErrors));
+            }
+        }
+        return results;
     }
 
     /**

@@ -1,19 +1,29 @@
 package dev.feddi.federation.app;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.MappingIterator;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import dev.feddi.federation.engine.IntrospectionFields;
+import dev.feddi.federation.engine.executor.OperationTexts;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
-import graphql.language.AstPrinter;
 import graphql.language.OperationDefinition;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +36,13 @@ import java.util.Map;
 public class DefaultSubgraphClient implements SubgraphClient {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultSubgraphClient.class);
+
+    private static final MediaType JSONL = MediaType.parseMediaType("application/jsonl");
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() { };
+    private static final TypeReference<List<Map<String, Object>>> LIST_OF_MAPS = new TypeReference<>() { };
+    private static final ObjectReader MAP_READER = JSON.readerFor(MAP);
+    private static final byte[] EMPTY = new byte[0];
 
     private final WebClient webClient;
     private final String subgraphName;
@@ -40,7 +57,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
 
     @Override
     public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, FeddiGatewayRequestContext context) {
-        String query = AstPrinter.printAst(operation);
+        String query = OperationTexts.pretty(operation);
 
         log.debug("[{}] Executing subgraph query: {}", subgraphName, query);
         if (variables != null && !variables.isEmpty()) {
@@ -54,13 +71,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
 
         return webClient.post()
             .contentType(MediaType.APPLICATION_JSON)
-            .headers(headers -> {
-                context.requestHeader("authorization").ifPresent(v -> headers.set("Authorization", v));
-                context.requestHeader("user-agent").ifPresent(v -> headers.set("User-Agent", v));
-                if (headerCustomizer != null) {
-                    headerCustomizer.customize(headers, subgraphName, context);
-                }
-            })
+            .headers(headers -> applyHeaders(headers, context))
             .bodyValue(requestBody)
             .exchangeToMono(response -> {
                 if (response.statusCode().is2xxSuccessful()) {
@@ -96,6 +107,160 @@ public class DefaultSubgraphClient implements SubgraphClient {
                 }
             })
             .doOnError(e -> log.error("[{}] Subgraph call exception: {}", subgraphName, e.getMessage(), e));
+    }
+
+    /**
+     * Variable batching: sends one request whose {@code variables} is an array and expects one
+     * result per variable set, either as JSON lines with a {@code variableIndex} (HotChocolate,
+     * application/jsonl) or as a JSON array in order.
+     */
+    @Override
+    public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
+                                                    List<Map<String, Object>> variableSets,
+                                                    FeddiGatewayRequestContext context) {
+        String query = OperationTexts.pretty(operation);
+        log.debug("[{}] Executing variable batch of {}: {}", subgraphName, variableSets.size(), query);
+
+        Map<String, Object> requestBody = Map.of("query", query, "variables", variableSets);
+
+        return webClient.post()
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(JSONL, MediaType.APPLICATION_JSON)
+            .headers(headers -> applyHeaders(headers, context))
+            .bodyValue(requestBody)
+            .exchangeToMono(response -> response.bodyToMono(byte[].class)
+                .defaultIfEmpty(EMPTY)
+                .flatMap(body -> {
+                    if (!response.statusCode().is2xxSuccessful()) {
+                        log.warn("[{}] Variable batch returned HTTP {}: {}", subgraphName, response.statusCode(),
+                            new String(body, StandardCharsets.UTF_8));
+                        return Mono.error(new RuntimeException(
+                            "Subgraph variable batch failed: " + response.statusCode()));
+                    }
+                    try {
+                        return Mono.just(parseBatchResponse(body, variableSets.size()).stream()
+                            .map(this::buildExecutionResult)
+                            .toList());
+                    } catch (IllegalArgumentException e) {
+                        return Mono.error(new RuntimeException(
+                            "Subgraph " + subgraphName + " returned an invalid variable batch response: " + e.getMessage(), e));
+                    }
+                }))
+            .doOnError(e -> log.error("[{}] Variable batch exception: {}", subgraphName, e.getMessage(), e));
+    }
+
+    /**
+     * Checks whether the subgraph supports variable batching by sending a minimal batch of two.
+     *
+     * <p>Answers that say nothing about batching are inconclusive: authentication failures (the
+     * probe carries no client's {@code Authorization}), rate limiting, timeouts and server errors.
+     *
+     * @return true if supported, false if the subgraph rejected the batch or did not answer with
+     *         a valid batch response; an error if the result is inconclusive or the subgraph could
+     *         not be reached
+     */
+    Mono<Boolean> supportsVariableBatching() {
+        Map<String, Object> requestBody = Map.of(
+            "query", "{ " + IntrospectionFields.TYPENAME + " }",
+            "variables", List.of(Map.of(), Map.of()));
+        return webClient.post()
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(JSONL, MediaType.APPLICATION_JSON)
+            // Not a client request: only the customizer's headers (e.g. internal auth) apply.
+            .headers(headers -> applyHeaders(headers, FeddiGatewayRequestContext.empty()))
+            .bodyValue(requestBody)
+            .exchangeToMono(response -> response.bodyToMono(byte[].class)
+                .defaultIfEmpty(EMPTY)
+                .flatMap(body -> {
+                    int status = response.statusCode().value();
+                    if (isInconclusiveProbeStatus(status)) {
+                        return Mono.error(new IllegalStateException("probe returned HTTP " + status));
+                    }
+                    if (!response.statusCode().is2xxSuccessful()) {
+                        return Mono.just(false);
+                    }
+                    try {
+                        return Mono.just(parseBatchResponse(body, 2).stream().allMatch(r -> r.get("data") != null));
+                    } catch (IllegalArgumentException e) {
+                        return Mono.just(false);
+                    }
+                }));
+    }
+
+    private static boolean isInconclusiveProbeStatus(int status) {
+        return status == 401 || status == 403 || status == 408 || status == 429 || status >= 500;
+    }
+
+    /**
+     * Forwards Authorization and User-Agent from the gateway request, then lets the optional
+     * {@link SubgraphRequestHeaderCustomizer} add or override headers.
+     */
+    private void applyHeaders(HttpHeaders headers, FeddiGatewayRequestContext context) {
+        context.requestHeader("authorization").ifPresent(v -> headers.set("Authorization", v));
+        context.requestHeader("user-agent").ifPresent(v -> headers.set("User-Agent", v));
+        if (headerCustomizer != null) {
+            headerCustomizer.customize(headers, subgraphName, context);
+        }
+    }
+
+    /**
+     * Parses a variable batch response into one response map per variable set, in order.
+     *
+     * @throws IllegalArgumentException if the body is not a valid batch response of the expected size
+     */
+    static List<Map<String, Object>> parseBatchResponse(String body, int expected) {
+        return parseBatchResponse(body.getBytes(StandardCharsets.UTF_8), expected);
+    }
+
+    /**
+     * Parses a variable batch response: a JSON array in order, or JSON lines with a
+     * {@code variableIndex}. JSON lines are read as a sequence of root-level values straight
+     * from the bytes; whitespace (any line ending) separates them.
+     *
+     * @throws IllegalArgumentException if the body is not a valid batch response of the expected size
+     */
+    static List<Map<String, Object>> parseBatchResponse(byte[] body, int expected) {
+        List<Map<String, Object>> responses = new ArrayList<>(expected);
+        try {
+            if (startsWithArray(body)) {
+                responses.addAll(JSON.readValue(body, LIST_OF_MAPS));
+            } else {
+                Map<String, Object>[] ordered = new Map[expected];
+                try (MappingIterator<Map<String, Object>> lines = MAP_READER.readValues(body)) {
+                    while (lines.hasNextValue()) {
+                        Map<String, Object> response = lines.nextValue();
+                        Object index = response.get("variableIndex");
+                        if (!(index instanceof Number number) || number.intValue() < 0 || number.intValue() >= expected) {
+                            throw new IllegalArgumentException("missing or invalid variableIndex: " + index);
+                        }
+                        ordered[number.intValue()] = response;
+                    }
+                }
+                for (Map<String, Object> response : ordered) {
+                    if (response == null) {
+                        throw new IllegalArgumentException("missing results");
+                    }
+                    responses.add(response);
+                }
+            }
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("not JSON: " + e.getOriginalMessage(), e);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("not JSON: " + e.getMessage(), e);
+        }
+        if (responses.size() != expected) {
+            throw new IllegalArgumentException("expected " + expected + " results, got " + responses.size());
+        }
+        return responses;
+    }
+
+    private static boolean startsWithArray(byte[] body) {
+        for (byte b : body) {
+            if (!Character.isWhitespace(b)) {
+                return b == '[';
+            }
+        }
+        return false;
     }
 
     private ExecutionResult buildExecutionResult(Map<?, ?> response) {

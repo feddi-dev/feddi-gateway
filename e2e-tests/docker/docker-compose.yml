@@ -8,6 +8,28 @@ services:
         condition: service_healthy
       reviews:
         condition: service_healthy
+      inventory:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Same gateway without the e2e extension JARs (no -Dloader.path): uses feddi's built-in
+  # subgraph client, e.g. for the variable batching check.
+  feddi-gateway-default:
+    build:
+      context: ./feddi-gateway
+      dockerfile: Dockerfile
+    entrypoint: ["java", "-jar", "app.jar"]
+    depends_on:
+      products:
+        condition: service_healthy
+      reviews:
+        condition: service_healthy
+      inventory:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9090/actuator/health"]
       interval: 5s
@@ -31,3 +53,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  inventory:
+    build:
+      context: ./subgraphs/inventory
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- --header='Content-Type: application/json' --post-data='{\"query\":\"{inventoryRequests}\"}' http://localhost:4003/graphql || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
