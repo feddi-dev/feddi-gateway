@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 60 planned by feddi, 58 with no more steps than Fusion, 50 with no more depth
+# 91 tests (4 with an invalid query), 58 planned by feddi, 56 with no more steps than Fusion, 48 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "planning: Cannot find path to resolve field: reviews"
   steps: 0
@@ -289,9 +289,9 @@ ProvidesPlannerTests/Provides_Shareable_Override:
   fusionOperations: 1
   fusionDepth: 1
 ProvidesPlannerTests/Provides_With_Requires_Interaction:
-  status: "ok"
-  steps: 2
-  depth: 2
+  status: "planning: Cannot resolve required field 'weight' of Item"
+  steps: 0
+  depth: 0
   fusionOperations: 3
   fusionDepth: 2
 RequirementArgumentTests/Fed_Audit_Requires_With_Argument_Conflict:
@@ -352,8 +352,8 @@ RequirementArgumentTests/Requires_Arguments_Reentrant_Comments_Collides_With_Cli
   fusionDepth: 3
 RequirementArgumentTests/Requires_With_Arguments:
   status: "ok"
-  steps: 2
-  depth: 2
+  steps: 3
+  depth: 3
   fusionOperations: 4
   fusionDepth: 3
 RequirementArgumentTests/Simple_Requires_Arguments:
@@ -486,9 +486,10 @@ RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Fi
   fusionOperations: 4
   fusionDepth: 2
 RequirementParityTests/Deep_Requires:
-  status: "ok"
-  steps: 2
-  depth: 2
+  status: "invalid subgraph operation: step 3 (b): Validation error (MissingFieldArgument@[postById/comments])\
+    \ : Missing field argument 'limit'"
+  steps: 0
+  depth: 0
   fusionOperations: 4
   fusionDepth: 4
 RequirementParityTests/Keys_Mashup:

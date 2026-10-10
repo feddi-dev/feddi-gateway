@@ -1,6 +1,6 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 226 queries {composition failed=20, different data=3, feddi error=4, invalid query=4, planning failed=3, same data=192}
+# 227 queries {composition failed=20, feddi error=5, invalid query=4, planning failed=4, same data=194}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "planning\
   \ failed"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
@@ -61,7 +61,7 @@ fusion/ProvidesPlannerTests/Provides_External_Without_Cover: "same data"
 fusion/ProvidesPlannerTests/Provides_On_Interface: "same data"
 fusion/ProvidesPlannerTests/Provides_Partial_Covers_Some: "same data"
 fusion/ProvidesPlannerTests/Provides_Shareable_Override: "same data"
-fusion/ProvidesPlannerTests/Provides_With_Requires_Interaction: "different data"
+fusion/ProvidesPlannerTests/Provides_With_Requires_Interaction: "planning failed"
 fusion/RequirementArgumentTests/Fed_Audit_Requires_With_Argument_Conflict: "same data"
 fusion/RequirementArgumentTests/Multiple_Plain_Field_And_Requires_With_Args_That_Conflicts: "same\
   \ data"
@@ -78,7 +78,7 @@ fusion/RequirementArgumentTests/Requires_Arguments_Deeply_Nested_Requires_With_V
   \ data"
 fusion/RequirementArgumentTests/Requires_Arguments_Reentrant_Comments_Collides_With_Client_Comments: "composition\
   \ failed"
-fusion/RequirementArgumentTests/Requires_With_Arguments: "different data"
+fusion/RequirementArgumentTests/Requires_With_Arguments: "same data"
 fusion/RequirementArgumentTests/Simple_Requires_Arguments: "same data"
 fusion/RequirementChainTests/Requires_Circular_1: "same data"
 fusion/RequirementChainTests/Requires_Circular_2: "feddi error: Validation error (MissingFieldArgument@[postById/byNovice])\
@@ -111,7 +111,8 @@ fusion/RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requi
 : "composition failed"
 ? fusion/RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice_Next_To_Required_Parent_Under_Interface
 : "composition failed"
-fusion/RequirementParityTests/Deep_Requires: "different data"
+fusion/RequirementParityTests/Deep_Requires: "feddi error: Validation error (MissingFieldArgument@[postById/comments])\
+  \ : Missing field argument 'limit'"
 fusion/RequirementParityTests/Keys_Mashup: "composition failed"
 fusion/RequirementParityTests/Requires_With_Fragments_On_Interfaces: "same data"
 fusion/RequirementParityTests/Simple_Requires: "same data"
@@ -252,6 +253,7 @@ schemas/provides_basic/provides_with_non_provided_field: "same data"
 schemas/provides_on_union/01_media_with_titles: "same data"
 schemas/require_nested_nonentity/02_require_referencing_nested: "same data"
 schemas/require_object_alternatives/01_object_require_per_type: "same data"
+schemas/require_through_list/01_require_list_item_field_from_lookup: "same data"
 schemas/requires_requires/01_recursive_require_chain: "same data"
 schemas/single_subgraph/all_fields: "same data"
 schemas/single_subgraph/nested_profile: "same data"

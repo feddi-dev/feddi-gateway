@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -644,8 +645,8 @@ public final class OperationPlanner {
                     // Use recursive resolution to find where to get this field
                     // Pass empty parentPath for lookup sources since they start fresh
                     List<String> reqParentPath = parentPath; // adjustPath handles lookup prefix stripping
-                    RequireFieldResolution resolution = resolveRequireField(
-                        sourceSubgraph, sourceTypeName, fieldPath, reqParentPath, visitedForRequire);
+                    RequireFieldResolution resolution = resolved(resolveRequireField(
+                        sourceSubgraph, sourceTypeName, fieldPath, reqParentPath, visitedForRequire), fieldPath, sourceTypeName);
 
                     if (resolution != null) {
                         reqResponseKeys.putAll(resolution.fieldToResponseKey());
@@ -1040,6 +1041,29 @@ public final class OperationPlanner {
                 Path path,
                 List<String> parentPath,
                 Set<String> visitedSubgraphs) {
+            return resolveRequireField(sourceSubgraph, sourceTypeName, path, parentPath, visitedSubgraphs, null);
+        }
+
+        /** Fails planning for a requirement that no subgraph can provide, instead of omitting its value. */
+        private static RequireFieldResolution resolved(RequireFieldResolution resolution, Path path, String typeName) {
+            if (resolution == null) {
+                String fields = path.segments().stream().map(PathSegment::fieldName).collect(Collectors.joining("."));
+                throw new PlanningException("Cannot resolve required field '" + fields + "' of " + typeName);
+            }
+            return resolution;
+        }
+
+        /**
+         * @param hopPlan the plan of the lookup that reaches {@code sourceSubgraph} when it is an intermediate
+         *                hop (created on first use), or null to use the plan found for the subgraph and path
+         */
+        private RequireFieldResolution resolveRequireField(
+                String sourceSubgraph,
+                String sourceTypeName,
+                Path path,
+                List<String> parentPath,
+                Set<String> visitedSubgraphs,
+                Supplier<SubgraphPlan> hopPlan) {
 
             // Check if directly resolvable in source subgraph
             if (canResolveFieldPathInSubgraph(sourceSubgraph, sourceTypeName, path)) {
@@ -1102,7 +1126,8 @@ public final class OperationPlanner {
                 newVisited.add(targetSubgraph);
 
                 RequireFieldResolution resolution = resolveRequireField(
-                    targetSubgraph, targetTypeName, path, parentPath, newVisited);
+                    targetSubgraph, targetTypeName, path, parentPath, newVisited,
+                    () -> getOrCreateLookupPlan(lookupEdge, parentPath));
 
                 if (resolution != null) {
                     // Found it through a chain! Need to set up the intermediate hop
@@ -1147,8 +1172,51 @@ public final class OperationPlanner {
                 }
             }
 
-            // Couldn't resolve the field
-            return null;
+            return resolveRequireFieldBelowFirstField(sourceSubgraph, sourceTypeName, path, parentPath, visitedSubgraphs,
+                hopPlan);
+        }
+
+        /**
+         * Resolves a requirement whose first field is in the source subgraph but whose rest is not, from the
+         * objects that first field returns: for {@code comments[somethingElse]}, {@code comments} is selected
+         * here and {@code somethingElse} is resolved for each comment (e.g. through a lookup on Comment).
+         * Returns null if that does not resolve it either.
+         */
+        private RequireFieldResolution resolveRequireFieldBelowFirstField(
+                String sourceSubgraph,
+                String sourceTypeName,
+                Path path,
+                List<String> parentPath,
+                Set<String> visitedSubgraphs,
+                Supplier<SubgraphPlan> hopPlan) {
+            List<PathSegment> segments = path.segments();
+            if (segments.size() < 2 || path.hasInitialTypeCondition() || segments.get(0).typeCondition() != null) {
+                return null;
+            }
+            String firstField = segments.get(0).fieldName();
+            var firstEdge = graph.fieldEdgesFrom(new Node(sourceTypeName, sourceSubgraph))
+                .filter(e -> e.fieldName().equals(firstField))
+                .findFirst();
+            if (firstEdge.isEmpty()) {
+                return null;
+            }
+            SubgraphPlan sourcePlan = hopPlan != null ? hopPlan.get() : findExistingPlanForSubgraph(sourceSubgraph, parentPath);
+            if (sourcePlan == null) {
+                sourcePlan = getOrCreateRootPlan(sourceSubgraph);
+            }
+            String responseKey = sourcePlan.addArtificialField(firstField, parentPath, true,
+                FieldOrigin.ARTIFICIAL_REQUIRE);
+            List<String> childPath = new ArrayList<>(parentPath);
+            childPath.add(responseKey);
+            RequireFieldResolution rest = resolveRequireField(sourceSubgraph, firstEdge.get().target().typeName(),
+                new Path(segments.subList(1, segments.size())), childPath, visitedSubgraphs);
+            if (rest == null) {
+                return null;
+            }
+            Map<String, String> responseKeys = new LinkedHashMap<>();
+            responseKeys.put(firstField, responseKey);
+            responseKeys.putAll(rest.fieldToResponseKey());
+            return new RequireFieldResolution(rest.plan(), rest.subgraph(), responseKeys);
         }
 
         /**
@@ -1257,8 +1325,8 @@ public final class OperationPlanner {
                         continue;
                     }
                     for (Path reqPath : req.extractPaths()) {
-                        RequireFieldResolution reqResolution = resolveRequireField(
-                            sourceSubgraph, sourceTypeName, reqPath, parentPath, newVisited);
+                        RequireFieldResolution reqResolution = resolved(resolveRequireField(
+                            sourceSubgraph, sourceTypeName, reqPath, parentPath, newVisited), reqPath, sourceTypeName);
                         if (reqResolution != null) {
                             reqResponseKeys.putAll(reqResolution.fieldToResponseKey());
 
@@ -1647,8 +1715,9 @@ public final class OperationPlanner {
                                 resolvedPaths.add(fieldPath);
                                 // Use recursive resolution to find where to get this field
                                 List<String> reqParentPath = parentPath; // adjustPath handles lookup prefix stripping
-                                RequireFieldResolution resolution = resolveRequireField(
-                                    sourceSubgraph, sourceTypeName, fieldPath, reqParentPath, visitedForRequire);
+                                RequireFieldResolution resolution = resolved(resolveRequireField(
+                                    sourceSubgraph, sourceTypeName, fieldPath, reqParentPath, visitedForRequire),
+                                    fieldPath, sourceTypeName);
 
                                 if (resolution != null) {
                                     reqResponseKeys.putAll(resolution.fieldToResponseKey());

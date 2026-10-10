@@ -1,0 +1,38 @@
+name: "Require through a list"
+description: "A requirement whose list field is in the source subgraph and whose leaf field needs a lookup on each list item."
+
+subgraphs:
+  posts: |
+    type Query {
+      feed: [Post]
+      postById(id: ID!): Post @lookup @internal
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      comments: [Comment]
+    }
+
+    type Comment @key(fields: "id") {
+      id: ID!
+    }
+
+  authors: |
+    type Query {
+      postById(id: ID!): Post @lookup @internal
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      topAuthor(authorIds: [ID] @require(field: "comments[authorId]")): String
+    }
+
+  comments: |
+    type Query {
+      commentById(id: ID!): Comment @lookup @internal
+    }
+
+    type Comment @key(fields: "id") {
+      id: ID!
+      authorId: ID
+    }

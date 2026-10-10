@@ -1,0 +1,36 @@
+name: "Required list item field from a lookup"
+description: |
+  topAuthor requires comments[authorId]: comments comes from posts, authorId from a commentById
+  lookup per comment, and topAuthor's lookup waits for it.
+
+query: |
+  {
+    feed {
+      topAuthor
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: posts
+      operation: "{ feed { id comments { id } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: authors
+      operation: "query($id: ID!, $authorIds: [ID]) { postById(id: $id) { topAuthor(authorIds: $authorIds) } }"
+      dependsOn: [1, 3]
+      requirements:
+        id: "id"
+        authorIds: "comments[authorId]"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: comments
+      operation: "query($id: ID!) { commentById(id: $id) { authorId } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true
