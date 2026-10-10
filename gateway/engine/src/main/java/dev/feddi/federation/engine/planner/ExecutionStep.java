@@ -30,6 +30,9 @@ import java.util.stream.Collectors;
  * @param entityPath response keys locating lookup targets from the response root; required by the
  *                   executor for repeated steps, null only for root steps and expected plans in tests
  * @param requestedFieldPaths dot-notation paths of fields explicitly requested by the client
+ * @param entityTypes concrete types an entity at {@code entityPath} must have for this step to apply
+ *                    (by its {@code __typename}); empty means any. A lookup for {@code Book} below an
+ *                    abstract field must not run for the list's {@code Magazine} items.
  */
 public record ExecutionStep(
     int id,
@@ -41,7 +44,8 @@ public record ExecutionStep(
     boolean repeatedExecution,
     Set<String> artificialFieldPaths,
     Set<String> requestedFieldPaths,
-    List<String> entityPath
+    List<String> entityPath,
+    Set<String> entityTypes
 ) {
 
     /**
@@ -53,11 +57,24 @@ public record ExecutionStep(
                          Map<String, SelectedValue> requirements, boolean repeatedExecution,
                          Set<String> artificialFieldPaths, Set<String> requestedFieldPaths) {
         this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
-            artificialFieldPaths, requestedFieldPaths, null);
+            artificialFieldPaths, requestedFieldPaths, null, Set.of());
+    }
+
+    /**
+     * Constructor without entity types: the step applies to every entity at its entity path.
+     */
+    public ExecutionStep(int id, String subgraph, OperationDefinition operation,
+                         List<Integer> dependsOn, List<Integer> parallelWith,
+                         Map<String, SelectedValue> requirements, boolean repeatedExecution,
+                         Set<String> artificialFieldPaths, Set<String> requestedFieldPaths,
+                         List<String> entityPath) {
+        this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, Set.of());
     }
 
     public ExecutionStep {
         entityPath = entityPath == null ? null : List.copyOf(entityPath);
+        entityTypes = entityTypes == null ? Set.of() : Set.copyOf(entityTypes);
         if (id < 1) {
             throw new IllegalArgumentException("id must be positive");
         }

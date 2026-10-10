@@ -838,6 +838,11 @@ public final class Executor {
         synchronized (ctx) {
             collectEntityTargets(ctx.getMergedData(), step.entityPath(), 0, targets);
         }
+        if (!step.entityTypes().isEmpty()) {
+            // A lookup for one concrete type (e.g. below "... on Book") skips entities of other types.
+            targets.removeIf(target -> target.get(IntrospectionFields.TYPENAME) instanceof String typename
+                && !step.entityTypes().contains(typename));
+        }
         return filterContextsForRequirements(targets, step.requirements());
     }
 

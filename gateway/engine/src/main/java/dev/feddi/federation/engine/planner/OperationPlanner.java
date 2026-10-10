@@ -1622,7 +1622,8 @@ public final class OperationPlanner {
                     repeatedExecution,
                     artificialPaths,
                     requestedPaths,
-                    plan.lookupEntryPath
+                    plan.lookupEntryPath,
+                    concreteTypes(plan.lookupTargetType)
                 );
 
                 steps.add(step);
@@ -1635,6 +1636,22 @@ public final class OperationPlanner {
             List<ExecutionStep> stepsWithParallel = computeParallelWith(steps);
 
             return ExecutionPlan.of(stepsWithParallel);
+        }
+
+        /**
+         * Concrete types an entity must have for a lookup returning {@code typeName}: the type
+         * itself, an interface's implementations or a union's members. Empty for root steps.
+         */
+        private Set<String> concreteTypes(String typeName) {
+            if (typeName == null) {
+                return Set.of();
+            }
+            Set<String> implementations = graph.getImplementingTypesForInterface(typeName);
+            if (!implementations.isEmpty()) {
+                return implementations;
+            }
+            Set<String> members = graph.getUnionMembers(typeName);
+            return members.isEmpty() ? Set.of(typeName) : members;
         }
 
         /**
@@ -1669,7 +1686,8 @@ public final class OperationPlanner {
                     step.repeatedExecution(),
                     step.artificialFieldPaths(),
                     step.requestedFieldPaths(),
-                    step.entityPath()
+                    step.entityPath(),
+                    step.entityTypes()
                 ));
             }
 
@@ -1688,6 +1706,7 @@ public final class OperationPlanner {
 
         // Lookup origin tracking (for dependent subgraphs entered via @lookup)
         String lookupFieldName;                     // e.g., "productById"
+        String lookupTargetType;                    // the lookup's return type, e.g. "Book"
         List<LookupArgument> lookupArguments;  // Key fields with argument info
         List<String> lookupEntryPath;               // The parentPath when we entered via lookup
 
@@ -1723,6 +1742,7 @@ public final class OperationPlanner {
          * Sets the lookup origin information for a subgraph entered via a @lookup edge.
          */
         void setLookupOrigin(LookupMoveEdge lookupEdge, List<String> entryPath) {
+            this.lookupTargetType = lookupEdge.target().typeName();
             this.lookupFieldName = lookupEdge.lookupField();
             this.lookupArguments = lookupEdge.lookupArguments();
             this.lookupEntryPath = new ArrayList<>(entryPath);

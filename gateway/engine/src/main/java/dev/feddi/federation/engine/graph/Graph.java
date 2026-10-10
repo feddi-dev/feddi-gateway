@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 /**
@@ -221,6 +222,21 @@ public final class Graph {
      */
     public Set<String> getUnionsForType(String typeName) {
         return typeMemberOfUnions.getOrDefault(typeName, Set.of());
+    }
+
+    /**
+     * Gets the member types of a union.
+     * @param unionName the union name
+     * @return set of member type names, or empty set if the union is unknown
+     */
+    public Set<String> getUnionMembers(String unionName) {
+        Set<String> members = new TreeSet<>();
+        typeMemberOfUnions.forEach((type, unions) -> {
+            if (unions.contains(unionName)) {
+                members.add(type);
+            }
+        });
+        return members;
     }
 
     /**
