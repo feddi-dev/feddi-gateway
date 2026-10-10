@@ -30,6 +30,7 @@ import graphql.schema.GraphQLTypeUtil;
 import graphql.schema.GraphQLUnionType;
 import graphql.schema.idl.ScalarInfo;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -270,7 +271,8 @@ public final class GraphBuilder {
                 parentTypeName,
                 field.getName(),
                 targetTypeName,
-                lookupArguments
+                lookupArguments,
+                List.of()
             ));
         }
     }
@@ -287,13 +289,17 @@ public final class GraphBuilder {
 
         // For each lookup, create edges from all subgraphs that have the target type
         // to the subgraph providing the lookup
-        for (LookupInfo lookup : lookupFields) {
-            String targetTypeName = lookup.targetTypeName();
+        for (LookupInfo declaredLookup : lookupFields) {
+            String targetTypeName = declaredLookup.targetTypeName();
             if (targetTypeName == null) continue;
 
             // Get the target subgraph's schema to check for implementations
-            Subgraph targetSubgraph = subgraphByName.get(lookup.subgraphName());
+            Subgraph targetSubgraph = subgraphByName.get(declaredLookup.subgraphName());
             if (targetSubgraph == null) continue;
+            List<String> lookupPath = pathToType(targetSubgraph.schema(), declaredLookup.parentTypeName());
+            if (lookupPath == null) continue;  // not reachable from Query without arguments
+            LookupInfo lookup = new LookupInfo(declaredLookup.subgraphName(), declaredLookup.parentTypeName(),
+                declaredLookup.fieldName(), targetTypeName, declaredLookup.lookupArguments(), lookupPath);
 
             // Find all subgraphs that have this target type
             for (Subgraph subgraph : subgraphs) {
@@ -336,7 +342,8 @@ public final class GraphBuilder {
                     LOOKUP_MOVE_COST,
                     lookupArguments,
                     allRequirements,
-                    targetTypeName
+                    targetTypeName,
+                    lookup.lookupPath()
                 ));
 
                 // If the target type is an interface, also create edges to implementing types
@@ -361,7 +368,8 @@ public final class GraphBuilder {
                             LOOKUP_MOVE_COST,
                             lookupArguments,
                             allRequirements,
-                            targetTypeName
+                            targetTypeName,
+                            lookup.lookupPath()
                         ));
                     }
                 } else if (targetType instanceof GraphQLUnionType unionType) {
@@ -381,7 +389,8 @@ public final class GraphBuilder {
                             LOOKUP_MOVE_COST,
                             lookupArguments,
                             allRequirements,
-                            targetTypeName
+                            targetTypeName,
+                            lookup.lookupPath()
                         ));
                     }
                 }
@@ -419,7 +428,8 @@ public final class GraphBuilder {
                 LOOKUP_MOVE_COST + 1,
                 lookup.lookupArguments(),
                 typeRequirements.getOrDefault(new TypeSubgraphKey(typeName, targetSubgraph.name()), List.of()),
-                lookup.targetTypeName()
+                lookup.targetTypeName(),
+                lookup.lookupPath()
             ));
         }
     }
@@ -444,6 +454,38 @@ public final class GraphBuilder {
             }
         }
         return true;
+    }
+
+    /**
+     * The fields without arguments that lead from Query to {@code typeName} (a lookup field "must be reachable by
+     * following a chain of fields - starting from the Query root type - where none of the intermediate fields have
+     * arguments"): empty for Query itself, the shortest chain otherwise, null if there is none.
+     */
+    private static List<String> pathToType(GraphQLSchema schema, String typeName) {
+        GraphQLObjectType query = schema.getQueryType();
+        if (query == null) {
+            return null;
+        }
+        Map<String, List<String>> paths = new HashMap<>();
+        paths.put(query.getName(), List.of());
+        ArrayDeque<GraphQLObjectType> pending = new ArrayDeque<>(List.of(query));
+        while (!pending.isEmpty()) {
+            GraphQLObjectType type = pending.poll();
+            if (type.getName().equals(typeName)) {
+                return paths.get(typeName);
+            }
+            for (GraphQLFieldDefinition field : type.getFieldDefinitions()) {
+                if (field.getArguments().isEmpty()
+                    && GraphQLTypeUtil.unwrapAll(field.getType()) instanceof GraphQLObjectType next
+                    && !paths.containsKey(next.getName())) {
+                    List<String> path = new ArrayList<>(paths.get(type.getName()));
+                    path.add(field.getName());
+                    paths.put(next.getName(), path);
+                    pending.add(next);
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -636,7 +678,8 @@ public final class GraphBuilder {
         String parentTypeName,
         String fieldName,
         String targetTypeName,
-        List<LookupArgument> lookupArguments
+        List<LookupArgument> lookupArguments,
+        List<String> lookupPath
     ) {}
     
     /**

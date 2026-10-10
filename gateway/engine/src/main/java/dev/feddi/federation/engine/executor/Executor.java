@@ -20,6 +20,7 @@ import graphql.language.Document;
 import graphql.language.Field;
 import graphql.language.OperationDefinition;
 import graphql.language.Selection;
+import graphql.language.SelectionSet;
 import graphql.schema.GraphQLSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -355,6 +356,7 @@ public final class Executor {
 
         // Get field names that should be set to null for skipped entities
         final Set<String> nullFieldNames = getFirstLevelFieldNames(step.operation());
+        final List<String> wrapperPath = lookupWrapperPath(step.operation());
         final Map<String, Object> operationVariables = filterVariablesForOperation(step.operation(), queryVariables);
 
         // Group entities by the variables their lookup needs: the same entity often appears
@@ -399,7 +401,7 @@ public final class Executor {
                 for (EntityResult er : entityResults) {
                     if (er.result() != null && er.result().getData() != null) {
                         @SuppressWarnings("unchecked")
-                        Map<String, Object> data = (Map<String, Object>) er.result().getData();
+                        Map<String, Object> data = unwrapLookup((Map<String, Object>) er.result().getData(), wrapperPath);
 
                         // Capture any GraphQL errors from the subgraph response
                         if (er.result().getErrors() != null) {
@@ -669,6 +671,39 @@ public final class Executor {
     }
 
     /**
+     * The argument-less fields that lead from a lookup operation's root to its lookup field, as for a lookup nested
+     * below Query ({@code lookups { brandById(id: $id) { ... } }} gives ["lookups"]); empty for a lookup on Query.
+     */
+    static List<String> lookupWrapperPath(OperationDefinition operation) {
+        List<String> path = new ArrayList<>();
+        SelectionSet level = operation.getSelectionSet();
+        while (level != null && level.getSelections().size() == 1 && level.getSelections().get(0) instanceof Field field
+            && field.getArguments().isEmpty() && field.getSelectionSet() != null) {
+            path.add(field.getResultKey());
+            level = field.getSelectionSet();
+        }
+        return path;
+    }
+
+    /**
+     * The lookup field's result below a nested lookup's wrapper fields, as {lookupField: result}; a null on the way
+     * counts as a null lookup result.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> unwrapLookup(Map<String, Object> data, List<String> wrapperPath) {
+        Map<String, Object> current = data;
+        for (String key : wrapperPath) {
+            if (!(current.get(key) instanceof Map<?, ?> next)) {
+                Map<String, Object> nullResult = new HashMap<>();
+                nullResult.put(key, null);
+                return nullResult;
+            }
+            current = (Map<String, Object>) next;
+        }
+        return current;
+    }
+
+    /**
      * Extracts the first-level field names from a lookup operation.
      * For an operation like "query { bookById { author { name } } }",
      * this returns ["author"] - the fields directly under the lookup root.
@@ -679,8 +714,12 @@ public final class Executor {
         if (operation.getSelectionSet() == null) {
             return fieldNames;
         }
+        SelectionSet lookupLevel = operation.getSelectionSet();
+        for (int i = 0; i < lookupWrapperPath(operation).size(); i++) {
+            lookupLevel = ((Field) lookupLevel.getSelections().get(0)).getSelectionSet();
+        }
         // The first selection is typically the lookup field (e.g., bookById)
-        for (Selection<?> selection : operation.getSelectionSet().getSelections()) {
+        for (Selection<?> selection : lookupLevel.getSelections()) {
             if (selection instanceof Field rootField && rootField.getSelectionSet() != null) {
                 // Get the fields under the root (e.g., author under bookById)
                 for (Selection<?> innerSelection : rootField.getSelectionSet().getSelections()) {

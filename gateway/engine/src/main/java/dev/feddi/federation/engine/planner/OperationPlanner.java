@@ -2149,6 +2149,7 @@ public final class OperationPlanner {
         String lookupReturnType;                    // the lookup field's type: lookupTargetType or an abstract type
         Map<Integer, String> lookupPathTypes = Map.of(); // type conditions along the lookup's entry path
         LookupMoveEdge lookupEdge;                  // the lookup that enters this plan, null for root plans
+        List<String> lookupPath = List.of();        // fields from Query to a nested lookup field (e.g. "lookups")
         List<LookupArgument> lookupArguments;  // Key fields with argument info
         List<String> lookupEntryPath;               // The parentPath when we entered via lookup
 
@@ -2188,6 +2189,7 @@ public final class OperationPlanner {
             this.lookupPathTypes = pathTypes;
             this.lookupTargetType = lookupEdge.target().typeName();
             this.lookupReturnType = lookupEdge.returnType();
+            this.lookupPath = lookupEdge.lookupPath();
             this.lookupFieldName = lookupEdge.lookupField();
             this.lookupArguments = lookupEdge.lookupArguments();
             this.lookupEntryPath = new ArrayList<>(entryPath);
@@ -2632,6 +2634,12 @@ public final class OperationPlanner {
                 finalSelectionSet = SelectionSet.newSelectionSet()
                     .selections(List.of(lookupField))
                     .build();
+                // A nested lookup (Query.lookups.brandById) is selected through its argument-less parent fields
+                for (int i = lookupPath.size() - 1; i >= 0; i--) {
+                    finalSelectionSet = SelectionSet.newSelectionSet()
+                        .selections(List.of(Field.newField(lookupPath.get(i)).selectionSet(finalSelectionSet).build()))
+                        .build();
+                }
             } else {
                 finalSelectionSet = innerSelectionSet;
             }

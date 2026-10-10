@@ -1,6 +1,6 @@
 # feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
 # (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
-# 91 tests (4 with an invalid query), 68 planned by feddi, 65 with no more steps than Fusion, 56 with no more depth
+# 91 tests (4 with an invalid query), 69 planned by feddi, 66 with no more steps than Fusion, 57 with no more depth
 AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
   status: "ok"
   steps: 4
@@ -62,10 +62,9 @@ InterfaceLookupPlanningTests/Abstract_Customer_Interface_With_Email_Is_Plannable
   fusionOperations: 3
   fusionDepth: 2
 LookupTests/Nested_Lookup:
-  status: "invalid subgraph operation: step 2 (b): Validation error (FieldUndefined@[brandById])\
-    \ : Field 'brandById' in type 'Query' is undefined"
-  steps: 0
-  depth: 0
+  status: "ok"
+  steps: 2
+  depth: 2
   fusionOperations: 2
   fusionDepth: 2
 LookupTests/Require_Inaccessible_Data:

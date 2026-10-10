@@ -1,6 +1,6 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 228 queries {composition failed=15, feddi error=2, invalid query=4, planning failed=2, same data=205}
+# 228 queries {composition failed=15, feddi error=1, invalid query=4, planning failed=2, same data=206}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "same\
   \ data"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
@@ -19,8 +19,7 @@ fusion/InterfaceFieldOverridePlanningTests/Plan_Should_Spill_Interface_Field_Whe
   \ data"
 fusion/InterfaceLookupPlanningTests/Abstract_Customer_Interface_With_Email_Is_Plannable: "same\
   \ data"
-fusion/LookupTests/Nested_Lookup: "feddi error: Validation error (FieldUndefined@[brandById])\
-  \ : Field 'brandById' in type 'Query' is undefined"
+fusion/LookupTests/Nested_Lookup: "same data"
 fusion/LookupTests/Require_Inaccessible_Data: "same data"
 fusion/OperationPlannerTests/Plan_Key_Requirement: "same data"
 fusion/OperationPlannerTests/Plan_Requirement_That_Cannot_Be_Inlined: "same data"
