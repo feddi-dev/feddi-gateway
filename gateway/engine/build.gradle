@@ -46,3 +46,11 @@ sourceSets {
         }
     }
 }
+
+tasks.named('test') {
+    // FusionPlanParityTest compares feddi's plans for the imported Fusion planner tests with a
+    // recorded baseline; ./gradlew :engine:test -PupdateFusionParity rewrites the baseline.
+    def baseline = file('src/test/resources/fusion-planning/parity-baseline.yaml')
+    systemProperty 'fusionParity.baseline', baseline.absolutePath
+    systemProperty 'fusionParity.update', project.hasProperty('updateFusionParity')
+}
