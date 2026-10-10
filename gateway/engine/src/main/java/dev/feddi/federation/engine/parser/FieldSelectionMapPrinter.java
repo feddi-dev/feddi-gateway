@@ -7,6 +7,8 @@ import dev.feddi.federation.engine.parser.FieldSelectionMap.ObjectSelection;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.Path;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectedValue;
+import graphql.language.Argument;
+import graphql.language.AstPrinter;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -60,8 +62,9 @@ public final class FieldSelectionMapPrinter {
                 sb.append(".");
             }
 
-            // Print field name
+            // Print field name and arguments
             sb.append(segment.fieldName());
+            sb.append(printArguments(segment.arguments()));
 
             // Print infix type condition if present: field<Type>
             if (segment.hasTypeCondition()) {
@@ -70,6 +73,20 @@ public final class FieldSelectionMapPrinter {
         }
 
         return sb.toString();
+    }
+
+    private static String printArguments(List<Argument> arguments) {
+        if (arguments.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("(");
+        for (int i = 0; i < arguments.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(arguments.get(i).getName()).append(": ").append(AstPrinter.printAst(arguments.get(i).getValue()));
+        }
+        return sb.append(")").toString();
     }
 
     private static String printObjectSelection(ObjectSelection objectSelection) {
@@ -92,7 +109,7 @@ public final class FieldSelectionMapPrinter {
     private static String printObjectField(ObjectField field) {
         // Check if it's a shorthand (field name equals the path)
         if (isShorthand(field)) {
-            return field.name();
+            return printPath((Path) field.value().alternatives().get(0));
         }
         return field.name() + ": " + print(field.value());
     }

@@ -1079,4 +1079,31 @@ class FieldSelectionMapParserTest {
             .as("Round-trip failed for input: '%s', printed as: '%s'", input, printed)
             .isEqualTo(parsed);
     }
+
+    @Test
+    void pathSegmentsWithConstantArguments() {
+        SelectedValue actual = FieldSelectionMapParser.parseFieldSelectionMap(
+            "packaging(material: BOX, sizes: [1, 2], label: \"a b\").weight(unit: IMPERIAL)");
+
+        Path path = (Path) actual.alternatives().get(0);
+        assertThat(path.segments()).extracting(PathSegment::fieldName).containsExactly("packaging", "weight");
+        assertThat(path.segments().get(0).printedArguments()).isEqualTo("material: BOX, sizes: [1,2], label: \"a b\"");
+        assertThat(path.segments().get(1).printedArguments()).isEqualTo("unit: IMPERIAL");
+        assertThat(actual).isEqualTo(FieldSelectionMapParser.parseFieldSelectionMap(
+            "packaging(material: BOX sizes: [1 2] label: \"a b\").weight(unit: IMPERIAL)"));
+    }
+
+    @Test
+    void argumentsInListAndShorthandObjectFields() {
+        SelectedValue actual = FieldSelectionMapParser.parseFieldSelectionMap(
+            "comments(limit: 3)[{ authorId, width(unit: IMPERIAL) }]");
+
+        ListSelection list = (ListSelection) actual.alternatives().get(0);
+        assertThat(list.pathPrefix().segments().get(0).printedArguments()).isEqualTo("limit: 3");
+        ObjectSelection object = (ObjectSelection) list.elementValue().alternatives().get(0);
+        Path width = (Path) object.fields().get(1).value().alternatives().get(0);
+        assertThat(width.segments().get(0).printedArguments()).isEqualTo("unit: IMPERIAL");
+        assertThat(FieldSelectionMapPrinter.print(actual))
+            .isEqualTo("comments(limit: 3)[{ authorId width(unit: IMPERIAL) }]");
+    }
 }

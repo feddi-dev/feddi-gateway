@@ -6,12 +6,16 @@ import dev.feddi.federation.engine.parser.FieldSelectionMap.InlineFragment;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.ListSelection;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.Path;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectionItem;
+import dev.feddi.federation.engine.parser.antlr.FSMParser.ArgumentContext;
+import dev.feddi.federation.engine.parser.antlr.FSMParser.ArgumentsContext;
 import dev.feddi.federation.engine.parser.antlr.FSMParser.FieldSelectionContext;
 import dev.feddi.federation.engine.parser.antlr.FSMParser.FieldSelectionSetContext;
 import dev.feddi.federation.engine.parser.antlr.FSMParser.InlineFragmentContext;
 import dev.feddi.federation.engine.parser.antlr.FSMParser.PathContext;
 import dev.feddi.federation.engine.parser.antlr.FSMParser.SelectionItemContext;
 import dev.feddi.federation.engine.parser.antlr.FSMParser.SelectionSetContext;
+import graphql.language.Argument;
+import graphql.language.Value;
 import org.antlr.v4.runtime.CommonTokenStream;
 
 import java.io.Reader;
@@ -108,7 +112,9 @@ public class FSMAntlrToLanguage {
             if (fieldCtx.selectedValue() != null) {
                 value = createSelectedValue(fieldCtx.selectedValue());
             } else {
-                value = new SelectedValue(Path.of(name));
+                // Shorthand: the input field and the output field (with its arguments) have the same name
+                value = new SelectedValue(new Path(List.of(
+                    new PathSegment(name, null, createArguments(fieldCtx.arguments())))));
             }
             fieldList.add(new ObjectField(name, value));
         }
@@ -130,10 +136,25 @@ public class FSMAntlrToLanguage {
             String infixTypeCondition = currentAntlrSegmentCtx.typeName() != null
                 ? currentAntlrSegmentCtx.typeName().getText()
                 : null;
-            segments.add(new PathSegment(fieldName, infixTypeCondition));
+            segments.add(new PathSegment(fieldName, infixTypeCondition,
+                createArguments(currentAntlrSegmentCtx.arguments())));
             currentAntlrSegmentCtx = currentAntlrSegmentCtx.pathSegment();
         }
         return new Path(initialTypeCondition, segments);
+    }
+
+    /** Constant arguments; values are parsed as GraphQL values from their source text. */
+    private List<Argument> createArguments(ArgumentsContext ctx) {
+        if (ctx == null) {
+            return List.of();
+        }
+        List<Argument> arguments = new ArrayList<>();
+        for (ArgumentContext argumentCtx : ctx.argument()) {
+            String valueText = tokens.getText(argumentCtx.value().getStart(), argumentCtx.value().getStop());
+            Value<?> value = graphql.parser.Parser.parseValue(valueText);
+            arguments.add(Argument.newArgument(argumentCtx.name().getText(), value).build());
+        }
+        return arguments;
     }
 
     // ========================================================================

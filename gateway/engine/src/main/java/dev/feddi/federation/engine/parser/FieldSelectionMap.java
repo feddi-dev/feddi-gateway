@@ -1,7 +1,12 @@
 package dev.feddi.federation.engine.parser;
 
+import graphql.language.Argument;
+import graphql.language.AstPrinter;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Model classes for the FieldSelectionMap and FieldSelectionSet scalar types.
@@ -186,10 +191,46 @@ public final class FieldSelectionMap {
      * @param fieldName the name of the field being selected
      * @param typeCondition the infix type condition after this field (e.g., "Book" in {@code mediaById<Book>.isbn}),
      *                      specifying the return type for type narrowing, or null if not present
+     * @param arguments the constant arguments the field is selected with (e.g. {@code unit: IMPERIAL}), empty if none
      */
-    public record PathSegment(String fieldName, String typeCondition) {
+    public record PathSegment(String fieldName, String typeCondition, List<Argument> arguments) {
+        public PathSegment {
+            arguments = arguments == null ? List.of() : List.copyOf(arguments);
+        }
+
         public PathSegment(String fieldName) {
-            this(fieldName, null);
+            this(fieldName, null, List.of());
+        }
+
+        public PathSegment(String fieldName, String typeCondition) {
+            this(fieldName, typeCondition, List.of());
+        }
+
+        /**
+         * Returns true if this segment selects its field with arguments (e.g. {@code weight(unit: IMPERIAL)}).
+         */
+        public boolean hasArguments() {
+            return !arguments.isEmpty();
+        }
+
+        /** The arguments as GraphQL text, e.g. {@code unit: IMPERIAL}; empty if none. */
+        public String printedArguments() {
+            return arguments.stream()
+                .map(argument -> argument.getName() + ": " + AstPrinter.printAstCompact(argument.getValue()))
+                .collect(Collectors.joining(", "));
+        }
+
+        // graphql-java's AST nodes compare by identity: arguments compare by their text
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof PathSegment other && fieldName.equals(other.fieldName)
+                && Objects.equals(typeCondition, other.typeCondition)
+                && printedArguments().equals(other.printedArguments());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(fieldName, typeCondition, printedArguments());
         }
 
         /**
