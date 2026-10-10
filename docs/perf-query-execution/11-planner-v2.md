@@ -22,24 +22,35 @@ Fusion composes all of them, 9 failed to plan, 9 produced an invalid subgraph op
 `tools/planner-compare` on feddi's own fixtures (132 queries, 119 ran on both gateways): feddi sent more operations
 than Fusion for 17 queries and had more depth for 5; it was better in 1.
 
-## Status (2026-10-10, overnight run)
+## Status (2026-10-10)
 
-| | v1 start | now |
-|---|---|---|
-| Fusion parity: tests planned (`FusionPlanParityTest`) | 47 of 91 | 53 of 91 (4 have invalid queries) |
-| Correct data vs monolith (`PlanExecutionOracleTest`) | 170 of 223 | 181 of 223 |
+| | v1 start | overnight run | now |
+|---|---|---|---|
+| Fusion parity: tests planned (`FusionPlanParityTest`) | 47 of 91 | 53 of 91 | 58 of 91 (4 have invalid queries) |
+| Correct data vs monolith (`PlanExecutionOracleTest`) | 170 of 223 | 181 of 223 | 194 of 227 |
+| Wrong data without an error (oracle "different data") | | 4 | 0 |
 
 Done: comparison tool, Fusion test import, parity and oracle tests, four composition rules aligned with the
 spec, lookups below a type condition only run for that type, entity fields below abstract fields go into inline
-fragments.
+fragments. Since the overnight run:
 
-Next, in order: (1) fields inside an inline fragment that resolve in another subgraph are still added to the
-fragment (wrong subgraph, bogus extra root step); a first fix is in `git stash` ("WIP planner-v2"), it still
-leaves an empty `author` selection when the fragment's type equals the lookup's type. (2) Requirements that need
-their own lookup (`comments[somethingElse]`). (3) Depth gaps against Fusion (sibling-aware subgraph choice).
-(4) Arguments in FieldSelectionMap (`price(withDiscount: true)`), nested lookups, lookups with extra arguments.
-feddi keeps rejecting `@require` fields from the requiring schema itself (spec: other schemas only; Fusion is
-more lenient there, 8 tests).
+- Fields in an inline fragment that resolve in another subgraph go to that subgraph's plan; their lookup keys are
+  selected inside the fragment, and lookup steps carry the type conditions along their entity path
+  (`ExecutionStep.entityPathTypes`), so `... on UserReview { product { x } }` only looks up UserReview products.
+- Lookups that return an interface or union (`node(id:): Node`) resolve the types that implement it, also from
+  subgraphs without the abstract type; the step selects the type's fields in `... on Product`.
+- `@skip`/`@include` on a fragment with a redundant type condition are kept (they were dropped, so the fields were
+  always selected); variables used only inside fragments are declared in the subgraph operation.
+- Requirements like `comments[authorId]`, whose leaf needs a lookup per list item, are resolved; a requirement
+  that cannot be resolved fails planning instead of running the step without its value.
+
+Next, in order: (1) `@provides` for requirements (`Provides_With_Requires_Interaction` now fails planning).
+(2) "Cannot find path" for fields below duplicate or impossible type fragments (2 tests). (3) Nested lookups
+(`lookups { brandById }`), lookups with extra arguments, key requirements (`Plan_Key_Requirement`,
+`Requires_Circular_2`). (4) Step and depth gaps against Fusion: equal lookups of several union members are not
+merged (13 steps vs 6 in one test), sibling-aware subgraph choice. (5) Arguments in FieldSelectionMap
+(`price(withDiscount: true)`). feddi keeps rejecting `@require` fields from the requiring schema itself (spec:
+other schemas only; Fusion is more lenient there, 8 tests).
 
 ## Composition: aligning with the spec
 
