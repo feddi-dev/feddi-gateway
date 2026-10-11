@@ -120,9 +120,7 @@ final class PlanAssembler {
                     dependsOn.addAll(b.dependsOn());
                     dependsOn.remove(a.id());
                     dependsOn.remove(b.id());
-                    result.set(i, new ExecutionStep(a.id(), a.subgraph(), a.operation(), List.copyOf(dependsOn),
-                        List.of(), a.requirements(), a.repeatedExecution(), a.artificialFieldPaths(),
-                        a.requestedFieldPaths(), a.entityPath(), a.entityTypes(), pathTypes, a.possibleTypes()));
+                    result.set(i, a.withDependsOn(List.copyOf(dependsOn)).withEntityPathTypes(pathTypes));
                     result.remove(j);
                     replacedBy.put(b.id(), a.id());
                     merged = true;
@@ -145,10 +143,7 @@ final class PlanAssembler {
                     dependsOn.add(target);
                 }
             }
-            remapped.add(new ExecutionStep(step.id(), step.subgraph(), step.operation(), List.copyOf(dependsOn),
-                List.of(), step.requirements(), step.repeatedExecution(), step.artificialFieldPaths(),
-                step.requestedFieldPaths(), step.entityPath(), step.entityTypes(), step.entityPathTypes(),
-                step.possibleTypes()));
+            remapped.add(step.withDependsOn(List.copyOf(dependsOn)));
         }
         return remapped;
     }
@@ -250,22 +245,7 @@ final class PlanAssembler {
                 .sorted()
                 .toList();
 
-            // Create new step with parallelWith set (preserve field paths)
-            result.add(new ExecutionStep(
-                step.id(),
-                step.subgraph(),
-                step.operation(),
-                step.dependsOn(),
-                parallelWith,
-                step.requirements(),
-                step.repeatedExecution(),
-                step.artificialFieldPaths(),
-                step.requestedFieldPaths(),
-                step.entityPath(),
-                step.entityTypes(),
-                step.entityPathTypes(),
-                step.possibleTypes()
-            ));
+            result.add(step.withParallelWith(parallelWith));
         }
 
         return result;

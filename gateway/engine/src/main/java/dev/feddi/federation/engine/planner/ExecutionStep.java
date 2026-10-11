@@ -101,40 +101,22 @@ public record ExecutionStep(
         requestedFieldPaths = requestedFieldPaths == null ? Set.of() : Set.copyOf(requestedFieldPaths);
     }
 
-    /**
-     * Creates a root step with no dependencies.
-     */
-    public static ExecutionStep root(int id, String subgraph, OperationDefinition operation) {
-        return new ExecutionStep(id, subgraph, operation, List.of(), List.of(), Map.of(), false, Set.of(), Set.of());
+    /** This step, depending on other steps. */
+    public ExecutionStep withDependsOn(List<Integer> dependsOn) {
+        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, possibleTypes);
     }
 
-    /**
-     * Creates a dependent step.
-     */
-    public static ExecutionStep dependent(
-        int id,
-        String subgraph,
-        OperationDefinition operation,
-        List<Integer> dependsOn,
-        Map<String, SelectedValue> requirements,
-        boolean repeatedExecution
-    ) {
-        return new ExecutionStep(id, subgraph, operation, dependsOn, List.of(), requirements, repeatedExecution, Set.of(), Set.of());
+    /** This step, running in parallel with other steps. */
+    public ExecutionStep withParallelWith(List<Integer> parallelWith) {
+        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, possibleTypes);
     }
 
-    /**
-     * Creates a dependent step with parallel execution information.
-     */
-    public static ExecutionStep dependent(
-        int id,
-        String subgraph,
-        OperationDefinition operation,
-        List<Integer> dependsOn,
-        List<Integer> parallelWith,
-        Map<String, SelectedValue> requirements,
-        boolean repeatedExecution
-    ) {
-        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution, Set.of(), Set.of());
+    /** This step, for entities along its entity path of other types. */
+    public ExecutionStep withEntityPathTypes(Map<Integer, Set<String>> entityPathTypes) {
+        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, possibleTypes);
     }
 
     /**
