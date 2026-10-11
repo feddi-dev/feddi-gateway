@@ -1,0 +1,33 @@
+name: "INTERFACE_FIELD_ARGUMENT_NO_IMPLEMENTATION - merged argument missing on an implementation"
+description: |
+  Media.title keeps lang (only a defines Media), but Book.title loses it in the merge because b's
+  Book.title does not declare it.
+
+subgraphs:
+  a: |
+    type Query {
+      media: [Media]
+      bookById(id: ID!): Book @lookup
+    }
+
+    interface Media {
+      id: ID!
+      title(lang: String): String
+    }
+
+    type Book implements Media @key(fields: "id") {
+      id: ID!
+      title(lang: String): String @shareable
+    }
+
+  b: |
+    type Query {
+      bookByIdB(id: ID!): Book @lookup
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      title: String @shareable
+    }
+
+error: "INTERFACE_FIELD_ARGUMENT_NO_IMPLEMENTATION"

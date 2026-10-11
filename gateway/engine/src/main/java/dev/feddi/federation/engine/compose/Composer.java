@@ -8,6 +8,9 @@ import dev.feddi.federation.engine.compose.validation.SchemaValidator;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import graphql.GraphQLException;
 import graphql.schema.GraphQLSchema;
+import graphql.schema.idl.errors.MissingInterfaceFieldArgumentsError;
+import graphql.schema.idl.errors.MissingInterfaceFieldError;
+import graphql.schema.idl.errors.SchemaProblem;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -71,13 +74,7 @@ public final class Composer {
             Diagnostic error = Diagnostic.error(e.getErrorCode(), e.getMessage(), null, null);
             return CompositionResult.failure(subgraphs, ValidationResult.of(List.of(error)));
         } catch (Exception e) {
-            // Schema building failed for other reasons
-            Diagnostic error = Diagnostic.error(
-                "SCHEMA_BUILD_ERROR",
-                "Failed to build merged schema: " + e.getMessage(),
-                null, null
-            );
-            return CompositionResult.failure(subgraphs, ValidationResult.of(List.of(error)));
+            return CompositionResult.failure(subgraphs, ValidationResult.of(schemaBuildErrors(e)));
         }
 
         // Run post-merge validation on the merged schema
@@ -126,13 +123,7 @@ public final class Composer {
             Diagnostic error = Diagnostic.error(e.getErrorCode(), e.getMessage(), null, null);
             return CompositionResult.failure(subgraphs, ValidationResult.of(List.of(error)));
         } catch (Exception e) {
-            // Schema building failed for other reasons
-            Diagnostic error = Diagnostic.error(
-                "SCHEMA_BUILD_ERROR",
-                "Failed to build merged schema: " + e.getMessage(),
-                null, null
-            );
-            return CompositionResult.failure(subgraphs, ValidationResult.of(List.of(error)));
+            return CompositionResult.failure(subgraphs, ValidationResult.of(schemaBuildErrors(e)));
         }
 
         // Run post-merge validation on the merged schema
@@ -167,6 +158,24 @@ public final class Composer {
         return schemaMerger.mergeAll(schemas);
     }
     
+    /**
+     * The errors of building the merged schema. graphql-java checks that object types implement their interfaces'
+     * fields and arguments: those errors get the spec's codes, others are SCHEMA_BUILD_ERROR.
+     */
+    private static List<Diagnostic> schemaBuildErrors(Exception e) {
+        if (!(e instanceof SchemaProblem problem)) {
+            return List.of(Diagnostic.error("SCHEMA_BUILD_ERROR", "Failed to build merged schema: " + e.getMessage(),
+                null, null));
+        }
+        return problem.getErrors().stream()
+            .map(error -> Diagnostic.error(switch (error) {
+                case MissingInterfaceFieldError ignored -> "INTERFACE_FIELD_NO_IMPLEMENTATION";
+                case MissingInterfaceFieldArgumentsError ignored -> "INTERFACE_FIELD_ARGUMENT_NO_IMPLEMENTATION";
+                default -> "SCHEMA_BUILD_ERROR";
+            }, "Failed to build merged schema: " + error.getMessage(), null, null))
+            .toList();
+    }
+
     /**
      * Input for a subgraph to be composed.
      */
