@@ -117,15 +117,7 @@ public final class Graph {
             .filter(e -> e.fieldName().equals(fieldName))
             .findFirst();
     }
-    
-    /**
-     * Finds all LookupMoveEdges from a node to a specific subgraph.
-     */
-    public Stream<LookupMoveEdge> findLookupEdgesToSubgraph(Node node, String subgraph) {
-        return lookupEdgesFrom(node)
-            .filter(e -> e.target().subgraph().equals(subgraph));
-    }
-    
+
     /**
      * Gets all unique subgraphs in the graph.
      */

@@ -138,13 +138,6 @@ public record ExecutionStep(
     }
 
     /**
-     * Checks if this step has any artificial fields that should be filtered.
-     */
-    public boolean hasArtificialFields() {
-        return !artificialFieldPaths.isEmpty();
-    }
-    
-    /**
      * Returns a flattened list of all field names in this step.
      * Useful for debugging and simple comparisons.
      */
@@ -185,20 +178,6 @@ public record ExecutionStep(
      */
     public boolean isRoot() {
         return dependsOn.isEmpty();
-    }
-    
-    /**
-     * Checks if this step has requirements from previous steps.
-     */
-    public boolean hasRequirements() {
-        return !requirements.isEmpty();
-    }
-    
-    /**
-     * Checks if this step can run in parallel with other steps.
-     */
-    public boolean hasParallelSteps() {
-        return !parallelWith.isEmpty();
     }
 
     @Override

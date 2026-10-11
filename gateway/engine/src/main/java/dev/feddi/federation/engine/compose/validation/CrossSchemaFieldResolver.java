@@ -119,23 +119,6 @@ public final class CrossSchemaFieldResolver {
     }
 
     /**
-     * Checks if a field exists in the cross-schema context (simple map-based version).
-     *
-     * @param typeName The type to check
-     * @param fieldName The field to look for
-     * @param crossSchemaFields Map from buildCrossSchemaFieldMap
-     * @return true if the field exists in at least one other schema
-     */
-    public static boolean isFieldInOtherSchemas(
-            String typeName,
-            String fieldName,
-            Map<String, Set<String>> crossSchemaFields) {
-
-        Set<String> fields = crossSchemaFields.get(typeName);
-        return fields != null && fields.contains(fieldName);
-    }
-
-    /**
      * Checks if a field exists in the given schema.
      *
      * @param subgraph The subgraph to check

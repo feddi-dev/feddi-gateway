@@ -60,23 +60,6 @@ public record ExecutionPlan(List<ExecutionStep> steps) {
             .filter(ExecutionStep::isRoot)
             .toList();
     }
-    
-    /**
-     * Gets all unique subgraphs involved in this plan.
-     */
-    public List<String> involvedSubgraphs() {
-        return steps.stream()
-            .map(ExecutionStep::subgraph)
-            .distinct()
-            .toList();
-    }
-    
-    /**
-     * Calculates the total cost based on number of steps (simple metric).
-     */
-    public int totalCost() {
-        return steps.size();
-    }
 
     /**
      * Aggregates all artificial field paths from all steps.
@@ -103,13 +86,6 @@ public record ExecutionPlan(List<ExecutionStep> steps) {
         return paths;
     }
 
-    /**
-     * Checks if any step has artificial fields that need filtering.
-     */
-    public boolean hasArtificialFields() {
-        return steps.stream().anyMatch(ExecutionStep::hasArtificialFields);
-    }
-    
     @Override
     public String toString() {
         if (isEmpty()) {
