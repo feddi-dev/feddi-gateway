@@ -152,19 +152,29 @@ public final class OperationPlanner {
                                List<String> parentPath, PlanningContext context,
                                InlineFragmentContext fragmentContext) {
         if (selection instanceof FieldSelection fieldSelection) {
-            planFieldSelection(currentPath, fieldSelection, parentPath, context, fragmentContext);
+            planFieldSelection(currentPath, fieldSelection, parentPath, context, fragmentContext, null);
         } else if (selection instanceof InlineFragmentSelection inlineFragment) {
             // Nested inline fragments start fresh - they're handled separately
             planInlineFragment(currentPath, inlineFragment, parentPath, context);
         }
     }
+
     /**
-     * Plans a field selection with optional inline fragment context.
-     * When fragmentContext is provided, the field is added to the fragment's selection tree.
+     * The client's inline fragment a field is selected in directly ({@code ... on Book @include(if: $b) { title }}):
+     * the field goes into such a fragment in the plan that selects it.
+     */
+    private record FragmentScope(String typeCondition, List<Directive> directives) {
+    }
+
+    /**
+     * Plans a field selection. The field goes into {@code fragmentContext} (the fragment an enclosing field was
+     * selected in) or, for a field directly in a client fragment ({@code scope}), into that fragment in the plan
+     * that selects the field; otherwise into its plan's selections. A field resolved in another plan (through a
+     * lookup) leaves the fragment context; the lookup's keys are selected in the fragment.
      */
     private void planFieldSelection(OperationPath currentPath, FieldSelection selection,
                                     List<String> parentPath, PlanningContext context,
-                                    InlineFragmentContext fragmentContext) {
+                                    InlineFragmentContext fragmentContext, FragmentScope scope) {
         String fieldName = selection.fieldName();
 
         // Find paths to resolve this field
@@ -180,51 +190,48 @@ public final class OperationPlanner {
         // Use the best path (lowest cost)
         OperationPath bestPath = paths.get(0);
 
-        // Check if this field routes to the introspection subgraph
-        boolean isIntrospectionField = "$introspection".equals(bestPath.currentSubgraph());
-
         // Introspection fields are handled opaquely - store the entire selection tree
-        if (isIntrospectionField) {
+        if ("$introspection".equals(bestPath.currentSubgraph())) {
             context.recordOpaqueFieldResolution(bestPath, selection, parentPath);
             return;
         }
 
-        if (fragmentContext != null && (!fragmentContext.subgraph.equals(bestPath.currentSubgraph())
-                || addsLookup(currentPath, bestPath))) {
-            // The field resolves in another subgraph (through a lookup): it belongs to that
-            // subgraph's plan, not to this fragment, and so do its sub-selections. The lookup's
-            // key fields are selected in the fragment.
+        boolean resolvedElsewhere = addsLookup(currentPath, bestPath)
+            || !currentPath.currentSubgraph().equals(bestPath.currentSubgraph());
+        InlineFragmentContext target = fragmentContext;
+        if (scope != null) {
+            target = resolvedElsewhere
+                ? context.getOrCreateInlineFragmentForLookup(bestPath, parentPath, scope.typeCondition(),
+                    scope.directives())
+                : context.inlineFragmentIn(context.planFor(currentPath, parentPath), parentPath, scope.typeCondition(),
+                    scope.directives());
+        }
+        if (target != null && scope == null && resolvedElsewhere) {
             context.recordFieldResolution(bestPath, selection.alias(), fieldName, parentPath,
-                selection.hasSubSelections(), selection.arguments(), selection.directives(), fragmentContext);
-            fragmentContext = null;
-        } else if (fragmentContext != null) {
-            // Add to inline fragment's selection tree
-            fragmentContext.addField(selection.alias(), fieldName, selection.hasSubSelections(),
+                selection.hasSubSelections(), selection.arguments(), selection.directives(), target);
+            target = null;
+        } else if (target != null) {
+            target.addField(selection.alias(), fieldName, selection.hasSubSelections(),
                 selection.arguments(), selection.directives());
-            // Also record for dependency tracking
-            context.recordFieldResolutionForFragment(bestPath, fieldName, parentPath,
-                selection.hasSubSelections(), selection.arguments(), selection.directives(),
-                fragmentContext);
+            context.recordFieldResolutionForFragment(bestPath, fieldName, parentPath);
         } else {
-            // Add to regular selection tree
             context.recordFieldResolution(bestPath, selection.alias(), fieldName, parentPath,
                 selection.hasSubSelections(), selection.arguments(), selection.directives());
         }
 
-        // Recursively plan sub-selections, passing fragment context to keep fields inside the fragment
+        // Recursively plan sub-selections, passing the fragment context to keep fields inside the fragment
         if (selection.hasSubSelections()) {
             List<String> childParentPath = new ArrayList<>(parentPath);
             childParentPath.add(selection.responseKey());
 
-            // Enter the field in the fragment context for nested path tracking
-            if (fragmentContext != null) {
-                fragmentContext.enterField(selection.responseKey());
+            if (target != null) {
+                target.enterField(selection.responseKey());
             }
 
             Set<OperationPath> recordedPaths = new HashSet<>(List.of(bestPath));
             for (Selection subSelection : selection.subSelections()) {
                 OperationPath parentForSub = bestPath;
-                if (fragmentContext == null && paths.size() > 1 && !resolvable(bestPath, subSelection)) {
+                if (target == null && paths.size() > 1 && !resolvable(bestPath, subSelection)) {
                     // Sibling-aware choice: a child the best path cannot resolve may be resolvable when this field
                     // is also selected in another subgraph (e.g. a shared root field whose schemas each have
                     // different fields of its type).
@@ -239,12 +246,11 @@ public final class OperationPlanner {
                         }
                     }
                 }
-                planSelection(parentForSub, subSelection, childParentPath, context, fragmentContext);
+                planSelection(parentForSub, subSelection, childParentPath, context, target);
             }
 
-            // Exit the field in the fragment context
-            if (fragmentContext != null) {
-                fragmentContext.exitField();
+            if (target != null) {
+                target.exitField();
             }
         }
     }
@@ -342,9 +348,8 @@ public final class OperationPlanner {
             ? context.enterTypeCondition(parentPath.size(), typeCondition) : null;
         for (Selection subSelection : fragment.subSelections()) {
             if (subSelection instanceof FieldSelection fieldSelection) {
-                // Add field to the inline fragment's selection set using narrowed path
-                planFieldSelectionInFragment(narrowedPath, fieldSelection, parentPath, context,
-                    typeCondition, fragment.directives());
+                planFieldSelection(narrowedPath, fieldSelection, parentPath, context, null,
+                    new FragmentScope(typeCondition, fragment.directives()));
             } else if (subSelection instanceof InlineFragmentSelection nestedFragment) {
                 // Nested inline fragments are rare but possible
                 planInlineFragment(narrowedPath, nestedFragment, parentPath, context);
@@ -355,75 +360,6 @@ public final class OperationPlanner {
         }
     }
 
-    /**
-     * Plans a field selection within an inline fragment context.
-     * Handles cross-subgraph inline fragments by creating the fragment in the target subgraph.
-     */
-    private void planFieldSelectionInFragment(OperationPath currentPath, FieldSelection selection,
-                                              List<String> parentPath, PlanningContext context,
-                                              String typeCondition, List<Directive> fragmentDirectives) {
-        String fieldName = selection.fieldName();
-
-        // Find paths to resolve this field
-        List<OperationPath> paths = pathFinder.findPaths(currentPath, fieldName);
-
-        if (paths.isEmpty()) {
-            throw new PlanningException("Cannot find path to resolve field: " + fieldName);
-        }
-
-        // Use the best path (lowest cost)
-        OperationPath bestPath = paths.get(0);
-
-        // Determine which subgraph the field is resolved in
-        String targetSubgraph = bestPath.currentSubgraph();
-        String sourceSubgraph = currentPath.currentSubgraph();
-
-        // Get or create inline fragment context in the appropriate subgraph
-        InlineFragmentContext targetFragmentContext;
-        if (!targetSubgraph.equals(sourceSubgraph) || addsLookup(currentPath, bestPath)) {
-            // Cross-subgraph inline fragment: add the fragment to the target subgraph's plan
-            targetFragmentContext = context.getOrCreateInlineFragmentForLookup(
-                bestPath, parentPath, typeCondition, fragmentDirectives);
-        } else {
-            // Same subgraph: create fragment context on demand (lazy creation)
-            SubgraphPlan sourcePlan = context.planFor(currentPath, parentPath);
-            targetFragmentContext = new InlineFragmentContext(
-                sourcePlan.getOrCreateInlineFragment(parentPath, typeCondition, fragmentDirectives), sourcePlan,
-                parentPath, typeCondition != null ? typeCondition : sourcePlan.declaredTypeAt(parentPath, graph));
-        }
-
-        // Add field to the inline fragment's selection set
-        if (targetFragmentContext != null) {
-            targetFragmentContext.addField(selection.alias(), fieldName, selection.hasSubSelections(),
-                selection.arguments(), selection.directives());
-        }
-
-        // Also record field resolution for dependency tracking (lookups, etc.)
-        context.recordFieldResolutionForFragment(bestPath, fieldName, parentPath, selection.hasSubSelections(),
-            selection.arguments(), selection.directives(), targetFragmentContext);
-
-        // Recursively plan sub-selections, passing the fragment context
-        // so nested fields stay inside the inline fragment's selection tree
-        if (selection.hasSubSelections()) {
-            List<String> childParentPath = new ArrayList<>(parentPath);
-            childParentPath.add(selection.responseKey());
-
-            // Enter the field in the fragment context for nested path tracking
-            if (targetFragmentContext != null) {
-                targetFragmentContext.enterField(selection.responseKey());
-            }
-
-            for (Selection subSelection : selection.subSelections()) {
-                planSelection(bestPath, subSelection, childParentPath, context, targetFragmentContext);
-            }
-
-            // Exit the field in the fragment context
-            if (targetFragmentContext != null) {
-                targetFragmentContext.exitField();
-            }
-        }
-    }
-    
     /**
      * Whether {@code next} (a path extending {@code current}) goes through a lookup: the field is then resolved in
      * another step, even if it ends in the same subgraph (re-entering it, e.g. for a field's @require values).
@@ -1925,110 +1861,22 @@ public final class OperationPlanner {
                 return new InlineFragmentContext(new SelectionNode.Fragment(plan.root), plan, parentPath, typeCondition);
             }
 
-            // Create inline fragment context (path is adjusted for lookup entry in getOrCreateInlineFragment)
-            SelectionNode.Fragment fragmentNode = plan.getOrCreateInlineFragment(parentPath, typeCondition, directives);
-            return new InlineFragmentContext(fragmentNode, plan, parentPath,
-                typeCondition != null ? typeCondition : plan.declaredTypeAt(parentPath, graph));
+            return inlineFragmentIn(plan, parentPath, typeCondition, directives);
+        }
+
+        /** A client fragment at a response path in a plan, as the context its fields are planned into. */
+        InlineFragmentContext inlineFragmentIn(SubgraphPlan plan, List<String> parentPath, String typeCondition,
+                                               List<Directive> directives) {
+            return new InlineFragmentContext(plan.getOrCreateInlineFragment(parentPath, typeCondition, directives), plan,
+                parentPath, typeCondition != null ? typeCondition : plan.declaredTypeAt(parentPath, graph));
         }
 
         /**
-         * Records a field resolution for dependency tracking when the field is inside an inline fragment.
-         * This handles lookups and key field requirements.
+         * Records a field the client selects in an inline fragment (which already holds the field): sets up the
+         * lookups on its path, their keys and the field's @require values.
          */
-        void recordFieldResolutionForFragment(OperationPath path, String fieldName,
-                                              List<String> parentPath, boolean hasChildren,
-                                              List<Argument> queryArguments, List<Directive> queryDirectives,
-                                              InlineFragmentContext fragmentContext) {
-            String subgraph = path.currentSubgraph();
-
-            // Find the last lookup edge that enters the current subgraph
-            LookupStep entering = enteringLookup(path, parentPath);
-            LookupMoveEdge enteringLookupEdge = entering == null ? null : entering.edge();
-            List<String> enteringEntryPath = entering == null ? parentPath : entering.entryPath();
-            SubgraphPlan targetPlan = planFor(path, parentPath);
-
-            // Track dependencies from lookups (same as regular field resolution)
-            List<LookupStep> lookupSteps = lookupSteps(path, parentPath);
-            for (int lookupIndex = 0; lookupIndex < lookupSteps.size(); lookupIndex++) {
-                LookupMoveEdge lookupEdge = lookupSteps.get(lookupIndex).edge();
-                String sourceSubgraph = lookupEdge.source().subgraph();
-                List<String> edgeEntryPath = lookupSteps.get(lookupIndex).entryPath();
-
-                // The source plan: the one the path was in before this lookup
-                SubgraphPlan sourcePlan = sourcePlanOf(path, lookupIndex, parentPath);
-
-                // Get the lookup target plan
-                SubgraphPlan lookupTargetPlan = getOrCreateLookupPlan(lookupEdge, edgeEntryPath);
-
-                // Every lookup on the path waits for the plan it starts from (also the earlier ones of a path that
-                // re-enters this subgraph, s0 -> s1 -> s0)
-                addPlanDependency(lookupTargetPlan, sourcePlan);
-
-                // Key fields on the lookup's source type (in a fragment where the abstract type lacks them)
-                addLookupKeys(lookupEdge, edgeEntryPath, lookupTargetPlan,
-                    keyPath -> addKeyPath(sourcePlan, keyPath, edgeEntryPath, lookupEdge));
-
-                // Add @require fields - this handles cases where fields inside inline fragments
-                // have @require dependencies that need to be resolved
-                if (lookupEdge.hasRequirements() && lookupEdge.target().subgraph().equals(subgraph)
-                    && entersFieldObject(path, lookupIndex)) {
-                    String sourceTypeName = lookupEdge.source().typeName();
-                    Set<String> visitedForRequire = new HashSet<>();
-                    visitedForRequire.add(subgraph); // Don't resolve @require in the target subgraph itself
-
-                    // Get or create the response keys map for this lookup edge
-                    Map<String, String> reqResponseKeys = requireFieldResponseKeys.computeIfAbsent(
-                        lookupKey(lookupEdge, edgeEntryPath), k -> new HashMap<>());
-
-                    Set<Path> resolvedPaths = new HashSet<>();
-                    for (var req : lookupEdge.requires()) {
-                        // Only resolve requirements for the current field being processed
-                        if (req.fieldName() != null && !req.fieldName().equals(fieldName)) {
-                            continue;
-                        }
-                        for (Path fieldPath : req.extractPaths()) {
-                            // Skip if already resolved (another field might have triggered it)
-                            if (resolvedPaths.contains(fieldPath)) {
-                                continue;
-                            }
-                            resolvedPaths.add(fieldPath);
-                            // Use recursive resolution to find where to get this field
-                            List<String> reqParentPath = parentPath; // adjustPath handles lookup prefix stripping
-                            RequireFieldResolution resolution = resolved(resolveRequireField(
-                                sourceSubgraph, sourceTypeName, fieldPath, reqParentPath, visitedForRequire),
-                                fieldPath, sourceTypeName);
-
-                            if (resolution != null) {
-                                reqResponseKeys.putAll(resolution.fieldToResponseKey());
-
-                                // Add dependency from target to where the require was resolved
-                                addPlanDependency(targetPlan, resolution.plan());
-                            }
-                        }
-                    }
-
-                    // Add @require field arguments
-                    for (Requirement req : lookupEdge.requires()) {
-                        if (req.fieldName() == null || req.fieldName().equals(fieldName)) {
-                            List<String> adjustedFieldPath = new ArrayList<>();
-                            if (targetPlan.lookupEntryPath != null) {
-                                if (parentPath.size() >= targetPlan.lookupEntryPath.size()) {
-                                    adjustedFieldPath = new ArrayList<>(
-                                        parentPath.subList(targetPlan.lookupEntryPath.size(), parentPath.size()));
-                                }
-                            } else {
-                                adjustedFieldPath = new ArrayList<>(parentPath);
-                            }
-                            adjustedFieldPath.add(fieldName);
-                            SelectedValue transformedSelection = transformSelectionWithResponseKeys(
-                                req.selection(), reqResponseKeys);
-                            String variable = targetPlan.addRequirementVariable(req.argumentName(),
-                                transformedSelection, req.argumentType());
-                            targetPlan.addFieldArgument(adjustedFieldPath, req.argumentName(), variable);
-                        }
-                    }
-                }
-            }
+        void recordFieldResolutionForFragment(OperationPath path, String fieldName, List<String> parentPath) {
+            processLookupEdgesInPath(path, fieldName, parentPath, planFor(path, parentPath), null);
         }
 
         /**
