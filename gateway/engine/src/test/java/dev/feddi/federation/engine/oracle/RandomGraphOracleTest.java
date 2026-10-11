@@ -8,6 +8,7 @@ import dev.feddi.federation.engine.planner.OperationPlanner;
 import dev.feddi.federation.engine.query.Operation;
 import dev.feddi.federation.engine.query.OperationNormalizer;
 import graphql.language.AstPrinter;
+import graphql.parser.Parser;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -143,14 +144,17 @@ class RandomGraphOracleTest {
         Files.writeString(dir.resolve("schema.yaml"), schema.toString());
 
         var normalizer = OperationNormalizer.builder(composition.supergraph()).inlineFragments(true)
-            .deduplicateFields(true).sortSelections(false).processSkipInclude(true).build();
+            .deduplicateFields(true).sortSelections(false).build();
         for (int i = 0; i < QUERIES_PER_GRAPH; i++) {
             String query = graph.query();
             StringBuilder planning = new StringBuilder("name: \"Random graph " + seed + ", operation " + i + "\"\n"
                 + "description: \"The plan feddi made when the fixture was written.\"\n\nquery: |\n"
                 + indent(query, "  ") + "\nexpectedPlan:\n  steps:\n");
+            // $flag's default value decides its conditions
+            var evaluating = normalizer.withConditionValues(
+                OperationNormalizer.conditionValues(new Parser().parseDocument(query), Map.of()));
             for (ExecutionStep step : new OperationPlanner(composition.graph())
-                    .plan(Operation.parse(query, normalizer)).steps()) {
+                    .plan(Operation.parse(query, evaluating)).steps()) {
                 planning.append("    - id: ").append(step.id()).append('\n')
                     .append("      subgraph: ").append(step.subgraph()).append('\n')
                     .append("      operation: \"").append(AstPrinter.printAstCompact(step.operation())

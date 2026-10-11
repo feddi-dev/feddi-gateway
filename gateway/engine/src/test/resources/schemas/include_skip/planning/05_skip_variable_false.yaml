@@ -1,5 +1,5 @@
-name: "@skip with variable preserved in plan"
-description: "When @skip uses a variable, the directive is preserved and the full @require chain is included since the variable value is unknown at planning time"
+name: "@skip with variable false"
+description: "The gateway evaluates @skip(if: $skipField) before planning: with skipField false, skip and its @require chain are planned without the directive"
 
 query: |
   query GetProduct($skipField: Boolean!) {
@@ -8,6 +8,8 @@ query: |
       skip @skip(if: $skipField)
     }
   }
+
+variables: { skipField: false }
 
 expectedPlan:
   steps:
@@ -19,7 +21,7 @@ expectedPlan:
 
     - id: 2
       subgraph: c
-      operation: "query ($id: ID!, $isExpensive: Boolean!, $skipField: Boolean!) { productById(id: $id) { skip(isExpensive: $isExpensive) @skip(if: $skipField) } }"
+      operation: "query ($id: ID!, $isExpensive: Boolean!) { productById(id: $id) { skip(isExpensive: $isExpensive) } }"
       dependsOn: [3]
       requirements:
         id: "id"

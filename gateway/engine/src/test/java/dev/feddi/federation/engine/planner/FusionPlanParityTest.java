@@ -8,9 +8,18 @@ import dev.feddi.federation.engine.compose.CompositionResult;
 import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.query.Operation;
 import dev.feddi.federation.engine.query.OperationNormalizer;
+import graphql.Directives;
+import graphql.language.Directive;
+import graphql.language.Document;
+import graphql.language.Node;
+import graphql.language.NodeTraverser;
+import graphql.language.NodeVisitorStub;
 import graphql.language.OperationDefinition;
+import graphql.language.VariableReference;
 import graphql.parser.Parser;
 import graphql.schema.GraphQLSchema;
+import graphql.util.TraversalControl;
+import graphql.util.TraverserContext;
 import graphql.validation.ValidationError;
 import graphql.validation.Validator;
 import org.junit.jupiter.api.AfterAll;
@@ -163,8 +172,9 @@ class FusionPlanParityTest {
         }
 
         String query = Files.readString(dir.resolve("query.graphql"));
-        List<ValidationError> queryErrors = new Validator().validateDocument(composition.supergraph(),
-            new Parser().parseDocument(query), Locale.ENGLISH);
+        Document document = new Parser().parseDocument(query);
+        List<ValidationError> queryErrors = new Validator().validateDocument(composition.supergraph(), document,
+            Locale.ENGLISH);
         if (!queryErrors.isEmpty()) {
             // Fusion's planner tests do not validate the query; a gateway rejects these requests.
             return new Outcome("invalid query: " + firstLine(queryErrors.get(0).getMessage()), 0, 0,
@@ -173,9 +183,11 @@ class FusionPlanParityTest {
 
         ExecutionPlan plan;
         try {
+            // Fusion plans @skip/@include conditionally; feddi evaluates them first, here so that every field is
+            // selected
             var normalizer = OperationNormalizer.builder(composition.supergraph())
-                .inlineFragments(true).deduplicateFields(true).sortSelections(false)
-                .processSkipInclude(true).build();
+                .inlineFragments(true).deduplicateFields(true).sortSelections(false).build()
+                .withConditionValues(OperationNormalizer.conditionValues(document, includingValues(document)));
             plan = new OperationPlanner(composition.graph()).plan(Operation.parse(query, normalizer));
         } catch (RuntimeException e) {
             return new Outcome("planning: " + message(e), 0, 0, fusionOperations, fusionDepth);
@@ -264,6 +276,23 @@ class FusionPlanParityTest {
 
     private static Path resource(String name) throws URISyntaxException {
         return Path.of(Objects.requireNonNull(FusionPlanParityTest.class.getClassLoader().getResource(name)).toURI());
+    }
+
+    /** For each variable of a @skip/@include condition, the value that includes the selection. */
+    private static Map<String, Object> includingValues(Document document) {
+        Map<String, Object> values = new HashMap<>();
+        new NodeTraverser().depthFirst(new NodeVisitorStub() {
+            @Override
+            public TraversalControl visitDirective(Directive directive, TraverserContext<Node> context) {
+                if (directive.getArgument("if") != null
+                    && directive.getArgument("if").getValue() instanceof VariableReference variable) {
+                    boolean skip = Directives.SkipDirective.getName().equals(directive.getName());
+                    values.putIfAbsent(variable.getName(), !skip);
+                }
+                return TraversalControl.CONTINUE;
+            }
+        }, document);
+        return values;
     }
 
     private static String message(Throwable e) {

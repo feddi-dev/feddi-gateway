@@ -3,7 +3,6 @@ package dev.feddi.federation.engine.planner;
 import dev.feddi.federation.engine.query.FieldSelection;
 import graphql.language.Argument;
 import graphql.language.AstPrinter;
-import graphql.language.Directive;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -22,7 +21,6 @@ final class SelectionNode {
     final List<Fragment> inlineFragments = new ArrayList<>();
     String alias;  // The alias for this field (null if no alias)
     List<Argument> queryArguments = List.of();
-    List<Directive> queryDirectives = List.of();
     FieldOrigin origin = FieldOrigin.REQUESTED;  // Default to requested
 
     // For opaque fields (like introspection), stores the original selection with all sub-selections
@@ -65,12 +63,6 @@ final class SelectionNode {
     void setQueryArguments(List<Argument> arguments) {
         if (arguments != null && !arguments.isEmpty()) {
             this.queryArguments = arguments;
-        }
-    }
-
-    void setQueryDirectives(List<Directive> directives) {
-        if (directives != null && !directives.isEmpty()) {
-            this.queryDirectives = directives;
         }
     }
 
@@ -147,10 +139,10 @@ final class SelectionNode {
 
     /**
      * Adds a field under its response key, or updates the field already there: REQUESTED wins over an artificial
-     * origin, and an alias, arguments and directives are only set if the field has none yet.
+     * origin, and an alias and arguments are only set if the field has none yet.
      */
     void addField(String alias, String fieldName, boolean hasChildren, List<Argument> arguments,
-                  List<Directive> directives, FieldOrigin origin) {
+                  FieldOrigin origin) {
         String responseKey = alias != null ? alias : fieldName;
         SelectionNode fieldNode = children.get(responseKey);
         if (fieldNode == null) {
@@ -164,15 +156,11 @@ final class SelectionNode {
         if (fieldNode.queryArguments.isEmpty()) {
             fieldNode.setQueryArguments(arguments);
         }
-        if (fieldNode.queryDirectives.isEmpty()) {
-            fieldNode.setQueryDirectives(directives);
-        }
     }
 
     /**
      * Adds an artificial field (for @key or @require) selected with {@code arguments}, or reuses the field with the
-     * same name and arguments, unless that one has directives (a key the client selects with
-     * {@code @skip(if: $flag)} may be missing). It gets an alias if {@code alias} is set, if it has arguments (a
+     * same name and arguments. It gets an alias if {@code alias} is set, if it has arguments (a
      * field the client selects later without them must not merge into it), or if another field has its name as
      * response key.
      *
@@ -183,7 +171,7 @@ final class SelectionNode {
         // The same field without alias if there is one (the same requirement always gets the same response key)
         SelectionNode existing = null;
         for (SelectionNode child : children.values()) {
-            if (child.fieldName.equals(fieldName) && child.queryDirectives.isEmpty()
+            if (child.fieldName.equals(fieldName)
                 && printedArguments(child.queryArguments).equals(printedArguments(arguments))
                 && (existing == null || existing.alias != null)) {
                 existing = child;
@@ -218,17 +206,15 @@ final class SelectionNode {
     }
 
     /**
-     * Gets or creates an inline fragment node with the given type condition and directives.
+     * Gets or creates an inline fragment node with the given type condition.
      */
-    Fragment getOrCreateInlineFragment(String typeCondition, List<Directive> directives) {
-        List<Directive> wanted = directives != null ? directives : List.of();
+    Fragment getOrCreateInlineFragment(String typeCondition) {
         for (Fragment fragment : inlineFragments) {
-            if (Objects.equals(typeCondition, fragment.typeCondition)
-                && printed(wanted).equals(printed(fragment.directives))) {
+            if (Objects.equals(typeCondition, fragment.typeCondition)) {
                 return fragment;
             }
         }
-        Fragment fragment = new Fragment(typeCondition, directives);
+        Fragment fragment = new Fragment(typeCondition);
         inlineFragments.add(fragment);
         return fragment;
     }
@@ -241,28 +227,21 @@ final class SelectionNode {
             .toList();
     }
 
-    private static List<String> printed(List<Directive> directives) {
-        return directives.stream().map(AstPrinter::printAstCompact).toList();
-    }
-
     /**
-     * An inline fragment in the selection tree: its type condition, directives and selections.
+     * An inline fragment in the selection tree: its type condition and selections.
      */
     static final class Fragment {
         final String typeCondition;
-        final List<Directive> directives;
         final SelectionNode root;
 
-        Fragment(String typeCondition, List<Directive> directives) {
+        Fragment(String typeCondition) {
             this.typeCondition = typeCondition;
-            this.directives = directives != null ? directives : List.of();
             this.root = SelectionNode.root();
         }
 
         /** A fragment without type condition whose fields go directly into {@code selections}. */
         Fragment(SelectionNode selections) {
             this.typeCondition = null;
-            this.directives = List.of();
             this.root = selections;
         }
 
@@ -271,13 +250,13 @@ final class SelectionNode {
          * "suggestedArticles" for {@code ... on Article { suggestedArticles { id } }}).
          */
         void addFieldAtPath(String alias, String fieldName, List<String> path, boolean hasChildren,
-                            List<Argument> arguments, List<Directive> fieldDirectives, FieldOrigin origin) {
+                            List<Argument> arguments, FieldOrigin origin) {
             SelectionNode parent = root.descend(path, true, false);
             if (parent == null) {
                 throw new PlanningException("Parent node not found in path " + path + " while adding field '"
                     + fieldName + "'");
             }
-            parent.addField(alias, fieldName, hasChildren, arguments, fieldDirectives, origin);
+            parent.addField(alias, fieldName, hasChildren, arguments, origin);
         }
     }
 }

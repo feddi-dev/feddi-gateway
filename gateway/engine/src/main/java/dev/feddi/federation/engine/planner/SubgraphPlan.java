@@ -10,7 +10,6 @@ import dev.feddi.federation.engine.query.FieldSelection;
 import dev.feddi.federation.engine.query.InlineFragmentSelection;
 import dev.feddi.federation.engine.query.Selection;
 import graphql.language.Argument;
-import graphql.language.Directive;
 import graphql.language.Field;
 import graphql.language.InlineFragment;
 import graphql.language.OperationDefinition;
@@ -152,27 +151,27 @@ final class SubgraphPlan {
     }
 
     /**
-     * Adds a field the client requested, with its alias, arguments and directives.
+     * Adds a field the client requested, with its alias and arguments.
      */
     void addFieldWithAlias(String alias, String fieldName, List<String> parentPath, boolean hasChildren,
-                           List<Argument> queryArguments, List<Directive> queryDirectives) {
-        addField(alias, fieldName, parentPath, hasChildren, queryArguments, queryDirectives, FieldOrigin.REQUESTED);
+                           List<Argument> queryArguments) {
+        addField(alias, fieldName, parentPath, hasChildren, queryArguments, FieldOrigin.REQUESTED);
     }
 
     /**
      * Adds a field at the specified hierarchical position with origin tracking.
      */
     void addField(String fieldName, List<String> parentPath, boolean hasChildren,
-                  List<Argument> queryArguments, List<Directive> queryDirectives, FieldOrigin origin) {
-        addField(null, fieldName, parentPath, hasChildren, queryArguments, queryDirectives, origin);
+                  List<Argument> queryArguments, FieldOrigin origin) {
+        addField(null, fieldName, parentPath, hasChildren, queryArguments, origin);
     }
 
     /**
      * Adds a field at the specified hierarchical position with alias and origin tracking.
      */
     void addField(String alias, String fieldName, List<String> parentPath, boolean hasChildren,
-                  List<Argument> queryArguments, List<Directive> queryDirectives, FieldOrigin origin) {
-        nodeAt(parentPath, false).addField(alias, fieldName, hasChildren, queryArguments, queryDirectives, origin);
+                  List<Argument> queryArguments, FieldOrigin origin) {
+        nodeAt(parentPath, false).addField(alias, fieldName, hasChildren, queryArguments, origin);
     }
 
     void addRequirement(String name, SelectedValue selection, Type<?> type) {
@@ -261,7 +260,6 @@ final class SubgraphPlan {
             name -> new SelectionNode(name, selection.hasSubSelections()));
         fieldNode.opaqueSelection = selection;
         fieldNode.queryArguments = selection.arguments();
-        fieldNode.setQueryDirectives(selection.directives());
     }
 
     /** Whether the field at a path of field names already has this @require argument. */
@@ -287,9 +285,8 @@ final class SubgraphPlan {
     /**
      * Gets or creates an inline fragment at the specified position.
      */
-    SelectionNode.Fragment getOrCreateInlineFragment(List<String> parentPath, String typeCondition,
-                                                     List<Directive> directives) {
-        return nodeAt(parentPath, true).getOrCreateInlineFragment(typeCondition, directives);
+    SelectionNode.Fragment getOrCreateInlineFragment(List<String> parentPath, String typeCondition) {
+        return nodeAt(parentPath, true).getOrCreateInlineFragment(typeCondition);
     }
 
     /**
@@ -385,27 +382,16 @@ final class SubgraphPlan {
     }
 
     /**
-     * Collects all query variable names referenced in field arguments and directives.
+     * Collects all query variable names referenced in field arguments.
      */
     private void collectUsedQueryVariables(SelectionNode node, Set<String> usedVars) {
         for (Argument arg : node.queryArguments) {
             collectVariableReferencesFromValue(arg.getValue(), usedVars);
         }
-        // Directives can reference variables too (e.g., @skip(if: $var))
-        for (Directive directive : node.queryDirectives) {
-            for (Argument arg : directive.getArguments()) {
-                collectVariableReferencesFromValue(arg.getValue(), usedVars);
-            }
-        }
         for (SelectionNode child : node.children.values()) {
             collectUsedQueryVariables(child, usedVars);
         }
         for (SelectionNode.Fragment fragment : node.inlineFragments) {
-            for (Directive directive : fragment.directives) {
-                for (Argument arg : directive.getArguments()) {
-                    collectVariableReferencesFromValue(arg.getValue(), usedVars);
-                }
-            }
             collectUsedQueryVariables(fragment.root, usedVars);
         }
     }
@@ -457,11 +443,6 @@ final class SubgraphPlan {
                 fieldBuilder.arguments(allArguments);
             }
 
-            // Add directives (e.g., @skip, @include with variable conditions)
-            if (!child.queryDirectives.isEmpty()) {
-                fieldBuilder.directives(child.queryDirectives);
-            }
-
             // For opaque fields, build selection set from the original selection tree
             SelectionSet childSelectionSet;
             if (child.isOpaque() && child.opaqueSelection.hasSubSelections()) {
@@ -480,9 +461,6 @@ final class SubgraphPlan {
             InlineFragment.Builder fragmentBuilder = InlineFragment.newInlineFragment();
             if (fragment.typeCondition != null) {
                 fragmentBuilder.typeCondition(TypeName.newTypeName(fragment.typeCondition).build());
-            }
-            if (!fragment.directives.isEmpty()) {
-                fragmentBuilder.directives(fragment.directives);
             }
             SelectionSet fragmentSelectionSet = buildSelectionSet(fragment.root, currentPath);
             if (fragmentSelectionSet != null) {
@@ -515,9 +493,6 @@ final class SubgraphPlan {
                 if (!fieldSel.arguments().isEmpty()) {
                     fieldBuilder.arguments(fieldSel.arguments());
                 }
-                if (!fieldSel.directives().isEmpty()) {
-                    fieldBuilder.directives(fieldSel.directives());
-                }
                 if (fieldSel.hasSubSelections()) {
                     SelectionSet subSet = buildOpaqueSelectionSet(fieldSel.subSelections());
                     if (subSet != null) {
@@ -529,9 +504,6 @@ final class SubgraphPlan {
                 InlineFragment.Builder fragmentBuilder = InlineFragment.newInlineFragment();
                 if (inlineSel.typeCondition() != null) {
                     fragmentBuilder.typeCondition(TypeName.newTypeName(inlineSel.typeCondition()).build());
-                }
-                if (!inlineSel.directives().isEmpty()) {
-                    fragmentBuilder.directives(inlineSel.directives());
                 }
                 if (!inlineSel.subSelections().isEmpty()) {
                     SelectionSet subSet = buildOpaqueSelectionSet(inlineSel.subSelections());

@@ -66,7 +66,7 @@ final class FieldPathSelector {
             && graph.fieldEdgesFrom(new Node(declaredTypeName, subgraph))
                 .noneMatch(edge -> edge.fieldName().equals(path.segments().get(0).fieldName()))) {
             plan.addArtificialField(IntrospectionFields.TYPENAME, currentPath, false, FieldOrigin.ARTIFICIAL_KEY);
-            SelectionNode.Fragment fragment = plan.getOrCreateInlineFragment(currentPath, startTypeName, List.of());
+            SelectionNode.Fragment fragment = plan.getOrCreateInlineFragment(currentPath, startTypeName);
             addPathInFragment(plan, fragment, currentPath, startTypeName, path.segments(), origin,
                 fieldToResponseKey);
             return fieldToResponseKey;
@@ -139,7 +139,7 @@ final class FieldPathSelector {
 
                 // Create inline fragments for each implementing type that has the field
                 for (String implType : implementingTypesWithField) {
-                    SelectionNode.Fragment fragment = plan.getOrCreateInlineFragment(currentPath, implType, List.of());
+                    SelectionNode.Fragment fragment = plan.getOrCreateInlineFragment(currentPath, implType);
                     // The current field and any remaining fields in the path
                     addPathInFragment(plan, fragment, currentPath, implType,
                         pathSegments.subList(i, pathSegments.size()), origin, fieldToResponseKey);
@@ -178,7 +178,7 @@ final class FieldPathSelector {
                 if (inlineFragment != null) {
                     // Already inside an inline fragment, add __typename there
                     inlineFragment.addFieldAtPath(null, IntrospectionFields.TYPENAME, fragmentPath, false,
-                        List.of(), List.of(), FieldOrigin.ARTIFICIAL_KEY);
+                        List.of(), FieldOrigin.ARTIFICIAL_KEY);
                 } else {
                     // Add __typename at current path for runtime type checking
                     plan.addArtificialField(IntrospectionFields.TYPENAME, currentPath, false, FieldOrigin.ARTIFICIAL_KEY);
@@ -187,7 +187,7 @@ final class FieldPathSelector {
                 // If there are more segments after this one, create inline fragment
                 // for subsequent fields to be fetched inside the type condition
                 if (i < pathSegments.size() - 1) {
-                    inlineFragment = plan.getOrCreateInlineFragment(currentPath, segment.typeCondition(), List.of());
+                    inlineFragment = plan.getOrCreateInlineFragment(currentPath, segment.typeCondition());
                     fragmentPath = new ArrayList<>();
                 }
                 // Update current type to the type condition
@@ -237,14 +237,10 @@ final class FieldPathSelector {
         }
         List<String> fieldPath = new ArrayList<>(responsePath);
         fieldPath.addAll(fragPath);
-        SelectionNode sameKey = container.children.get(segment.fieldName());
-        boolean conditional = sameKey != null && !sameKey.queryDirectives.isEmpty();
-        if (conditional
-            || parentType != null && clashes(plan, fieldPath, parentType, segment.fieldName(), segment.arguments())) {
-            // Not into a field the client selects with @skip/@include, which may be missing
+        if (parentType != null && clashes(plan, fieldPath, parentType, segment.fieldName(), segment.arguments())) {
             return container.addArtificialField(segment.fieldName(), segment.arguments(), hasChildren, origin, true);
         }
-        container.addField(null, segment.fieldName(), hasChildren, segment.arguments(), List.of(), origin);
+        container.addField(null, segment.fieldName(), hasChildren, segment.arguments(), origin);
         return segment.fieldName();
     }
 

@@ -2,6 +2,7 @@ package dev.feddi.federation.engine.query;
 
 import dev.feddi.federation.engine.Constants;
 import graphql.language.Definition;
+import graphql.language.Directive;
 import graphql.language.Document;
 import graphql.language.Field;
 import graphql.language.InlineFragment;
@@ -135,28 +136,39 @@ public record Operation(
         List<Selection> selections = new ArrayList<>();
         for (graphql.language.Selection<?> selection : selectionSet.getSelections()) {
             if (selection instanceof Field field) {
+                requireNoDirectives(field.getDirectives());
                 List<Selection> subSelections = parseSelectionSet(field.getSelectionSet());
                 selections.add(new FieldSelection(
                     field.getAlias(),
                     field.getName(),
                     field.getArguments(),
-                    field.getDirectives(),
                     subSelections
                 ));
             } else if (selection instanceof InlineFragment inlineFragment) {
+                requireNoDirectives(inlineFragment.getDirectives());
                 String typeCondition = inlineFragment.getTypeCondition() != null
                     ? inlineFragment.getTypeCondition().getName()
                     : null;
                 List<Selection> subSelections = parseSelectionSet(inlineFragment.getSelectionSet());
                 selections.add(new InlineFragmentSelection(
                     typeCondition,
-                    inlineFragment.getDirectives(),
                     subSelections
                 ));
             }
             // Note: FragmentSpreads should be inlined before parsing
         }
         return selections;
+    }
+
+    /**
+     * The supergraph's only executable directives are @skip and @include, which the {@link OperationNormalizer}
+     * evaluates.
+     */
+    private static void requireNoDirectives(List<Directive> directives) {
+        if (!directives.isEmpty()) {
+            throw new IllegalArgumentException("Operation has unevaluated directive @" + directives.get(0).getName()
+                + "; normalize it with OperationNormalizer first");
+        }
     }
 
     /**

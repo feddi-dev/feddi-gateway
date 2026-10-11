@@ -180,7 +180,8 @@ fail now. The planner and gateway changes keep results the same or fix wrong one
   and `INTERFACE_HAS_NO_IMPLEMENTATIONS` are warnings.
 - **`@skip`/`@include` on variables are evaluated before planning**, with the request's values; the plan cache
   keeps one plan per combination of these values (most operations have none). Subgraph operations no longer
-  carry these directives, and a skipped field's requirement lookups are not planned.
+  carry these directives, and a skipped field's requirement lookups are not planned. A condition on a variable
+  without a value (and without a default) is a request error.
 - **A mutation's top-level fields execute in order.** Before, fields of different subgraphs ran concurrently and
   fields of one subgraph were merged across others (`A1, B, A2` became `{A1 A2}` and `{B}`). Now each group of
   consecutive fields of one subgraph is its own step, waiting for the previous group and its lookups.
@@ -265,6 +266,14 @@ Afterwards (2026-10-11):
   another too but does not list that as dependencies, so the parity depth leaves the ordering of mutation steps
   out.
 - **Implied dependencies left out**: a step waiting for 3 and 4, where 4 waits for 3, lists only 4 (10 fixtures).
+- **Directive handling removed from the planner**: the supergraph's only executable directives are `@skip` and
+  `@include`, and the normalizer now always evaluates them, so a normalized operation has no directives.
+  `Operation` rejects one that has; the operation model, `SubgraphPlan`, `SelectionNode` and the planner no
+  longer carry directives, and the safeguards for fields under unevaluated conditions (separate fragments per
+  condition in the normalizer, combined conditions of nested fragments, no reuse of a conditional field as a key)
+  are gone. Fragments without type condition are unwrapped. The fixtures that expected preserved conditions
+  (`condition_variables`, formerly `directive_preservation`; `include_skip/05-06`) give variable values; Fusion
+  parity evaluates its conditions so that everything is selected (unchanged results).
 
 Left as they are: `SatisfiabilityValidationRule` extracts path sets the way the spec's algorithm does (products
 of object fields' alternatives), which is not a validation walk; `LookupKeyMissingForTypeRule` asks whether some

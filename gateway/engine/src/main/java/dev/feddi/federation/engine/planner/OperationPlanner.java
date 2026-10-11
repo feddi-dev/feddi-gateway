@@ -147,10 +147,10 @@ public final class OperationPlanner {
     }
 
     /**
-     * The client's inline fragment a field is selected in directly ({@code ... on Book @include(if: $b) { title }}):
-     * the field goes into such a fragment in the plan that selects it.
+     * The client's inline fragment a field is selected in directly ({@code ... on Book { title }}; the type condition
+     * may be null): the field goes into such a fragment in the plan that selects it.
      */
-    private record FragmentScope(String typeCondition, List<Directive> directives) {
+    private record FragmentScope(String typeCondition) {
     }
 
     /**
@@ -188,22 +188,19 @@ public final class OperationPlanner {
         InlineFragmentContext target = fragmentContext;
         if (scope != null) {
             target = resolvedElsewhere
-                ? context.getOrCreateInlineFragmentForLookup(bestPath, parentPath, scope.typeCondition(),
-                    scope.directives())
-                : context.inlineFragmentIn(context.planFor(currentPath, parentPath), parentPath, scope.typeCondition(),
-                    scope.directives());
+                ? context.getOrCreateInlineFragmentForLookup(bestPath, parentPath, scope.typeCondition())
+                : context.inlineFragmentIn(context.planFor(currentPath, parentPath), parentPath, scope.typeCondition());
         }
         if (target != null && scope == null && resolvedElsewhere) {
             context.recordFieldResolution(bestPath, selection.alias(), fieldName, parentPath,
-                selection.hasSubSelections(), selection.arguments(), selection.directives(), target);
+                selection.hasSubSelections(), selection.arguments(), target);
             target = null;
         } else if (target != null) {
-            target.addField(selection.alias(), fieldName, selection.hasSubSelections(),
-                selection.arguments(), selection.directives());
+            target.addField(selection.alias(), fieldName, selection.hasSubSelections(), selection.arguments());
             context.recordFieldResolutionForFragment(bestPath, fieldName, parentPath);
         } else {
             context.recordFieldResolution(bestPath, selection.alias(), fieldName, parentPath,
-                selection.hasSubSelections(), selection.arguments(), selection.directives());
+                selection.hasSubSelections(), selection.arguments());
         }
 
         // Recursively plan sub-selections, passing the fragment context to keep fields inside the fragment
@@ -227,7 +224,7 @@ public final class OperationPlanner {
                             parentForSub = alternative;
                             if (recordedPaths.add(alternative)) {
                                 context.recordFieldResolution(alternative, selection.alias(), fieldName, parentPath,
-                                    true, selection.arguments(), selection.directives());
+                                    true, selection.arguments());
                             }
                             break;
                         }
@@ -284,7 +281,7 @@ public final class OperationPlanner {
             return false;
         }
         for (String type : possibleTypes) {
-            planInlineFragment(currentPath, new InlineFragmentSelection(type, List.of(), List.of(selection)),
+            planInlineFragment(currentPath, new InlineFragmentSelection(type, List.of(selection)),
                 parentPath, context);
         }
         return true;
@@ -317,7 +314,7 @@ public final class OperationPlanner {
         // at the parent level to determine which inline fragment to apply at runtime.
         if (typeCondition != null) {
             context.planFor(currentPath, parentPath).addField(IntrospectionFields.TYPENAME, parentPath, false,
-                List.of(), List.of(), FieldOrigin.ARTIFICIAL_KEY);
+                List.of(), FieldOrigin.ARTIFICIAL_KEY);
         }
 
         // Narrow the path to the concrete type so field lookups use the correct node
@@ -336,42 +333,14 @@ public final class OperationPlanner {
         for (Selection subSelection : fragment.subSelections()) {
             if (subSelection instanceof FieldSelection fieldSelection) {
                 planFieldSelection(narrowedPath, fieldSelection, parentPath, context, null,
-                    new FragmentScope(typeCondition, fragment.directives()));
+                    new FragmentScope(typeCondition));
             } else if (subSelection instanceof InlineFragmentSelection nestedFragment) {
-                // A fragment without type condition inside one with a type condition (... on Book { ... @skip(if:
-                // $f) { title } }) selects on the same type, under the directives of both
-                planInlineFragment(narrowedPath, nestedFragment.typeCondition() == null && typeCondition != null
-                    ? new InlineFragmentSelection(typeCondition,
-                        combinedDirectives(fragment.directives(), nestedFragment.directives()),
-                        nestedFragment.subSelections())
-                    : nestedFragment, parentPath, context);
+                planInlineFragment(narrowedPath, nestedFragment, parentPath, context);
             }
         }
         if (typeCondition != null) {
             context.exitTypeCondition(parentPath.size(), outerTypeCondition);
         }
-    }
-
-    /** The directives of an outer and an inner fragment, each once. */
-    private static List<Directive> combinedDirectives(List<Directive> outer, List<Directive> inner) {
-        List<Directive> combined = new ArrayList<>(outer);
-        Set<String> names = new HashSet<>();
-        Set<String> printed = new HashSet<>();
-        outer.forEach(directive -> {
-            names.add(directive.getName());
-            printed.add(AstPrinter.printAstCompact(directive));
-        });
-        for (Directive directive : inner) {
-            if (printed.contains(AstPrinter.printAstCompact(directive))) {
-                continue;
-            }
-            if (!names.add(directive.getName())) {
-                throw new PlanningException("Fragments nested with two different @" + directive.getName()
-                    + " conditions are not supported");
-            }
-            combined.add(directive);
-        }
-        return combined;
     }
 
     /**

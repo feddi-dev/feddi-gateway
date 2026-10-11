@@ -1,0 +1,21 @@
+name: "@include directive with variable - include true"
+description: "The gateway evaluates @include(if: $showEmail) before planning: with showEmail true, email is selected without the directive"
+
+query: |
+  query GetUser($showEmail: Boolean!) {
+    user {
+      id
+      name
+      email @include(if: $showEmail)
+    }
+  }
+
+variables: { showEmail: true }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: a
+      operation: "{ user { id name email } }"
+      dependsOn: []
+      repeatedExecution: false

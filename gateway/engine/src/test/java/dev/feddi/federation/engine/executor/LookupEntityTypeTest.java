@@ -88,7 +88,7 @@ class LookupEntityTypeTest {
     private static ExecutionPlan plan(CompositionResult composition, String query) {
         return new OperationPlanner(composition.graph()).plan(Operation.parse(query,
             OperationNormalizer.builder(composition.supergraph()).inlineFragments(true).deduplicateFields(true)
-                .sortSelections(false).processSkipInclude(true).build()));
+                .sortSelections(false).build()));
     }
 
     private static CompositionResult compose(String resource) throws Exception {

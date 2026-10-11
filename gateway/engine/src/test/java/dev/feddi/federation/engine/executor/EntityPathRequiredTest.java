@@ -28,8 +28,7 @@ class EntityPathRequiredTest {
         try (var input = getClass().getResourceAsStream("/schemas/products_reviews/executions/basic_lookup.yaml")) {
             var fixture = loader.loadExecutionTest(input);
             var normalizer = OperationNormalizer.builder(schema.supergraphSchema())
-                .inlineFragments(true).deduplicateFields(true).sortSelections(false)
-                .processSkipInclude(true).build();
+                .inlineFragments(true).deduplicateFields(true).sortSelections(false).build();
             var planned = new OperationPlanner(schema.graph()).plan(Operation.parse(fixture.query(), normalizer));
             var withoutPaths = ExecutionPlan.of(planned.steps().stream().map(step -> new ExecutionStep(
                 step.id(), step.subgraph(), step.operation(), step.dependsOn(), step.parallelWith(),

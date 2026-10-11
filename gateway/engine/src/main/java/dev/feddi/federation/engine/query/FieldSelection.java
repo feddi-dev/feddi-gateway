@@ -1,7 +1,6 @@
 package dev.feddi.federation.engine.query;
 
 import graphql.language.Argument;
-import graphql.language.Directive;
 
 import java.util.List;
 
@@ -12,14 +11,12 @@ import java.util.List;
  * @param alias the alias for this field (null if no alias)
  * @param fieldName the name of the field being selected
  * @param arguments the arguments passed to this field (empty if none)
- * @param directives the directives on this field (e.g., @skip, @include)
  * @param subSelections nested selections (empty for leaf fields)
  */
 public record FieldSelection(
     String alias,
     String fieldName,
     List<Argument> arguments,
-    List<Directive> directives,
     List<Selection> subSelections
 ) implements Selection {
 
@@ -28,15 +25,14 @@ public record FieldSelection(
             throw new IllegalArgumentException("fieldName cannot be null or blank");
         }
         arguments = arguments == null ? List.of() : List.copyOf(arguments);
-        directives = directives == null ? List.of() : List.copyOf(directives);
         subSelections = subSelections == null ? List.of() : List.copyOf(subSelections);
     }
 
     /**
-     * Convenience constructor without alias, arguments or directives.
+     * Convenience constructor without alias or arguments.
      */
     public FieldSelection(String fieldName, List<Selection> subSelections) {
-        this(null, fieldName, List.of(), List.of(), subSelections);
+        this(null, fieldName, List.of(), subSelections);
     }
 
     /**
@@ -57,28 +53,28 @@ public record FieldSelection(
      * Creates a leaf field selection (no sub-selections).
      */
     public static FieldSelection leaf(String fieldName) {
-        return new FieldSelection(null, fieldName, List.of(), List.of(), List.of());
+        return new FieldSelection(null, fieldName, List.of(), List.of());
     }
 
     /**
      * Creates a leaf field selection with an alias.
      */
     public static FieldSelection leaf(String alias, String fieldName) {
-        return new FieldSelection(alias, fieldName, List.of(), List.of(), List.of());
+        return new FieldSelection(alias, fieldName, List.of(), List.of());
     }
 
     /**
      * Creates a field selection with sub-selections.
      */
     public static FieldSelection withSelections(String fieldName, Selection... subSelections) {
-        return new FieldSelection(null, fieldName, List.of(), List.of(), List.of(subSelections));
+        return new FieldSelection(null, fieldName, List.of(), List.of(subSelections));
     }
 
     /**
      * Creates a field selection with sub-selections.
      */
     public static FieldSelection withSelections(String fieldName, List<Selection> subSelections) {
-        return new FieldSelection(null, fieldName, List.of(), List.of(), subSelections);
+        return new FieldSelection(null, fieldName, List.of(), subSelections);
     }
 
     /**
@@ -86,13 +82,6 @@ public record FieldSelection(
      */
     public boolean hasArguments() {
         return !arguments.isEmpty();
-    }
-
-    /**
-     * Checks if this field has directives.
-     */
-    public boolean hasDirectives() {
-        return !directives.isEmpty();
     }
 
     /**

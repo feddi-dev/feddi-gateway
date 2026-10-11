@@ -152,7 +152,6 @@ class ExecutorTest {
             .inlineFragments(true)
             .deduplicateFields(true)
             .sortSelections(false)  // Don't sort to preserve query field order
-            .processSkipInclude(true)  // Evaluate @skip/@include before planning, as the gateway does
             .build()
             .withConditionValues(OperationNormalizer.conditionValues(
                 Parser.parse(executionTest.query()), executionTest.variables()));

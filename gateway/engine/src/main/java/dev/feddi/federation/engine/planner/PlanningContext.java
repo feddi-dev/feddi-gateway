@@ -8,7 +8,6 @@ import dev.feddi.federation.engine.graph.LookupMoveEdge;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.Path;
 import dev.feddi.federation.engine.query.FieldSelection;
 import graphql.language.Argument;
-import graphql.language.Directive;
 import graphql.language.OperationDefinition;
 import graphql.language.VariableDefinition;
 
@@ -279,9 +278,8 @@ final class PlanningContext {
      */
     void recordFieldResolution(OperationPath path, String alias, String fieldName,
                                List<String> parentPath, boolean hasChildren,
-                               List<Argument> queryArguments, List<Directive> queryDirectives) {
-        recordFieldResolution(path, alias, fieldName, parentPath, hasChildren, queryArguments, queryDirectives,
-            null);
+                               List<Argument> queryArguments) {
+        recordFieldResolution(path, alias, fieldName, parentPath, hasChildren, queryArguments, null);
     }
 
     /**
@@ -290,15 +288,14 @@ final class PlanningContext {
      */
     void recordFieldResolution(OperationPath path, String alias, String fieldName,
                                List<String> parentPath, boolean hasChildren,
-                               List<Argument> queryArguments, List<Directive> queryDirectives,
-                               InlineFragmentContext keyFragment) {
+                               List<Argument> queryArguments, InlineFragmentContext keyFragment) {
         String subgraph = path.currentSubgraph();
 
         // Find the last lookup edge that enters the current subgraph (if any)
         SubgraphPlan plan = planFor(path, parentPath);
 
-        // Add the field to this subgraph's plan with its hierarchical position, arguments, and directives
-        plan.addFieldWithAlias(alias, fieldName, parentPath, hasChildren, queryArguments, queryDirectives);
+        // Add the field to this subgraph's plan with its hierarchical position and arguments
+        plan.addFieldWithAlias(alias, fieldName, parentPath, hasChildren, queryArguments);
 
         // Process all lookup edges in the path to set up dependencies and key fields
         processLookupEdgesInPath(path, fieldName, parentPath, plan, keyFragment);
@@ -513,7 +510,7 @@ final class PlanningContext {
      * Sets up the lookup origin and creates the inline fragment in the target subgraph.
      */
     InlineFragmentContext getOrCreateInlineFragmentForLookup(OperationPath path, List<String> parentPath,
-                                                              String typeCondition, List<Directive> directives) {
+                                                              String typeCondition) {
         String subgraph = path.currentSubgraph();
 
         // Find the last lookup edge that enters this subgraph
@@ -540,19 +537,18 @@ final class PlanningContext {
                 sourcePlan, keyPath, enteringEntryPath, FieldOrigin.ARTIFICIAL_KEY, sourcePlan.subgraph, keyType));
         }
 
-        if (enteringLookupEdge != null && enteringEntryPath.equals(parentPath) && directives.isEmpty()
+        if (enteringLookupEdge != null && enteringEntryPath.equals(parentPath)
             && enteringLookupEdge.target().typeName().equals(typeCondition)) {
             // The lookup already returns the fragment's type: its fields need no type condition.
             return new InlineFragmentContext(new SelectionNode.Fragment(plan.root), plan, parentPath, typeCondition);
         }
 
-        return inlineFragmentIn(plan, parentPath, typeCondition, directives);
+        return inlineFragmentIn(plan, parentPath, typeCondition);
     }
 
     /** A client fragment at a response path in a plan, as the context its fields are planned into. */
-    InlineFragmentContext inlineFragmentIn(SubgraphPlan plan, List<String> parentPath, String typeCondition,
-                                           List<Directive> directives) {
-        return new InlineFragmentContext(plan.getOrCreateInlineFragment(parentPath, typeCondition, directives), plan,
+    InlineFragmentContext inlineFragmentIn(SubgraphPlan plan, List<String> parentPath, String typeCondition) {
+        return new InlineFragmentContext(plan.getOrCreateInlineFragment(parentPath, typeCondition), plan,
             parentPath, typeCondition != null ? typeCondition : plan.declaredTypeAt(parentPath, graph));
     }
 

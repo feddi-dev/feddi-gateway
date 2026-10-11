@@ -1,7 +1,6 @@
 package dev.feddi.federation.engine.planner;
 
 import graphql.language.Argument;
-import graphql.language.Directive;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,14 +26,13 @@ final class InlineFragmentContext {
         this.typeName = typeName;
     }
 
-    void addField(String alias, String fieldName, boolean hasChildren, List<Argument> arguments,
-                  List<Directive> directives) {
-        addField(alias, fieldName, hasChildren, arguments, directives, FieldOrigin.REQUESTED);
+    void addField(String alias, String fieldName, boolean hasChildren, List<Argument> arguments) {
+        addField(alias, fieldName, hasChildren, arguments, FieldOrigin.REQUESTED);
     }
 
     void addField(String alias, String fieldName, boolean hasChildren, List<Argument> arguments,
-                  List<Directive> directives, FieldOrigin origin) {
-        fragmentNode.addFieldAtPath(alias, fieldName, currentPath, hasChildren, arguments, directives, origin);
+                  FieldOrigin origin) {
+        fragmentNode.addFieldAtPath(alias, fieldName, currentPath, hasChildren, arguments, origin);
     }
 
     void enterField(String fieldName) {

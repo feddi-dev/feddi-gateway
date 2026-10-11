@@ -35,8 +35,7 @@ class DependentStepExecutionTest {
     static void loadSchema() throws Exception {
         schema = new TestCaseLoader().loadSchemaFromClasspath("schemas/benchmark_heavy_query/schema.yaml");
         normalizer = OperationNormalizer.builder(schema.supergraphSchema())
-            .inlineFragments(true).deduplicateFields(true).sortSelections(false)
-            .processSkipInclude(true).build();
+            .inlineFragments(true).deduplicateFields(true).sortSelections(false).build();
     }
 
     @Test

@@ -110,8 +110,7 @@ class BenchmarkHeavyQueryTest {
     static void planHeavyQuery() throws Exception {
         schema = new TestCaseLoader().loadSchemaFromClasspath("schemas/benchmark_heavy_query/schema.yaml");
         var normalizer = OperationNormalizer.builder(schema.supergraphSchema())
-            .inlineFragments(true).deduplicateFields(true).sortSelections(false)
-            .processSkipInclude(true).build();
+            .inlineFragments(true).deduplicateFields(true).sortSelections(false).build();
         plan = new OperationPlanner(schema.graph()).plan(Operation.parse(HEAVY_QUERY, normalizer));
     }
 

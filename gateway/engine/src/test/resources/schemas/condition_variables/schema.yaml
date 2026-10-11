@@ -1,5 +1,5 @@
-name: "Directive Preservation"
-description: "Tests that @skip and @include directives with variables are preserved in subgraph operations"
+name: "Condition Variables"
+description: "@skip and @include on variables, evaluated with the request's values before planning"
 
 subgraphs:
   a: |

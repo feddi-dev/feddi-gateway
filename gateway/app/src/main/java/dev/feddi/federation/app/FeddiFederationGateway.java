@@ -20,10 +20,12 @@ import dev.feddi.federation.engine.planner.ExecutionPlan;
 import dev.feddi.federation.engine.query.Operation;
 import dev.feddi.federation.engine.query.OperationNormalizer;
 import dev.feddi.federation.engine.planner.OperationPlanner;
+import graphql.ErrorType;
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
 import graphql.GraphQLError;
+import graphql.GraphqlErrorBuilder;
 import graphql.ParseAndValidate;
 import graphql.language.Document;
 import graphql.language.OperationDefinition;
@@ -88,7 +90,6 @@ public final class FeddiFederationGateway {
             .inlineFragments(true)
             .deduplicateFields(true)
             .sortSelections(false)  // Preserve query field order
-            .processSkipInclude(true)  // Evaluate @skip/@include (literals, and variables per request) before planning
             .build();
         // Store extension clients — adapted per-request in execute() with context
         this.extensionClients = new LinkedHashMap<>(subgraphClients);
@@ -411,7 +412,15 @@ public final class FeddiFederationGateway {
     private PreparedOperation prepare(Document rawDocument, Map<String, Boolean> conditions) {
         // Normalize the document (inline fragments, deduplicate fields, @skip/@include, etc.)
         log.debug("Normalizing query");
-        Document document = normalizer.withConditionValues(conditions).normalize(rawDocument);
+        Document document;
+        try {
+            document = normalizer.withConditionValues(conditions).normalize(rawDocument);
+        } catch (OperationNormalizer.MissingConditionValueException e) {
+            throw new DocumentResolutionException(List.of(GraphqlErrorBuilder.newError()
+                .message(e.getMessage())
+                .errorType(ErrorType.ValidationError)
+                .build()));
+        }
 
         OperationDefinition operationDef = document.getDefinitionsOfType(OperationDefinition.class)
             .stream()

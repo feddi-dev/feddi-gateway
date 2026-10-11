@@ -157,8 +157,7 @@ class PlanExecutionOracleTest {
         try {
             // Like the gateway: @skip/@include on variables are evaluated with the request's values
             var normalizer = OperationNormalizer.builder(supergraph)
-                .inlineFragments(true).deduplicateFields(true).sortSelections(false)
-                .processSkipInclude(true).build()
+                .inlineFragments(true).deduplicateFields(true).sortSelections(false).build()
                 .withConditionValues(OperationNormalizer.conditionValues(document, variables));
             plan = new OperationPlanner(composition.graph()).plan(Operation.parse(c.query(), normalizer));
         } catch (RuntimeException e) {

@@ -135,6 +135,18 @@ class OperationPlanCacheTest {
     }
 
     @Test
+    void conditionVariableWithoutValueIsARequestError() {
+        var registry = new SimpleMeterRegistry();
+        var gateway = gateway(registry, null);
+
+        var result = execute(gateway, "query ($skip: Boolean!) { products { id name @skip(if: $skip) } }", Map.of());
+
+        assertThat(result.getErrors()).singleElement()
+            .satisfies(error -> assertThat(error.getMessage()).contains("'skip'"));
+        assertThat(planningCount(registry)).isZero();
+    }
+
+    @Test
     void differentQueriesArePlannedSeparately() {
         var registry = new SimpleMeterRegistry();
         var gateway = gateway(registry, null);
