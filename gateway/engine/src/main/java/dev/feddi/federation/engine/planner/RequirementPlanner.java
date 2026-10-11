@@ -115,26 +115,16 @@ final class RequirementPlanner {
     }
 
     /**
-     * Processes @require fields for a lookup edge.
+     * Resolves the @require arguments of a field selected in {@code targetPlan}, entered through
+     * {@code lookupEdge} from {@code sourcePlan}; never in the target subgraph itself.
      */
     void processRequireFields(LookupMoveEdge lookupEdge, String fieldName,
-                                      List<String> parentPath, SubgraphPlan sourcePlan,
-                                      SubgraphPlan targetPlan) {
-        processRequireFields(lookupEdge, fieldName, parentPath, sourcePlan, targetPlan, Set.of());
-    }
-
-    /**
-     * As above; the requirements are not resolved in {@code visitedSubgraphs} (subgraphs on the way to the
-     * field, to prevent cycles) nor in the target subgraph itself.
-     */
-    void processRequireFields(LookupMoveEdge lookupEdge, String fieldName,
-                                      List<String> parentPath, SubgraphPlan sourcePlan,
-                                      SubgraphPlan targetPlan, Set<String> visitedSubgraphs) {
+                              List<String> parentPath, SubgraphPlan sourcePlan,
+                              SubgraphPlan targetPlan) {
         String sourceSubgraph = lookupEdge.source().subgraph();
         String sourceTypeName = lookupEdge.source().typeName();
 
-        Set<String> visitedForRequire = new HashSet<>(visitedSubgraphs);
-        visitedForRequire.add(targetPlan.subgraph);
+        Set<String> visitedForRequire = new HashSet<>(Set.of(targetPlan.subgraph));
         requirementTargets.push(targetPlan);
         try {
             processRequireFieldsFor(lookupEdge, fieldName, parentPath, sourcePlan, targetPlan, sourceSubgraph,
@@ -219,17 +209,6 @@ final class RequirementPlanner {
             sourcePlan = context.getOrCreateRootPlan(lookupEdge.source().subgraph());
         }
         processRequireFields(lookupEdge, fieldName, plan.lookupEntryPath, sourcePlan, plan);
-    }
-
-    /**
-     * Gets the leaf (last) field name from a Path.
-     */
-    private String getLeafFieldName(Path path) {
-        List<PathSegment> segments = path.segments();
-        if (segments.isEmpty()) {
-            return null;
-        }
-        return segments.get(segments.size() - 1).fieldName();
     }
 
     /**
@@ -351,8 +330,12 @@ final class RequirementPlanner {
     }
 
     /**
-     * @param hopPlan the plan of the lookup that reaches {@code sourceSubgraph} when it is an intermediate
-     *                hop (created on first use), or null to use the plan found for the subgraph and path
+     * Resolves a required field path from an object of {@code sourceTypeName} in {@code sourceSubgraph}: in the
+     * plan that selects the object if the subgraph has the path; else through a lookup into a subgraph that has it,
+     * or a chain of lookups (A -> B -> C); else below the path's first field.
+     *
+     * @param hopPlan the plan of the lookup that reaches {@code sourceSubgraph} when it is a hop of a chain
+     *                (created on first use), or null to use the plan found for the subgraph and path
      */
     RequireFieldResolution resolveRequireField(
             String sourceSubgraph,
@@ -362,97 +345,68 @@ final class RequirementPlanner {
             Set<String> visitedSubgraphs,
             Supplier<SubgraphPlan> hopPlan) {
 
-        // Check if directly resolvable in source subgraph
         if (canResolveFieldPathInSubgraph(sourceSubgraph, sourceTypeName, path)) {
-            // Find an existing plan for the source subgraph, or create root plan
-            SubgraphPlan sourcePlan = findExistingPlanForSubgraph(sourceSubgraph, parentPath, sourceTypeName);
-            if (sourcePlan == null) {
-                sourcePlan = context.getOrCreateRootPlan(sourceSubgraph);
-            }
-            // Determine the parent path based on whether this is a lookup plan
-            List<String> effectiveParentPath = parentPath; // adjustPath handles lookup prefix stripping
-            // Pass sourceTypeName so we can track type changes and generate inline fragments
-            // for fields on implementing types
+            SubgraphPlan sourcePlan = sourcePlan(sourceSubgraph, sourceTypeName, parentPath, hopPlan);
+            // The source type lets fields of implementing types go into inline fragments
             Map<String, String> responseKeys = context.addNestedFieldPathWithSubgraph(
-                sourcePlan, path, effectiveParentPath, FieldOrigin.ARTIFICIAL_REQUIRE, sourceSubgraph, sourceTypeName);
+                sourcePlan, path, parentPath, FieldOrigin.ARTIFICIAL_REQUIRE, sourceSubgraph, sourceTypeName);
             return new RequireFieldResolution(sourcePlan, sourceSubgraph, responseKeys);
         }
 
-        // Not in source - find a lookup path to a subgraph that has it
-        Node sourceNode = new Node(sourceTypeName, sourceSubgraph);
-        List<LookupMoveEdge> lookupEdges = graph.lookupEdgesFrom(sourceNode).toList();
-
-        // FIRST PASS: Try to find a direct resolution (target subgraph can resolve the field)
-        for (LookupMoveEdge lookupEdge : lookupEdges) {
-            String targetSubgraph = lookupEdge.target().subgraph();
-            String targetTypeName = lookupEdge.target().typeName();
-
-            // Skip visited subgraphs (cycle prevention)
-            if (visitedSubgraphs.contains(targetSubgraph)) {
-                continue;
-            }
-
-            // Check if the target subgraph can resolve the field directly
-            if (canResolveFieldPathInSubgraph(targetSubgraph, targetTypeName, path)) {
-                RequireFieldResolution resolution = setupDirectLookupResolution(
-                    sourceSubgraph, sourceTypeName, lookupEdge, path, parentPath, visitedSubgraphs);
+        // Through a lookup: first into the subgraphs that have the path, then chains through the others (B -> C
+        // before B -> A -> B -> C)
+        List<LookupMoveEdge> lookupEdges = graph.lookupEdgesFrom(new Node(sourceTypeName, sourceSubgraph))
+            .filter(edge -> !visitedSubgraphs.contains(edge.target().subgraph()))
+            .toList();
+        for (boolean direct : new boolean[] {true, false}) {
+            for (LookupMoveEdge lookupEdge : lookupEdges) {
+                String targetSubgraph = lookupEdge.target().subgraph();
+                String targetTypeName = lookupEdge.target().typeName();
+                if (canResolveFieldPathInSubgraph(targetSubgraph, targetTypeName, path) != direct) {
+                    continue;
+                }
+                Set<String> visitedThere = new HashSet<>(visitedSubgraphs);
+                visitedThere.add(targetSubgraph);
+                SubgraphPlan[] lookupPlan = new SubgraphPlan[1];
+                RequireFieldResolution resolution = resolveRequireField(targetSubgraph, targetTypeName, path,
+                    parentPath, visitedThere, () -> lookupPlan[0] != null ? lookupPlan[0]
+                        : (lookupPlan[0] = enterThroughLookup(sourceSubgraph, sourceTypeName, lookupEdge, parentPath,
+                            hopPlan)));
                 if (resolution != null) {
                     return resolution;
                 }
             }
         }
 
-        // SECOND PASS: No direct resolution found, try recursive multi-hop resolution
-        // This handles cases like B->A->C where A is an intermediate hop
-        for (LookupMoveEdge lookupEdge : lookupEdges) {
-            String targetSubgraph = lookupEdge.target().subgraph();
-            String targetTypeName = lookupEdge.target().typeName();
-
-            // Skip visited subgraphs (cycle prevention)
-            if (visitedSubgraphs.contains(targetSubgraph)) {
-                continue;
-            }
-
-            // Skip if target can resolve directly (already handled in first pass)
-            if (canResolveFieldPathInSubgraph(targetSubgraph, targetTypeName, path)) {
-                continue;
-            }
-
-            // Try to resolve through this target
-            Set<String> newVisited = new HashSet<>(visitedSubgraphs);
-            newVisited.add(targetSubgraph);
-
-            RequireFieldResolution resolution = resolveRequireField(
-                targetSubgraph, targetTypeName, path, parentPath, newVisited,
-                () -> context.getOrCreateLookupPlan(lookupEdge, parentPath));
-
-            if (resolution != null) {
-                // Found it through a chain! Need to set up the intermediate hop
-                // The resolution already created plans for the chain, but we need
-                // to ensure the lookup from source to target is set up
-
-                SubgraphPlan sourcePlan = findExistingPlanForSubgraph(sourceSubgraph, parentPath, sourceTypeName);
-                if (sourcePlan == null) {
-                    sourcePlan = context.getOrCreateRootPlan(sourceSubgraph);
-                }
-
-                SubgraphPlan intermediatePlan = context.getOrCreateLookupPlan(lookupEdge, parentPath);
-
-                SubgraphPlan hopSource = sourcePlan;
-                context.addLookupKeys(lookupEdge, parentPath, intermediatePlan,
-                    keyPath -> context.addKeyPath(hopSource, keyPath, parentPath, lookupEdge));
-
-                // Intermediate plan depends on source plan
-                context.addPlanDependency(intermediatePlan, sourcePlan);
-                // Resolution plan depends on intermediate plan
-                context.addPlanDependency(resolution.plan(), intermediatePlan);
-
-                return resolution;
-            }
-        }
-
         return resolveRequireFieldBelowFirstField(sourceSubgraph, sourceTypeName, path, parentPath, visitedSubgraphs,
             hopPlan);
+    }
+
+    /**
+     * The plan that selects the object at {@code parentPath} in a subgraph: the hop's lookup plan in a chain, else
+     * the plan found for the subgraph and path, else the subgraph's root plan.
+     */
+    private SubgraphPlan sourcePlan(String subgraph, String typeName, List<String> parentPath,
+                                    Supplier<SubgraphPlan> hopPlan) {
+        if (hopPlan != null) {
+            return hopPlan.get();
+        }
+        SubgraphPlan plan = findExistingPlanForSubgraph(subgraph, parentPath, typeName);
+        return plan != null ? plan : context.getOrCreateRootPlan(subgraph);
+    }
+
+    /**
+     * The plan of a lookup from the object at {@code parentPath} in {@code sourceSubgraph}: it waits for the plan
+     * that selects the object, which selects the lookup's keys.
+     */
+    private SubgraphPlan enterThroughLookup(String sourceSubgraph, String sourceTypeName, LookupMoveEdge lookupEdge,
+                                            List<String> parentPath, Supplier<SubgraphPlan> hopPlan) {
+        SubgraphPlan source = sourcePlan(sourceSubgraph, sourceTypeName, parentPath, hopPlan);
+        SubgraphPlan lookupPlan = context.getOrCreateLookupPlan(lookupEdge, parentPath);
+        context.addPlanDependency(lookupPlan, source);
+        context.addLookupKeys(lookupEdge, parentPath, lookupPlan,
+            keyPath -> context.addKeyPath(source, keyPath, parentPath, lookupEdge));
+        return lookupPlan;
     }
 
     /**
@@ -479,11 +433,7 @@ final class RequirementPlanner {
         if (firstEdge.isEmpty()) {
             return null;
         }
-        SubgraphPlan sourcePlan = hopPlan != null ? hopPlan.get()
-            : findExistingPlanForSubgraph(sourceSubgraph, parentPath, sourceTypeName);
-        if (sourcePlan == null) {
-            sourcePlan = context.getOrCreateRootPlan(sourceSubgraph);
-        }
+        SubgraphPlan sourcePlan = sourcePlan(sourceSubgraph, sourceTypeName, parentPath, hopPlan);
         String responseKey = sourcePlan.addArtificialField(firstField, parentPath, true,
             FieldOrigin.ARTIFICIAL_REQUIRE);
         List<String> childPath = new ArrayList<>(parentPath);
@@ -598,44 +548,5 @@ final class RequirementPlanner {
             }
         }
         return true;
-    }
-
-    /**
-     * Sets up a direct lookup resolution where the target subgraph can resolve the field.
-     */
-    private RequireFieldResolution setupDirectLookupResolution(
-            String sourceSubgraph,
-            String sourceTypeName,
-            LookupMoveEdge lookupEdge,
-            Path path,
-            List<String> parentPath,
-            Set<String> visitedSubgraphs) {
-
-        // Get or create the lookup plan for this edge
-        SubgraphPlan intermediatePlan = context.getOrCreateLookupPlan(lookupEdge, parentPath);
-
-        // Find or create source plan
-        SubgraphPlan sourcePlan = findExistingPlanForSubgraph(sourceSubgraph, parentPath, sourceTypeName);
-        if (sourcePlan == null) {
-            sourcePlan = context.getOrCreateRootPlan(sourceSubgraph);
-        }
-
-        // Add dependency: intermediate depends on source
-        context.addPlanDependency(intermediatePlan, sourcePlan);
-
-        SubgraphPlan keySource = sourcePlan;
-        context.addLookupKeys(lookupEdge, parentPath, intermediatePlan,
-            keyPath -> context.addKeyPath(keySource, keyPath, parentPath, lookupEdge));
-
-        // Add the actual field to the intermediate plan (at root since it's a lookup)
-        Map<String, String> responseKeys = context.addNestedFieldPath(intermediatePlan, path, List.of(), FieldOrigin.ARTIFICIAL_REQUIRE);
-
-        // The field's own @require arguments
-        String fieldName = getLeafFieldName(path);
-        if (lookupEdge.requires().stream().anyMatch(requirement -> fieldName.equals(requirement.fieldName()))) {
-            processRequireFields(lookupEdge, fieldName, parentPath, sourcePlan, intermediatePlan, visitedSubgraphs);
-        }
-
-        return new RequireFieldResolution(intermediatePlan, intermediatePlan.subgraph, responseKeys);
     }
 }

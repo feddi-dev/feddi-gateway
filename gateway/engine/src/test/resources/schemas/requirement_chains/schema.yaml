@@ -1,0 +1,38 @@
+name: "Requirement chains"
+description: |
+  A required field that only a subgraph reached through another one has: shippingCost in shop requires weight,
+  which only warehouse has; warehouse looks products up by sku, which only catalog has. The requirement is
+  resolved through catalog (shop -> catalog -> warehouse).
+
+subgraphs:
+  shop: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup @internal
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+      shippingCost(weight: Float @require(field: "weight")): Float
+    }
+
+  catalog: |
+    type Query {
+      productById(id: ID!): Product @lookup @internal
+    }
+
+    type Product @key(fields: "id") @key(fields: "sku") {
+      id: ID!
+      sku: String!
+    }
+
+  warehouse: |
+    type Query {
+      productBySku(sku: String!): Product @lookup @internal
+    }
+
+    type Product @key(fields: "sku") {
+      sku: String!
+      weight: Float
+    }
