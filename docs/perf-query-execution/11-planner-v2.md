@@ -195,8 +195,24 @@ Follow-up (2026-10-11), each a commit without plan changes unless noted:
 Main code size: 25,874 lines before the follow-up, 25,798 after. Since v2 started (`6a7c591`, 24,180 lines) the
 growth is v2's functionality (planner features, `RequirementReader`, spec rules, satisfiability), not the split.
 
-Left: `RequirementPlanner.resolveRequireField` and `setupDirectLookupResolution` still overlap (both set up a
-lookup that resolves a required field); merging them is the next simplification.
+Simplifications (2026-10-11), each a commit without plan changes; main code -1016 lines net:
+
+- **One walker for FieldSelectionMaps against the source schemas**: `SelectionMapWalker` reports a map's fields
+  and type conditions to a visitor; `IsInvalidFieldsRule` and `RequireInvalidFieldsRule` (field checks and type
+  condition coverage) are visitors. `SourceSchemas` (the types of all source schemas, or all but one) replaces
+  `CrossSchemaFieldResolver`. (-697 lines)
+- **Requirements through lookups with one recursion** in `RequirementPlanner`: direct lookups and chains of
+  lookups both recurse into the target subgraph, whose lookup plan `enterThroughLookup` creates on first use; a
+  chain's hop starts from the previous hop's plan. New fixture `requirement_chains` (two lookups). (-89)
+- **Shared rule helpers** (`SchemaElements`): built-in types and directive argument strings, which 17 rules and
+  9 classes each had their own copy of. (-169)
+- **`ExecutionStep.with…` methods** instead of 13-argument copies; unused factory methods removed. (-38)
+- **Executor**: one method merges an entity's lookup result (four `synchronized` blocks before), one turns a
+  failure into its GraphQL error; one `RequirementReader` per step. (-23)
+
+Left as they are: `SatisfiabilityValidationRule` extracts path sets the way the spec's algorithm does (products
+of object fields' alternatives), which is not a validation walk; `LookupKeyMissingForTypeRule` asks whether some
+alternative maps a possible type, and keeps its own short walk.
 
 ## Open questions for Andi
 
