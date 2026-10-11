@@ -6,6 +6,7 @@ import graphql.language.Selection;
 import graphql.language.SelectionSet;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,35 +31,44 @@ public final class ResponseFieldOrder {
      * values that are not objects or lists are returned as they are.
      */
     public static Object reorder(SelectionSet selectionSet, Object data) {
-        return reorder(List.of(selectionSet), data);
+        return reorder(List.of(selectionSet), data, new IdentityHashMap<>());
     }
 
-    private static Object reorder(List<SelectionSet> selectionSets, Object data) {
+    /**
+     * @param fieldsBySelection the fields of each list of selection sets, collected once per response: every
+     *                          object of a list (and below) shares the same selection sets
+     */
+    private static Object reorder(List<SelectionSet> selectionSets, Object data,
+                                  Map<List<SelectionSet>, Map<String, List<SelectionSet>>> fieldsBySelection) {
         if (data instanceof Map<?, ?> map) {
-            return reorderObject(selectionSets, map);
+            return reorderObject(selectionSets, map, fieldsBySelection);
         }
         if (data instanceof List<?> list) {
             List<Object> reordered = new ArrayList<>(list.size());
             for (Object item : list) {
-                reordered.add(reorder(selectionSets, item));
+                reordered.add(reorder(selectionSets, item, fieldsBySelection));
             }
             return reordered;
         }
         return data;
     }
 
-    private static Map<String, Object> reorderObject(List<SelectionSet> selectionSets, Map<?, ?> object) {
+    private static Map<String, Object> reorderObject(List<SelectionSet> selectionSets, Map<?, ?> object,
+            Map<List<SelectionSet>, Map<String, List<SelectionSet>>> fieldsBySelection) {
         // Response key -> selection sets of all fields with that key (fields can repeat across fragments)
-        Map<String, List<SelectionSet>> fields = new LinkedHashMap<>();
-        for (SelectionSet selectionSet : selectionSets) {
-            collectFields(selectionSet, fields);
-        }
+        Map<String, List<SelectionSet>> fields = fieldsBySelection.computeIfAbsent(selectionSets, sets -> {
+            Map<String, List<SelectionSet>> collected = new LinkedHashMap<>();
+            for (SelectionSet selectionSet : sets) {
+                collectFields(selectionSet, collected);
+            }
+            return collected;
+        });
 
         Map<String, Object> reordered = new LinkedHashMap<>(Math.max(4, object.size() * 2));
         for (Map.Entry<String, List<SelectionSet>> field : fields.entrySet()) {
             String key = field.getKey();
             if (object.containsKey(key)) {
-                reordered.put(key, reorder(field.getValue(), object.get(key)));
+                reordered.put(key, reorder(field.getValue(), object.get(key), fieldsBySelection));
             }
         }
         for (Map.Entry<?, ?> entry : object.entrySet()) {
