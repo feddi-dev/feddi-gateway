@@ -90,6 +90,7 @@ public final class SatisfiabilityValidationRule implements PostGraphValidationRu
         private final Set<String> visited = new HashSet<>();
         private final Set<String> reported = new HashSet<>();
         private final Map<String, Boolean> reachable = new HashMap<>();
+        private final Map<String, List<GraphQLFieldDefinition>> lookups = new HashMap<>();
         private final Set<String> reachableInProgress = new HashSet<>();
         private boolean cycleCut;
         private final ValidationResult.Builder result = ValidationResult.builder();
@@ -311,6 +312,10 @@ public final class SatisfiabilityValidationRule implements PostGraphValidationRu
 
         /** The @lookup fields of {@code schemaName} that resolve {@code type} (directly or as a possible type). */
         private List<GraphQLFieldDefinition> lookups(String schemaName, String type) {
+            return lookups.computeIfAbsent(schemaName + "|" + type, key -> findLookups(schemaName, type));
+        }
+
+        private List<GraphQLFieldDefinition> findLookups(String schemaName, String type) {
             GraphQLSchema source = schemas.get(schemaName);
             List<GraphQLFieldDefinition> lookups = new ArrayList<>();
             List<GraphQLObjectType> holders = new ArrayList<>();
