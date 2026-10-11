@@ -484,7 +484,6 @@ public final class SchemaMerger {
                 cleanRegistry.add(directiveDef);
             }
         });
-        registry.schemaDefinition().ifPresent(cleanRegistry::add);
 
         // Update unions to remove members that reference @inaccessible types
         updateUnionMembers(cleanRegistry, inaccessibleTypes);
@@ -518,7 +517,6 @@ public final class SchemaMerger {
             }
         });
         first.getDirectiveDefinitions().values().forEach(merged::add);
-        first.schemaDefinition().ifPresent(merged::add);
         
         // Add all type extensions from first
         first.objectTypeExtensions().forEach((name, exts) -> exts.forEach(merged::add));
@@ -1252,7 +1250,9 @@ public final class SchemaMerger {
     }
     
     /**
-     * Builds a GraphQLSchema from a TypeDefinitionRegistry.
+     * Builds the merged schema. It has no schema definition: the source schemas' root types are normalized to
+     * Query and Mutation, which become the root operation types by name (a schema definition of one source
+     * schema would leave out the Mutation type of the others).
      */
     private GraphQLSchema buildSchema(TypeDefinitionRegistry registry) {
         RuntimeWiring wiring = RuntimeWiring.newRuntimeWiring()

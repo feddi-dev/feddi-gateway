@@ -1,0 +1,15 @@
+name: "Mutation of the second schema"
+description: "placeOrder is a field of the composite schema's mutation root."
+
+query: |
+  mutation {
+    placeOrder(productId: "p1") { id productId }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: orders
+      operation: "mutation { placeOrder(productId: \"p1\") { id productId } }"
+      dependsOn: []
+      repeatedExecution: false
