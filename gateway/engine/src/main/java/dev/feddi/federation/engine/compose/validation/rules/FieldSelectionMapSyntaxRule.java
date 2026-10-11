@@ -38,11 +38,11 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
 public final class FieldSelectionMapSyntaxRule implements ValidationRule {
 
     private static final String KEY_CODE = "KEY_INVALID_SYNTAX";
-    private static final String KEY_DIRECTIVE_CODE = "KEY_DIRECTIVE_IN_FIELDS_ARG";
+    private static final String KEY_DIRECTIVE_CODE = "KEY_DIRECTIVE_IN_FIELDS_ARGUMENT";
     private static final String IS_CODE = "IS_INVALID_SYNTAX";
     private static final String REQUIRE_CODE = "REQUIRE_INVALID_SYNTAX";
     private static final String PROVIDES_CODE = "PROVIDES_INVALID_SYNTAX";
-    private static final String PROVIDES_DIRECTIVE_CODE = "PROVIDES_DIRECTIVE_IN_FIELDS_ARG";
+    private static final String PROVIDES_DIRECTIVE_CODE = "PROVIDES_DIRECTIVE_IN_FIELDS_ARGUMENT";
 
     // Pattern to detect directive syntax: @ followed by a valid GraphQL name
     // This matches @directiveName, @skip, @include, etc.
