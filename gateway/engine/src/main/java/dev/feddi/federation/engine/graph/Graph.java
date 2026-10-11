@@ -280,6 +280,27 @@ public final class Graph {
         return requirements.getOrDefault(new Node(typeName, subgraph), Map.of()).getOrDefault(fieldName, List.of());
     }
 
+    /**
+     * The object types an object of {@code typeName} can have: an interface's implementations, a union's members,
+     * or the type itself; empty for null.
+     */
+    public Set<String> concreteTypes(String typeName) {
+        if (typeName == null) {
+            return Set.of();
+        }
+        Set<String> implementations = getImplementingTypesForInterface(typeName);
+        if (!implementations.isEmpty()) {
+            return implementations;
+        }
+        Set<String> members = getUnionMembers(typeName);
+        return members.isEmpty() ? Set.of(typeName) : members;
+    }
+
+    /** Whether the type is an interface with implementations or a union with members. */
+    public boolean isAbstract(String typeName) {
+        return !getImplementingTypesForInterface(typeName).isEmpty() || !getUnionMembers(typeName).isEmpty();
+    }
+
     /** Whether the type is the root type of an operation (Query, Mutation). */
     public boolean isRootOperationType(String typeName) {
         return rootNodes.containsKey(typeName);
