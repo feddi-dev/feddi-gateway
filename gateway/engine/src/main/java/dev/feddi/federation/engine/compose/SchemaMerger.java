@@ -1136,8 +1136,9 @@ public final class SchemaMerger {
     /**
      * Merges two field definitions.
      * Prefers non-external fields over external ones.
-     * Also merges arguments from both definitions (spec 3.3.9/3.3.10).
-     * If an argument is marked @inaccessible in ANY schema, it should be hidden
+     * An argument survives only if both definitions declare it (MergeOutputFields: "If length of {arguments} is
+     * not equal to the length of {fields}: Continue"); an @external definition only mirrors the field and does not
+     * take part. If an argument is marked @inaccessible in ANY schema, it should be hidden
      * from the supergraph, even if other schemas define it without @inaccessible.
      * Arguments marked with @require are removed entirely from the composite schema.
      */
@@ -1176,15 +1177,14 @@ public final class SchemaMerger {
             }
         }
 
-        // Merge arguments from both definitions, excluding @inaccessible and @require ones
+        // Keep the arguments both definitions declare (the base's only, when the other is an @external mirror),
+        // excluding @inaccessible and @require ones
+        boolean otherTakesPart = firstIsExternal == secondIsExternal;
+        Set<String> otherArgs = new HashSet<>();
+        other.getInputValueDefinitions().forEach(arg -> otherArgs.add(arg.getName()));
         Map<String, InputValueDefinition> mergedArgs = new LinkedHashMap<>();
         for (InputValueDefinition arg : base.getInputValueDefinitions()) {
-            if (!excludedArgs.contains(arg.getName())) {
-                mergedArgs.put(arg.getName(), arg);
-            }
-        }
-        for (InputValueDefinition arg : other.getInputValueDefinitions()) {
-            if (!mergedArgs.containsKey(arg.getName()) && !excludedArgs.contains(arg.getName())) {
+            if (!excludedArgs.contains(arg.getName()) && (!otherTakesPart || otherArgs.contains(arg.getName()))) {
                 mergedArgs.put(arg.getName(), arg);
             }
         }
