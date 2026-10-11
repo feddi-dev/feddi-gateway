@@ -178,13 +178,7 @@ public final class SchemaValidator {
         // External pre-merge validation rules
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.ExternalMissingOnBaseRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.ExternalTypeMismatchRule());
-        // Note: EXTERNAL_ARGUMENT_MISSING, EXTERNAL_ARGUMENT_TYPE_MISMATCH, and
-        // EXTERNAL_ARGUMENT_DEFAULT_MISMATCH are NOT implemented. The spec defines these rules
-        // but they conflict with EXTERNAL_UNUSED and PROVIDES_FIELDS_HAS_ARGUMENTS:
-        // - @external fields must be in @provides (EXTERNAL_UNUSED)
-        // - @provides cannot reference fields with arguments (PROVIDES_FIELDS_HAS_ARGUMENTS)
-        // Therefore, @external fields cannot have arguments, making those rules unreachable.
-        // We enforce this with ExternalFieldHasArgumentsRule in the SOURCE_SCHEMA phase.
+        // @external fields cannot have arguments (ExternalFieldHasArgumentsRule, SOURCE_SCHEMA phase)
 
         return rules;
     }
