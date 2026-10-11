@@ -65,7 +65,7 @@ public record ExecutionStep(
                          Map<String, SelectedValue> requirements, boolean repeatedExecution,
                          Set<String> artificialFieldPaths, Set<String> requestedFieldPaths) {
         this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
-            artificialFieldPaths, requestedFieldPaths, null, Set.of(), Map.of());
+            artificialFieldPaths, requestedFieldPaths, null, Set.of(), Map.of(), Map.of());
     }
 
     /**
@@ -77,32 +77,7 @@ public record ExecutionStep(
                          Set<String> artificialFieldPaths, Set<String> requestedFieldPaths,
                          List<String> entityPath) {
         this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
-            artificialFieldPaths, requestedFieldPaths, entityPath, Set.of(), Map.of());
-    }
-
-    /**
-     * Constructor without possible types for the requirements' type conditions.
-     */
-    public ExecutionStep(int id, String subgraph, OperationDefinition operation,
-                         List<Integer> dependsOn, List<Integer> parallelWith,
-                         Map<String, SelectedValue> requirements, boolean repeatedExecution,
-                         Set<String> artificialFieldPaths, Set<String> requestedFieldPaths,
-                         List<String> entityPath, Set<String> entityTypes,
-                         Map<Integer, Set<String>> entityPathTypes) {
-        this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
-            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, Map.of());
-    }
-
-    /**
-     * Constructor without type conditions along the entity path.
-     */
-    public ExecutionStep(int id, String subgraph, OperationDefinition operation,
-                         List<Integer> dependsOn, List<Integer> parallelWith,
-                         Map<String, SelectedValue> requirements, boolean repeatedExecution,
-                         Set<String> artificialFieldPaths, Set<String> requestedFieldPaths,
-                         List<String> entityPath, Set<String> entityTypes) {
-        this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
-            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, Map.of());
+            artificialFieldPaths, requestedFieldPaths, entityPath, Set.of(), Map.of(), Map.of());
     }
 
     public ExecutionStep {
