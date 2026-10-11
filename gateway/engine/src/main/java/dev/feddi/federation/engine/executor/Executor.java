@@ -468,10 +468,12 @@ public final class Executor {
     private ExecutionResult buildResult(ExecutionContext ctx, ExecutionPlan plan) {
         Map<String, Object> mergedData = ctx.getMergedData();
 
-        // Filter artificial fields from the final response
-        // Only filter paths that are artificial AND NOT requested (handles overlap cases)
-        Set<String> pathsToFilter = plan.pathsToFilter();
-        Map<String, Object> filteredData = filterArtificialFields(mergedData, pathsToFilter, "");
+        // Filter artificial fields from the final response: those that are artificial and not requested, for the
+        // object's type (paths are "parent.field" or "parent<Type>.field")
+        Set<String> artificial = plan.allArtificialFieldPaths();
+        Set<String> requested = plan.allRequestedFieldPaths();
+        Map<String, Object> filteredData = artificial.isEmpty() ? mergedData
+            : filterArtificialFields(mergedData, artificial, requested, "");
 
         ExecutionResultImpl.Builder builder = ExecutionResultImpl.newExecutionResult()
             .data(filteredData);
@@ -491,37 +493,31 @@ public final class Executor {
      * @param currentPath the current path prefix for nested fields
      * @return a new map with artificial fields removed
      */
-    private Map<String, Object> filterArtificialFields(Map<String, Object> data,
-                                                        Set<String> artificialPaths,
-                                                        String currentPath) {
-        if (artificialPaths.isEmpty()) {
-            return data;
-        }
-
+    private Map<String, Object> filterArtificialFields(Map<String, Object> data, Set<String> artificial,
+                                                        Set<String> requested, String currentPath) {
+        String typename = data.get(IntrospectionFields.TYPENAME) instanceof String name ? name : null;
         Map<String, Object> result = new LinkedHashMap<>();
-
         for (Map.Entry<String, Object> entry : data.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
             String fieldPath = currentPath.isEmpty() ? key : currentPath + "." + key;
-
-            // Skip artificial fields
-            if (artificialPaths.contains(fieldPath)) {
+            String typedPath = typename == null ? null
+                : (currentPath.isEmpty() ? "" : currentPath) + "<" + typename + ">." + key;
+            boolean isArtificial = artificial.contains(fieldPath) || (typedPath != null && artificial.contains(typedPath));
+            boolean isRequested = requested.contains(fieldPath) || (typedPath != null && requested.contains(typedPath));
+            if (isArtificial && !isRequested) {
                 continue;
             }
-
-            // Recursively filter nested structures
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> mapValue = (Map<String, Object>) value;
-                result.put(key, filterArtificialFields(mapValue, artificialPaths, fieldPath));
-            } else if (value instanceof List) {
-                result.put(key, filterArtificialFieldsInList((List<?>) value, artificialPaths, fieldPath));
+                result.put(key, filterArtificialFields(mapValue, artificial, requested, fieldPath));
+            } else if (value instanceof List<?> list) {
+                result.put(key, filterArtificialFieldsInList(list, artificial, requested, fieldPath));
             } else {
                 result.put(key, value);
             }
         }
-
         return result;
     }
 
@@ -529,13 +525,17 @@ public final class Executor {
      * Filters artificial fields from a list of values.
      * Each item in the list uses the same path prefix for filtering.
      */
-    private List<?> filterArtificialFieldsInList(List<?> list, Set<String> artificialPaths, String currentPath) {
+    private List<?> filterArtificialFieldsInList(List<?> list, Set<String> artificial, Set<String> requested,
+                                                 String currentPath) {
         return list.stream()
             .map(item -> {
                 if (item instanceof Map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> mapItem = (Map<String, Object>) item;
-                    return filterArtificialFields(mapItem, artificialPaths, currentPath);
+                    return filterArtificialFields(mapItem, artificial, requested, currentPath);
+                }
+                if (item instanceof List<?> nested) {
+                    return filterArtificialFieldsInList(nested, artificial, requested, currentPath);
                 }
                 return item;
             })

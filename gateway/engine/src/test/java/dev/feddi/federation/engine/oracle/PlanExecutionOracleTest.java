@@ -97,15 +97,19 @@ class PlanExecutionOracleTest {
         Map<String, Long> counts = new TreeMap<>();
         OUTCOMES.values().forEach(o -> counts.merge(o.split(":")[0], 1L, Long::sum));
         System.out.println("Plan execution oracle: " + OUTCOMES.size() + " queries " + counts);
-        if (!DEBUG.isEmpty()) {
-            Files.writeString(Path.of("build/oracle-debug.txt"), DEBUG.toString());
-        }
+        writeDebugOutput();
         if (updating() && !OUTCOMES.isEmpty()) {
             Map<String, Object> document = new LinkedHashMap<>(OUTCOMES);
             String header = "# feddi's result compared with a monolith for every planner fixture and imported Fusion\n"
                 + "# test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).\n"
                 + "# " + OUTCOMES.size() + " queries " + counts + "\n";
             Files.writeString(baselinePath(), header + YAML.writeValueAsString(document).replaceFirst("^---\\n", ""));
+        }
+    }
+
+    static void writeDebugOutput() throws IOException {
+        if (!DEBUG.isEmpty()) {
+            Files.writeString(Path.of("build/oracle-debug.txt"), DEBUG.toString());
         }
     }
 

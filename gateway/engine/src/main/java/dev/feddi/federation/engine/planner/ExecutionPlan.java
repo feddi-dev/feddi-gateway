@@ -104,20 +104,6 @@ public record ExecutionPlan(List<ExecutionStep> steps) {
     }
 
     /**
-     * Returns paths that should be filtered from the final response.
-     * A field should be filtered if it's artificial AND NOT requested.
-     * This handles cases where the same field path is artificial in one step
-     * but explicitly requested in another step.
-     */
-    public Set<String> pathsToFilter() {
-        Set<String> artificial = allArtificialFieldPaths();
-        Set<String> requested = allRequestedFieldPaths();
-        Set<String> toFilter = new HashSet<>(artificial);
-        toFilter.removeAll(requested);
-        return toFilter;
-    }
-
-    /**
      * Checks if any step has artificial fields that need filtering.
      */
     public boolean hasArtificialFields() {

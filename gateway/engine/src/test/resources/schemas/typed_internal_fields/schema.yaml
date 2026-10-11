@@ -1,0 +1,28 @@
+name: "Typed internal fields"
+description: "A response key that one union member requests and another only needs as a lookup key."
+
+subgraphs:
+  catalog: |
+    type Query {
+      entries: [Entry]
+    }
+
+    union Entry = Coupon | Gift
+
+    type Coupon {
+      code: String!
+    }
+
+    type Gift @key(fields: "code") {
+      code: String!
+    }
+
+  gifts: |
+    type Query {
+      giftByCode(code: String!): Gift @lookup @internal
+    }
+
+    type Gift @key(fields: "code") {
+      code: String!
+      name: String
+    }

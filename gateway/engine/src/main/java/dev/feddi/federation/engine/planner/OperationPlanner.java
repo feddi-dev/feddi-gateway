@@ -2713,24 +2713,30 @@ public final class OperationPlanner {
         }
 
         private void collectFieldPathsRecursive(SelectionNode node, String currentPath, Set<String> paths, boolean collectRequested) {
+            collectFieldPathsRecursive(node, currentPath, null, paths, collectRequested);
+        }
+
+        /**
+         * Collects "parent.field" paths, or "parent<Type>.field" for a field inside a fragment on Type: the same
+         * response key can be internal for one type and requested for another (... on E1 { code } next to a key
+         * code selected for E2's lookup).
+         */
+        private void collectFieldPathsRecursive(SelectionNode node, String currentPath, String typeCondition,
+                                                Set<String> paths, boolean collectRequested) {
+            String parent = typeCondition == null ? currentPath : currentPath + "<" + typeCondition + ">";
             for (SelectionNode child : node.children.values()) {
                 // Use responseKey (alias if present) since that's what appears in the response
                 String responseKey = child.responseKey();
-                String fieldPath = currentPath.isEmpty() ? responseKey : currentPath + "." + responseKey;
-                if (collectRequested) {
-                    if (child.origin == FieldOrigin.REQUESTED) {
-                        paths.add(fieldPath);
-                    }
-                } else {
-                    if (child.origin != FieldOrigin.REQUESTED) {
-                        paths.add(fieldPath);
-                    }
+                String fieldPath = parent.isEmpty() ? responseKey : parent + "." + responseKey;
+                if (collectRequested == (child.origin == FieldOrigin.REQUESTED)) {
+                    paths.add(fieldPath);
                 }
-                collectFieldPathsRecursive(child, fieldPath, paths, collectRequested);
+                String childPath = currentPath.isEmpty() ? responseKey : currentPath + "." + responseKey;
+                collectFieldPathsRecursive(child, childPath, null, paths, collectRequested);
             }
-            // Also check inline fragments
             for (InlineFragmentNode fragment : node.inlineFragments) {
-                collectFieldPathsRecursive(fragment.root, currentPath, paths, collectRequested);
+                collectFieldPathsRecursive(fragment.root, currentPath,
+                    fragment.typeCondition != null ? fragment.typeCondition : typeCondition, paths, collectRequested);
             }
         }
 

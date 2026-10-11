@@ -1,0 +1,32 @@
+name: "Key of one member, requested for another"
+description: |
+  code is requested for Coupon entries and only a lookup key for Gift entries: Gift entries in the response
+  must not contain code.
+
+query: |
+  {
+    entries {
+      ... on Coupon {
+        code
+      }
+      ... on Gift {
+        name
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "{ entries { __typename ... on Coupon { code } ... on Gift { code } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: gifts
+      operation: "query($code: String!) { giftByCode(code: $code) { name } }"
+      dependsOn: [1]
+      requirements:
+        code: "code"
+      repeatedExecution: true
