@@ -46,23 +46,23 @@ class InterfaceHasNoImplementationsRuleTest {
         return rule.validate(mergedSchema, subgraphList);
     }
 
-    private void assertValid(ValidationResult result) {
-        assertThat(result.isValid())
-            .as("Expected validation to pass but got errors: %s", result.errors())
+    private void assertNoWarning(ValidationResult result) {
+        assertThat(!result.hasWarnings())
+            .as("Expected no warning but got: %s", result.warnings())
             .isTrue();
     }
 
-    private void assertInvalid(ValidationResult result) {
-        assertThat(result.hasErrors())
-            .as("Expected validation to fail")
+    private void assertWarns(ValidationResult result) {
+        assertThat(result.hasWarnings())
+            .as("Expected a warning")
             .isTrue();
-        assertThat(result.errors())
+        assertThat(result.warnings())
             .anyMatch(d -> d.code().equals(CODE));
     }
 
-    private void assertInvalidWithCoordinate(ValidationResult result, String coordinate) {
-        assertInvalid(result);
-        assertThat(result.errors())
+    private void assertWarnsAt(ValidationResult result, String coordinate) {
+        assertWarns(result);
+        assertThat(result.warnings())
             .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals(coordinate));
     }
 
@@ -89,7 +89,7 @@ class InterfaceHasNoImplementationsRuleTest {
                 """);
 
             ValidationResult result = validate(catalog);
-            assertValid(result);
+            assertNoWarning(result);
         }
 
         @Test
@@ -110,7 +110,7 @@ class InterfaceHasNoImplementationsRuleTest {
                 """);
 
             ValidationResult result = validate(catalog);
-            assertValid(result);
+            assertNoWarning(result);
         }
 
         @Test
@@ -135,7 +135,7 @@ class InterfaceHasNoImplementationsRuleTest {
                 """);
 
             ValidationResult result = validate(catalog, movies);
-            assertValid(result);
+            assertNoWarning(result);
         }
 
         @Test
@@ -154,7 +154,7 @@ class InterfaceHasNoImplementationsRuleTest {
                 """);
 
             ValidationResult result = validate(catalog);
-            assertValid(result);
+            assertNoWarning(result);
         }
 
         @Test
@@ -175,7 +175,7 @@ class InterfaceHasNoImplementationsRuleTest {
                 """);
 
             ValidationResult result = validate(catalog);
-            assertValid(result);
+            assertNoWarning(result);
         }
     }
 
@@ -201,7 +201,7 @@ class InterfaceHasNoImplementationsRuleTest {
                 """);
 
             ValidationResult result = validate(catalog);
-            assertInvalidWithCoordinate(result, "Media");
+            assertWarnsAt(result, "Media");
         }
 
         @Test
@@ -216,7 +216,7 @@ class InterfaceHasNoImplementationsRuleTest {
                 """);
 
             ValidationResult result = validate(catalog);
-            assertInvalidWithCoordinate(result, "Media");
+            assertWarnsAt(result, "Media");
         }
 
         @Test
@@ -235,7 +235,7 @@ class InterfaceHasNoImplementationsRuleTest {
                 """);
 
             ValidationResult result = validate(catalog);
-            assertInvalidWithCoordinate(result, "Media");
+            assertWarnsAt(result, "Media");
         }
 
         @Test
@@ -254,7 +254,7 @@ class InterfaceHasNoImplementationsRuleTest {
                 """);
 
             ValidationResult result = validate(catalog);
-            assertThat(result.errors())
+            assertThat(result.warnings())
                 .hasSize(2)
                 .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals("Media"))
                 .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals("Content"));

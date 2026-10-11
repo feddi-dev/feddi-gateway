@@ -38,17 +38,17 @@ class LookupDuplicateRuleTest {
         return rule.validate(List.of(subgraphs));
     }
 
-    private void assertValid(ValidationResult result) {
-        assertThat(result.isValid())
-            .as("Expected validation to pass but got errors: %s", result.errors())
+    private void assertNoWarning(ValidationResult result) {
+        assertThat(!result.hasWarnings())
+            .as("Expected no warning but got: %s", result.warnings())
             .isTrue();
     }
 
-    private void assertInvalid(ValidationResult result) {
-        assertThat(result.hasErrors())
-            .as("Expected validation to fail")
+    private void assertWarns(ValidationResult result) {
+        assertThat(result.hasWarnings())
+            .as("Expected a warning")
             .isTrue();
-        assertThat(result.errors())
+        assertThat(result.warnings())
             .anyMatch(d -> d.code().equals(CODE));
     }
 
@@ -71,7 +71,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(products));
+            assertNoWarning(validate(products));
         }
 
         @Test
@@ -92,7 +92,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(catalog));
+            assertNoWarning(validate(catalog));
         }
 
         @Test
@@ -110,7 +110,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(products));
+            assertNoWarning(validate(products));
         }
 
         @Test
@@ -128,7 +128,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(products));
+            assertNoWarning(validate(products));
         }
 
         @Test
@@ -147,7 +147,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(products));
+            assertNoWarning(validate(products));
         }
 
         @Test
@@ -164,7 +164,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(products));
+            assertNoWarning(validate(products));
         }
 
         @Test
@@ -183,7 +183,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(products));
+            assertNoWarning(validate(products));
         }
 
         @Test
@@ -209,7 +209,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(products, inventory));
+            assertNoWarning(validate(products, inventory));
         }
     }
 
@@ -234,7 +234,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertInvalid(validate(products));
+            assertWarns(validate(products));
         }
 
         @Test
@@ -251,7 +251,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertInvalid(validate(products));
+            assertWarns(validate(products));
         }
 
         @Test
@@ -271,7 +271,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertInvalid(validate(products));
+            assertWarns(validate(products));
         }
     }
 
@@ -296,7 +296,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertInvalid(validate(products));
+            assertWarns(validate(products));
         }
 
         @Test
@@ -313,7 +313,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertInvalid(validate(products));
+            assertWarns(validate(products));
         }
     }
 
@@ -338,7 +338,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertInvalid(validate(products));
+            assertWarns(validate(products));
         }
 
         @Test
@@ -355,7 +355,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertInvalid(validate(products));
+            assertWarns(validate(products));
         }
     }
 
@@ -381,8 +381,8 @@ class LookupDuplicateRuleTest {
                 """);
 
             ValidationResult result = validate(products);
-            assertInvalid(result);
-            assertThat(result.errors().get(0).message())
+            assertWarns(result);
+            assertThat(result.warnings().get(0).message())
                 .contains("Redundant")
                 .contains("productByIdAndVendor")
                 .contains("productById")
@@ -407,8 +407,8 @@ class LookupDuplicateRuleTest {
                 """);
 
             ValidationResult result = validate(products);
-            assertInvalid(result);
-            assertThat(result.errors().get(0).message())
+            assertWarns(result);
+            assertThat(result.warnings().get(0).message())
                 .contains("Redundant")
                 .contains("subset");
         }
@@ -430,9 +430,9 @@ class LookupDuplicateRuleTest {
                 """);
 
             ValidationResult result = validate(products);
-            assertInvalid(result);
+            assertWarns(result);
             // Should report multiple redundant lookups (both supersets of productById)
-            assertThat(result.errors()).hasSizeGreaterThanOrEqualTo(2);
+            assertThat(result.warnings()).hasSizeGreaterThanOrEqualTo(2);
         }
 
         @Test
@@ -452,7 +452,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(catalog));
+            assertNoWarning(validate(catalog));
         }
 
         @Test
@@ -472,7 +472,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(catalog));
+            assertNoWarning(validate(catalog));
         }
 
         @Test
@@ -497,8 +497,8 @@ class LookupDuplicateRuleTest {
                 """);
 
             ValidationResult result = validate(products);
-            assertInvalid(result);
-            assertThat(result.errors().get(0).message())
+            assertWarns(result);
+            assertThat(result.warnings().get(0).message())
                 .contains("Redundant");
         }
     }
@@ -526,9 +526,9 @@ class LookupDuplicateRuleTest {
                 """);
 
             ValidationResult result = validate(products);
-            assertInvalid(result);
+            assertWarns(result);
             // Should mention all three in the error message
-            assertThat(result.errors().get(0).message())
+            assertThat(result.warnings().get(0).message())
                 .contains("Query.productById")
                 .contains("Query.productByKey")
                 .contains("Query.productByProductId");
@@ -549,7 +549,7 @@ class LookupDuplicateRuleTest {
                 """);
 
             // Both map to just "id" after ignoring @require, so they're duplicates
-            assertInvalid(validate(products));
+            assertWarns(validate(products));
         }
 
         @Test
@@ -568,7 +568,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(catalog));
+            assertNoWarning(validate(catalog));
         }
 
         @Test
@@ -589,7 +589,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertValid(validate(products));
+            assertNoWarning(validate(products));
         }
 
         @Test
@@ -609,7 +609,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertInvalid(validate(products));
+            assertWarns(validate(products));
         }
 
         @Test
@@ -626,7 +626,7 @@ class LookupDuplicateRuleTest {
                 }
                 """);
 
-            assertInvalid(validate(products));
+            assertWarns(validate(products));
         }
     }
 }

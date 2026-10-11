@@ -28,7 +28,10 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.LOOKUP;
 import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
 
 /**
- * Validates that @lookup definitions are not redundant within a subgraph.
+ * Warns about @lookup definitions that are redundant within a subgraph.
+ *
+ * Not a spec rule, and only a warning: the spec allows any number of lookups for a type, and the planner
+ * picks one.
  *
  * Two @lookup fields are considered duplicates if they:
  * 1. Return the same type (after unwrapping)
@@ -212,7 +215,7 @@ public final class LookupDuplicateRule implements ValidationRule {
         );
 
         // Use first duplicate's coordinate for the error
-        builder.addError(CODE, message, duplicates.get(0).coordinate(), schemaName, LOOKUP);
+        builder.addWarning(CODE, message, duplicates.get(0).coordinate(), schemaName);
     }
 
     private void reportSubsetDuplicate(LookupInfo smaller, LookupInfo larger, String schemaName,
@@ -229,7 +232,7 @@ public final class LookupDuplicateRule implements ValidationRule {
         );
 
         // Report error on the larger (redundant) lookup
-        builder.addError(CODE, message, larger.coordinate(), schemaName, LOOKUP);
+        builder.addWarning(CODE, message, larger.coordinate(), schemaName);
     }
 
     private String extractStringValue(GraphQLAppliedDirectiveArgument arg) {

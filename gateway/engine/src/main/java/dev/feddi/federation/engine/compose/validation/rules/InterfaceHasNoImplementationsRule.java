@@ -20,13 +20,12 @@ import java.util.Set;
 import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSIBLE;
 
 /**
- * Validates that interface types used as return types have at least one implementing type.
+ * Warns about interface types used as return types that have no implementing type.
  *
- * An interface with no implementations cannot be resolved at runtime, as GraphQL requires
- * abstract types to resolve to concrete types when returning data.
+ * Not a spec rule, and only a warning: GraphQL allows such an interface; a field returning it can only
+ * return null.
  *
- * This rule only reports an error if the interface is actually used as a return type
- * somewhere in the schema. Unused interfaces with no implementations are allowed.
+ * Only interfaces used as a return type somewhere in the schema are reported.
  */
 public final class InterfaceHasNoImplementationsRule implements PostMergeValidationRule {
 
@@ -86,7 +85,7 @@ public final class InterfaceHasNoImplementationsRule implements PostMergeValidat
                 "At least one type must implement this interface for it to be resolvable at runtime.",
                 interfaceName
             );
-            builder.addError(CODE, message, interfaceName, null, null);
+            builder.addWarning(CODE, message, interfaceName, null);
         }
 
         return builder.build();
