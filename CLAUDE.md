@@ -39,7 +39,7 @@ constants instead of directive string literals, no introspection field literals 
 ## Working on `perf/query-execution`
 
 - v1 of the performance work (`perf/query-execution`, tip `6a7c591`, pinned by the benchmark: don't rewrite or
-  delete it) is in review as stacked PRs feddi-dev/feddi-gateway#59 to #65 (branches `review/v1-*`, docs #58);
+  delete it) is in review as 9 stacked PRs (feddi-dev/feddi-gateway#59, #60, #61, #66, #67, #62-#65; branches `review/v1-*`, docs #58);
   draft PR #53 is closed. Planner v2 continues on `perf/planner-v2`, based on v1; Andi reviews before merging.
 - Small commits, each with tests passing. Follow the step order in `docs/perf-query-execution/05-plan.md`.
 - feddi is **server-agnostic**: the baseline is plain GraphQL-over-HTTP. Batching is per-subgraph config
