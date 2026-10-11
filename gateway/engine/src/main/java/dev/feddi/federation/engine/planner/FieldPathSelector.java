@@ -158,13 +158,12 @@ final class FieldPathSelector {
             } else {
                 // Add field normally to the plan: with an alias if the client selects the response key with
                 // other arguments or a field that cannot be merged with it
-                String parentType = parentTypeBefore != null ? parentTypeBefore : plan.declaredTypeAt(currentPath, graph);
                 boolean clientUsesOtherArguments = clientFields.getOrDefault(currentPath, Map.of())
                     .getOrDefault(fieldName, List.of()).stream()
                     .anyMatch(client -> !client.printedArguments()
                         .equals(SelectionNode.printedArguments(segment.arguments())));
-                boolean alias = clientUsesOtherArguments || (parentType != null && subgraph.equals(plan.subgraph)
-                    && clashes(plan, currentPath, parentType, fieldName, segment.arguments()));
+                boolean alias = clientUsesOtherArguments || (subgraph.equals(plan.subgraph)
+                    && clashes(plan, currentPath, parentTypeBefore, fieldName, segment.arguments()));
                 String responseKey = plan.addArtificialField(fieldName, segment.arguments(), currentPath,
                     hasChildren, origin, alias);
                 fieldToResponseKey.put(ResponseKeys.segmentKey(segment), responseKey);
@@ -266,26 +265,43 @@ final class FieldPathSelector {
     }
 
     /**
-     * Whether a field the planner adds at a response path, on an object of {@code parentType}, cannot be merged
-     * with another field of the same response key there (GraphQL's FieldsInSetCanMerge): one the plan already
-     * selects there, in any fragment, or one the client selects there. On the same or an abstract parent type
+     * Whether a field the planner adds at a response path, on an object of {@code parentType} (null: the type
+     * declared there), cannot be merged with another field of the same response key there (GraphQL's
+     * FieldsInSetCanMerge): one the plan already selects there, in any fragment, or one the client selects there. On the same or an abstract parent type
      * the fields must be the same field with the same arguments; on two object types they must have the same
      * output type.
      */
     private boolean clashes(SubgraphPlan plan, List<String> responsePath, String parentType, String fieldName,
                             List<Argument> arguments) {
+        List<ClientField> clientSelections = clientFields.getOrDefault(responsePath, Map.of())
+            .getOrDefault(fieldName, List.of());
+        SelectionNode node = plan.root.descend(plan.adjustPath(responsePath), false, false);
+        if (clientSelections.isEmpty() && (node == null || !selectsResponseKey(node, fieldName))) {
+            return false;
+        }
         String declaredType = plan.declaredTypeAt(responsePath, graph);
+        if (parentType == null) {
+            parentType = declaredType;
+            if (parentType == null) {
+                return false;
+            }
+        }
         List<String> printedArguments = SelectionNode.printedArguments(arguments);
-        for (ClientField client : clientFields.getOrDefault(responsePath, Map.of()).getOrDefault(fieldName, List.of())) {
+        for (ClientField client : clientSelections) {
             String clientParent = client.typeCondition() != null ? client.typeCondition() : declaredType;
             if (clientParent != null && !mergeable(plan.subgraph, parentType, fieldName, printedArguments,
                     clientParent, client.fieldName(), client.printedArguments())) {
                 return true;
             }
         }
-        SelectionNode node = plan.root.descend(plan.adjustPath(responsePath), false, false);
         return node != null && selectedClashes(plan.subgraph, node, declaredType, parentType, fieldName,
             printedArguments);
+    }
+
+    /** Whether the node or one of its inline fragments selects a field with this response key. */
+    private static boolean selectsResponseKey(SelectionNode node, String responseKey) {
+        return node.children.containsKey(responseKey)
+            || node.inlineFragments.stream().anyMatch(fragment -> selectsResponseKey(fragment.root, responseKey));
     }
 
     private boolean selectedClashes(String subgraph, SelectionNode node, String nodeType, String parentType,
