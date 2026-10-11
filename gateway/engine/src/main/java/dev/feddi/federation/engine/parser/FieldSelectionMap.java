@@ -215,6 +215,9 @@ public final class FieldSelectionMap {
 
         /** The arguments as GraphQL text, e.g. {@code unit: IMPERIAL}; empty if none. */
         public String printedArguments() {
+            if (arguments.isEmpty()) {
+                return "";
+            }
             return arguments.stream()
                 .map(argument -> argument.getName() + ": " + AstPrinter.printAstCompact(argument.getValue()))
                 .collect(Collectors.joining(", "));
@@ -225,12 +228,14 @@ public final class FieldSelectionMap {
         public boolean equals(Object o) {
             return o instanceof PathSegment other && fieldName.equals(other.fieldName)
                 && Objects.equals(typeCondition, other.typeCondition)
-                && printedArguments().equals(other.printedArguments());
+                && arguments.size() == other.arguments.size()
+                && (arguments.isEmpty() || printedArguments().equals(other.printedArguments()));
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(fieldName, typeCondition, printedArguments());
+            // Arguments only add to the hash through their count: printing them is expensive, equals decides
+            return 31 * (31 * fieldName.hashCode() + Objects.hashCode(typeCondition)) + arguments.size();
         }
 
         /**

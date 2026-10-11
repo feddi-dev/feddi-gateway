@@ -212,7 +212,7 @@ public final class OperationPlanner {
             Set<OperationPath> recordedPaths = new HashSet<>(List.of(bestPath));
             for (Selection subSelection : selection.subSelections()) {
                 OperationPath parentForSub = bestPath;
-                if (fragmentContext == null && !resolvable(bestPath, subSelection)) {
+                if (fragmentContext == null && paths.size() > 1 && !resolvable(bestPath, subSelection)) {
                     // Sibling-aware choice: a child the best path cannot resolve may be resolvable when this field
                     // is also selected in another subgraph (e.g. a shared root field whose schemas each have
                     // different fields of its type).
