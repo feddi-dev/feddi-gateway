@@ -590,20 +590,6 @@ public final class OperationPlanner {
         }
 
         /**
-         * The response path where the last occurrence of {@code lookupEdge} on the path starts (the same lookup can
-         * occur twice, e.g. s1 -> s0 -> s1 -> s0 with the same lookup into s0).
-         */
-        private List<String> lookupEntryPath(OperationPath path, LookupMoveEdge lookupEdge, List<String> fallbackParentPath) {
-            List<String> entryPath = fallbackParentPath;
-            for (LookupStep step : lookupSteps(path, fallbackParentPath)) {
-                if (step.edge().equals(lookupEdge)) {
-                    entryPath = step.entryPath();
-                }
-            }
-            return entryPath;
-        }
-
-        /**
          * Whether the {@code lookupIndex}-th lookup on a path to a field enters the field's own object (it is the
          * edge right before the field). Only that lookup carries the field's @require values: requirements are per
          * object, and an earlier lookup into the same type was for another object.
@@ -659,22 +645,7 @@ public final class OperationPlanner {
             String subgraph = path.currentSubgraph();
 
             // Find the last lookup edge that enters the current subgraph (if any)
-            LookupMoveEdge enteringLookupEdge = null;
-            for (Edge edge : path.getEdges()) {
-                if (edge instanceof LookupMoveEdge lookupEdge
-                    && lookupEdge.target().subgraph().equals(subgraph)) {
-                    enteringLookupEdge = lookupEdge;
-                }
-            }
-
-            // Get or create the appropriate plan for this field
-            SubgraphPlan plan;
-            if (enteringLookupEdge != null) {
-                List<String> entryPath = lookupEntryPath(path, enteringLookupEdge, parentPath);
-                plan = getOrCreateLookupPlan(enteringLookupEdge, entryPath);
-            } else {
-                plan = getOrCreateRootPlan(subgraph);
-            }
+            SubgraphPlan plan = planFor(path, parentPath);
 
             // Add the field to this subgraph's plan with its hierarchical position, arguments, and directives
             plan.addFieldWithAlias(alias, fieldName, parentPath, hasChildren, queryArguments, queryDirectives);
@@ -878,14 +849,20 @@ public final class OperationPlanner {
          */
         SubgraphPlan planFor(OperationPath path, List<String> parentPath) {
             String subgraph = path.currentSubgraph();
-            LookupMoveEdge enteringLookupEdge = null;
-            for (Edge edge : path.getEdges()) {
-                if (edge instanceof LookupMoveEdge lookupEdge && lookupEdge.target().subgraph().equals(subgraph)) {
-                    enteringLookupEdge = lookupEdge;
+            LookupStep entering = enteringLookup(path, parentPath);
+            return entering == null ? getOrCreateRootPlan(subgraph)
+                : getOrCreateLookupPlan(entering.edge(), entering.entryPath());
+        }
+
+        /** The last lookup on the path into its current subgraph, with its entry path; null if there is none. */
+        private static LookupStep enteringLookup(OperationPath path, List<String> parentPath) {
+            LookupStep entering = null;
+            for (LookupStep step : lookupSteps(path, parentPath)) {
+                if (step.edge().target().subgraph().equals(path.currentSubgraph())) {
+                    entering = step;
                 }
             }
-            return enteringLookupEdge == null ? getOrCreateRootPlan(subgraph)
-                : getOrCreateLookupPlan(enteringLookupEdge, lookupEntryPath(path, enteringLookupEdge, parentPath));
+            return entering;
         }
 
         /**
@@ -1725,23 +1702,10 @@ public final class OperationPlanner {
             String subgraph = path.currentSubgraph();
 
             // Find the last lookup edge that enters this subgraph
-            LookupMoveEdge enteringLookupEdge = null;
-            for (Edge edge : path.getEdges()) {
-                if (edge instanceof LookupMoveEdge lookupEdge
-                    && lookupEdge.target().subgraph().equals(subgraph)) {
-                    enteringLookupEdge = lookupEdge;
-                }
-            }
-
-            // Get or create the appropriate plan
-            SubgraphPlan plan;
-            List<String> enteringEntryPath = parentPath;
-            if (enteringLookupEdge != null) {
-                enteringEntryPath = lookupEntryPath(path, enteringLookupEdge, parentPath);
-                plan = getOrCreateLookupPlan(enteringLookupEdge, enteringEntryPath);
-            } else {
-                plan = getOrCreateRootPlan(subgraph);
-            }
+            LookupStep entering = enteringLookup(path, parentPath);
+            LookupMoveEdge enteringLookupEdge = entering == null ? null : entering.edge();
+            List<String> enteringEntryPath = entering == null ? parentPath : entering.entryPath();
+            SubgraphPlan plan = planFor(path, parentPath);
 
             // Add requirements for the lookup
             if (enteringLookupEdge != null) {
@@ -1753,14 +1717,12 @@ public final class OperationPlanner {
                 addPlanDependency(plan, sourcePlan);
 
                 // Key fields on the lookup's source type (in a fragment where the abstract type lacks them)
-                LookupMoveEdge entering = enteringLookupEdge;
-                List<String> entryPath = enteringEntryPath;
                 // Inside a fragment, the fragment's type is the more precise start type (the lookup may be from the
                 // union or interface itself)
-                String keyType = typeCondition != null && entryPath.equals(parentPath) ? typeCondition
-                    : entering.source().typeName();
-                addLookupKeys(entering, entryPath, plan, keyPath -> addNestedFieldPathWithSubgraph(sourcePlan, keyPath,
-                    entryPath, FieldOrigin.ARTIFICIAL_KEY, sourcePlan.subgraph, keyType));
+                String keyType = typeCondition != null && enteringEntryPath.equals(parentPath) ? typeCondition
+                    : enteringLookupEdge.source().typeName();
+                addLookupKeys(enteringLookupEdge, enteringEntryPath, plan, keyPath -> addNestedFieldPathWithSubgraph(
+                    sourcePlan, keyPath, enteringEntryPath, FieldOrigin.ARTIFICIAL_KEY, sourcePlan.subgraph, keyType));
             }
 
             if (enteringLookupEdge != null && enteringEntryPath.equals(parentPath) && directives.isEmpty()
@@ -1785,23 +1747,10 @@ public final class OperationPlanner {
             String subgraph = path.currentSubgraph();
 
             // Find the last lookup edge that enters the current subgraph
-            LookupMoveEdge enteringLookupEdge = null;
-            for (Edge edge : path.getEdges()) {
-                if (edge instanceof LookupMoveEdge lookupEdge
-                    && lookupEdge.target().subgraph().equals(subgraph)) {
-                    enteringLookupEdge = lookupEdge;
-                }
-            }
-
-            // Get or create the appropriate target plan
-            SubgraphPlan targetPlan;
-            List<String> enteringEntryPath = parentPath;
-            if (enteringLookupEdge != null) {
-                enteringEntryPath = lookupEntryPath(path, enteringLookupEdge, parentPath);
-                targetPlan = getOrCreateLookupPlan(enteringLookupEdge, enteringEntryPath);
-            } else {
-                targetPlan = getOrCreateRootPlan(subgraph);
-            }
+            LookupStep entering = enteringLookup(path, parentPath);
+            LookupMoveEdge enteringLookupEdge = entering == null ? null : entering.edge();
+            List<String> enteringEntryPath = entering == null ? parentPath : entering.entryPath();
+            SubgraphPlan targetPlan = planFor(path, parentPath);
 
             // Track dependencies from lookups (same as regular field resolution)
             List<LookupStep> lookupSteps = lookupSteps(path, parentPath);
