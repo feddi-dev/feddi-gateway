@@ -164,10 +164,8 @@ class DefaultSubgraphClientBatchTest {
 
     @Test
     void reloadKeepsVariableBatchingWhenSubgraphIsUnreachable() {
-        start(body -> response(200, "application/json", "{}"));
-        String unreachable = url();
-        server.disposeNow();
-        server = null;
+        // Port 1 refuses connections; a port freed by a stopped server could be taken by another test's server
+        String unreachable = "http://127.0.0.1:1/graphql";
         var holder = new FeddiGatewayHolder();
 
         reloadService(holder).reload(definition(unreachable, Map.of("batching", "variables"))).block();

@@ -72,14 +72,13 @@ class FeddiGatewayDefinitionSourceManagerTest {
         new FeddiGatewayDefinitionSourceManager(source, reloadService).run(new DefaultApplicationArguments(new String[0]));
 
         assertEquals(Sinks.EmitResult.OK, source.replace(gatewayDefinition("first")));
+        // The next updates arrive while the first reload runs (waiting for it to start makes the test independent
+        // of scheduling; without it, the manager may rightly skip "first" in favour of a newer update)
+        awaitUntil(() -> reloaded.contains("first"));
         assertEquals(Sinks.EmitResult.OK, source.replace(gatewayDefinition("second")));
         assertEquals(Sinks.EmitResult.OK, source.replace(gatewayDefinition("update")));
 
-        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
-        while (reloaded.size() < 2 && System.nanoTime() < deadline) {
-            Thread.sleep(20);
-        }
-        Thread.sleep(400);
+        awaitUntil(() -> reloaded.size() >= 2 && queryResult(holder).contains("Loaded from update"));
         assertEquals(List.of("first", "update"), reloaded);
         assertQueryResult(holder, "Loaded from update");
     }
@@ -272,6 +271,23 @@ class FeddiGatewayDefinitionSourceManagerTest {
         var data = (Map<String, Object>) spec.get("data");
         assertNotNull(data, "Introspection should return data when enabled: " + spec);
         assertNotNull(data.get("__schema"), "Should have __schema: " + spec);
+    }
+
+    private static void awaitUntil(java.util.function.BooleanSupplier condition) throws InterruptedException {
+        long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+        while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
+            Thread.sleep(20);
+        }
+    }
+
+    private static String queryResult(FeddiGatewayHolder holder) {
+        try {
+            var result = holder.get().execute(
+                ExecutionInput.newExecutionInput().query("{ products { id name } }").build()).block();
+            return String.valueOf(result.executionResult().toSpecification());
+        } catch (RuntimeException e) {
+            return "";
+        }
     }
 
     private void assertQueryResult(FeddiGatewayHolder holder, String expectedName) {
