@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -210,16 +211,20 @@ public final class Executor {
         return execution.onErrorResume(e -> {
             log.error("Step {} to subgraph '{}' failed: {}", step.id(), step.subgraph(), e.getMessage(), e);
             StepResult errorResult = new StepResult();
-            if (e instanceof SubgraphTimeoutException ste) {
-                log.warn("Subgraph '{}' timed out", ste.subgraphName());
-                listener.onSubgraphTimeout(ste.subgraphName());
-                errorResult.addError(new SubgraphTimeoutError(ste.subgraphName()));
-            } else {
-                log.warn("Subgraph '{}' execution error: {}", step.subgraph(), e.getMessage());
-                errorResult.addError(new SubgraphExecutionError(step.subgraph(), e.getMessage()));
-            }
+            errorResult.addError(subgraphError(step.subgraph(), e));
             return Mono.just(errorResult);
         });
+    }
+
+    /** The GraphQL error for a failed subgraph request; a timeout is also reported to the listener. */
+    private GraphQLError subgraphError(String subgraph, Throwable e) {
+        if (e instanceof SubgraphTimeoutException timeout) {
+            log.warn("Subgraph '{}' timed out", timeout.subgraphName());
+            listener.onSubgraphTimeout(timeout.subgraphName());
+            return new SubgraphTimeoutError(timeout.subgraphName());
+        }
+        log.warn("Subgraph '{}' execution error: {}", subgraph, e.getMessage());
+        return new SubgraphExecutionError(subgraph, e.getMessage());
     }
 
     /**
@@ -367,6 +372,7 @@ public final class Executor {
         final Set<String> nullFieldNames = getFirstLevelFieldNames(step.operation());
         final List<String> wrapperPath = lookupWrapperPath(step.operation());
         final Map<String, Object> operationVariables = filterVariablesForOperation(step.operation(), queryVariables);
+        final RequirementReader reader = new RequirementReader(step.possibleTypes());
 
         // Group entities by the variables their lookup needs: the same entity often appears
         // at many positions (e.g. one product under many reviews), but is fetched only once.
@@ -376,14 +382,14 @@ public final class Executor {
             // Skip entities that don't have essential key fields (null key handling)
             // This happens when an intermediate lookup returned null.
             // We check if key fields EXIST in context (not if they're null).
-            if (!new RequirementReader(step.possibleTypes()).hasEssentialKeyFields(step.requirements(), context)) {
+            if (!reader.hasEssentialKeyFields(step.requirements(), context)) {
                 skipped.add(new EntityResult(context, null));
                 continue;
             }
             // Start with filtered query variables, then overlay requirement variables
             // Requirement variables take precedence since they're entity-specific
             Map<String, Object> stepVariables = new LinkedHashMap<>(operationVariables);
-            stepVariables.putAll(new RequirementReader(step.possibleTypes()).extractVariables(step.requirements(), context));
+            stepVariables.putAll(reader.extractVariables(step.requirements(), context));
             uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).positions().add(context);
         }
 
@@ -406,68 +412,39 @@ public final class Executor {
             .collectList()
             .map(entityResults -> {
                 StepResult stepResult = new StepResult();
-
-                for (EntityResult er : entityResults) {
-                    if (er.result() != null && er.result().getData() != null) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> data = unwrapLookup((Map<String, Object>) er.result().getData(), wrapperPath);
-
-                        // Capture any GraphQL errors from the subgraph response
-                        if (er.result().getErrors() != null) {
-                            for (graphql.GraphQLError error : er.result().getErrors()) {
-                                stepResult.addError(error);
-                            }
-                        }
-
-                        // Check if the lookup returned null (e.g., {bookByUpc: null})
-                        boolean lookupReturnedNull = data.values().stream()
-                            .anyMatch(v -> v == null);
-
-                        if (lookupReturnedNull) {
-                            // Lookup returned null - set the expected fields to null
-                            // One lock for all merges (root and lookup results are merged deeply, so they
-                            // can write to the same nested objects)
-                            synchronized (ctx) {
-                                for (String fieldName : nullFieldNames) {
-                                    er.context().put(fieldName, null);
-                                }
-                            }
-                        } else {
-                            // One lock for all merges (root and lookup results are merged deeply, so they
-                            // can write to the same nested objects)
-                            synchronized (ctx) {
-                                mergeIntoContext(er.context(), data);
-                            }
-                        }
-                    } else {
-                        // For skipped/failed entities (null result), set the expected fields to null
-                        // This ensures the response shows null for fields that couldn't be fetched
-                        // One lock for all merges, as above
-                        synchronized (ctx) {
-                            for (String fieldName : nullFieldNames) {
-                                er.context().put(fieldName, null);
-                            }
-                        }
-                        // A subgraph response without data can still carry GraphQL errors
-                        if (er.result() != null && er.result().getErrors() != null) {
-                            for (graphql.GraphQLError error : er.result().getErrors()) {
-                                stepResult.addError(error);
-                            }
-                        }
-                        // If there was an error (e.g., timeout), record it
-                        if (er.error() != null) {
-                            if (er.error() instanceof SubgraphTimeoutException ste) {
-                                listener.onSubgraphTimeout(ste.subgraphName());
-                                stepResult.addError(new SubgraphTimeoutError(ste.subgraphName()));
-                            } else {
-                                stepResult.addError(new SubgraphExecutionError(step.subgraph(), er.error().getMessage()));
-                            }
-                        }
-                    }
+                for (EntityResult entityResult : entityResults) {
+                    mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
                 }
-
                 return stepResult;
             });
+    }
+
+    /**
+     * Merges one entity's lookup result into its position in the response: the lookup's data, or null for the
+     * step's fields when the entity was skipped, its lookup returned null (e.g. {@code {bookByUpc: null}}) or its
+     * request failed. The subgraph's errors and the failure go into {@code stepResult}.
+     */
+    private void mergeEntityResult(EntityResult entityResult, ExecutionStep step, ExecutionContext ctx,
+                                   List<String> wrapperPath, Set<String> nullFieldNames, StepResult stepResult) {
+        ExecutionResult result = entityResult.result();
+        if (result != null && result.getErrors() != null) {
+            result.getErrors().forEach(stepResult::addError);
+        }
+        if (entityResult.error() != null) {
+            stepResult.addError(subgraphError(step.subgraph(), entityResult.error()));
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = result == null || result.getData() == null ? null
+            : unwrapLookup((Map<String, Object>) result.getData(), wrapperPath);
+        // One lock for all merges (root and lookup results are merged deeply, so they can write to the same
+        // nested objects)
+        synchronized (ctx) {
+            if (data == null || data.values().stream().anyMatch(Objects::isNull)) {
+                nullFieldNames.forEach(fieldName -> entityResult.context().put(fieldName, null));
+            } else {
+                mergeIntoContext(entityResult.context(), data);
+            }
+        }
     }
 
     /**
