@@ -31,7 +31,7 @@ than Fusion for 17 queries and had more depth for 5; it was better in 1.
 | Correct data vs monolith (`PlanExecutionOracleTest`, all fixtures) | 170 of 223 | 181 of 223 | 221 of 240 (the rest: the 19 rejections) |
 | Wrong data without an error | | 4 | 0 (now also checking `@require` values) |
 | Planned with no more steps / depth than Fusion | | | **72 / 72 of 72** |
-| Random graphs (`RandomGraphOracleTest`, same data as a monolith) | | | 150 seeds in CI, 3000 checked locally |
+| Random graphs (`RandomGraphOracleTest`, same data as a monolith) | | | 150 seeds in CI, 2000 checked locally with all scenarios |
 
 `FusionTestsGreenTest` fails unless every imported Fusion test is either planned with the monolith's data or
 rejected with the reason listed in `spec-rejections.yaml`. Fusion's tests do not validate their inputs; the 19
@@ -56,9 +56,20 @@ What changed for that, roughly in order (each a commit with numbers):
 - **Oracle**: the mock keeps an entity's type across lookups, picks abstract results per field, and checks every
   `@require` argument value against the required data.
 
-`RandomGraphOracleTest` generates graphs from fixed seeds (interfaces, unions, abstract lookups, keys by code,
-`@provides`, requirements) and compares feddi's data with a monolith's; `-PrandomGraphSeeds=N` runs more seeds.
-Failing seeds become hand-written fixtures.
+`RandomGraphOracleTest` generates graphs and operations from fixed seeds and compares feddi's data with a
+monolith's (the composite schema executed as one server on the same deterministic data). The 150 seeds run in
+every test run, CI included; a seed always generates the same graph, so a failure reproduces. Failing seeds become
+hand-written fixtures. Scenarios, each switchable with `-PrandomGraphFeatures=...` (default all): keys by code
+(nullable on some types), `@provides`, entity requirements, interfaces, unions, abstract lookups, interface
+`@require`, root-field `@require`, `@override`, nested lookups, mutations with several fields, and
+`@skip`/`@include` with literals and a variable. `-PrandomGraphSeeds=N -PrandomGraphFirstSeed=K` runs other
+seeds, `-PrandomGraphWriteFixture=SEED` writes a seed as a planner fixture (schema, operations, current plans) to
+`engine/build/random-fixtures`. Extending it to these scenarios found: mutations rejected when the first source
+schema has no Mutation type, a cycle between root requirements of two subgraphs, `@skip`/`@include` fields merged
+with keys and requirements, and a duplicate requirement variable (all fixed, with fixtures). 2000 seeds pass.
+
+Nice to have: a nightly CI job running a new range of seeds each night (e.g. 5000 from an offset by date), whose
+failures report a seed to reproduce and turn into fixtures; the 150 fixed seeds keep pull requests deterministic.
 
 ## Spec readings
 
@@ -147,6 +158,9 @@ failure of building the merged schema) and the warnings `UNREACHABLE_TYPE`, `LOO
   step waits for them and runs once. `@external` fields used only by a `@key` compose.
 - Renamed codes: `KEY_DIRECTIVE_IN_FIELDS_ARGUMENT`, `PROVIDES_DIRECTIVE_IN_FIELDS_ARGUMENT`. `LOOKUP_DUPLICATE`
   and `INTERFACE_HAS_NO_IMPLEMENTATIONS` are warnings.
+- **`@skip`/`@include` on variables are evaluated before planning**, with the request's values; the plan cache
+  keeps one plan per combination of these values (most operations have none). Subgraph operations no longer
+  carry these directives, and a skipped field's requirement lookups are not planned.
 - **A mutation's top-level fields execute in order.** Before, fields of different subgraphs ran concurrently and
   fields of one subgraph were merged across others (`A1, B, A2` became `{A1 A2}` and `{B}`). Now each group of
   consecutive fields of one subgraph is its own step, waiting for the previous group and its lookups.
@@ -164,15 +178,15 @@ Local benchmark (`scripts/local-benchmark.sh`, heavy query, 50 VUs, 30 s, two ro
 | v2 now | 897 / 892 |
 
 Re-run on 2026-10-11 after root requirements, field aliasing, mutation ordering and the refactoring (same
-script and settings, four rounds, alternating, the order reversed in rounds 3-4):
+script and settings, machine otherwise idle, four rounds alternating, order reversed in rounds 3-4):
 
 | | round 1 | round 2 | round 3 | round 4 |
 |---|---|---|---|---|
-| v1 req/s (median latency) | 147 (255 ms) | 156 (212 ms) | 197 (210 ms) | 213 (191 ms) |
-| v2 req/s (median latency) | 153 (247 ms) | 254 (165 ms) | 248 (172 ms) | 227 (185 ms) |
+| v1 req/s (median latency) | 824 (51 ms) | 799 (50 ms) | 849 (45 ms) | 923 (46 ms) |
+| v2 req/s (median latency) | 878 (47 ms) | 858 (48 ms) | 850 (48 ms) | 981 (43 ms) |
 
-v2 is ahead in every round. The machine was much slower than the day before (load average 40-70 during the
-runs), so only the comparison within these runs counts, not the absolute numbers.
+v2 is ahead in three rounds and level in one; all checks passed. (An earlier run the same day on a busy machine,
+load average 40-70, gave 150-250 req/s for both, with v2 ahead in all four rounds.)
 
 What it took (JFR under the benchmark load): `ResponseFieldOrder` collected the fields of the same selection sets
 again for every object and list item, about 10% of the CPU samples; it now caches them per response. Planning the
