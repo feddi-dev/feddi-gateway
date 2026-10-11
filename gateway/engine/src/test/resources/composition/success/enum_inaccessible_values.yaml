@@ -1,0 +1,55 @@
+name: "Enum - values that only one schema knows are @inaccessible"
+description: "ENUM_VALUES_MISMATCH ignores @inaccessible values; the composite enum leaves them out"
+
+subgraphs:
+  orders: |
+    type Query {
+      orders(status: OrderStatus): [Order]
+      orderById(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      status: OrderStatus @shareable
+    }
+
+    enum OrderStatus {
+      PENDING @inaccessible
+      SHIPPED
+      DELIVERED
+    }
+
+  fulfillment: |
+    type Query {
+      orderByIdFulfillment(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      status: OrderStatus @shareable
+      trackingNumber: String
+    }
+
+    enum OrderStatus {
+      SHIPPED
+      DELIVERED
+      RETURNED @inaccessible
+    }
+
+supergraph: |
+  type Query {
+    orders(status: OrderStatus): [Order]
+    orderById(id: ID!): Order
+    orderByIdFulfillment(id: ID!): Order
+  }
+
+  type Order {
+    id: ID!
+    status: OrderStatus
+    trackingNumber: String
+  }
+
+  enum OrderStatus {
+    SHIPPED
+    DELIVERED
+  }

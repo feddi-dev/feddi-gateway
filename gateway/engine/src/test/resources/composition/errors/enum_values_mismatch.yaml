@@ -1,5 +1,5 @@
-name: "Enum - merge values from different subgraphs"
-description: "Spec 3.3.3: Enum values from all source schemas are combined"
+name: "ENUM_VALUES_MISMATCH - enums with different values"
+description: "Enums with the same name must have the same values, apart from @inaccessible ones"
 
 subgraphs:
   orders: |
@@ -36,23 +36,4 @@ subgraphs:
       RETURNED
     }
 
-supergraph: |
-  type Query {
-    orders(status: OrderStatus): [Order]
-    orderById(id: ID!): Order
-    orderByIdFulfillment(id: ID!): Order
-  }
-  
-  type Order {
-    id: ID!
-    status: OrderStatus
-    trackingNumber: String
-  }
-  
-  enum OrderStatus {
-    PENDING
-    PROCESSING
-    SHIPPED
-    DELIVERED
-    RETURNED
-  }
+error: "ENUM_VALUES_MISMATCH"
