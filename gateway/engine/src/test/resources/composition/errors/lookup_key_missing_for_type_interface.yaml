@@ -1,0 +1,37 @@
+name: "LOOKUP_KEY_MISSING_FOR_TYPE - @is alternatives miss a possible type"
+description: |
+  The @is selection map covers Book and Movie, but Podcast is a possible type of Media
+  as well; the lookup cannot resolve it.
+
+subgraphs:
+  media: |
+    type Query {
+      media: [Media]
+      mediaByKey(key: MediaKeyInput! @is(field: "{ isbn: <Book>.isbn } | { upc: <Movie>.upc }")): Media @lookup
+    }
+
+    input MediaKeyInput @oneOf {
+      isbn: String
+      upc: String
+    }
+
+    interface Media {
+      id: ID!
+    }
+
+    type Book implements Media {
+      id: ID!
+      isbn: String!
+    }
+
+    type Movie implements Media {
+      id: ID!
+      upc: String!
+    }
+
+    type Podcast implements Media {
+      id: ID!
+      feedUrl: String!
+    }
+
+error: "LOOKUP_KEY_MISSING_FOR_TYPE"

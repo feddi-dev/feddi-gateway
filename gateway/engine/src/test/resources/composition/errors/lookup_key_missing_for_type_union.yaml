@@ -1,8 +1,7 @@
-name: "LOOKUP_UNION_KEY_FIELD_MISSING - @is field missing on union member"
+name: "LOOKUP_KEY_MISSING_FOR_TYPE - argument missing on a union member"
 description: |
-  When a @lookup field returns a union type, all @is referenced fields must exist
-  on ALL union member types. This ensures the key values can be extracted regardless
-  of which union member is returned.
+  Every argument of a lookup must map to a field of every possible type of its return
+  type. Clothing has no categoryId field.
 
 subgraphs:
   products: |
@@ -28,4 +27,4 @@ subgraphs:
       price: Float
     }
 
-error: "LOOKUP_UNION_KEY_FIELD_MISSING"
+error: "LOOKUP_KEY_MISSING_FOR_TYPE"

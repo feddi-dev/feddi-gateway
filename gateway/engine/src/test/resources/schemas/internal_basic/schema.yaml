@@ -15,6 +15,7 @@ subgraphs:
     type Product @key(fields: "id") {
       id: ID!
       name: String @shareable
+      sku: ID!
     }
 
   b: |
@@ -38,4 +39,5 @@ supergraph: |
     id: ID!
     name: String
     price: Int
+    sku: ID!
   }

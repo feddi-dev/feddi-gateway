@@ -188,6 +188,15 @@ public final class CrossSchemaFieldResolver {
     }
 
     /**
+     * Checks if a field is defined on the type itself (not only on a subtype) in one of the subgraphs, as a
+     * FieldSelectionMap path requires (Appendix A, Path Field Selections: "fieldName must be defined on the current
+     * type in scope"; a subtype's field needs a type condition, e.g. data<Bar>.bar).
+     */
+    public static boolean isFieldDefinedOn(List<Subgraph> subgraphs, String typeName, String fieldName) {
+        return subgraphs.stream().anyMatch(subgraph -> isFieldInSchema(subgraph, typeName, fieldName));
+    }
+
+    /**
      * Checks if a field exists in ANY schema (including the current one).
      * Used by @is validation which allows referencing fields from any schema.
      * Also checks implementing types for interfaces and union members for unions.
@@ -197,15 +206,6 @@ public final class CrossSchemaFieldResolver {
      * @param fieldName The field to look for
      * @return true if the field exists in at least one schema
      */
-    /**
-     * Checks if a field is defined on the type itself (not only on a subtype) in one of the subgraphs, as a
-     * FieldSelectionMap path requires (Appendix A, Path Field Selections: "fieldName must be defined on the current
-     * type in scope"; a subtype's field needs a type condition, e.g. data<Bar>.bar).
-     */
-    public static boolean isFieldDefinedOn(List<Subgraph> subgraphs, String typeName, String fieldName) {
-        return subgraphs.stream().anyMatch(subgraph -> isFieldInSchema(subgraph, typeName, fieldName));
-    }
-
     public static boolean isFieldInAnySchema(List<Subgraph> subgraphs, String typeName, String fieldName) {
         for (Subgraph subgraph : subgraphs) {
             if (isFieldInSchemaOrSubtypes(subgraph, typeName, fieldName)) {
