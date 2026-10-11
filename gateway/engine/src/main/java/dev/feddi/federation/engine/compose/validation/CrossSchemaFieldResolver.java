@@ -119,33 +119,6 @@ public final class CrossSchemaFieldResolver {
     }
 
     /**
-     * Checks if a field exists in the cross-schema context (excluding current schema).
-     * Also checks implementing types for interfaces and union members for unions.
-     *
-     * @param typeName The type to check
-     * @param fieldName The field to look for
-     * @param allSubgraphs All subgraphs
-     * @param excludeSchema Schema to exclude
-     * @return true if the field exists in at least one other schema
-     */
-    public static boolean isFieldInOtherSchemasWithSubtypes(
-            String typeName,
-            String fieldName,
-            List<Subgraph> allSubgraphs,
-            String excludeSchema) {
-
-        for (Subgraph subgraph : allSubgraphs) {
-            if (subgraph.name().equals(excludeSchema)) {
-                continue;
-            }
-            if (isFieldInSchemaOrSubtypes(subgraph, typeName, fieldName)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * Checks if a field exists in the cross-schema context (simple map-based version).
      *
      * @param typeName The type to check

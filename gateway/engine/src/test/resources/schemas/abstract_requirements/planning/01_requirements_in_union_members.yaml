@@ -37,7 +37,7 @@ expectedPlan:
 
     - id: 3
       subgraph: stats
-      operation: "query($id: ID!) { postById(id: $id) { votes ... on Post { id } } }"
+      operation: "query($id: ID!) { postById(id: $id) { id votes } }"
       dependsOn: [1]
       requirements:
         id: "id"

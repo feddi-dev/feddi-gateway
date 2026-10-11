@@ -46,6 +46,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -722,45 +723,21 @@ public final class OperationPlanner {
                 // Add dependency: lookupTargetPlan depends on sourcePlan
                 addPlanDependency(lookupTargetPlan, sourcePlan);
 
-                // Only process key fields once per lookup entry to avoid duplicates
-                LookupPlanKey lookupPlanKey = lookupKey(lookupEdge, entryPath);
-                if (!processedLookupEdges.contains(lookupPlanKey)) {
-                    processedLookupEdges.add(lookupPlanKey);
-
-                    // Add key fields to the SOURCE plan and collect response key maps for each field
-                    // Note: parentPath is used directly - SubgraphPlan.adjustPath() handles lookup prefix stripping
-                    // Process ALL paths from all alternatives (e.g., <Book>.isbn | <Electronics>.sku)
-                    Map<String, Map<String, String>> lookupArgNestedResponseKeys = new HashMap<>();
-                    for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
-                        Map<String, String> combinedResponseKeys = new LinkedHashMap<>();
-                        for (Path altPath : lookupArg.extractPaths()) {
-                            Map<String, String> nestedResponseKeys;
-                            if (keyFragment != null && keyFragment.subgraph.equals(sourceSubgraph)
-                                    && entryPath.equals(parentPath)) {
-                                nestedResponseKeys = keyFragment.addKeyPath(altPath);
-                            } else if (!keyInSourceSubgraph(sourceSubgraph, lookupEdge.source().typeName(), altPath)) {
-                                // A key field the source subgraph does not have, fetched like a requirement
-                                RequireFieldResolution resolution = resolved(resolveRequireField(sourceSubgraph,
-                                    lookupEdge.source().typeName(), altPath, entryPath,
-                                    new HashSet<>(Set.of(lookupEdge.target().subgraph()))), altPath,
-                                    lookupEdge.source().typeName());
-                                addPlanDependency(lookupTargetPlan, resolution.plan());
-                                nestedResponseKeys = resolution.fieldToResponseKey();
-                            } else {
-                                nestedResponseKeys = addKeyPath(sourcePlan, altPath, entryPath, lookupEdge);
-                            }
-                            combinedResponseKeys.putAll(nestedResponseKeys);
-                        }
-                        lookupArgNestedResponseKeys.put(lookupArg.argumentName(), combinedResponseKeys);
+                // Key fields: in the fragment the field is selected in, fetched like a requirement when the source
+                // subgraph does not have them, or on the lookup's source type in the source plan
+                addLookupKeys(lookupEdge, entryPath, lookupTargetPlan, keyPath -> {
+                    if (keyFragment != null && keyFragment.subgraph.equals(sourceSubgraph) && entryPath.equals(parentPath)) {
+                        return keyFragment.addKeyPath(keyPath);
                     }
-
-                    // Add key field requirements to the target plan
-                    for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
-                        Map<String, String> nestedResponseKeys = lookupArgNestedResponseKeys.get(lookupArg.argumentName());
-                        SelectedValue requirement = createRequirementSelectedValue(lookupArg, nestedResponseKeys);
-                        lookupTargetPlan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType());
+                    if (!keyInSourceSubgraph(sourceSubgraph, lookupEdge.source().typeName(), keyPath)) {
+                        RequireFieldResolution resolution = resolved(resolveRequireField(sourceSubgraph,
+                            lookupEdge.source().typeName(), keyPath, entryPath,
+                            new HashSet<>(Set.of(lookupEdge.target().subgraph()))), keyPath, lookupEdge.source().typeName());
+                        addPlanDependency(lookupTargetPlan, resolution.plan());
+                        return resolution.fieldToResponseKey();
                     }
-                }
+                    return addKeyPath(sourcePlan, keyPath, entryPath, lookupEdge);
+                });
 
                 // Process @require fields for the last lookup in the chain that enters the target subgraph
                 if (lookupEdge.target().subgraph().equals(targetSubgraph) && lookupEdge.hasRequirements()
@@ -912,6 +889,26 @@ public final class OperationPlanner {
         }
 
         /**
+         * Passes a lookup's arguments to its step, once per lookup and entry path: each alternative key path is
+         * selected by {@code placeKey} (which returns the response keys it used) and the argument becomes a
+         * requirement of the lookup step.
+         */
+        private void addLookupKeys(LookupMoveEdge lookupEdge, List<String> entryPath, SubgraphPlan lookupPlan,
+                                   Function<Path, Map<String, String>> placeKey) {
+            if (!processedLookupEdges.add(lookupKey(lookupEdge, entryPath))) {
+                return;
+            }
+            for (LookupArgument argument : lookupEdge.lookupArguments()) {
+                Map<String, String> responseKeys = new LinkedHashMap<>();
+                for (Path alternative : argument.extractPaths()) {
+                    responseKeys.putAll(placeKey.apply(alternative));
+                }
+                lookupPlan.addRequirement(argument.argumentName(), createRequirementSelectedValue(argument, responseKeys),
+                    argument.argumentType());
+            }
+        }
+
+        /**
          * Selects a lookup's key path in its source plan, on the lookup's source type: below an abstract field (a
          * union or interface) the key goes into a fragment on that type.
          */
@@ -952,8 +949,10 @@ public final class OperationPlanner {
          */
         private Map<String, String> addNestedFieldPathWithSubgraph(SubgraphPlan plan, Path path, List<String> parentPath,
                                                                      FieldOrigin origin, String subgraph, String startTypeName) {
+            // A path with a type condition (<Book>.isbn) starts on that type
+            String startType = path.hasInitialTypeCondition() ? path.initialTypeCondition() : startTypeName;
             Map<String, String> responseKeys =
-                addNestedFieldPathOnly(plan, path, parentPath, origin, subgraph, startTypeName);
+                addNestedFieldPathOnly(plan, path, parentPath, origin, subgraph, startType);
             processRequirementsOfAddedField(plan, path, parentPath);
             return responseKeys;
         }
@@ -1420,27 +1419,9 @@ public final class OperationPlanner {
 
                     SubgraphPlan intermediatePlan = getOrCreateLookupPlan(lookupEdge, parentPath);
 
-                    LookupPlanKey lookupPlanKey = lookupKey(lookupEdge, parentPath);
-                    if (!processedLookupEdges.contains(lookupPlanKey)) {
-                        processedLookupEdges.add(lookupPlanKey);
-
-                        // Add key fields to source for the hop to target
-                        List<String> lookupArgPath = parentPath; // adjustPath handles lookup prefix stripping
-                        Map<String, Map<String, String>> lookupArgNestedResponseKeys = new HashMap<>();
-                        for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
-                            // Use addNestedFieldPath for nested paths like "compositeId.two"
-                            Map<String, String> nestedResponseKeys = addKeyPath(sourcePlan, lookupArg.path(), lookupArgPath, lookupEdge);
-                            lookupArgNestedResponseKeys.put(lookupArg.argumentName(), nestedResponseKeys);
-                        }
-
-                        // Add key field requirements to intermediate plan
-                        for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
-                            Map<String, String> nestedResponseKeys = lookupArgNestedResponseKeys.get(lookupArg.argumentName());
-                            // Create path with response keys for nested fields like "compositeId.two"
-                            Path keyPath = createNestedPath(lookupArg.path(), nestedResponseKeys);
-                            intermediatePlan.addRequirement(lookupArg.argumentName(), new SelectedValue(keyPath), lookupArg.argumentType());
-                        }
-                    }
+                    SubgraphPlan hopSource = sourcePlan;
+                    addLookupKeys(lookupEdge, parentPath, intermediatePlan,
+                        keyPath -> addKeyPath(hopSource, keyPath, parentPath, lookupEdge));
 
                     // Intermediate plan depends on source plan
                     addPlanDependency(intermediatePlan, sourcePlan);
@@ -1623,30 +1604,9 @@ public final class OperationPlanner {
             // Add dependency: intermediate depends on source
             addPlanDependency(intermediatePlan, sourcePlan);
 
-            LookupPlanKey lookupPlanKey = lookupKey(lookupEdge, parentPath);
-            if (!processedLookupEdges.contains(lookupPlanKey)) {
-                processedLookupEdges.add(lookupPlanKey);
-
-                // Add key fields to source (at root for lookup plans, at parentPath for root plans)
-                // Process ALL paths from all alternatives (e.g., <Book>.isbn | <Electronics>.sku)
-                List<String> lookupArgPath = parentPath; // adjustPath handles lookup prefix stripping
-                Map<String, Map<String, String>> lookupArgNestedResponseKeys = new HashMap<>();
-                for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
-                    Map<String, String> combinedResponseKeys = new LinkedHashMap<>();
-                    for (Path altPath : lookupArg.extractPaths()) {
-                        Map<String, String> nestedResponseKeys = addKeyPath(sourcePlan, altPath, lookupArgPath, lookupEdge);
-                        combinedResponseKeys.putAll(nestedResponseKeys);
-                    }
-                    lookupArgNestedResponseKeys.put(lookupArg.argumentName(), combinedResponseKeys);
-                }
-
-                // Add key field requirements to intermediate plan
-                for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
-                    Map<String, String> nestedResponseKeys = lookupArgNestedResponseKeys.get(lookupArg.argumentName());
-                    SelectedValue requirement = createRequirementSelectedValue(lookupArg, nestedResponseKeys);
-                    intermediatePlan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType());
-                }
-            }
+            SubgraphPlan keySource = sourcePlan;
+            addLookupKeys(lookupEdge, parentPath, intermediatePlan,
+                keyPath -> addKeyPath(keySource, keyPath, parentPath, lookupEdge));
 
             // Add the actual field to the intermediate plan (at root since it's a lookup)
             Map<String, String> responseKeys = addNestedFieldPath(intermediatePlan, path, List.of(), FieldOrigin.ARTIFICIAL_REQUIRE);
@@ -1757,16 +1717,6 @@ public final class OperationPlanner {
         }
 
         /**
-         * Gets or creates an inline fragment context for adding fields.
-         */
-        InlineFragmentContext getInlineFragmentContext(String subgraph, List<String> parentPath,
-                                                       String typeCondition, List<Directive> directives) {
-            SubgraphPlan plan = getOrCreateRootPlan(subgraph);
-            InlineFragmentNode fragmentNode = plan.getOrCreateInlineFragment(parentPath, typeCondition, directives);
-            return new InlineFragmentContext(fragmentNode, plan.subgraph);
-        }
-
-        /**
          * Gets or creates an inline fragment context for a cross-subgraph lookup.
          * Sets up the lookup origin and creates the inline fragment in the target subgraph.
          */
@@ -1802,105 +1752,15 @@ public final class OperationPlanner {
                 // Track dependency
                 addPlanDependency(plan, sourcePlan);
 
-                // Add key fields to source subgraph (ARTIFICIAL_KEY)
-                // For unions (which don't have fields), key fields must be added inside the inline fragment.
-                // For interfaces and object types (which have fields), key fields can be at the parent level.
-                LookupPlanKey enteringLookupPlanKey = lookupKey(enteringLookupEdge, enteringEntryPath);
-                if (!processedLookupEdges.contains(enteringLookupPlanKey)) {
-                    processedLookupEdges.add(enteringLookupPlanKey);
-                    Map<Path, Map<String, String>> lookupArgNestedResponseKeys = new HashMap<>();
-
-                    // Check if we need to add key fields inside an inline fragment.
-                    // This is required when:
-                    // 1. We're inside an inline fragment on a UNION type (unions can't have fields)
-                    // 2. We're inside an inline fragment on an INTERFACE that doesn't define the key field
-                    boolean needsInlineFragment = false;
-                    if (typeCondition != null) {
-                        // Check if the typeCondition is a member of a union.
-                        Set<String> unionMemberships = graph.getUnionsForType(typeCondition);
-                        if (!unionMemberships.isEmpty()) {
-                            needsInlineFragment = true;
-                        } else {
-                            // Check if the typeCondition implements interfaces that don't have the key field.
-                            // If so, we need to add the key field inside the inline fragment.
-                            Set<String> interfaces = graph.getInterfacesForType(typeCondition);
-                            if (!interfaces.isEmpty()) {
-                                // Check if any interface can resolve all key fields
-                                for (LookupArgument lookupArg :enteringLookupEdge.lookupArguments()) {
-                                    boolean anyInterfaceHasField = false;
-                                    Path keyPath = lookupArg.path();
-                                    List<PathSegment> segments = keyPath.segments();
-                                    String firstFieldName = segments.isEmpty() ? lookupArg.argumentName() : segments.get(0).fieldName();
-                                    for (String iface : interfaces) {
-                                        Node ifaceNode = new Node(iface, sourceSubgraph);
-                                        boolean canResolve = graph.fieldEdgesFrom(ifaceNode)
-                                            .anyMatch(e -> e.fieldName().equals(firstFieldName));
-                                        if (canResolve) {
-                                            anyInterfaceHasField = true;
-                                            break;
-                                        }
-                                    }
-                                    if (!anyInterfaceHasField) {
-                                        needsInlineFragment = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Process ALL paths from all alternatives (e.g., <Book>.isbn | <Electronics>.sku)
-                    Map<String, Map<String, String>> lookupArgCombinedResponseKeys = new HashMap<>();
-                    List<String> lookupArgPath = enteringEntryPath; // adjustPath handles lookup prefix stripping
-                    for (LookupArgument lookupArg :enteringLookupEdge.lookupArguments()) {
-                        Map<String, String> combinedResponseKeys = new LinkedHashMap<>();
-
-                        for (Path altPath : lookupArg.extractPaths()) {
-                            Map<String, String> nestedResponseKeys;
-
-                            // Determine the fragment type for this specific alternative path.
-                            // For type-conditioned paths like <Book>.isbn, use "Book" as the fragment type.
-                            // For paths without type conditions, fall back to the typeCondition parameter.
-                            String altTypeCondition = altPath.hasInitialTypeCondition()
-                                ? altPath.initialTypeCondition()
-                                : typeCondition;
-                            boolean altNeedsInlineFragment = needsInlineFragment;
-
-                            // Re-evaluate needsInlineFragment for this alternative's type condition
-                            // if it differs from the original typeCondition
-                            if (altPath.hasInitialTypeCondition() && !altPath.initialTypeCondition().equals(typeCondition)) {
-                                altNeedsInlineFragment = true; // type-conditioned paths always need inline fragments
-                            }
-
-                            if (altNeedsInlineFragment && altTypeCondition != null) {
-                                // Add key field inside the correct inline fragment in the source plan
-                                InlineFragmentNode sourceFragment = sourcePlan.getOrCreateInlineFragment(lookupArgPath, altTypeCondition, directives);
-                                List<PathSegment> segments = altPath.segments();
-                                List<String> fragPath = new ArrayList<>();
-                                nestedResponseKeys = new LinkedHashMap<>();
-                                for (int j = 0; j < segments.size(); j++) {
-                                    String segFieldName = segments.get(j).fieldName();
-                                    boolean hasChildrenSeg = (j < segments.size() - 1);
-                                    sourceFragment.addFieldAtPath(null, segFieldName, fragPath, hasChildrenSeg, List.of(), List.of(), FieldOrigin.ARTIFICIAL_KEY);
-                                    nestedResponseKeys.put(segFieldName, segFieldName);
-                                    fragPath.add(segFieldName);
-                                }
-                            } else {
-                                // Add key field at parent level (for interfaces and object types)
-                                nestedResponseKeys = addKeyPath(sourcePlan, altPath, lookupArgPath, enteringLookupEdge);
-                            }
-                            combinedResponseKeys.putAll(nestedResponseKeys);
-                        }
-                        lookupArgCombinedResponseKeys.put(lookupArg.argumentName(), combinedResponseKeys);
-                    }
-
-                    // Add key field requirements to target plan
-                    for (LookupArgument lookupArg :enteringLookupEdge.lookupArguments()) {
-                        Map<String, String> nestedResponseKeys = lookupArgCombinedResponseKeys.get(lookupArg.argumentName());
-                        SelectedValue requirement = createRequirementSelectedValue(lookupArg, nestedResponseKeys);
-                        plan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType());
-                    }
-                }
+                // Key fields on the lookup's source type (in a fragment where the abstract type lacks them)
+                LookupMoveEdge entering = enteringLookupEdge;
+                List<String> entryPath = enteringEntryPath;
+                // Inside a fragment, the fragment's type is the more precise start type (the lookup may be from the
+                // union or interface itself)
+                String keyType = typeCondition != null && entryPath.equals(parentPath) ? typeCondition
+                    : entering.source().typeName();
+                addLookupKeys(entering, entryPath, plan, keyPath -> addNestedFieldPathWithSubgraph(sourcePlan, keyPath,
+                    entryPath, FieldOrigin.ARTIFICIAL_KEY, sourcePlan.subgraph, keyType));
             }
 
             if (enteringLookupEdge != null && enteringEntryPath.equals(parentPath) && directives.isEmpty()
@@ -1960,70 +1820,9 @@ public final class OperationPlanner {
                 // re-enters this subgraph, s0 -> s1 -> s0)
                 addPlanDependency(lookupTargetPlan, sourcePlan);
 
-                // Handle key fields - ARTIFICIAL_KEY
-                // When we're in a fragment context (e.g., ... on Book inside a union),
-                // key fields must be added inside the fragment, not at the parent level.
-                // Process ALL paths from all alternatives (e.g., <Book>.isbn | <Electronics>.sku)
-                LookupPlanKey lookupPlanKey = lookupKey(lookupEdge, edgeEntryPath);
-                if (!processedLookupEdges.contains(lookupPlanKey)) {
-                    processedLookupEdges.add(lookupPlanKey);
-
-                    Map<String, Map<String, String>> lookupArgCombinedResponseKeys = new HashMap<>();
-                    List<String> lookupArgPath = edgeEntryPath; // adjustPath handles lookup prefix stripping
-
-                    for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
-                        Map<String, String> combinedResponseKeys = new LinkedHashMap<>();
-
-                        for (Path altPath : lookupArg.extractPaths()) {
-                            Map<String, String> nestedResponseKeys;
-
-                            // Use the path's initialTypeCondition to find the correct inline fragment,
-                            // falling back to the lookup edge's source type
-                            String typeCondForFragment = altPath.hasInitialTypeCondition()
-                                ? altPath.initialTypeCondition()
-                                : lookupEdge.source().typeName();
-
-                            // Check if we have a fragment context in the SOURCE subgraph
-                            // and if so, add key field to that fragment
-                            InlineFragmentContext sourceFragmentContext = new InlineFragmentContext(
-                                sourcePlan.getOrCreateInlineFragment(parentPath, typeCondForFragment, List.of()),
-                                sourcePlan.subgraph);
-
-                            if (sourceFragmentContext != null) {
-                                // Add key field inside the inline fragment
-                                // Handle nested paths by adding each segment
-                                List<PathSegment> segments = altPath.segments();
-                                nestedResponseKeys = new LinkedHashMap<>();
-                                for (int k = 0; k < segments.size(); k++) {
-                                    String segFieldName = segments.get(k).fieldName();
-                                    boolean hasChildrenSeg = (k < segments.size() - 1);
-                                    sourceFragmentContext.addField(null, segFieldName, hasChildrenSeg, List.of(), List.of(), FieldOrigin.ARTIFICIAL_KEY);
-                                    nestedResponseKeys.put(segFieldName, segFieldName);
-                                    if (hasChildrenSeg) {
-                                        sourceFragmentContext.enterField(segFieldName);
-                                    }
-                                }
-                                // Exit all entered fields
-                                for (int k = 0; k < segments.size() - 1; k++) {
-                                    sourceFragmentContext.exitField();
-                                }
-                            } else {
-                                // Add key field at parent level (regular case for object types)
-                                // Use addNestedFieldPath for nested paths like "compositeId.two"
-                                nestedResponseKeys = addKeyPath(sourcePlan, altPath, lookupArgPath, lookupEdge);
-                            }
-                            combinedResponseKeys.putAll(nestedResponseKeys);
-                        }
-                        lookupArgCombinedResponseKeys.put(lookupArg.argumentName(), combinedResponseKeys);
-                    }
-
-                    // Add key field requirements to lookup target plan
-                    for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
-                        Map<String, String> nestedResponseKeys = lookupArgCombinedResponseKeys.get(lookupArg.argumentName());
-                        SelectedValue requirement = createRequirementSelectedValue(lookupArg, nestedResponseKeys);
-                        lookupTargetPlan.addRequirement(lookupArg.argumentName(), requirement, lookupArg.argumentType());
-                    }
-                }
+                // Key fields on the lookup's source type (in a fragment where the abstract type lacks them)
+                addLookupKeys(lookupEdge, edgeEntryPath, lookupTargetPlan,
+                    keyPath -> addKeyPath(sourcePlan, keyPath, edgeEntryPath, lookupEdge));
 
                 // Add @require fields - this handles cases where fields inside inline fragments
                 // have @require dependencies that need to be resolved
