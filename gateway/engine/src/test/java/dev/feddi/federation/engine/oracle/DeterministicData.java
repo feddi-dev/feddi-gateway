@@ -202,15 +202,18 @@ public final class DeterministicData {
      * object's data, so that the oracle also sees wrong requirement values (arguments, aliases, variables).
      */
     private void checkRequirements(DataFetchingEnvironment env, String parentType, Map<?, ?> source) {
+        // The root object (seed 0, as in resolve) for a root field's requirements
+        Map<?, ?> object = source.get("__seed") instanceof Long || env.getExecutionStepInfo().getPath().getLevel() > 1
+            ? source : Map.of("__seed", 0L, "__type", parentType);
         for (GraphQLArgument argument : env.getFieldDefinition().getArguments()) {
             GraphQLAppliedDirective require = argument.getAppliedDirective("require");
-            if (require == null || !(source.get("__seed") instanceof Long)) {
+            if (require == null || !(object.get("__seed") instanceof Long)) {
                 continue;
             }
             Object expected;
             try {
                 expected = evaluate(FieldSelectionMapParser.parseFieldSelectionMap(stringArgument(require, "field")),
-                    source);
+                    object);
             } catch (InvalidSyntaxException e) {
                 throw new IllegalStateException(e);
             }

@@ -138,7 +138,6 @@ public final class SchemaValidator {
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.IsInvalidFieldsRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.IsFieldsHasArgumentsRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.RequireInvalidFieldsRule());
-        rules.add(new dev.feddi.federation.engine.compose.validation.rules.RequireOnRootFieldRule());
 
         // Root type naming rules
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.RootQueryUsedRule());

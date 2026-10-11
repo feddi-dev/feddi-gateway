@@ -4,6 +4,7 @@ import dev.feddi.federation.engine.Constants;
 
 import dev.feddi.federation.engine.IntrospectionFields;
 import dev.feddi.federation.engine.graph.Edge;
+import dev.feddi.federation.engine.graph.FieldMoveEdge;
 import dev.feddi.federation.engine.graph.Graph;
 import dev.feddi.federation.engine.graph.LookupArgument;
 import dev.feddi.federation.engine.graph.LookupMoveEdge;
@@ -652,6 +653,82 @@ public final class OperationPlanner {
 
             // Process all lookup edges in the path to set up dependencies and key fields
             processLookupEdgesInPath(path, fieldName, parentPath, plan, keyFragment);
+
+            List<Edge> edges = path.getEdges();
+            if (!edges.isEmpty() && edges.get(edges.size() - 1) instanceof FieldMoveEdge fieldEdge
+                && graph.isRootOperationType(fieldEdge.source().typeName())) {
+                processRootRequirements(plan, fieldEdge.source().typeName(), fieldName);
+            }
+        }
+
+        /**
+         * Resolves the @require arguments of a root field from the root types of the other subgraphs: the plan
+         * that selects the field waits for the plans that select the required fields, and reads them from the
+         * response root ({@code search(filter: $filter)} after {@code { category }}).
+         */
+        private void processRootRequirements(SubgraphPlan plan, String rootType, String fieldName) {
+            for (Requirement requirement : graph.requirementsOf(rootType, plan.subgraph, fieldName)) {
+                Map<String, String> responseKeys = new HashMap<>();
+                for (Path path : requirement.extractPaths()) {
+                    RequireFieldResolution resolution = resolved(resolveRootRequirement(rootType, path, plan.subgraph),
+                        path, rootType);
+                    responseKeys.putAll(resolution.fieldToResponseKey());
+                    if (dependsOn(resolution.plan(), plan)) {
+                        throw new PlanningException("The requirements of root field '" + fieldName + "' in '"
+                            + plan.subgraph + "' depend on that subgraph's own root fields");
+                    }
+                    addPlanDependency(plan, resolution.plan());
+                }
+                String variable = plan.addRequirementVariable(requirement.argumentName(),
+                    transformSelectionWithResponseKeys(requirement.selection(), responseKeys), requirement.argumentType());
+                plan.addFieldArgument(List.of(fieldName), requirement.argumentName(), variable);
+            }
+        }
+
+        /**
+         * Selects a root field's required path in another subgraph: in the root plan of one whose root type has the
+         * whole path, or else through lookups from one that has its first field.
+         */
+        private RequireFieldResolution resolveRootRequirement(String rootType, Path path, String requiringSubgraph) {
+            List<String> candidates = graph.subgraphs().stream()
+                .filter(subgraph -> !subgraph.equals(requiringSubgraph) && !subgraph.startsWith("$")
+                    && graph.containsNode(new Node(rootType, subgraph)))
+                .sorted()
+                .toList();
+            for (String subgraph : candidates) {
+                if (canResolveFieldPathInSubgraph(subgraph, rootType, path)) {
+                    SubgraphPlan rootPlan = getOrCreateRootPlan(subgraph);
+                    return new RequireFieldResolution(rootPlan, subgraph, addNestedFieldPathWithSubgraph(rootPlan, path,
+                        List.of(), FieldOrigin.ARTIFICIAL_REQUIRE, subgraph, rootType));
+                }
+            }
+            String firstField = path.segments().get(0).fieldName();
+            for (String subgraph : candidates) {
+                if (graph.findFieldEdge(new Node(rootType, subgraph), firstField).isPresent()) {
+                    RequireFieldResolution resolution = resolveRequireField(subgraph, rootType, path, List.of(),
+                        new HashSet<>(Set.of(requiringSubgraph)), () -> getOrCreateRootPlan(subgraph));
+                    if (resolution != null) {
+                        return resolution;
+                    }
+                }
+            }
+            return null;
+        }
+
+        /** Whether {@code plan} waits for {@code other}, directly or through other plans. */
+        private boolean dependsOn(SubgraphPlan plan, SubgraphPlan other) {
+            Deque<Integer> pending = new ArrayDeque<>(List.of(plan.id));
+            Set<Integer> seen = new HashSet<>();
+            while (!pending.isEmpty()) {
+                int id = pending.pop();
+                if (id == other.id) {
+                    return true;
+                }
+                if (seen.add(id)) {
+                    pending.addAll(planDependencies.getOrDefault(id, Set.of()));
+                }
+            }
+            return false;
         }
 
         /**
@@ -1857,9 +1934,8 @@ public final class OperationPlanner {
                     stepRequirements.put(entry.getKey(), entry.getValue().selection());
                 }
 
-                // A step needs repeated execution if it has requirements
-                // (it needs to be executed for each entity from the parent step)
-                boolean repeatedExecution = !stepRequirements.isEmpty();
+                // A lookup step runs once per entity; a root step with requirements (of a root field) runs once
+                boolean repeatedExecution = plan.lookupEdge != null;
 
                 // Collect artificial and requested field paths for this step
                 Set<String> artificialPaths = plan.collectArtificialFieldPaths();

@@ -162,9 +162,9 @@ public final class PathFinder {
         String typeName = edge.source().typeName();
         String subgraph = edge.source().subgraph();
 
-        // Check if this field has @require
-        if (!graph.fieldHasRequire(typeName, subgraph, fieldName)) {
-            // No @require, field can be accessed directly
+        // Fields without @require, and root fields, whose requirements are resolved from the response root, can be
+        // accessed directly
+        if (!graph.fieldHasRequire(typeName, subgraph, fieldName) || graph.isRootOperationType(typeName)) {
             return true;
         }
 

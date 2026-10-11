@@ -1,0 +1,23 @@
+name: "Nested root requirement"
+description: "localized requires settings.locale: settings is selected in the settings subgraph."
+
+query: |
+  {
+    localized(key: "title")
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: search
+      operation: "query($locale: String) { localized(key: \"title\", locale: $locale) }"
+      dependsOn: [2]
+      requirements:
+        locale: "settings.locale"
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: settings
+      operation: "{ settings { locale } }"
+      dependsOn: []
+      repeatedExecution: false
