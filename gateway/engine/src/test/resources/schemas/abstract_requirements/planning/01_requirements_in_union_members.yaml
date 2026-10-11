@@ -1,0 +1,61 @@
+name: "Requirements in union members"
+description: |
+  Post.score requires votes and Photo.rank requires views, both from stats. Each member gets its own
+  requirement lookup (keys inside the member's fragment), score re-enters content (where items is) with a
+  lookup of its own, and every lookup waits for the step its keys come from.
+
+query: |
+  {
+    items {
+      ... on Post {
+        title
+        score
+      }
+      ... on Photo {
+        url
+        rank
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: content
+      operation: "{ items { __typename ... on Post { title id } ... on Photo { url id } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: content
+      operation: "query($id: ID!, $votes: Int) { postById(id: $id) { score(votes: $votes) } }"
+      dependsOn: [3]
+      requirements:
+        id: "id"
+        votes: "votes"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: stats
+      operation: "query($id: ID!) { postById(id: $id) { votes ... on Post { id } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true
+
+    - id: 4
+      subgraph: ranking
+      operation: "query($id: ID!, $views: Int) { photoById(id: $id) { rank(views: $views) } }"
+      dependsOn: [1, 5]
+      requirements:
+        id: "id"
+        views: "views"
+      repeatedExecution: true
+
+    - id: 5
+      subgraph: stats
+      operation: "query($id: ID!) { photoById(id: $id) { views } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true

@@ -1,0 +1,54 @@
+name: "Abstract requirements"
+description: "@require fields of union members and interface implementations, including one that re-enters the subgraph of the abstract field."
+
+subgraphs:
+  content: |
+    type Query {
+      feed: [Node]
+      items: [Item]
+      postById(id: ID!): Post @lookup @internal
+      photoById(id: ID!): Photo @lookup @internal
+    }
+
+    interface Node {
+      id: ID!
+    }
+
+    union Item = Post | Photo
+
+    type Post implements Node @key(fields: "id") {
+      id: ID!
+      title: String
+      score(votes: Int @require(field: "votes")): Int
+    }
+
+    type Photo implements Node @key(fields: "id") {
+      id: ID!
+      url: String
+    }
+
+  ranking: |
+    type Query {
+      photoById(id: ID!): Photo @lookup @internal
+    }
+
+    type Photo @key(fields: "id") {
+      id: ID!
+      rank(views: Int @require(field: "views")): Int
+    }
+
+  stats: |
+    type Query {
+      postById(id: ID!): Post @lookup @internal
+      photoById(id: ID!): Photo @lookup @internal
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      votes: Int
+    }
+
+    type Photo @key(fields: "id") {
+      id: ID!
+      views: Int
+    }

@@ -177,7 +177,8 @@ public final class OperationPlanner {
             return;
         }
 
-        if (fragmentContext != null && !fragmentContext.subgraph.equals(bestPath.currentSubgraph())) {
+        if (fragmentContext != null && (!fragmentContext.subgraph.equals(bestPath.currentSubgraph())
+                || addsLookup(currentPath, bestPath))) {
             // The field resolves in another subgraph (through a lookup): it belongs to that
             // subgraph's plan, not to this fragment, and so do its sub-selections. The lookup's
             // key fields are selected in the fragment.
@@ -367,7 +368,7 @@ public final class OperationPlanner {
 
         // Get or create inline fragment context in the appropriate subgraph
         InlineFragmentContext targetFragmentContext;
-        if (!targetSubgraph.equals(sourceSubgraph)) {
+        if (!targetSubgraph.equals(sourceSubgraph) || addsLookup(currentPath, bestPath)) {
             // Cross-subgraph inline fragment: add the fragment to the target subgraph's plan
             targetFragmentContext = context.getOrCreateInlineFragmentForLookup(
                 bestPath, parentPath, typeCondition, fragmentDirectives);
@@ -410,6 +411,20 @@ public final class OperationPlanner {
         }
     }
     
+    /**
+     * Whether {@code next} (a path extending {@code current}) goes through a lookup: the field is then resolved in
+     * another step, even if it ends in the same subgraph (re-entering it, e.g. for a field's @require values).
+     */
+    private static boolean addsLookup(OperationPath current, OperationPath next) {
+        List<Edge> edges = next.getEdges();
+        for (int i = current.getEdges().size(); i < edges.size(); i++) {
+            if (edges.get(i) instanceof LookupMoveEdge) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Key for identifying subgraph plans. Each unique combination of subgraph,
      * entering lookup edge, and lookup entry path gets its own plan. This allows
@@ -732,8 +747,7 @@ public final class OperationPlanner {
                                 addPlanDependency(lookupTargetPlan, resolution.plan());
                                 nestedResponseKeys = resolution.fieldToResponseKey();
                             } else {
-                                nestedResponseKeys = addNestedFieldPath(sourcePlan, altPath, entryPath,
-                                    FieldOrigin.ARTIFICIAL_KEY);
+                                nestedResponseKeys = addKeyPath(sourcePlan, altPath, entryPath, lookupEdge);
                             }
                             combinedResponseKeys.putAll(nestedResponseKeys);
                         }
@@ -898,6 +912,16 @@ public final class OperationPlanner {
         }
 
         /**
+         * Selects a lookup's key path in its source plan, on the lookup's source type: below an abstract field (a
+         * union or interface) the key goes into a fragment on that type.
+         */
+        private Map<String, String> addKeyPath(SubgraphPlan sourcePlan, Path keyPath, List<String> entryPath,
+                                               LookupMoveEdge lookupEdge) {
+            return addNestedFieldPathWithSubgraph(sourcePlan, keyPath, entryPath, FieldOrigin.ARTIFICIAL_KEY,
+                sourcePlan.subgraph, lookupEdge.source().typeName());
+        }
+
+        /**
          * Adds a potentially nested field path to the plan.
          * For example, Path("dimension.size") adds "dimension" with children, then "size" under it.
          * Also handles type-conditioned paths like "&lt;Movie&gt;.imdbCode" by extracting only the field names.
@@ -980,7 +1004,10 @@ public final class OperationPlanner {
             // its fields go into an inline fragment on that type.
             if (startTypeName != null && declaredTypeName != null && !startTypeName.equals(declaredTypeName)
                 && (graph.getInterfacesForType(startTypeName).contains(declaredTypeName)
-                    || graph.getUnionsForType(startTypeName).contains(declaredTypeName))) {
+                    || graph.getUnionsForType(startTypeName).contains(declaredTypeName))
+                && !path.segments().isEmpty()
+                && graph.fieldEdgesFrom(new Node(declaredTypeName, subgraph))
+                    .noneMatch(edge -> edge.fieldName().equals(path.segments().get(0).fieldName()))) {
                 plan.addArtificialField(IntrospectionFields.TYPENAME, currentPath, false, FieldOrigin.ARTIFICIAL_KEY);
                 InlineFragmentNode fragment = plan.getOrCreateInlineFragment(currentPath, startTypeName, List.of());
                 List<String> fragPath = new ArrayList<>();
@@ -1015,7 +1042,8 @@ public final class OperationPlanner {
                     if (matchingEdge.isEmpty()) {
                         // Field not on current type - find the most specific types that have it
                         // Priority: interfaces first (to avoid duplication), then concrete types
-                        Set<String> implTypes = graph.getImplementingTypesForInterface(currentTypeName);
+                        Set<String> implTypes = new HashSet<>(graph.getImplementingTypesForInterface(currentTypeName));
+                        implTypes.addAll(graph.getUnionMembers(currentTypeName));
                         Set<String> interfacesWithField = new HashSet<>();
                         Set<String> concreteTypesWithField = new HashSet<>();
 
@@ -1319,7 +1347,7 @@ public final class OperationPlanner {
             // Check if directly resolvable in source subgraph
             if (canResolveFieldPathInSubgraph(sourceSubgraph, sourceTypeName, path)) {
                 // Find an existing plan for the source subgraph, or create root plan
-                SubgraphPlan sourcePlan = findExistingPlanForSubgraph(sourceSubgraph, parentPath);
+                SubgraphPlan sourcePlan = findExistingPlanForSubgraph(sourceSubgraph, parentPath, sourceTypeName);
                 if (sourcePlan == null) {
                     sourcePlan = getOrCreateRootPlan(sourceSubgraph);
                 }
@@ -1385,7 +1413,7 @@ public final class OperationPlanner {
                     // The resolution already created plans for the chain, but we need
                     // to ensure the lookup from source to target is set up
 
-                    SubgraphPlan sourcePlan = findExistingPlanForSubgraph(sourceSubgraph, parentPath);
+                    SubgraphPlan sourcePlan = findExistingPlanForSubgraph(sourceSubgraph, parentPath, sourceTypeName);
                     if (sourcePlan == null) {
                         sourcePlan = getOrCreateRootPlan(sourceSubgraph);
                     }
@@ -1401,7 +1429,7 @@ public final class OperationPlanner {
                         Map<String, Map<String, String>> lookupArgNestedResponseKeys = new HashMap<>();
                         for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
                             // Use addNestedFieldPath for nested paths like "compositeId.two"
-                            Map<String, String> nestedResponseKeys = addNestedFieldPath(sourcePlan, lookupArg.path(), lookupArgPath, FieldOrigin.ARTIFICIAL_KEY);
+                            Map<String, String> nestedResponseKeys = addKeyPath(sourcePlan, lookupArg.path(), lookupArgPath, lookupEdge);
                             lookupArgNestedResponseKeys.put(lookupArg.argumentName(), nestedResponseKeys);
                         }
 
@@ -1451,7 +1479,8 @@ public final class OperationPlanner {
             if (firstEdge.isEmpty()) {
                 return null;
             }
-            SubgraphPlan sourcePlan = hopPlan != null ? hopPlan.get() : findExistingPlanForSubgraph(sourceSubgraph, parentPath);
+            SubgraphPlan sourcePlan = hopPlan != null ? hopPlan.get()
+                : findExistingPlanForSubgraph(sourceSubgraph, parentPath, sourceTypeName);
             if (sourcePlan == null) {
                 sourcePlan = getOrCreateRootPlan(sourceSubgraph);
             }
@@ -1476,6 +1505,15 @@ public final class OperationPlanner {
          * Returns null if no plan exists.
          */
         private SubgraphPlan findExistingPlanForSubgraph(String subgraph, List<String> parentPath) {
+            return findExistingPlanForSubgraph(subgraph, parentPath, null);
+        }
+
+        /**
+         * As above, for an object of {@code typeName} (null: any): a lookup plan whose entity is the object at
+         * {@code parentPath} only qualifies if it resolves that type (two branches of a union or interface can have
+         * lookups into the same subgraph at the same path, one per type).
+         */
+        private SubgraphPlan findExistingPlanForSubgraph(String subgraph, List<String> parentPath, String typeName) {
             // Prefer the most specific plan that already selects the object at the path: requirements of a nested
             // object go to the plan that fetched it, not to a later lookup whose entry path is merely a prefix
             SubgraphPlan containing = null;
@@ -1483,6 +1521,7 @@ public final class OperationPlanner {
             for (var entry : subgraphPlans.entrySet()) {
                 SubgraphPlanKey key = entry.getKey();
                 if (key.subgraph().equals(subgraph) && !waitsForRequirementTarget(entry.getValue())
+                    && resolvesType(entry.getValue(), parentPath, typeName)
                     && isPathPrefix(key.entryPath(), parentPath) && key.entryPath().size() > containingLength
                     && entry.getValue().selectsPath(parentPath)) {
                     containing = entry.getValue();
@@ -1499,7 +1538,8 @@ public final class OperationPlanner {
 
             for (var entry : subgraphPlans.entrySet()) {
                 SubgraphPlanKey key = entry.getKey();
-                if (!key.subgraph().equals(subgraph) || waitsForRequirementTarget(entry.getValue())) {
+                if (!key.subgraph().equals(subgraph) || waitsForRequirementTarget(entry.getValue())
+                    || !resolvesType(entry.getValue(), parentPath, typeName)) {
                     continue;
                 }
                 if (key.isRootEntry()) {
@@ -1542,6 +1582,12 @@ public final class OperationPlanner {
             return false;
         }
 
+        private boolean resolvesType(SubgraphPlan plan, List<String> parentPath, String typeName) {
+            return typeName == null || plan.lookupTargetType == null || !parentPath.equals(plan.lookupEntryPath)
+                || concreteTypes(plan.lookupTargetType).contains(typeName)
+                || concreteTypes(typeName).contains(plan.lookupTargetType);
+        }
+
         private boolean isPathPrefix(List<String> prefix, List<String> path) {
             if (prefix == null || path == null || prefix.size() > path.size()) {
                 return false;
@@ -1569,7 +1615,7 @@ public final class OperationPlanner {
             SubgraphPlan intermediatePlan = getOrCreateLookupPlan(lookupEdge, parentPath);
 
             // Find or create source plan
-            SubgraphPlan sourcePlan = findExistingPlanForSubgraph(sourceSubgraph, parentPath);
+            SubgraphPlan sourcePlan = findExistingPlanForSubgraph(sourceSubgraph, parentPath, sourceTypeName);
             if (sourcePlan == null) {
                 sourcePlan = getOrCreateRootPlan(sourceSubgraph);
             }
@@ -1588,7 +1634,7 @@ public final class OperationPlanner {
                 for (LookupArgument lookupArg :lookupEdge.lookupArguments()) {
                     Map<String, String> combinedResponseKeys = new LinkedHashMap<>();
                     for (Path altPath : lookupArg.extractPaths()) {
-                        Map<String, String> nestedResponseKeys = addNestedFieldPath(sourcePlan, altPath, lookupArgPath, FieldOrigin.ARTIFICIAL_KEY);
+                        Map<String, String> nestedResponseKeys = addKeyPath(sourcePlan, altPath, lookupArgPath, lookupEdge);
                         combinedResponseKeys.putAll(nestedResponseKeys);
                     }
                     lookupArgNestedResponseKeys.put(lookupArg.argumentName(), combinedResponseKeys);
@@ -1841,7 +1887,7 @@ public final class OperationPlanner {
                                 }
                             } else {
                                 // Add key field at parent level (for interfaces and object types)
-                                nestedResponseKeys = addNestedFieldPath(sourcePlan, altPath, lookupArgPath, FieldOrigin.ARTIFICIAL_KEY);
+                                nestedResponseKeys = addKeyPath(sourcePlan, altPath, lookupArgPath, enteringLookupEdge);
                             }
                             combinedResponseKeys.putAll(nestedResponseKeys);
                         }
@@ -1910,10 +1956,9 @@ public final class OperationPlanner {
                 // Get the lookup target plan
                 SubgraphPlan lookupTargetPlan = getOrCreateLookupPlan(lookupEdge, edgeEntryPath);
 
-                // Add dependency if this lookup edge enters the current subgraph
-                if (lookupEdge.target().subgraph().equals(subgraph)) {
-                    addPlanDependency(lookupTargetPlan, sourcePlan);
-                }
+                // Every lookup on the path waits for the plan it starts from (also the earlier ones of a path that
+                // re-enters this subgraph, s0 -> s1 -> s0)
+                addPlanDependency(lookupTargetPlan, sourcePlan);
 
                 // Handle key fields - ARTIFICIAL_KEY
                 // When we're in a fragment context (e.g., ... on Book inside a union),
@@ -1940,9 +1985,9 @@ public final class OperationPlanner {
 
                             // Check if we have a fragment context in the SOURCE subgraph
                             // and if so, add key field to that fragment
-                            InlineFragmentContext sourceFragmentContext =
-                                getInlineFragmentContext(sourceSubgraph, parentPath,
-                                    typeCondForFragment, List.of());
+                            InlineFragmentContext sourceFragmentContext = new InlineFragmentContext(
+                                sourcePlan.getOrCreateInlineFragment(parentPath, typeCondForFragment, List.of()),
+                                sourcePlan.subgraph);
 
                             if (sourceFragmentContext != null) {
                                 // Add key field inside the inline fragment
@@ -1965,7 +2010,7 @@ public final class OperationPlanner {
                             } else {
                                 // Add key field at parent level (regular case for object types)
                                 // Use addNestedFieldPath for nested paths like "compositeId.two"
-                                nestedResponseKeys = addNestedFieldPath(sourcePlan, altPath, lookupArgPath, FieldOrigin.ARTIFICIAL_KEY);
+                                nestedResponseKeys = addKeyPath(sourcePlan, altPath, lookupArgPath, lookupEdge);
                             }
                             combinedResponseKeys.putAll(nestedResponseKeys);
                         }
