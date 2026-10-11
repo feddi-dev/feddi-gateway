@@ -17,6 +17,7 @@ import graphql.language.SelectionSet;
 import graphql.language.TypeName;
 import graphql.language.Value;
 import graphql.language.VariableDefinition;
+import graphql.language.VariableReference;
 import graphql.schema.GraphQLCompositeType;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInterfaceType;
@@ -35,6 +36,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static graphql.schema.GraphQLTypeUtil.unwrapAll;
 
@@ -64,6 +68,8 @@ public final class OperationNormalizer {
     private final boolean deduplicateFields;
     private final boolean sortSelections;
     private final GraphQLSchema schema;
+    // Values of variables that @skip/@include use, evaluated like literals (see withConditionValues)
+    private final Map<String, Boolean> conditionValues;
 
     private OperationNormalizer(Builder builder) {
         this.inlineFragments = builder.inlineFragments;
@@ -71,6 +77,82 @@ public final class OperationNormalizer {
         this.deduplicateFields = builder.deduplicateFields;
         this.sortSelections = builder.sortSelections;
         this.schema = builder.schema;
+        this.conditionValues = Map.of();
+    }
+
+    private OperationNormalizer(OperationNormalizer normalizer, Map<String, Boolean> conditionValues) {
+        this.inlineFragments = normalizer.inlineFragments;
+        this.processSkipInclude = normalizer.processSkipInclude;
+        this.deduplicateFields = normalizer.deduplicateFields;
+        this.sortSelections = normalizer.sortSelections;
+        this.schema = normalizer.schema;
+        this.conditionValues = Map.copyOf(conditionValues);
+    }
+
+    /**
+     * This normalizer, also evaluating the @skip/@include conditions on these variables (see
+     * {@link #conditionValues}); conditions on other variables stay in the document.
+     */
+    public OperationNormalizer withConditionValues(Map<String, Boolean> values) {
+        return new OperationNormalizer(this, values);
+    }
+
+    /**
+     * The values of the variables that a document's @skip/@include conditions use, from the request's variables or
+     * the variables' defaults; a variable without a Boolean value is left out. A plan for a document normalized
+     * with them holds for every request with the same values.
+     */
+    public static Map<String, Boolean> conditionValues(Document document, Map<String, Object> variables) {
+        Set<String> names = new TreeSet<>();
+        Map<String, Boolean> defaults = new HashMap<>();
+        for (var definition : document.getDefinitions()) {
+            if (definition instanceof OperationDefinition operation) {
+                for (VariableDefinition variable : operation.getVariableDefinitions()) {
+                    if (variable.getDefaultValue() instanceof BooleanValue value) {
+                        defaults.put(variable.getName(), value.isValue());
+                    }
+                }
+                collectConditionVariables(operation.getSelectionSet(), names);
+            } else if (definition instanceof FragmentDefinition fragment) {
+                collectConditionVariables(fragment.getSelectionSet(), names);
+            }
+        }
+        Map<String, Boolean> values = new TreeMap<>();
+        for (String name : names) {
+            Object value = variables == null ? null : variables.get(name);
+            if (value instanceof Boolean flag) {
+                values.put(name, flag);
+            } else if (value == null && defaults.containsKey(name)) {
+                values.put(name, defaults.get(name));
+            }
+        }
+        return values;
+    }
+
+    private static void collectConditionVariables(SelectionSet selectionSet, Set<String> names) {
+        if (selectionSet == null) {
+            return;
+        }
+        for (Selection<?> selection : selectionSet.getSelections()) {
+            List<Directive> directives = switch (selection) {
+                case Field field -> field.getDirectives();
+                case InlineFragment fragment -> fragment.getDirectives();
+                case FragmentSpread spread -> spread.getDirectives();
+                default -> List.of();
+            };
+            for (Directive directive : directives) {
+                if ((SKIP_DIRECTIVE.equals(directive.getName()) || INCLUDE_DIRECTIVE.equals(directive.getName()))
+                    && directive.getArgument(IF_ARGUMENT) != null
+                    && directive.getArgument(IF_ARGUMENT).getValue() instanceof VariableReference variable) {
+                    names.add(variable.getName());
+                }
+            }
+            if (selection instanceof Field field) {
+                collectConditionVariables(field.getSelectionSet(), names);
+            } else if (selection instanceof InlineFragment fragment) {
+                collectConditionVariables(fragment.getSelectionSet(), names);
+            }
+        }
     }
 
     /**
@@ -404,7 +486,7 @@ public final class OperationNormalizer {
         Map<String, InlineFragment> fragmentsByType = new LinkedHashMap<>();
         List<Selection<?>> otherSelections = new ArrayList<>();
 
-        for (Selection<?> selection : selections) {
+        for (Selection<?> selection : separateConditions(selections)) {
             if (selection instanceof Field field) {
                 String responseKey = getResponseKey(field);
                 Field existing = fieldsByResponseKey.get(responseKey);
@@ -431,6 +513,42 @@ public final class OperationNormalizer {
         merged.addAll(fragmentsByType.values());
         merged.addAll(otherSelections);
         return merged;
+    }
+
+    /**
+     * Fields with one response key and different @skip/@include conditions (variables; literal ones are evaluated
+     * already) cannot be merged into one field: {@code id} next to {@code id @skip(if: $flag)} is included either
+     * way, but in {@code r @skip(if: $f) { a }} next to {@code r { b }}, {@code a} still depends on $f. Each
+     * conditional one goes into a fragment without type condition that carries its conditions
+     * ({@code ... @skip(if: $flag) { id }}), which merges with fragments of the same conditions.
+     */
+    private List<Selection<?>> separateConditions(List<Selection<?>> selections) {
+        Map<String, Set<String>> conditionsByResponseKey = new HashMap<>();
+        for (Selection<?> selection : selections) {
+            if (selection instanceof Field field) {
+                conditionsByResponseKey.computeIfAbsent(getResponseKey(field), k -> new HashSet<>())
+                    .add(printedDirectives(field.getDirectives()));
+            }
+        }
+        List<Selection<?>> result = new ArrayList<>();
+        for (Selection<?> selection : selections) {
+            if (selection instanceof Field field && !field.getDirectives().isEmpty()
+                && conditionsByResponseKey.get(getResponseKey(field)).size() > 1) {
+                result.add(InlineFragment.newInlineFragment()
+                    .directives(field.getDirectives())
+                    .selectionSet(SelectionSet.newSelectionSet()
+                        .selection(field.transform(builder -> builder.directives(List.of())))
+                        .build())
+                    .build());
+            } else {
+                result.add(selection);
+            }
+        }
+        return result;
+    }
+
+    private static String printedDirectives(List<Directive> directives) {
+        return directives.stream().map(AstPrinter::printAstCompact).collect(Collectors.joining(" "));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -694,6 +812,10 @@ public final class OperationNormalizer {
     private Value<?> getIfArgumentValue(Directive directive) {
         for (Argument argument : directive.getArguments()) {
             if (IF_ARGUMENT.equals(argument.getName())) {
+                if (argument.getValue() instanceof VariableReference variable
+                    && conditionValues.containsKey(variable.getName())) {
+                    return BooleanValue.of(conditionValues.get(variable.getName()));
+                }
                 return argument.getValue();
             }
         }

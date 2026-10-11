@@ -6,6 +6,7 @@ import graphql.language.OperationDefinition;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -16,16 +17,18 @@ import java.util.function.Supplier;
  *
  * <p>Two kinds of keys:
  * <ul>
- *   <li><b>Query text + operation name</b> for regular requests. A hit skips parse and
- *       validate as well; only successfully validated documents are cached, and the result
- *       for the same text and schema is always the same.</li>
+ *   <li><b>Query text + operation name</b> for regular requests. The validated document is
+ *       cached by them, so a hit skips parse and validate as well; only successfully validated
+ *       documents are cached, and the result for the same text and schema is always the same.</li>
  *   <li><b>{@link Document} instance</b> for documents returned by a
  *       {@link dev.feddi.federation.extension.DocumentProvider} (persisted documents).
  *       Providers usually return the same cached instance, so identity is the fastest key.</li>
  * </ul>
  *
- * <p>Plans do not depend on variable values (variable-based {@code @skip}/{@code @include}
- * is evaluated by the subgraphs), so variables are not part of the key.
+ * <p>A plan also depends on the values of the variables that {@code @skip}/{@code @include} use:
+ * they are evaluated before planning (see
+ * {@link dev.feddi.federation.engine.query.OperationNormalizer#conditionValues}), so these values
+ * are part of a plan's key. Most operations have none and get one plan.
  *
  * <p>One cache belongs to one gateway instance; a schema reload creates a new gateway and
  * thereby a new, empty cache. The size bound is approximate: when it is exceeded, a batch
@@ -45,25 +48,29 @@ final class OperationPlanCache {
         }
     }
 
-    private record TextKey(String query, @Nullable String operationName) {
+    private record DocumentKey(String query, @Nullable String operationName) {
     }
 
-    private record IdentityKey(Document document) {
+    private record TextKey(String query, @Nullable String operationName, Map<String, Boolean> conditions) {
+    }
+
+    private record IdentityKey(Document document, Map<String, Boolean> conditions) {
         @Override
         public boolean equals(Object other) {
-            return other instanceof IdentityKey key && key.document == document;
+            return other instanceof IdentityKey key && key.document == document && key.conditions.equals(conditions);
         }
 
         @Override
         public int hashCode() {
-            return System.identityHashCode(document);
+            return 31 * System.identityHashCode(document) + conditions.hashCode();
         }
     }
 
     static final int DEFAULT_MAX_ENTRIES = 1_000;
 
     private final int maxEntries;
-    private final ConcurrentHashMap<Object, PreparedOperation> entries = new ConcurrentHashMap<>();
+    // Prepared operations by TextKey or IdentityKey, validated documents by DocumentKey
+    private final ConcurrentHashMap<Object, Object> entries = new ConcurrentHashMap<>();
 
     OperationPlanCache() {
         this(DEFAULT_MAX_ENTRIES);
@@ -76,22 +83,34 @@ final class OperationPlanCache {
         this.maxEntries = maxEntries;
     }
 
-    @Nullable PreparedOperation getByText(String query, @Nullable String operationName) {
-        return entries.get(new TextKey(query, operationName));
+    /** The validated document of a query text, or null. */
+    @Nullable Document getDocument(String query, @Nullable String operationName) {
+        return entries.get(new DocumentKey(query, operationName)) instanceof Document document ? document : null;
     }
 
-    void putByText(String query, @Nullable String operationName, PreparedOperation prepared) {
-        put(new TextKey(query, operationName), prepared);
+    void putDocument(String query, @Nullable String operationName, Document document) {
+        put(new DocumentKey(query, operationName), document);
+    }
+
+    @Nullable PreparedOperation getByText(String query, @Nullable String operationName,
+                                          Map<String, Boolean> conditions) {
+        return entries.get(new TextKey(query, operationName, conditions)) instanceof PreparedOperation prepared
+            ? prepared : null;
+    }
+
+    void putByText(String query, @Nullable String operationName, Map<String, Boolean> conditions,
+                   PreparedOperation prepared) {
+        put(new TextKey(query, operationName, Map.copyOf(conditions)), prepared);
     }
 
     /**
-     * Returns the prepared operation for a provider-supplied document, preparing and caching
-     * it on a miss. Preparation failures are not cached.
+     * Returns the prepared operation for a provider-supplied document and condition values,
+     * preparing and caching it on a miss. Preparation failures are not cached.
      */
-    PreparedOperation getOrPrepare(Document document, Supplier<PreparedOperation> prepare) {
-        IdentityKey key = new IdentityKey(document);
-        PreparedOperation cached = entries.get(key);
-        if (cached != null) {
+    PreparedOperation getOrPrepare(Document document, Map<String, Boolean> conditions,
+                                   Supplier<PreparedOperation> prepare) {
+        IdentityKey key = new IdentityKey(document, Map.copyOf(conditions));
+        if (entries.get(key) instanceof PreparedOperation cached) {
             return cached;
         }
         PreparedOperation prepared = prepare.get();
@@ -103,8 +122,8 @@ final class OperationPlanCache {
         return entries.size();
     }
 
-    private void put(Object key, PreparedOperation prepared) {
-        entries.put(key, prepared);
+    private void put(Object key, Object value) {
+        entries.put(key, value);
         if (entries.size() > maxEntries) {
             evict();
         }

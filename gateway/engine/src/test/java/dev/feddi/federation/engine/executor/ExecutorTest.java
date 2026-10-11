@@ -4,6 +4,7 @@ import dev.feddi.federation.engine.ResponseFieldValidator;
 import dev.feddi.federation.engine.planner.ExecutionPlan;
 import dev.feddi.federation.engine.query.Operation;
 import dev.feddi.federation.engine.query.OperationNormalizer;
+import graphql.parser.Parser;
 import dev.feddi.federation.engine.planner.OperationPlanner;
 import graphql.schema.GraphQLSchema;
 import dev.feddi.federation.engine.testcase.ExecutionTest;
@@ -151,8 +152,10 @@ class ExecutorTest {
             .inlineFragments(true)
             .deduplicateFields(true)
             .sortSelections(false)  // Don't sort to preserve query field order
-            .processSkipInclude(true)  // Evaluate literal @skip/@include at planning time
-            .build();
+            .processSkipInclude(true)  // Evaluate @skip/@include before planning, as the gateway does
+            .build()
+            .withConditionValues(OperationNormalizer.conditionValues(
+                Parser.parse(executionTest.query()), executionTest.variables()));
         Operation query = Operation.parse(executionTest.query(), normalizer);
         OperationPlanner planner = new OperationPlanner(schema.graph());
         ExecutionPlan plan = planner.plan(query);

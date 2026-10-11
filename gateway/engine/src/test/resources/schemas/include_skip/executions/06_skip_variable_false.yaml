@@ -1,5 +1,5 @@
 name: "@skip with variable=false includes field at runtime"
-description: "When @skip(if: $var) is used and $var=false, the field is included at runtime"
+description: "@skip(if: $var) with var false: the field is planned without the directive"
 
 query: |
   query GetProduct($skipField: Boolean!) {
@@ -26,8 +26,8 @@ subgraphCalls:
 
   - id: step2
     subgraph: c
-    operation: 'query ($id: ID!, $isExpensive: Boolean!, $skipField: Boolean!) { productById(id: $id) { skip(isExpensive: $isExpensive) @skip(if: $skipField) } }'
-    variables: { id: "p1", isExpensive: false, skipField: false }
+    operation: 'query ($id: ID!, $isExpensive: Boolean!) { productById(id: $id) { skip(isExpensive: $isExpensive) } }'
+    variables: { id: "p1", isExpensive: false }
     response: { data: { productById: { skip: true } } }
 
 expectedResponse: {

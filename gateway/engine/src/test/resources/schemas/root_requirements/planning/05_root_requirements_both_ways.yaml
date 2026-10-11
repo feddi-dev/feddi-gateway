@@ -1,0 +1,40 @@
+name: "Root requirements in both directions"
+description: |
+  search (in search) requires settings' category, settingsLabel (in settings) requires search's searchHint. Each
+  requiring root field has its own step, which waits for the other subgraph's root step: no cycle.
+
+query: |
+  {
+    search(term: "shoes")
+    settingsLabel
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: search
+      operation: "query($filter: String) { search(term: \"shoes\", filter: $filter) }"
+      dependsOn: [2]
+      requirements:
+        filter: "category"
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: settings
+      operation: "{ category }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 3
+      subgraph: settings
+      operation: "query($hint: String) { settingsLabel(hint: $hint) }"
+      dependsOn: [4]
+      requirements:
+        hint: "searchHint"
+      repeatedExecution: false
+
+    - id: 4
+      subgraph: search
+      operation: "{ searchHint }"
+      dependsOn: []
+      repeatedExecution: false

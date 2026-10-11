@@ -264,6 +264,12 @@ final class SubgraphPlan {
         fieldNode.setQueryDirectives(selection.directives());
     }
 
+    /** Whether the field at a path of field names already has this @require argument. */
+    boolean hasFieldArgument(List<String> fieldPath, String argumentName) {
+        return fieldArguments.getOrDefault(fieldPath, List.of()).stream()
+            .anyMatch(argument -> argument.argumentName().equals(argumentName));
+    }
+
     /**
      * Adds an argument that should be passed to a field when building the operation.
      */

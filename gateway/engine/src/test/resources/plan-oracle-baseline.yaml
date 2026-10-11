@@ -1,6 +1,6 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 251 queries {composition failed=15, invalid query=4, same data=232}
+# 252 queries {composition failed=15, invalid query=4, same data=233}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "same\
   \ data"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
@@ -39,15 +39,22 @@ fusion/PlannerAdvancedAdaptationTests/Union_Union_Member_Mix: "same data"
 fusion/PlannerAdvancedAdaptationTests/Union_Union_Overfetching_Test: "same data"
 fusion/PlannerBehaviorTests/Fragments_Fragment_Spread: "same data"
 fusion/PlannerBehaviorTests/Fragments_Simple_Inline_Fragment: "same data"
-fusion/PlannerBehaviorTests/Include_Skip_Basic_Include: "invalid query"
+fusion/PlannerBehaviorTests/Include_Skip_Basic_Include: "invalid query: Validation\
+  \ error (VariableTypeMismatch@[product/neverCalledInclude]) : Variable 'include'\
+  \ of type 'Boolean' used in position expecting type "
 fusion/PlannerBehaviorTests/Include_Skip_Basic_Include/valid: "same data"
 fusion/PlannerBehaviorTests/Include_Skip_Basic_Skip: "same data"
-fusion/PlannerBehaviorTests/Include_Skip_Include_At_Root_Fetch: "invalid query"
+fusion/PlannerBehaviorTests/Include_Skip_Include_At_Root_Fetch: "invalid query: Validation\
+  \ error (VariableTypeMismatch@[product/price]) : Variable 'include' of type 'Boolean'\
+  \ used in position expecting type 'Boolean!'"
 fusion/PlannerBehaviorTests/Include_Skip_Include_At_Root_Fetch/valid: "same data"
-fusion/PlannerBehaviorTests/Include_Skip_Include_Fragment: "invalid query"
+fusion/PlannerBehaviorTests/Include_Skip_Include_Fragment: "invalid query: Validation\
+  \ error (VariableTypeMismatch@[product]) : Variable 'include' of type 'Boolean'\
+  \ used in position expecting type 'Boolean!'"
 fusion/PlannerBehaviorTests/Include_Skip_Include_Fragment/valid: "same data"
 fusion/PlannerBehaviorTests/Include_Skip_Include_Fragment_At_Root_Fetch: "invalid\
-  \ query"
+  \ query: Validation error (VariableTypeMismatch@[product]) : Variable 'include'\
+  \ of type 'Boolean' used in position expecting type 'Boolean!'"
 fusion/PlannerBehaviorTests/Include_Skip_Include_Fragment_At_Root_Fetch/valid: "same\
   \ data"
 fusion/PlannerBehaviorTests/Mutations: "same data"
@@ -273,6 +280,7 @@ schemas/root_requirements/01_root_field_requirement: "same data"
 schemas/root_requirements/02_requirement_also_requested: "same data"
 schemas/root_requirements/03_nested_root_requirement: "same data"
 schemas/root_requirements/04_root_requirement_through_lookup: "same data"
+schemas/root_requirements/05_root_requirements_both_ways: "same data"
 schemas/single_subgraph/all_fields: "same data"
 schemas/single_subgraph/nested_profile: "same data"
 schemas/single_subgraph/partial_fields: "same data"

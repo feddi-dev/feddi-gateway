@@ -141,7 +141,7 @@ class PlanExecutionOracleTest {
         Document document = new Parser().parseDocument(c.query());
         List<ValidationError> errors = new Validator().validateDocument(supergraph, document, Locale.ENGLISH);
         if (!errors.isEmpty()) {
-            return "invalid query";
+            return "invalid query: " + firstLine(errors.get(0).getMessage());
         }
         Map<String, Object> variables = new LinkedHashMap<>(sampleVariables(document, supergraph));
         variables.putAll(c.variables());
@@ -155,12 +155,14 @@ class PlanExecutionOracleTest {
 
         ExecutionPlan plan;
         try {
+            // Like the gateway: @skip/@include on variables are evaluated with the request's values
             var normalizer = OperationNormalizer.builder(supergraph)
                 .inlineFragments(true).deduplicateFields(true).sortSelections(false)
-                .processSkipInclude(true).build();
+                .processSkipInclude(true).build()
+                .withConditionValues(OperationNormalizer.conditionValues(document, variables));
             plan = new OperationPlanner(composition.graph()).plan(Operation.parse(c.query(), normalizer));
         } catch (RuntimeException e) {
-            return "planning failed";
+            return "planning failed: " + firstLine(String.valueOf(e.getMessage()));
         }
 
         Map<String, SubgraphClient> clients = new LinkedHashMap<>();

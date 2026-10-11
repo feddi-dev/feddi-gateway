@@ -237,7 +237,11 @@ final class FieldPathSelector {
         }
         List<String> fieldPath = new ArrayList<>(responsePath);
         fieldPath.addAll(fragPath);
-        if (parentType != null && clashes(plan, fieldPath, parentType, segment.fieldName(), segment.arguments())) {
+        SelectionNode sameKey = container.children.get(segment.fieldName());
+        boolean conditional = sameKey != null && !sameKey.queryDirectives.isEmpty();
+        if (conditional
+            || parentType != null && clashes(plan, fieldPath, parentType, segment.fieldName(), segment.arguments())) {
+            // Not into a field the client selects with @skip/@include, which may be missing
             return container.addArtificialField(segment.fieldName(), segment.arguments(), hasChildren, origin, true);
         }
         container.addField(null, segment.fieldName(), hasChildren, segment.arguments(), List.of(), origin);

@@ -1,5 +1,5 @@
 name: "@skip directive with variable - skip true"
-description: "Tests execution when @skip(if: true) excludes the email field"
+description: "@skip(if: $skipEmail) with skipEmail true: the gateway evaluates the condition before planning, and email is not fetched"
 
 query: |
   query GetUser($skipEmail: Boolean!) {
@@ -14,8 +14,8 @@ variables: { skipEmail: true }
 
 subgraphCalls:
   - subgraph: a
-    operation: 'query ($skipEmail: Boolean!) { user { id name email @skip(if: $skipEmail) } }'
-    variables: { skipEmail: true }
+    operation: '{ user { id name } }'
+    variables: {}
     response: { data: { user: { id: "u1", name: "Alice" } } }
 
 expectedResponse: { data: { user: { id: "u1", name: "Alice" } } }

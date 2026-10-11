@@ -171,16 +171,21 @@ final class SelectionNode {
 
     /**
      * Adds an artificial field (for @key or @require) selected with {@code arguments}, or reuses the field with the
-     * same name and arguments. It gets an alias if {@code alias} is set, if it has arguments (a field the client
-     * selects later without them must not merge into it), or if another field has its name as response key.
+     * same name and arguments, unless that one has directives (a key the client selects with
+     * {@code @skip(if: $flag)} may be missing). It gets an alias if {@code alias} is set, if it has arguments (a
+     * field the client selects later without them must not merge into it), or if another field has its name as
+     * response key.
      *
      * @return the response key where the value will be found
      */
     String addArtificialField(String fieldName, List<Argument> arguments, boolean hasChildren, FieldOrigin origin,
                               boolean alias) {
+        // The same field without alias if there is one (the same requirement always gets the same response key)
         SelectionNode existing = null;
         for (SelectionNode child : children.values()) {
-            if (child.fieldName.equals(fieldName) && printedArguments(child.queryArguments).equals(printedArguments(arguments))) {
+            if (child.fieldName.equals(fieldName) && child.queryDirectives.isEmpty()
+                && printedArguments(child.queryArguments).equals(printedArguments(arguments))
+                && (existing == null || existing.alias != null)) {
                 existing = child;
             }
         }

@@ -56,6 +56,16 @@ final class RequirementPlanner {
             throw new PlanningException("@require on mutation field '" + fieldName + "' in '" + plan.subgraph
                 + "' is not supported");
         }
+        // The required fields are selected in the other subgraphs' plain root plans
+        int group = context.setRootGroup(0);
+        try {
+            resolveRootRequirements(plan, rootType, fieldName);
+        } finally {
+            context.setRootGroup(group);
+        }
+    }
+
+    private void resolveRootRequirements(SubgraphPlan plan, String rootType, String fieldName) {
         for (Requirement requirement : graph.requirementsOf(rootType, plan.subgraph, fieldName)) {
             Map<String, String> responseKeys = new HashMap<>();
             for (Path path : requirement.extractPaths()) {
@@ -67,6 +77,9 @@ final class RequirementPlanner {
                         + plan.subgraph + "' depend on that subgraph's own root fields");
                 }
                 context.addPlanDependency(plan, resolution.plan());
+            }
+            if (plan.hasFieldArgument(List.of(fieldName), requirement.argumentName())) {
+                continue;
             }
             String variable = plan.addRequirementVariable(requirement.argumentName(),
                 ResponseKeys.transformSelectionWithResponseKeys(requirement.selection(), responseKeys), requirement.argumentType());
@@ -179,6 +192,7 @@ final class RequirementPlanner {
             }
 
             // Add @require field arguments to the target plan
+            // (once per field: the same field and argument always have the same requirement)
             if (req.fieldName() == null || req.fieldName().equals(fieldName)) {
                 List<String> adjustedFieldPath = new ArrayList<>();
                 if (targetPlan.lookupEntryPath != null && parentPath.size() >= targetPlan.lookupEntryPath.size()) {
@@ -186,6 +200,9 @@ final class RequirementPlanner {
                         parentPath.subList(targetPlan.lookupEntryPath.size(), parentPath.size()));
                 }
                 adjustedFieldPath.add(fieldName);
+                if (targetPlan.hasFieldArgument(adjustedFieldPath, req.argumentName())) {
+                    continue;
+                }
                 SelectedValue transformedSelection = ResponseKeys.transformSelectionWithResponseKeys(
                     req.selection(), reqResponseKeys);
                 String variable = targetPlan.addRequirementVariable(req.argumentName(), transformedSelection,

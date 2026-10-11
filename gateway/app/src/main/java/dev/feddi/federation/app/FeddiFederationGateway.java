@@ -88,7 +88,7 @@ public final class FeddiFederationGateway {
             .inlineFragments(true)
             .deduplicateFields(true)
             .sortSelections(false)  // Preserve query field order
-            .processSkipInclude(true)  // Evaluate literal @skip/@include at planning time
+            .processSkipInclude(true)  // Evaluate @skip/@include (literals, and variables per request) before planning
             .build();
         // Store extension clients — adapted per-request in execute() with context
         this.extensionClients = new LinkedHashMap<>(subgraphClients);
@@ -351,8 +351,9 @@ public final class FeddiFederationGateway {
                     }
                     log.debug("Using document from DocumentProvider");
                     Document providedDocument = entry.getDocument();
-                    return Mono.fromCallable(() -> planCache.getOrPrepare(providedDocument,
-                        () -> prepare(providedDocument)));
+                    Map<String, Boolean> conditions = OperationNormalizer.conditionValues(providedDocument, variables);
+                    return Mono.fromCallable(() -> planCache.getOrPrepare(providedDocument, conditions,
+                        () -> prepare(providedDocument, conditions)));
                 })
                 .switchIfEmpty(Mono.defer(() -> prepareFromText(executionInput)));
         } else {
@@ -387,25 +388,30 @@ public final class FeddiFederationGateway {
     private Mono<PreparedOperation> prepareFromText(ExecutionInput executionInput) {
         String query = executionInput.getQuery();
         String operationName = executionInput.getOperationName();
-        PreparedOperation cached = planCache.getByText(query, operationName);
-        if (cached != null) {
-            log.debug("Using cached plan");
-            return Mono.just(cached);
-        }
-        return parseAndValidate(executionInput).map(document -> {
-            PreparedOperation prepared = prepare(document);
-            planCache.putByText(query, operationName, prepared);
+        Document validated = planCache.getDocument(query, operationName);
+        Mono<Document> document = validated != null ? Mono.just(validated)
+            : parseAndValidate(executionInput).doOnNext(d -> planCache.putDocument(query, operationName, d));
+        return document.map(d -> {
+            Map<String, Boolean> conditions = OperationNormalizer.conditionValues(d, executionInput.getVariables());
+            PreparedOperation cached = planCache.getByText(query, operationName, conditions);
+            if (cached != null) {
+                log.debug("Using cached plan");
+                return cached;
+            }
+            PreparedOperation prepared = prepare(d, conditions);
+            planCache.putByText(query, operationName, conditions, prepared);
             return prepared;
         });
     }
 
     /**
-     * Normalizes a validated document and plans it.
+     * Normalizes a validated document, with its @skip/@include conditions evaluated for these variable values, and
+     * plans it.
      */
-    private PreparedOperation prepare(Document rawDocument) {
-        // Normalize the document (inline fragments, deduplicate fields, etc.)
+    private PreparedOperation prepare(Document rawDocument, Map<String, Boolean> conditions) {
+        // Normalize the document (inline fragments, deduplicate fields, @skip/@include, etc.)
         log.debug("Normalizing query");
-        Document document = normalizer.normalize(rawDocument);
+        Document document = normalizer.withConditionValues(conditions).normalize(rawDocument);
 
         OperationDefinition operationDef = document.getDefinitionsOfType(OperationDefinition.class)
             .stream()

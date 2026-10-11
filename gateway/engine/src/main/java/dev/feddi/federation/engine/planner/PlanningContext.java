@@ -177,6 +177,20 @@ final class PlanningContext {
     }
 
     /**
+     * The group of a query's root fields with @require arguments: they get their own root plan per subgraph, which
+     * waits for the root plans that select the required fields (two subgraphs whose root fields require each
+     * other's root fields would otherwise wait for each other).
+     */
+    static final int REQUIRING_ROOT_FIELDS = -1;
+
+    /** Sets the group root plans are created for; returns the previous one. */
+    int setRootGroup(int group) {
+        int previous = rootGroup;
+        rootGroup = group;
+        return previous;
+    }
+
+    /**
      * Gets or creates a plan for a root query (no lookup entry), of the current group of top-level fields.
      */
     SubgraphPlan getOrCreateRootPlan(String subgraph) {

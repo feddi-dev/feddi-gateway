@@ -11,6 +11,7 @@ import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
 import graphql.GraphqlErrorBuilder;
 import graphql.execution.preparsed.PreparsedDocumentEntry;
+import graphql.language.AstPrinter;
 import graphql.language.Document;
 import graphql.language.OperationDefinition;
 import graphql.parser.Parser;
@@ -18,6 +19,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -46,11 +48,23 @@ class OperationPlanCacheTest {
         var cache = new OperationPlanCache();
         var prepared = prepared("{ a }");
 
-        cache.putByText("{ a }", null, prepared);
+        cache.putByText("{ a }", null, Map.of(), prepared);
 
-        assertThat(cache.getByText("{ a }", null)).isSameAs(prepared);
-        assertThat(cache.getByText("{ a }", "Other")).isNull();
-        assertThat(cache.getByText("{ b }", null)).isNull();
+        assertThat(cache.getByText("{ a }", null, Map.of())).isSameAs(prepared);
+        assertThat(cache.getByText("{ a }", "Other", Map.of())).isNull();
+        assertThat(cache.getByText("{ b }", null, Map.of())).isNull();
+    }
+
+    @Test
+    void textKeyIncludesConditionValues() {
+        var cache = new OperationPlanCache();
+        var whenTrue = prepared("{ a }");
+
+        cache.putByText("query ($f: Boolean!) { a @skip(if: $f) }", null, Map.of("f", true), whenTrue);
+
+        assertThat(cache.getByText("query ($f: Boolean!) { a @skip(if: $f) }", null, Map.of("f", true)))
+            .isSameAs(whenTrue);
+        assertThat(cache.getByText("query ($f: Boolean!) { a @skip(if: $f) }", null, Map.of("f", false))).isNull();
     }
 
     @Test
@@ -59,15 +73,15 @@ class OperationPlanCacheTest {
         Document document = Parser.parse("{ a }");
         AtomicInteger preparations = new AtomicInteger();
 
-        var first = cache.getOrPrepare(document, () -> {
+        var first = cache.getOrPrepare(document, Map.of(), () -> {
             preparations.incrementAndGet();
             return prepared("{ a }");
         });
-        var second = cache.getOrPrepare(document, () -> {
+        var second = cache.getOrPrepare(document, Map.of(), () -> {
             preparations.incrementAndGet();
             return prepared("{ a }");
         });
-        cache.getOrPrepare(Parser.parse("{ a }"), () -> {
+        cache.getOrPrepare(Parser.parse("{ a }"), Map.of(), () -> {
             preparations.incrementAndGet();
             return prepared("{ a }");
         });
@@ -80,7 +94,7 @@ class OperationPlanCacheTest {
     void sizeStaysBounded() {
         var cache = new OperationPlanCache(10);
         for (int i = 0; i < 100; i++) {
-            cache.putByText("{ f" + i + " }", null, prepared("{ a }"));
+            cache.putByText("{ f" + i + " }", null, Map.of(), prepared("{ a }"));
         }
         assertThat(cache.size()).isLessThanOrEqualTo(10);
     }
@@ -98,6 +112,26 @@ class OperationPlanCacheTest {
         assertThat(first.getErrors()).isEmpty();
         assertThat((Object) second.getData()).isEqualTo(first.getData());
         assertThat(planningCount(registry)).isEqualTo(1);
+    }
+
+    @Test
+    void conditionVariablesAreEvaluatedBeforePlanning() {
+        var registry = new SimpleMeterRegistry();
+        List<String> operations = new ArrayList<>();
+        PerEntitySubgraphClient client = (operation, variables, context) -> {
+            operations.add(AstPrinter.printAstCompact(operation));
+            return Mono.just(ExecutionResultImpl.newExecutionResult().data(PRODUCTS).build());
+        };
+        var gateway = gateway(registry, null, client);
+        String query = "query ($skip: Boolean!) { products { id name @skip(if: $skip) } }";
+
+        execute(gateway, query, Map.of("skip", true));
+        execute(gateway, query, Map.of("skip", false));
+        execute(gateway, query, Map.of("skip", true));
+
+        // The condition is evaluated before planning: no directive reaches the subgraph, one plan per value
+        assertThat(operations).containsExactly("{products{id}}", "{products{id name}}", "{products{id}}");
+        assertThat(planningCount(registry)).isEqualTo(2);
     }
 
     @Test
@@ -166,6 +200,11 @@ class OperationPlanCacheTest {
     private static FeddiFederationGateway gateway(SimpleMeterRegistry registry, DocumentProvider provider) {
         PerEntitySubgraphClient client = (operation, variables, context) ->
             Mono.just(ExecutionResultImpl.newExecutionResult().data(PRODUCTS).build());
+        return gateway(registry, provider, client);
+    }
+
+    private static FeddiFederationGateway gateway(SimpleMeterRegistry registry, DocumentProvider provider,
+                                                  PerEntitySubgraphClient client) {
         return FeddiFederationGateway.create(
             List.of(new SubgraphInput("products", "http://localhost:0/graphql", SDL)),
             Map.of("products", client),
@@ -175,7 +214,11 @@ class OperationPlanCacheTest {
     }
 
     private static ExecutionResult execute(FeddiFederationGateway gateway, String query) {
-        return gateway.execute(ExecutionInput.newExecutionInput().query(query).build())
+        return execute(gateway, query, Map.of());
+    }
+
+    private static ExecutionResult execute(FeddiFederationGateway gateway, String query, Map<String, Object> variables) {
+        return gateway.execute(ExecutionInput.newExecutionInput().query(query).variables(variables).build())
             .block().executionResult();
     }
 

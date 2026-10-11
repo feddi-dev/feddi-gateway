@@ -11,6 +11,7 @@ import dev.feddi.federation.engine.query.FieldSelection;
 import dev.feddi.federation.engine.query.InlineFragmentSelection;
 import dev.feddi.federation.engine.query.Operation;
 import dev.feddi.federation.engine.query.Selection;
+import graphql.language.AstPrinter;
 import graphql.language.Directive;
 import graphql.language.OperationDefinition;
 import graphql.language.Type;
@@ -65,18 +66,29 @@ public final class OperationPlanner {
         collectClientFields(query.selections(), List.of(), null, context.clientFields);
 
         // Plan each top-level selection; a mutation's fields in order, a new group whenever the subgraph changes
+        // A query's root fields with @require arguments go into root plans of their own
         String previousSubgraph = null;
         for (Selection selection : query.selections()) {
-            if (operationType == OperationDefinition.Operation.MUTATION
-                && selection instanceof FieldSelection field) {
+            int group = context.rootGroup();
+            if (selection instanceof FieldSelection field) {
                 List<OperationPath> paths = pathFinder.findPaths(rootPath, field.fieldName());
                 String subgraph = paths.isEmpty() ? null : paths.get(0).currentSubgraph();
-                if (previousSubgraph != null && !previousSubgraph.equals(subgraph)) {
-                    context.startRootGroup();
+                if (operationType == OperationDefinition.Operation.MUTATION) {
+                    if (previousSubgraph != null && !previousSubgraph.equals(subgraph)) {
+                        context.startRootGroup();
+                    }
+                    previousSubgraph = subgraph;
+                    group = context.rootGroup();
+                } else if (subgraph != null
+                        && !graph.requirementsOf(query.rootType(), subgraph, field.fieldName()).isEmpty()) {
+                    group = PlanningContext.REQUIRING_ROOT_FIELDS;
                 }
-                previousSubgraph = subgraph;
             }
+            int previousGroup = context.setRootGroup(group);
             planSelection(rootPath, selection, List.of(), context);
+            if (operationType != OperationDefinition.Operation.MUTATION) {
+                context.setRootGroup(previousGroup);
+            }
         }
 
         // Build the execution plan from the planning context
@@ -326,13 +338,40 @@ public final class OperationPlanner {
                 planFieldSelection(narrowedPath, fieldSelection, parentPath, context, null,
                     new FragmentScope(typeCondition, fragment.directives()));
             } else if (subSelection instanceof InlineFragmentSelection nestedFragment) {
-                // Nested inline fragments are rare but possible
-                planInlineFragment(narrowedPath, nestedFragment, parentPath, context);
+                // A fragment without type condition inside one with a type condition (... on Book { ... @skip(if:
+                // $f) { title } }) selects on the same type, under the directives of both
+                planInlineFragment(narrowedPath, nestedFragment.typeCondition() == null && typeCondition != null
+                    ? new InlineFragmentSelection(typeCondition,
+                        combinedDirectives(fragment.directives(), nestedFragment.directives()),
+                        nestedFragment.subSelections())
+                    : nestedFragment, parentPath, context);
             }
         }
         if (typeCondition != null) {
             context.exitTypeCondition(parentPath.size(), outerTypeCondition);
         }
+    }
+
+    /** The directives of an outer and an inner fragment, each once. */
+    private static List<Directive> combinedDirectives(List<Directive> outer, List<Directive> inner) {
+        List<Directive> combined = new ArrayList<>(outer);
+        Set<String> names = new HashSet<>();
+        Set<String> printed = new HashSet<>();
+        outer.forEach(directive -> {
+            names.add(directive.getName());
+            printed.add(AstPrinter.printAstCompact(directive));
+        });
+        for (Directive directive : inner) {
+            if (printed.contains(AstPrinter.printAstCompact(directive))) {
+                continue;
+            }
+            if (!names.add(directive.getName())) {
+                throw new PlanningException("Fragments nested with two different @" + directive.getName()
+                    + " conditions are not supported");
+            }
+            combined.add(directive);
+        }
+        return combined;
     }
 
     /**
