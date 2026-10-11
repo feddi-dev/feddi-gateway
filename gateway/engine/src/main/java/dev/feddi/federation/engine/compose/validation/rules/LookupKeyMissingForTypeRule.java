@@ -1,7 +1,7 @@
 package dev.feddi.federation.engine.compose.validation.rules;
 
 import dev.feddi.federation.engine.compose.Subgraph;
-import dev.feddi.federation.engine.compose.validation.CrossSchemaFieldResolver;
+import dev.feddi.federation.engine.compose.validation.SourceSchemas;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
@@ -59,6 +59,7 @@ public final class LookupKeyMissingForTypeRule implements ValidationRule {
 
     @Override
     public ValidationResult validate(List<Subgraph> subgraphs) {
+        SourceSchemas schemas = SourceSchemas.of(subgraphs);
         ValidationResult.Builder builder = ValidationResult.builder();
         for (Subgraph subgraph : subgraphs) {
             GraphQLSchema schema = subgraph.schema();
@@ -67,7 +68,7 @@ public final class LookupKeyMissingForTypeRule implements ValidationRule {
                     for (GraphQLFieldDefinition field : container.getFieldDefinitions()) {
                         if (field.hasAppliedDirective(LOOKUP)) {
                             validateLookup(container.getName() + "." + field.getName(), field, subgraph,
-                                subgraphs, builder);
+                                schemas, builder);
                         }
                     }
                 }
@@ -77,7 +78,7 @@ public final class LookupKeyMissingForTypeRule implements ValidationRule {
     }
 
     private void validateLookup(String coordinate, GraphQLFieldDefinition lookup, Subgraph subgraph,
-                                List<Subgraph> subgraphs, ValidationResult.Builder builder) {
+                                SourceSchemas schemas, ValidationResult.Builder builder) {
         List<GraphQLObjectType> possibleTypes = possibleTypes(subgraph.schema(),
             GraphQLTypeUtil.unwrapAll(lookup.getType()));
         for (GraphQLArgument argument : lookup.getArguments()) {
@@ -91,8 +92,8 @@ public final class LookupKeyMissingForTypeRule implements ValidationRule {
             List<String> unmapped = new ArrayList<>();
             for (GraphQLObjectType possibleType : possibleTypes) {
                 boolean mappable = isMap == null
-                    ? CrossSchemaFieldResolver.isFieldDefinedOn(subgraphs, possibleType.getName(), argument.getName())
-                    : mappable(isMap, possibleType.getName(), true, subgraph.schema(), subgraphs);
+                    ? schemas.hasField(possibleType.getName(), argument.getName())
+                    : mappable(isMap, possibleType.getName(), true, subgraph.schema(), schemas);
                 if (!mappable) {
                     unmapped.add(possibleType.getName());
                 }
@@ -139,9 +140,9 @@ public final class LookupKeyMissingForTypeRule implements ValidationRule {
      * conditions only narrow.
      */
     private static boolean mappable(SelectedValue value, String typeName, boolean root, GraphQLSchema schema,
-                                    List<Subgraph> subgraphs) {
+                                    SourceSchemas schemas) {
         for (Alternative alternative : value.alternatives()) {
-            if (mappable(alternative, typeName, root, schema, subgraphs)) {
+            if (mappable(alternative, typeName, root, schema, schemas)) {
                 return true;
             }
         }
@@ -149,29 +150,29 @@ public final class LookupKeyMissingForTypeRule implements ValidationRule {
     }
 
     private static boolean mappable(Alternative alternative, String typeName, boolean root, GraphQLSchema schema,
-                                    List<Subgraph> subgraphs) {
+                                    SourceSchemas schemas) {
         return switch (alternative) {
-            case Path path -> walk(path, typeName, root, schema, subgraphs) != null;
+            case Path path -> walk(path, typeName, root, schema, schemas) != null;
             case ObjectSelection object -> {
                 String objectType = object.pathPrefix() == null ? typeName
-                    : walk(object.pathPrefix(), typeName, root, schema, subgraphs);
+                    : walk(object.pathPrefix(), typeName, root, schema, schemas);
                 boolean fieldsRoot = root && object.pathPrefix() == null;
                 yield objectType != null && object.fields().stream()
                     .map(ObjectField::value)
-                    .allMatch(fieldValue -> mappable(fieldValue, objectType, fieldsRoot, schema, subgraphs));
+                    .allMatch(fieldValue -> mappable(fieldValue, objectType, fieldsRoot, schema, schemas));
             }
             case ListSelection list -> {
                 String elementType = list.pathPrefix() == null ? typeName
-                    : walk(list.pathPrefix(), typeName, root, schema, subgraphs);
+                    : walk(list.pathPrefix(), typeName, root, schema, schemas);
                 yield elementType != null && mappable(list.elementValue(), elementType,
-                    root && list.pathPrefix() == null, schema, subgraphs);
+                    root && list.pathPrefix() == null, schema, schemas);
             }
         };
     }
 
     /** The type a path leads to from {@code typeName}, or null if it does not apply to or select fields of it. */
     private static @Nullable String walk(Path path, String typeName, boolean root, GraphQLSchema schema,
-                                         List<Subgraph> subgraphs) {
+                                         SourceSchemas schemas) {
         String current = typeName;
         if (path.hasInitialTypeCondition()) {
             if (root && !admits(path.initialTypeCondition(), typeName, schema)) {
@@ -182,11 +183,11 @@ public final class LookupKeyMissingForTypeRule implements ValidationRule {
             }
         }
         for (PathSegment segment : path.segments()) {
-            if (!CrossSchemaFieldResolver.isFieldDefinedOn(subgraphs, current, segment.fieldName())) {
+            if (!schemas.hasField(current, segment.fieldName())) {
                 return null;
             }
             current = segment.hasTypeCondition() ? segment.typeCondition()
-                : CrossSchemaFieldResolver.getFieldReturnTypeFromAnySchema(subgraphs, current, segment.fieldName());
+                : schemas.fieldType(current, segment.fieldName());
             if (current == null) {
                 return null;
             }
