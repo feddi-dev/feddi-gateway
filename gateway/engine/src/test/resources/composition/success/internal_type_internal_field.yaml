@@ -1,0 +1,26 @@
+name: "@internal field returning an @internal type"
+description: "REFERENCE_TO_INTERNAL_TYPE: a field that is @internal itself may return an @internal type"
+
+subgraphs:
+  a: |
+    type Query {
+      o: Object1
+    }
+
+    type Object1 {
+      field1: String!
+      field2: Object2 @internal
+    }
+
+    type Object2 @internal {
+      field3: String
+    }
+
+supergraph: |
+  type Query {
+    o: Object1
+  }
+
+  type Object1 {
+    field1: String!
+  }

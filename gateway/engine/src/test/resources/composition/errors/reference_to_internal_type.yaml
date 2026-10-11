@@ -1,0 +1,19 @@
+name: "REFERENCE_TO_INTERNAL_TYPE - public field returns an @internal type"
+description: "Object1.field2 is public, but Object2 is @internal and no other schema defines it."
+
+subgraphs:
+  a: |
+    type Query {
+      o: Object1
+    }
+
+    type Object1 {
+      field1: String!
+      field2: Object2!
+    }
+
+    type Object2 @internal {
+      field3: String
+    }
+
+error: "REFERENCE_TO_INTERNAL_TYPE"

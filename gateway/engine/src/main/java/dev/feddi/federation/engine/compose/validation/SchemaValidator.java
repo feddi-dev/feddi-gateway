@@ -115,6 +115,7 @@ public final class SchemaValidator {
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.FieldSelectionMapSyntaxRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.IsInvalidUsageRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.RequireInvalidUsageRule());
+        rules.add(new dev.feddi.federation.engine.compose.validation.rules.RequireInconsistentOnImplementationRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupReturnsListRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupMustHaveArgumentsRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupReturnsNonNullableRule());
@@ -135,6 +136,7 @@ public final class SchemaValidator {
 
         // @is and @require semantic field validation (cross-schema)
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.IsInvalidFieldsRule());
+        rules.add(new dev.feddi.federation.engine.compose.validation.rules.IsFieldsHasArgumentsRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.RequireInvalidFieldsRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.RequireOnRootFieldRule());
 
@@ -169,6 +171,7 @@ public final class SchemaValidator {
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.InputWithMissingRequiredFieldsRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.FieldWithMissingRequiredArgumentRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.ReferenceToInaccessibleTypeRule());
+        rules.add(new dev.feddi.federation.engine.compose.validation.rules.ReferenceToInternalTypeRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.EnumTypeDefaultValueInaccessibleRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.EnumValuesMismatchRule());
 

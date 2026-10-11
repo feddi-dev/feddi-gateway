@@ -1,0 +1,17 @@
+name: "IS_FIELDS_HAS_ARGUMENTS - @is selects a field with arguments"
+description: "@is selection maps are plain field paths; only @require may supply arguments."
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      productBySku(sku: ID! @is(field: "sku(format: \"short\")")): Product @lookup
+    }
+
+    type Product {
+      id: ID!
+      sku(format: String): ID!
+      name: String
+    }
+
+error: "IS_FIELDS_HAS_ARGUMENTS"
