@@ -56,6 +56,11 @@ class RandomGraphOracleTest {
         // composite view for queries: type -> field -> type name ("" for scalars), list flag in name suffix "[]"
         private final Map<String, Map<String, String>> composite = new LinkedHashMap<>();
         private final List<String> rootComposite = new ArrayList<>();
+        // per subgraph: abstract type definitions (SDL) and which entity types implement which interface there
+        private final List<List<String>> abstracts = new ArrayList<>();
+        private final List<Map<String, List<String>>> implementations = new ArrayList<>();
+        // composite: abstract type -> possible entity types (from the one subgraph that defines it)
+        private final Map<String, List<String>> members = new LinkedHashMap<>();
 
         RandomGraph(Random random) {
             this.random = random;
@@ -64,6 +69,8 @@ class RandomGraphOracleTest {
             for (int s = 0; s < subgraphCount; s++) {
                 types.add(new LinkedHashMap<>());
                 rootFields.add(new ArrayList<>());
+                abstracts.add(new ArrayList<>());
+                implementations.add(new LinkedHashMap<>());
             }
             build();
         }
@@ -128,6 +135,32 @@ class RandomGraphOracleTest {
                     }
                 }
             }
+            // Interfaces and unions over a schema's entity types, with root fields returning lists of them
+            for (int s = 0; s < subgraphCount; s++) {
+                List<String> defined = new ArrayList<>(types.get(s).keySet());
+                if (defined.size() < 2) {
+                    continue;
+                }
+                if (random.nextInt(3) == 0) {
+                    String name = "I" + s;
+                    List<String> implementing = pickTypes(defined, 2 + random.nextInt(defined.size() - 1));
+                    abstracts.get(s).add("interface " + name + " { id: ID! }");
+                    for (String t : implementing) {
+                        implementations.get(s).computeIfAbsent(t, k -> new ArrayList<>()).add(name);
+                    }
+                    members.put(name, implementing);
+                    rootFields.get(s).add("iq" + s + ": [" + name + "]");
+                    rootComposite.add("iq" + s + ":" + name + "[]");
+                }
+                if (random.nextInt(3) == 0) {
+                    String name = "U" + s;
+                    List<String> unionMembers = pickTypes(defined, 2 + random.nextInt(defined.size() - 1));
+                    abstracts.get(s).add("union " + name + " = " + String.join(" | ", unionMembers));
+                    members.put(name, unionMembers);
+                    rootFields.get(s).add("uq" + s + ": [" + name + "]");
+                    rootComposite.add("uq" + s + ":" + name + "[]");
+                }
+            }
             // Root fields: at least one per schema that defines types; shared roots with @shareable
             for (int s = 0; s < subgraphCount; s++) {
                 List<String> defined = new ArrayList<>(types.get(s).keySet());
@@ -178,6 +211,12 @@ class RandomGraphOracleTest {
             return options.get(random.nextInt(options.size()));
         }
 
+        private List<String> pickTypes(List<String> options, int count) {
+            List<String> copy = new ArrayList<>(options);
+            java.util.Collections.shuffle(copy, random);
+            return copy.subList(0, Math.min(count, copy.size()));
+        }
+
         private List<Integer> pick(List<Integer> options, int count) {
             List<Integer> copy = new ArrayList<>(options);
             java.util.Collections.shuffle(copy, random);
@@ -197,8 +236,13 @@ class RandomGraphOracleTest {
                         .append(" @lookup @internal\n");
                 }
                 sdl.append("}\n");
+                abstracts.get(s).forEach(definition -> sdl.append(definition).append('\n'));
+                int schema = s;
                 types.get(s).forEach((type, fields) -> {
-                    sdl.append("type ").append(type).append(" @key(fields: \"id\") {\n");
+                    List<String> interfaces = implementations.get(schema).getOrDefault(type, List.of());
+                    sdl.append("type ").append(type)
+                        .append(interfaces.isEmpty() ? "" : " implements " + String.join(" & ", interfaces))
+                        .append(" @key(fields: \"id\") {\n");
                     fields.forEach(f -> sdl.append("  ").append(f).append('\n'));
                     sdl.append("}\n");
                 });
@@ -233,6 +277,21 @@ class RandomGraphOracleTest {
         }
 
         private void selection(StringBuilder query, String type, int depth, String indent) {
+            if (members.containsKey(type)) {
+                // An interface or union: __typename, the interface's id, and fragments on some members
+                query.append(" {\n").append(indent).append("  __typename\n");
+                if (type.startsWith("I")) {
+                    query.append(indent).append("  id\n");
+                }
+                for (String member : members.get(type)) {
+                    if (random.nextInt(3) != 0) {
+                        query.append(indent).append("  ... on ").append(member);
+                        selection(query, member, depth, indent + "  ");
+                    }
+                }
+                query.append(indent).append("}\n");
+                return;
+            }
             query.append(" {\n");
             List<String> fields = new ArrayList<>(composite.get(type).keySet());
             java.util.Collections.shuffle(fields, random);
@@ -245,7 +304,7 @@ class RandomGraphOracleTest {
                 }
                 query.append(indent).append("  ");
                 if (random.nextInt(6) == 0) {
-                    query.append("x").append(alias++).append(": ");
+                    query.append("x").append(type).append('_').append(alias++).append(": ");
                 }
                 query.append(field);
                 if (fieldType.isEmpty()) {
