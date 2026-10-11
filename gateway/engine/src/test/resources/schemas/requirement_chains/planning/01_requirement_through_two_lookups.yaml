@@ -20,7 +20,7 @@ expectedPlan:
     - id: 2
       subgraph: shop
       operation: "query($id: ID!, $weight: Float) { productById(id: $id) { shippingCost(weight: $weight) } }"
-      dependsOn: [3, 4]
+      dependsOn: [4]
       requirements:
         id: "id"
         weight: "weight"

@@ -46,7 +46,7 @@ expectedPlan:
     - id: 4
       subgraph: ranking
       operation: "query($id: ID!, $views: Int) { photoById(id: $id) { rank(views: $views) } }"
-      dependsOn: [1, 5]
+      dependsOn: [5]
       requirements:
         id: "id"
         views: "views"

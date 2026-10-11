@@ -29,7 +29,7 @@ expectedPlan:
     - id: 2
       subgraph: d
       operation: "query ($id: ID!, $ie: Boolean) { productByIdD(id: $id) { canAfford(ie: $ie) } }"
-      dependsOn: [1, 3]
+      dependsOn: [3]
       requirements:
         id: "id"
         ie: "isExpensive"
@@ -38,7 +38,7 @@ expectedPlan:
     - id: 3
       subgraph: c
       operation: "query ($id: ID!, $p: Float) { productByIdC(id: $id) { isExpensive(p: $p) } }"
-      dependsOn: [1, 4]
+      dependsOn: [4]
       requirements:
         id: "id"
         p: "price"

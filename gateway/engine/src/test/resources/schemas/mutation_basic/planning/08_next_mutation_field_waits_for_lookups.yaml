@@ -28,5 +28,5 @@ expectedPlan:
     - id: 3
       subgraph: reviews
       operation: "mutation { createReview(productId: \"p1\", text: \"Nice\", stars: 5) { id } }"
-      dependsOn: [1, 2]
+      dependsOn: [2]
       repeatedExecution: false

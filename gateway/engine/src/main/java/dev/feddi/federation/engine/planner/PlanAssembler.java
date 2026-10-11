@@ -84,7 +84,7 @@ final class PlanAssembler {
             steps.add(step);
         }
 
-        steps = mergeLookupsOfTypeBranches(steps);
+        steps = withoutImpliedDependencies(mergeLookupsOfTypeBranches(steps));
 
         // Sort steps by dependencies (topological order)
         steps.sort(Comparator.comparingInt(ExecutionStep::id));
@@ -146,6 +146,37 @@ final class PlanAssembler {
             remapped.add(step.withDependsOn(List.copyOf(dependsOn)));
         }
         return remapped;
+    }
+
+    /**
+     * Removes the dependencies a step has through another one: a step waiting for 3 and 4, where 4 waits for 3,
+     * only waits for 4 (4 completes after 3, whose results are merged by then).
+     */
+    private static List<ExecutionStep> withoutImpliedDependencies(List<ExecutionStep> steps) {
+        Map<Integer, List<Integer>> dependencies = new HashMap<>();
+        steps.forEach(step -> dependencies.put(step.id(), step.dependsOn()));
+        List<ExecutionStep> result = new ArrayList<>();
+        for (ExecutionStep step : steps) {
+            List<Integer> direct = step.dependsOn().stream()
+                .filter(dependency -> step.dependsOn().stream().noneMatch(other -> other.intValue() != dependency
+                    && reaches(other, dependency, dependencies, new HashSet<>())))
+                .toList();
+            result.add(direct.size() == step.dependsOn().size() ? step : step.withDependsOn(direct));
+        }
+        return result;
+    }
+
+    /** Whether step {@code from} waits for step {@code to}, directly or through other steps. */
+    private static boolean reaches(int from, int to, Map<Integer, List<Integer>> dependencies, Set<Integer> seen) {
+        if (!seen.add(from)) {
+            return false;
+        }
+        for (int dependency : dependencies.getOrDefault(from, List.of())) {
+            if (dependency == to || reaches(dependency, to, dependencies, seen)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The entity path types of a step for both a and b, or null if they cannot be merged. */
