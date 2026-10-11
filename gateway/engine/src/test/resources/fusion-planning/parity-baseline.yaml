@@ -335,7 +335,7 @@ RequirementArgumentTests/Requires_Arguments_Deeply_Nested_Requires_With_Variable
   fusionDepth: 2
 RequirementArgumentTests/Requires_Arguments_Reentrant_Comments_Collides_With_Client_Comments:
   status: "composition: EXTERNAL_UNUSED: External field 'somethingElse' on type 'Comment'\
-    \ in schema 'd' is not referenced by any @provides directive."
+    \ in schema 'd' is not referenced by any @key or @provides directive."
   steps: 0
   depth: 0
   fusionOperations: 5

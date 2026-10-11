@@ -27,15 +27,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.EXTERNAL;
+import static dev.feddi.federation.engine.compose.FederationDirectives.KEY;
 import static dev.feddi.federation.engine.compose.FederationDirectives.PROVIDES;
 
 /**
- * Validates that every @external field is referenced by a @provides directive.
+ * Validates that every @external field is selected by a @key or a @provides directive of its schema.
  *
  * Spec: https://graphql.github.io/composite-schemas-spec/draft/#sec-External-Unused
- *
- * "Every field marked as @external in a source schema is actually used by that source
- * schema in a @provides directive."
  */
 public final class ExternalUnusedRule implements ValidationRule {
 
@@ -66,8 +64,9 @@ public final class ExternalUnusedRule implements ValidationRule {
         GraphQLSchema schema = subgraph.schema();
         String schemaName = subgraph.name();
 
-        // Collect all @provides directives with their field selections and target types
+        // Collect all @key and @provides selections with the type they are rooted at
         List<ProvidesInfo> providesList = collectProvides(schema);
+        providesList.addAll(collectKeys(schema));
 
         // Check each @external field
         for (GraphQLNamedType type : schema.getAllTypesAsList()) {
@@ -77,7 +76,7 @@ public final class ExternalUnusedRule implements ValidationRule {
                         if (!isFieldProvided(objectType.getName(), field.getName(), providesList, schema)) {
                             String coordinate = objectType.getName() + "." + field.getName();
                             builder.addError(CODE,
-                                String.format("External field '%s' on type '%s' in schema '%s' is not referenced by any @provides directive.",
+                                String.format("External field '%s' on type '%s' in schema '%s' is not referenced by any @key or @provides directive.",
                                     field.getName(), objectType.getName(), schemaName),
                                 coordinate, schemaName, EXTERNAL);
                         }
@@ -89,7 +88,7 @@ public final class ExternalUnusedRule implements ValidationRule {
                         if (!isFieldProvided(interfaceType.getName(), field.getName(), providesList, schema)) {
                             String coordinate = interfaceType.getName() + "." + field.getName();
                             builder.addError(CODE,
-                                String.format("External field '%s' on type '%s' in schema '%s' is not referenced by any @provides directive.",
+                                String.format("External field '%s' on type '%s' in schema '%s' is not referenced by any @key or @provides directive.",
                                     field.getName(), interfaceType.getName(), schemaName),
                                 coordinate, schemaName, EXTERNAL);
                         }
@@ -142,7 +141,28 @@ public final class ExternalUnusedRule implements ValidationRule {
     }
 
     /**
-     * Checks if a field is referenced by any @provides directive.
+     * Collects the field selections of all @key directives, rooted at the annotated type.
+     */
+    private List<ProvidesInfo> collectKeys(GraphQLSchema schema) {
+        List<ProvidesInfo> keys = new ArrayList<>();
+        for (GraphQLNamedType type : schema.getAllTypesAsList()) {
+            List<GraphQLAppliedDirective> keyDirectives = switch (type) {
+                case GraphQLObjectType objectType -> objectType.getAppliedDirectives(KEY);
+                case GraphQLInterfaceType interfaceType -> interfaceType.getAppliedDirectives(KEY);
+                default -> List.of();
+            };
+            for (GraphQLAppliedDirective key : keyDirectives) {
+                String fieldsStr = getStringValue(key.getArgument("fields"));
+                if (fieldsStr != null) {
+                    keys.add(new ProvidesInfo(type.getName(), fieldsStr, schema));
+                }
+            }
+        }
+        return keys;
+    }
+
+    /**
+     * Checks if a field is referenced by any collected @key or @provides selection.
      */
     private boolean isFieldProvided(String typeName, String fieldName, List<ProvidesInfo> providesList, GraphQLSchema schema) {
         for (ProvidesInfo provides : providesList) {
