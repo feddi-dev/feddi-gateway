@@ -1,4 +1,4 @@
-name: "SATISFIABILITY_ERROR - One-way lookup insufficient"
+name: "UNSATISFIABLE_QUERY_PATH - One-way lookup insufficient"
 description: "Subgraph B can lookup to A, but A cannot reach B's fields without a reverse lookup"
 
 subgraphs:

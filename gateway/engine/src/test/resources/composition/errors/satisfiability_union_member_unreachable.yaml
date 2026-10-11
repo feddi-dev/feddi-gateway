@@ -1,4 +1,4 @@
-name: "SATISFIABILITY_ERROR - Union member type fields unreachable"
+name: "UNSATISFIABLE_QUERY_PATH - Union member type fields unreachable"
 description: "Query returns SearchResult union, but User fields in profiles subgraph are unreachable"
 
 subgraphs:
