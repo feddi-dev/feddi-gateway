@@ -147,6 +147,10 @@ failure of building the merged schema) and the warnings `UNREACHABLE_TYPE`, `LOO
   step waits for them and runs once. `@external` fields used only by a `@key` compose.
 - Renamed codes: `KEY_DIRECTIVE_IN_FIELDS_ARGUMENT`, `PROVIDES_DIRECTIVE_IN_FIELDS_ARGUMENT`. `LOOKUP_DUPLICATE`
   and `INTERFACE_HAS_NO_IMPLEMENTATIONS` are warnings.
+- **A mutation's top-level fields execute in order.** Before, fields of different subgraphs ran concurrently and
+  fields of one subgraph were merged across others (`A1, B, A2` became `{A1 A2}` and `{B}`). Now each group of
+  consecutive fields of one subgraph is its own step, waiting for the previous group and its lookups.
+  `@require` on mutation fields fails planning (resolving it would run another subgraph's mutation field).
 
 ## Performance
 
@@ -158,6 +162,17 @@ Local benchmark (`scripts/local-benchmark.sh`, heavy query, 50 VUs, 30 s, two ro
 | v1 | 923 / 864, then 865 / 903 |
 | v2 before optimizing | 828 / 850 |
 | v2 now | 897 / 892 |
+
+Re-run on 2026-10-11 after root requirements, field aliasing, mutation ordering and the refactoring (same
+script and settings, four rounds, alternating, the order reversed in rounds 3-4):
+
+| | round 1 | round 2 | round 3 | round 4 |
+|---|---|---|---|---|
+| v1 req/s (median latency) | 147 (255 ms) | 156 (212 ms) | 197 (210 ms) | 213 (191 ms) |
+| v2 req/s (median latency) | 153 (247 ms) | 254 (165 ms) | 248 (172 ms) | 227 (185 ms) |
+
+v2 is ahead in every round. The machine was much slower than the day before (load average 40-70 during the
+runs), so only the comparison within these runs counts, not the absolute numbers.
 
 What it took (JFR under the benchmark load): `ResponseFieldOrder` collected the fields of the same selection sets
 again for every object and list item, about 10% of the CPU samples; it now caches them per response. Planning the
@@ -209,6 +224,13 @@ Simplifications (2026-10-11), each a commit without plan changes; main code -101
 - **`ExecutionStep.with…` methods** instead of 13-argument copies; unused factory methods removed. (-38)
 - **Executor**: one method merges an entity's lookup result (four `synchronized` blocks before), one turns a
   failure into its GraphQL error; one `RequirementReader` per step. (-23)
+
+Afterwards (2026-10-11):
+
+- **Mutation ordering** (see Release notes): `mutation_basic/06-08`. Fusion runs mutation operations one after
+  another too but does not list that as dependencies, so the parity depth leaves the ordering of mutation steps
+  out.
+- **Implied dependencies left out**: a step waiting for 3 and 4, where 4 waits for 3, lists only 4 (10 fixtures).
 
 Left as they are: `SatisfiabilityValidationRule` extracts path sets the way the spec's algorithm does (products
 of object fields' alternatives), which is not a validation walk; `LookupKeyMissingForTypeRule` asks whether some
