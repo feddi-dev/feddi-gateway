@@ -107,11 +107,11 @@ and counter-examples. All 66 codes are now reported. Changes:
 | `INTERFACE_FIELD_NO_IMPLEMENTATION`, `INTERFACE_FIELD_ARGUMENT_NO_IMPLEMENTATION` | `SCHEMA_BUILD_ERROR` | the spec codes (graphql-java's error types mapped) |
 | Merge of field arguments | union of all definitions' arguments | only arguments every definition declares (`MergeOutputFields`) |
 | `KEY_/PROVIDES_DIRECTIVE_IN_FIELDS_ARG` | misspelled codes | `..._IN_FIELDS_ARGUMENT` |
-| `REQUIRE_ON_NON_ENTITY` (feddi-only) | rejected `@require` on interface fields, which the spec allows | removed: interface fields with `@require` are planned per possible type (`schemas/interface_requirements`); satisfiability rejects requirements that cannot be resolved. `REQUIRE_ON_ROOT_FIELD` remains (see Open) |
+| `REQUIRE_ON_NON_ENTITY` (feddi-only) | rejected `@require` on interface fields, which the spec allows | removed: interface fields with `@require` are planned per possible type (`schemas/interface_requirements`); satisfiability rejects requirements that cannot be resolved. Root fields with `@require` are supported too (`schemas/root_requirements`) |
 | `LOOKUP_DUPLICATE`, `INTERFACE_HAS_NO_IMPLEMENTATIONS` (feddi-only) | errors | warnings: the spec allows several lookups for a type, GraphQL an interface without implementations |
 
 feddi-only codes left: `EXTERNAL_FIELD_HAS_ARGUMENTS` (error; the spec rejects the same schemas through other
-rules, see Spec readings), `REQUIRE_ON_ROOT_FIELD` (error, a planner limit), `SCHEMA_BUILD_ERROR` (any other
+rules, see Spec readings), `SCHEMA_BUILD_ERROR` (any other
 failure of building the merged schema) and the warnings `UNREACHABLE_TYPE`, `LOOKUP_DUPLICATE`,
 `INTERFACE_HAS_NO_IMPLEMENTATIONS`.
 
@@ -142,8 +142,9 @@ failure of building the merged schema) and the warnings `UNREACHABLE_TYPE`, `LOO
   `REFERENCE_TO_INTERNAL_TYPE`. Invalid source schemas fail composition with `INVALID_GRAPHQL` instead of an
   exception; broken interface contracts report `INTERFACE_FIELD_NO_IMPLEMENTATION` /
   `INTERFACE_FIELD_ARGUMENT_NO_IMPLEMENTATION` instead of `SCHEMA_BUILD_ERROR`.
-- `@require` on interface fields is supported; on root fields it fails with `REQUIRE_ON_ROOT_FIELD` (was
-  `REQUIRE_ON_NON_ENTITY`, which also rejected interface fields). `@external` fields used only by a `@key` compose.
+- `@require` on interface fields and on root fields is supported (`REQUIRE_ON_NON_ENTITY` is removed; it also
+  rejected interface fields). A root field's requirements are selected on the other subgraphs' root types; its
+  step waits for them and runs once. `@external` fields used only by a `@key` compose.
 - Renamed codes: `KEY_DIRECTIVE_IN_FIELDS_ARGUMENT`, `PROVIDES_DIRECTIVE_IN_FIELDS_ARGUMENT`. `LOOKUP_DUPLICATE`
   and `INTERFACE_HAS_NO_IMPLEMENTATIONS` are warnings.
 
@@ -162,7 +163,7 @@ What it took (JFR under the benchmark load): `ResponseFieldOrder` collected the 
 again for every object and list item, about 10% of the CPU samples; it now caches them per response. Planning the
 heavy query took 1.47 ms in v2 vs 0.69 ms in v1 (plans are cached, so this only hits a query's first request):
 the per-child resolvability check ran also for fields with a single path, and `PathSegment` printed its arguments
-for every hash. Now 0.64 ms.
+for every hash. Now about 0.6 ms (best of 5 × 2000 plans; the field clash check below costs about 3%).
 
 ## Review of the v2 code (2026-10-10)
 
@@ -171,34 +172,37 @@ of the lookup paths became `addLookupKeys`; `SubgraphPlan` keeps the lookup edge
 the lookup that enters a subgraph is found in one place (`enteringLookup`); unused `ExecutionStep` constructors and
 pre-v2 methods without callers are removed; satisfiability finds a schema's lookups for a type once per check.
 
-Recommended next, in order of value:
+Follow-up (2026-10-11), each a commit without plan changes unless noted:
 
-1. **One code path for fields with and without a fragment context in `OperationPlanner`** (now 3184 lines). Many
-   steps exist twice, once with `fragmentContext`/`targetFragmentContext` and once without, and
-   `SubgraphPlan`'s field tree and `InlineFragmentNode` each have their own `addFieldAtPath`. A fragment is a
-   field-tree node with a type condition; treating it as one would remove the largest source of "fixed in one
-   branch only" bugs. Big change, best done with the oracle and random graphs as the safety net.
-2. **Index requirements by type and subgraph in `Graph`.** `fieldHasRequire` scans every edge on each call and
-   `PathFinder` calls it for every field edge it considers. Fine at today's schema sizes (planning 0.64 ms), linear
-   in the graph size.
-3. **Split `OperationPlanner`**: requirement handling (`processRequire*`, `resolveRequireField*`), lookup keys and
-   the plan tree (`SubgraphPlan`, `PlanNode`, `InlineFragmentNode`) are separable classes.
+- **Requirements indexed in `Graph`** (`requirementsOf`, `fieldHasRequire` is a map lookup instead of a scan of
+  all edges).
+- **`@require` on root fields** (new): the requirements are selected on the root types of the other subgraphs
+  (directly, below a root field, or through lookups); the requiring root step waits for them and runs once with
+  the values from the response root (`schemas/root_requirements`; the oracle now checks root requirement values).
+- **FieldsConflict fixed** (new): a key or required field the planner adds gets an alias where another field
+  with its response key at that position (in the plan or the client's query) cannot be merged with it
+  (FieldsInSetCanMerge: same field on the same or an abstract type, same output type otherwise). The graph
+  records field types for this. `schemas/typed_internal_fields`; the random graphs make `code` nullable on some
+  types, and without the fix 6 of 1000 seeds fail.
+- **One code path for fields with and without fragments**: the field tree and fragments share navigation and
+  field adding (`SelectionNode`), one method plans fields in and out of fragments, and lookups and requirements of
+  fields in fragments use the same code as all others (the fragment copy lacked the fallback for keys the source
+  subgraph does not have).
+- **`OperationPlanner` split** (3184 → 341 lines): `PlanningContext` (plans, dependencies, lookups, keys),
+  `RequirementPlanner`, `FieldPathSelector` (key and requirement paths, aliases), `PlanAssembler` (execution
+  steps), `ResponseKeys`, `SubgraphPlan`, `SelectionNode`, `InlineFragmentContext`.
 
-Open:
+Main code size: 25,874 lines before the follow-up, 25,798 after. Since v2 started (`6a7c591`, 24,180 lines) the
+growth is v2's functionality (planner features, `RequirementReader`, spec rules, satisfiability), not the split.
 
-- **`@require` on root fields** (`REQUIRE_ON_ROOT_FIELD`): valid per spec if satisfiable (`Query.search(filter:
-  @require(field: "category"))` with `category` in another schema's Query), but the planner resolves
-  requirements only at lookups. Needs a root step whose result feeds variables into another root step.
-- **FieldsConflict**: when the planner adds a key field inside a fragment and another member type has a field with
-  the same response key and a different nullability, the subgraph rejects the operation. Needs the field types in
-  the graph so the planner can alias.
+Left: `RequirementPlanner.resolveRequireField` and `setupDirectLookupResolution` still overlap (both set up a
+lookup that resolves a required field); merging them is the next simplification.
 
 ## Open questions for Andi
 
 - The spec readings above (requirements and lookup inputs; possible types of abstract fields; where lookup key
   fields must be defined; `@external` in argument merging). All could be raised upstream as clarifications of
   the draft.
-- `REQUIRE_ON_ROOT_FIELD`: support root-field requirements, or propose to the spec that they are invalid?
 
 - `composition/errors/lookup_does_not_imply_shareable.yaml` (June) asserted that a lookup does not make fields
   shareable. Spec PR #224 (July 9) added that keys may be inferred from lookup arguments, and Fusion treats such
