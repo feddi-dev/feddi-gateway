@@ -28,6 +28,12 @@ class RandomGraphOracleTest {
     private static final int SEEDS = Integer.getInteger("randomGraph.seeds", 150);
     private static final int QUERIES_PER_GRAPH = 4;
 
+    @org.junit.jupiter.api.AfterAll
+    static void writeDebugOutput() throws java.io.IOException {
+        // Cases listed in build/oracle-debug-cases.txt (e.g. random/115/0) are written like PlanExecutionOracleTest's
+        PlanExecutionOracleTest.writeDebugOutput();
+    }
+
     @TestFactory
     Stream<DynamicTest> randomGraphsReturnTheMonolithsData() {
         return IntStream.range(0, SEEDS).mapToObj(seed -> DynamicTest.dynamicTest("seed " + seed, () -> {
@@ -61,6 +67,11 @@ class RandomGraphOracleTest {
         private final List<Map<String, List<String>>> implementations = new ArrayList<>();
         // composite: abstract type -> possible entity types (from the one subgraph that defines it)
         private final Map<String, List<String>> members = new LinkedHashMap<>();
+        // types with a second key "code", and per subgraph the types it looks up by code only
+        private final Set<String> codeKeyed = new LinkedHashSet<>();
+        private final List<Set<String>> codeOnlyLookups = new ArrayList<>();
+        // per subgraph: interfaces with a lookup returning them
+        private final List<Set<String>> abstractLookups = new ArrayList<>();
 
         RandomGraph(Random random) {
             this.random = random;
@@ -71,6 +82,8 @@ class RandomGraphOracleTest {
                 rootFields.add(new ArrayList<>());
                 abstracts.add(new ArrayList<>());
                 implementations.add(new LinkedHashMap<>());
+                codeOnlyLookups.add(new LinkedHashSet<>());
+                abstractLookups.add(new LinkedHashSet<>());
             }
             build();
         }
@@ -114,6 +127,43 @@ class RandomGraphOracleTest {
                     composite.get(type).put(field, target + (list ? "[]" : ""));
                 }
             }
+            // A second key "code" on some types, defined everywhere the type is; some schemas look it up by code only
+            for (int t = 0; t < typeCount; t++) {
+                String type = "E" + t;
+                if (random.nextInt(3) != 0) {
+                    continue;
+                }
+                codeKeyed.add(type);
+                composite.get(type).put("code", "");
+                for (int s : definers(type)) {
+                    types.get(s).get(type).add(1, "code: String!");
+                    if (random.nextBoolean()) {
+                        codeOnlyLookups.get(s).add(type);
+                    }
+                }
+            }
+            // @provides: a relation provides a field of its target that another schema owns (@external here)
+            for (int s = 0; s < subgraphCount; s++) {
+                for (Map.Entry<String, List<String>> entry : types.get(s).entrySet()) {
+                    List<String> fields = entry.getValue();
+                    for (int i = 0; i < fields.size(); i++) {
+                        String line = fields.get(i);
+                        if (!line.matches("r\\d.*") || random.nextInt(3) != 0) {
+                            continue;
+                        }
+                        String target = line.substring(line.indexOf(':') + 2).replace("[", "").replace("]", "");
+                        String provided = ownedElsewhere(s, target);
+                        if (provided != null && !fields.get(i).contains("@provides")) {
+                            String name = provided.substring(0, provided.indexOf(':'));
+                            fields.set(i, line + " @provides(fields: \"" + name + "\")");
+                            List<String> targetFields = types.get(s).get(target);
+                            if (targetFields.stream().noneMatch(f -> f.startsWith(name + ":"))) {
+                                targetFields.add(provided + " @external");
+                            }
+                        }
+                    }
+                }
+            }
             // Requirements: a field in one definer that needs a scalar another definer owns
             for (int t = 0; t < typeCount; t++) {
                 String type = "E" + t;
@@ -124,7 +174,7 @@ class RandomGraphOracleTest {
                 int requiring = s(definers);
                 for (String line : new ArrayList<>(types.get(definers.get((definers.indexOf(requiring) + 1)
                         % definers.size())).get(type))) {
-                    if (line.startsWith("f") && !line.contains("@shareable")) {
+                    if (line.startsWith("f") && !line.contains("@shareable") && !line.contains("@external")) {
                         String required = line.substring(0, line.indexOf(':'));
                         String argumentType = line.substring(line.indexOf(':') + 2);
                         String field = "req" + t + "_" + required;
@@ -149,6 +199,9 @@ class RandomGraphOracleTest {
                         implementations.get(s).computeIfAbsent(t, k -> new ArrayList<>()).add(name);
                     }
                     members.put(name, implementing);
+                    if (random.nextBoolean()) {
+                        abstractLookups.get(s).add(name);
+                    }
                     rootFields.get(s).add("iq" + s + ": [" + name + "]");
                     rootComposite.add("iq" + s + ":" + name + "[]");
                 }
@@ -211,6 +264,24 @@ class RandomGraphOracleTest {
             return options.get(random.nextInt(options.size()));
         }
 
+        /** A scalar field definition of {@code type} owned (not shared) by a schema other than {@code s}. */
+        private String ownedElsewhere(int s, String type) {
+            for (int other = 0; other < subgraphCount; other++) {
+                if (other == s || !types.get(other).containsKey(type)) {
+                    continue;
+                }
+                for (String line : types.get(other).get(type)) {
+                    if (line.startsWith("f") && !line.contains("@shareable") && !line.contains("@external")) {
+                        String name = line.substring(0, line.indexOf(':'));
+                        if (types.get(s).get(type).stream().noneMatch(f -> f.startsWith(name + ":"))) {
+                            return line;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
         private List<String> pickTypes(List<String> options, int count) {
             List<String> copy = new ArrayList<>(options);
             java.util.Collections.shuffle(copy, random);
@@ -232,7 +303,16 @@ class RandomGraphOracleTest {
                 StringBuilder sdl = new StringBuilder("type Query {\n");
                 rootFields.get(s).forEach(f -> sdl.append("  ").append(f).append('\n'));
                 for (String type : types.get(s).keySet()) {
-                    sdl.append("  ").append(lookupName(type)).append("(id: ID!): ").append(type)
+                    if (codeOnlyLookups.get(s).contains(type)) {
+                        sdl.append("  ").append(type.toLowerCase()).append("ByCode(code: String!): ").append(type)
+                            .append(" @lookup @internal\n");
+                    } else {
+                        sdl.append("  ").append(lookupName(type)).append("(id: ID!): ").append(type)
+                            .append(" @lookup @internal\n");
+                    }
+                }
+                for (String name : abstractLookups.get(s)) {
+                    sdl.append("  ").append(name.toLowerCase()).append("ById(id: ID!): ").append(name)
                         .append(" @lookup @internal\n");
                 }
                 sdl.append("}\n");
@@ -242,7 +322,8 @@ class RandomGraphOracleTest {
                     List<String> interfaces = implementations.get(schema).getOrDefault(type, List.of());
                     sdl.append("type ").append(type)
                         .append(interfaces.isEmpty() ? "" : " implements " + String.join(" & ", interfaces))
-                        .append(" @key(fields: \"id\") {\n");
+                        .append(" @key(fields: \"id\")")
+                        .append(codeKeyed.contains(type) ? " @key(fields: \"code\")" : "").append(" {\n");
                     fields.forEach(f -> sdl.append("  ").append(f).append('\n'));
                     sdl.append("}\n");
                 });
