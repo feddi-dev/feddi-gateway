@@ -271,6 +271,12 @@ public final class Graph {
      * @return true if the field has @require, false otherwise
      */
     public boolean fieldHasRequire(String typeName, String subgraph, String fieldName) {
+        // An interface field with @require: its implementations' fields carry the requirement
+        for (String implementation : getImplementingTypesForInterface(typeName)) {
+            if (fieldHasRequire(implementation, subgraph, fieldName)) {
+                return true;
+            }
+        }
         // Check all lookup edges that target this type/subgraph
         for (Edge edge : edges) {
             if (edge instanceof LookupMoveEdge lookupEdge) {

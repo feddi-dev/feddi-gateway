@@ -1,6 +1,6 @@
 # feddi's result compared with a monolith for every planner fixture and imported Fusion
 # test, written by PlanExecutionOracleTest (./gradlew :engine:test -PupdatePlanOracle).
-# 238 queries {composition failed=15, invalid query=4, same data=219}
+# 240 queries {composition failed=15, invalid query=4, same data=221}
 fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present: "same\
   \ data"
 ? fusion/AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ
@@ -212,6 +212,8 @@ schemas/input_objects/01_simple_input: "same data"
 schemas/input_objects/02_nested_input: "same data"
 schemas/input_objects/03_mutation_input: "same data"
 schemas/input_objects/04_cross_subgraph_input: "same data"
+schemas/interface_requirements/01_interface_field: "same data"
+schemas/interface_requirements/02_interface_field_in_fragment: "same data"
 schemas/interface_types/01_interface_fields_only: "same data"
 schemas/interface_types/02_widening_inside_narrowing: "same data"
 schemas/interface_types/03_widening_on_concrete_type: "same data"
