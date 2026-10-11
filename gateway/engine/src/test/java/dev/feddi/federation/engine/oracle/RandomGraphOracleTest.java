@@ -69,6 +69,7 @@ class RandomGraphOracleTest {
         private final Map<String, List<String>> members = new LinkedHashMap<>();
         // types with a second key "code", and per subgraph the types it looks up by code only
         private final Set<String> codeKeyed = new LinkedHashSet<>();
+        private final Set<String> nullableCode = new LinkedHashSet<>();
         private final List<Set<String>> codeOnlyLookups = new ArrayList<>();
         // per subgraph: interfaces with a lookup returning them
         private final List<Set<String>> abstractLookups = new ArrayList<>();
@@ -127,7 +128,8 @@ class RandomGraphOracleTest {
                     composite.get(type).put(field, target + (list ? "[]" : ""));
                 }
             }
-            // A second key "code" on some types, defined everywhere the type is; some schemas look it up by code only
+            // A second key "code" on some types, defined everywhere the type is; some schemas look it up by code only.
+            // Nullable on some types: a key selected next to another type's code then has another shape
             for (int t = 0; t < typeCount; t++) {
                 String type = "E" + t;
                 if (random.nextInt(3) != 0) {
@@ -135,8 +137,12 @@ class RandomGraphOracleTest {
                 }
                 codeKeyed.add(type);
                 composite.get(type).put("code", "");
+                String codeType = random.nextBoolean() ? "String!" : "String";
+                if (codeType.equals("String")) {
+                    nullableCode.add(type);
+                }
                 for (int s : definers(type)) {
-                    types.get(s).get(type).add(1, "code: String!");
+                    types.get(s).get(type).add(1, "code: " + codeType);
                     if (random.nextBoolean()) {
                         codeOnlyLookups.get(s).add(type);
                     }
@@ -384,7 +390,10 @@ class RandomGraphOracleTest {
                     continue;
                 }
                 query.append(indent).append("  ");
-                if (random.nextInt(6) == 0) {
+                if (field.equals("code") && nullableCode.contains(type)) {
+                    // A valid query selects one response key with one shape: code is String! on other types
+                    query.append("nullableCode: ");
+                } else if (random.nextInt(6) == 0) {
                     query.append("x").append(type).append('_').append(alias++).append(": ");
                 }
                 query.append(field);

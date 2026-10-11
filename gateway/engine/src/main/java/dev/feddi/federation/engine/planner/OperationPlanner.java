@@ -90,7 +90,7 @@ public final class OperationPlanner {
 
         // Collect all planning results, with query variable definitions for pass-through
         PlanningContext context = new PlanningContext(query.variableDefinitions(), operationType, graph);
-        collectClientFields(query.selections(), List.of(), context.clientFields);
+        collectClientFields(query.selections(), List.of(), null, context.clientFields);
 
         // Plan each top-level selection
         for (Selection selection : query.selections()) {
@@ -102,23 +102,33 @@ public final class OperationPlanner {
     }
     
     /**
-     * Records the arguments of each field the client selects, by response path and response key (inline fragments
-     * add no path), so that a field the planner adds itself does not merge with one the client selects with other
-     * arguments.
+     * Records each field the client selects, by response path and response key (inline fragments add no path), with
+     * the type condition it is selected under, so that a field the planner adds itself gets an alias where it
+     * could not be merged with one of them.
      */
-    private static void collectClientFields(List<Selection> selections, List<String> parentPath,
-                                            Map<List<String>, Map<String, List<String>>> clientFields) {
+    private static void collectClientFields(List<Selection> selections, List<String> parentPath, String typeCondition,
+                                            Map<List<String>, Map<String, List<ClientField>>> clientFields) {
         for (Selection selection : selections) {
             if (selection instanceof FieldSelection field) {
                 clientFields.computeIfAbsent(parentPath, k -> new HashMap<>())
-                    .putIfAbsent(field.responseKey(), SelectionNode.printedArguments(field.arguments()));
+                    .computeIfAbsent(field.responseKey(), k -> new ArrayList<>())
+                    .add(new ClientField(typeCondition, field.fieldName(),
+                        SelectionNode.printedArguments(field.arguments())));
                 List<String> childPath = new ArrayList<>(parentPath);
                 childPath.add(field.responseKey());
-                collectClientFields(field.subSelections(), List.copyOf(childPath), clientFields);
+                collectClientFields(field.subSelections(), List.copyOf(childPath), null, clientFields);
             } else if (selection instanceof InlineFragmentSelection fragment) {
-                collectClientFields(fragment.subSelections(), parentPath, clientFields);
+                collectClientFields(fragment.subSelections(), parentPath,
+                    fragment.typeCondition() != null ? fragment.typeCondition() : typeCondition, clientFields);
             }
         }
+    }
+
+    /**
+     * A field the client selects: the type condition it is selected under (null: none, the parent field's type),
+     * its name and its arguments (printed).
+     */
+    private record ClientField(String typeCondition, String fieldName, List<String> printedArguments) {
     }
 
     /**
@@ -378,7 +388,8 @@ public final class OperationPlanner {
             // Same subgraph: create fragment context on demand (lazy creation)
             SubgraphPlan sourcePlan = context.planFor(currentPath, parentPath);
             targetFragmentContext = new InlineFragmentContext(
-                sourcePlan.getOrCreateInlineFragment(parentPath, typeCondition, fragmentDirectives), sourcePlan.subgraph);
+                sourcePlan.getOrCreateInlineFragment(parentPath, typeCondition, fragmentDirectives), sourcePlan,
+                parentPath, typeCondition != null ? typeCondition : sourcePlan.declaredTypeAt(parentPath, graph));
         }
 
         // Add field to the inline fragment's selection set
@@ -491,7 +502,7 @@ public final class OperationPlanner {
         private final Deque<SubgraphPlan> requirementTargets = new ArrayDeque<>();
 
         // Arguments of the fields the client selects, by response path and response key
-        final Map<List<String>, Map<String, List<String>>> clientFields = new HashMap<>();
+        final Map<List<String>, Map<String, List<ClientField>>> clientFields = new HashMap<>();
 
         // Fields added by the planner whose own @require arguments were processed ("planId|field")
         private final Set<String> requirementsOfAddedFields = new HashSet<>();
@@ -775,7 +786,7 @@ public final class OperationPlanner {
                 // subgraph does not have them, or on the lookup's source type in the source plan
                 addLookupKeys(lookupEdge, entryPath, lookupTargetPlan, keyPath -> {
                     if (keyFragment != null && keyFragment.subgraph.equals(sourceSubgraph) && entryPath.equals(parentPath)) {
-                        return keyFragment.addKeyPath(keyPath);
+                        return addKeyPathInFragment(keyFragment, keyPath);
                     }
                     if (!keyInSourceSubgraph(sourceSubgraph, lookupEdge.source().typeName(), keyPath)) {
                         RequireFieldResolution resolution = resolved(resolveRequireField(sourceSubgraph,
@@ -1063,17 +1074,8 @@ public final class OperationPlanner {
                     .noneMatch(edge -> edge.fieldName().equals(path.segments().get(0).fieldName()))) {
                 plan.addArtificialField(IntrospectionFields.TYPENAME, currentPath, false, FieldOrigin.ARTIFICIAL_KEY);
                 SelectionNode.Fragment fragment = plan.getOrCreateInlineFragment(currentPath, startTypeName, List.of());
-                List<String> fragPath = new ArrayList<>();
-                List<PathSegment> segments = path.segments();
-                for (int j = 0; j < segments.size(); j++) {
-                    boolean segHasChildren = j < segments.size() - 1;
-                    fragment.addFieldAtPath(null, segments.get(j).fieldName(), fragPath, segHasChildren,
-                        segments.get(j).arguments(), List.of(), origin);
-                    fieldToResponseKey.put(segmentKey(segments.get(j)), segments.get(j).fieldName());
-                    if (segHasChildren) {
-                        fragPath.add(segments.get(j).fieldName());
-                    }
-                }
+                addPathInFragment(plan, fragment, currentPath, startTypeName, path.segments(), origin,
+                    fieldToResponseKey);
                 return fieldToResponseKey;
             }
 
@@ -1082,6 +1084,7 @@ public final class OperationPlanner {
                 String fieldName = segment.fieldName();
                 boolean hasChildren = (i < pathSegments.size() - 1); // intermediate nodes have children
 
+                String parentTypeBefore = currentTypeName;
                 // Check if field exists on the current type or needs inline fragments
                 boolean needsInlineFragments = false;
                 Set<String> implementingTypesWithField = new HashSet<>();
@@ -1144,19 +1147,9 @@ public final class OperationPlanner {
                     // Create inline fragments for each implementing type that has the field
                     for (String implType : implementingTypesWithField) {
                         SelectionNode.Fragment fragment = plan.getOrCreateInlineFragment(currentPath, implType, List.of());
-                        List<String> fragPath = new ArrayList<>();
-
-                        // Add the current field and any remaining fields in the path
-                        for (int j = i; j < pathSegments.size(); j++) {
-                            PathSegment seg = pathSegments.get(j);
-                            boolean segHasChildren = (j < pathSegments.size() - 1);
-                            fragment.addFieldAtPath(null, seg.fieldName(), fragPath, segHasChildren,
-                                seg.arguments(), List.of(), origin);
-                            fieldToResponseKey.put(segmentKey(seg), seg.fieldName());
-                            if (segHasChildren) {
-                                fragPath.add(seg.fieldName());
-                            }
-                        }
+                        // The current field and any remaining fields in the path
+                        addPathInFragment(plan, fragment, currentPath, implType,
+                            pathSegments.subList(i, pathSegments.size()), origin, fieldToResponseKey);
                     }
 
                     // All remaining fields have been added inside inline fragments, we're done
@@ -1164,18 +1157,23 @@ public final class OperationPlanner {
                 }
 
                 if (inlineFragment != null) {
-                    // Add field inside inline fragment
-                    inlineFragment.addFieldAtPath(null, fieldName, fragmentPath, hasChildren,
-                        segment.arguments(), List.of(), origin);
-                    fieldToResponseKey.put(segmentKey(segment), fieldName);
-                    fragmentPath.add(fieldName);
+                    // Add field inside inline fragment (its type is known for the fragment's own level only)
+                    String responseKey = addFieldInFragment(plan, inlineFragment, fragmentPath, currentPath,
+                        fragmentPath.isEmpty() ? currentTypeName : null, segment, hasChildren, origin);
+                    fieldToResponseKey.put(segmentKey(segment), responseKey);
+                    fragmentPath.add(responseKey);
                 } else {
-                    // Add field normally to the plan
-                    List<String> clientArguments = clientFields.getOrDefault(currentPath, Map.of()).get(fieldName);
-                    boolean clientUsesOtherArguments = clientArguments != null
-                        && !clientArguments.equals(SelectionNode.printedArguments(segment.arguments()));
+                    // Add field normally to the plan: with an alias if the client selects the response key with
+                    // other arguments or a field that cannot be merged with it
+                    String parentType = parentTypeBefore != null ? parentTypeBefore : plan.declaredTypeAt(currentPath, graph);
+                    boolean clientUsesOtherArguments = clientFields.getOrDefault(currentPath, Map.of())
+                        .getOrDefault(fieldName, List.of()).stream()
+                        .anyMatch(client -> !client.printedArguments()
+                            .equals(SelectionNode.printedArguments(segment.arguments())));
+                    boolean alias = clientUsesOtherArguments || (parentType != null && subgraph.equals(plan.subgraph)
+                        && clashes(plan, currentPath, parentType, fieldName, segment.arguments()));
                     String responseKey = plan.addArtificialField(fieldName, segment.arguments(), currentPath,
-                        hasChildren, origin, clientUsesOtherArguments);
+                        hasChildren, origin, alias);
                     fieldToResponseKey.put(segmentKey(segment), responseKey);
                     currentPath.add(responseKey);
                 }
@@ -1206,6 +1204,132 @@ public final class OperationPlanner {
             }
 
             return fieldToResponseKey;
+        }
+
+        /**
+         * Selects path segments in a fragment on {@code typeName} at a response path, recording their response
+         * keys; each segment's parent type follows the subgraph's fields from the fragment's type.
+         */
+        private void addPathInFragment(SubgraphPlan plan, SelectionNode.Fragment fragment, List<String> responsePath,
+                                       String typeName, List<PathSegment> segments, FieldOrigin origin,
+                                       Map<String, String> fieldToResponseKey) {
+            List<String> fragPath = new ArrayList<>();
+            String parentType = typeName;
+            for (int j = 0; j < segments.size(); j++) {
+                PathSegment segment = segments.get(j);
+                boolean hasChildren = j < segments.size() - 1;
+                String responseKey = addFieldInFragment(plan, fragment, fragPath, responsePath, parentType, segment,
+                    hasChildren, origin);
+                fieldToResponseKey.put(segmentKey(segment), responseKey);
+                fragPath.add(responseKey);
+                String fieldParent = parentType;
+                parentType = parentType == null ? null : graph.findFieldEdge(new Node(fieldParent, plan.subgraph),
+                    segment.fieldName()).map(edge -> edge.target().typeName()).orElse(null);
+            }
+        }
+
+        /**
+         * Adds a field the planner needs at a path of response keys within a fragment (the fragment being at
+         * {@code responsePath}), on an object of {@code parentType} (null if unknown): with an alias where another
+         * field with its response key there cannot be merged with it.
+         *
+         * @return the field's response key
+         */
+        private String addFieldInFragment(SubgraphPlan plan, SelectionNode.Fragment fragment, List<String> fragPath,
+                                          List<String> responsePath, String parentType, PathSegment segment,
+                                          boolean hasChildren, FieldOrigin origin) {
+            SelectionNode container = fragment.root.descend(fragPath, true, false);
+            if (container == null) {
+                throw new PlanningException("Parent node not found in path " + fragPath + " while adding field '"
+                    + segment.fieldName() + "'");
+            }
+            List<String> fieldPath = new ArrayList<>(responsePath);
+            fieldPath.addAll(fragPath);
+            if (parentType != null && clashes(plan, fieldPath, parentType, segment.fieldName(), segment.arguments())) {
+                return container.addArtificialField(segment.fieldName(), segment.arguments(), hasChildren, origin, true);
+            }
+            container.addField(null, segment.fieldName(), hasChildren, segment.arguments(), List.of(), origin);
+            return segment.fieldName();
+        }
+
+        /**
+         * Selects a lookup key path in the fragment a client field is selected in, at the fragment's current
+         * position.
+         */
+        private Map<String, String> addKeyPathInFragment(InlineFragmentContext fragment, Path keyPath) {
+            Map<String, String> responseKeys = new LinkedHashMap<>();
+            List<String> fragPath = new ArrayList<>(fragment.currentPath);
+            String parentType = fragment.currentPath.isEmpty() ? fragment.typeName : null;
+            List<PathSegment> segments = keyPath.segments();
+            for (int i = 0; i < segments.size(); i++) {
+                PathSegment segment = segments.get(i);
+                String responseKey = addFieldInFragment(fragment.plan, fragment.fragmentNode, fragPath,
+                    fragment.basePath, parentType, segment, i < segments.size() - 1, FieldOrigin.ARTIFICIAL_KEY);
+                responseKeys.put(segment.fieldName(), responseKey);
+                fragPath.add(responseKey);
+                parentType = null;
+            }
+            return responseKeys;
+        }
+
+        /**
+         * Whether a field the planner adds at a response path, on an object of {@code parentType}, cannot be merged
+         * with another field of the same response key there (GraphQL's FieldsInSetCanMerge): one the plan already
+         * selects there, in any fragment, or one the client selects there. On the same or an abstract parent type
+         * the fields must be the same field with the same arguments; on two object types they must have the same
+         * output type.
+         */
+        private boolean clashes(SubgraphPlan plan, List<String> responsePath, String parentType, String fieldName,
+                                List<Argument> arguments) {
+            String declaredType = plan.declaredTypeAt(responsePath, graph);
+            List<String> printedArguments = SelectionNode.printedArguments(arguments);
+            for (ClientField client : clientFields.getOrDefault(responsePath, Map.of()).getOrDefault(fieldName, List.of())) {
+                String clientParent = client.typeCondition() != null ? client.typeCondition() : declaredType;
+                if (clientParent != null && !mergeable(plan.subgraph, parentType, fieldName, printedArguments,
+                        clientParent, client.fieldName(), client.printedArguments())) {
+                    return true;
+                }
+            }
+            SelectionNode node = plan.root.descend(plan.adjustPath(responsePath), false, false);
+            return node != null && selectedClashes(plan.subgraph, node, declaredType, parentType, fieldName,
+                printedArguments);
+        }
+
+        private boolean selectedClashes(String subgraph, SelectionNode node, String nodeType, String parentType,
+                                        String fieldName, List<String> printedArguments) {
+            SelectionNode selected = node.children.get(fieldName);
+            if (selected != null && nodeType != null && !mergeable(subgraph, parentType, fieldName, printedArguments,
+                    nodeType, selected.fieldName, SelectionNode.printedArguments(selected.queryArguments))) {
+                return true;
+            }
+            for (SelectionNode.Fragment fragment : node.inlineFragments) {
+                if (selectedClashes(subgraph, fragment.root,
+                        fragment.typeCondition != null ? fragment.typeCondition : nodeType, parentType, fieldName,
+                        printedArguments)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private boolean mergeable(String subgraph, String parentType, String fieldName, List<String> arguments,
+                                  String otherParentType, String otherFieldName, List<String> otherArguments) {
+            String type = graph.fieldType(parentType, subgraph, fieldName);
+            String otherType = graph.fieldType(otherParentType, subgraph, otherFieldName);
+            if (otherType == null) {
+                // Not a field of this subgraph: it is selected in another operation
+                return true;
+            }
+            boolean sameField = fieldName.equals(otherFieldName) && arguments.equals(otherArguments);
+            if (parentType.equals(otherParentType) || isAbstract(parentType) || isAbstract(otherParentType)) {
+                return sameField && Objects.equals(type, otherType);
+            }
+            return Objects.equals(type, otherType);
+        }
+
+        private boolean isAbstract(String typeName) {
+            return !graph.getImplementingTypesForInterface(typeName).isEmpty()
+                || !graph.getUnionMembers(typeName).isEmpty();
         }
 
         /** Identifies a path segment's field in response key maps: its name, and its arguments if any. */
@@ -1798,12 +1922,13 @@ public final class OperationPlanner {
             if (enteringLookupEdge != null && enteringEntryPath.equals(parentPath) && directives.isEmpty()
                 && enteringLookupEdge.target().typeName().equals(typeCondition)) {
                 // The lookup already returns the fragment's type: its fields need no type condition.
-                return new InlineFragmentContext(new SelectionNode.Fragment(plan.root), plan.subgraph);
+                return new InlineFragmentContext(new SelectionNode.Fragment(plan.root), plan, parentPath, typeCondition);
             }
 
             // Create inline fragment context (path is adjusted for lookup entry in getOrCreateInlineFragment)
             SelectionNode.Fragment fragmentNode = plan.getOrCreateInlineFragment(parentPath, typeCondition, directives);
-            return new InlineFragmentContext(fragmentNode, plan.subgraph);
+            return new InlineFragmentContext(fragmentNode, plan, parentPath,
+                typeCondition != null ? typeCondition : plan.declaredTypeAt(parentPath, graph));
         }
 
         /**

@@ -1,14 +1,10 @@
 package dev.feddi.federation.engine.planner;
 
-import dev.feddi.federation.engine.parser.FieldSelectionMap.Path;
-import dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment;
 import graphql.language.Argument;
 import graphql.language.Directive;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * The inline fragment a client selection is planned into, and the position within it (the field names entered
@@ -16,12 +12,19 @@ import java.util.Map;
  */
 final class InlineFragmentContext {
     final SelectionNode.Fragment fragmentNode;
+    final SubgraphPlan plan;                             // the plan that holds the fragment
     final String subgraph;                               // subgraph of the plan that holds the fragment
+    final List<String> basePath;                         // the client's response path to the fragment
+    final String typeName;                               // the type of the objects the fragment selects on
     final List<String> currentPath = new ArrayList<>();  // Path within the fragment
 
-    InlineFragmentContext(SelectionNode.Fragment fragmentNode, String subgraph) {
+    InlineFragmentContext(SelectionNode.Fragment fragmentNode, SubgraphPlan plan, List<String> basePath,
+                          String typeName) {
         this.fragmentNode = fragmentNode;
-        this.subgraph = subgraph;
+        this.plan = plan;
+        this.subgraph = plan.subgraph;
+        this.basePath = List.copyOf(basePath);
+        this.typeName = typeName;
     }
 
     void addField(String alias, String fieldName, boolean hasChildren, List<Argument> arguments,
@@ -42,24 +45,5 @@ final class InlineFragmentContext {
         if (!currentPath.isEmpty()) {
             currentPath.remove(currentPath.size() - 1);
         }
-    }
-
-    /** Selects a key path (e.g. {@code id} or {@code product.id}) at the current position. */
-    Map<String, String> addKeyPath(Path keyPath) {
-        Map<String, String> responseKeys = new LinkedHashMap<>();
-        List<PathSegment> segments = keyPath.segments();
-        for (int i = 0; i < segments.size(); i++) {
-            String segment = segments.get(i).fieldName();
-            boolean hasChildren = i < segments.size() - 1;
-            addField(null, segment, hasChildren, List.of(), List.of(), FieldOrigin.ARTIFICIAL_KEY);
-            responseKeys.put(segment, segment);
-            if (hasChildren) {
-                enterField(segment);
-            }
-        }
-        for (int i = 0; i < segments.size() - 1; i++) {
-            exitField();
-        }
-        return responseKeys;
     }
 }

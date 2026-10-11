@@ -1,5 +1,7 @@
 name: "Typed internal fields"
-description: "A response key that one union member requests and another only needs as a lookup key."
+description: |
+  A response key that one union member requests and another only needs as a lookup key, with a different
+  nullability: the key gets an alias (fields with one response key must have the same shape).
 
 subgraphs:
   catalog: |
@@ -7,14 +9,18 @@ subgraphs:
       entries: [Entry]
     }
 
-    union Entry = Coupon | Gift
+    union Entry = Coupon | Gift | Voucher
 
     type Coupon {
-      code: String!
+      code: String
     }
 
     type Gift @key(fields: "code") {
       code: String!
+    }
+
+    type Voucher @key(fields: "code") {
+      code: String
     }
 
   gifts: |
@@ -25,4 +31,14 @@ subgraphs:
     type Gift @key(fields: "code") {
       code: String!
       name: String
+    }
+
+  vouchers: |
+    type Query {
+      voucherByCode(code: String): Voucher @lookup @internal
+    }
+
+    type Voucher @key(fields: "code") {
+      code: String
+      discount: Int
     }

@@ -1,7 +1,8 @@
 name: "Key of one member, requested for another"
 description: |
   code is requested for Coupon entries and only a lookup key for Gift entries: Gift entries in the response
-  must not contain code.
+  must not contain code. Coupon.code is nullable and Gift.code is not, so the key gets an alias (one response
+  key must have one shape).
 
 query: |
   {
@@ -19,7 +20,7 @@ expectedPlan:
   steps:
     - id: 1
       subgraph: catalog
-      operation: "{ entries { __typename ... on Coupon { code } ... on Gift { code } } }"
+      operation: "{ entries { __typename ... on Coupon { code } ... on Gift { __gql_code: code } } }"
       dependsOn: []
       repeatedExecution: false
 
@@ -28,5 +29,5 @@ expectedPlan:
       operation: "query($code: String!) { giftByCode(code: $code) { name } }"
       dependsOn: [1]
       requirements:
-        code: "code"
+        code: "__gql_code"
       repeatedExecution: true
