@@ -4,7 +4,6 @@ import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
-import graphql.introspection.Introspection;
 import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
 import graphql.schema.GraphQLArgument;
@@ -16,7 +15,6 @@ import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import graphql.schema.GraphQLTypeUtil;
 import graphql.schema.GraphQLUnionType;
-import graphql.schema.idl.ScalarInfo;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,6 +30,8 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.KEY;
 import static dev.feddi.federation.engine.compose.FederationDirectives.LOOKUP;
 import static dev.feddi.federation.engine.compose.FederationDirectives.OVERRIDE;
 import static dev.feddi.federation.engine.compose.FederationDirectives.SHAREABLE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.stringValue;
 
 /**
  * Validates that fields defined in multiple subgraphs are marked as @shareable.
@@ -108,7 +108,7 @@ public final class InvalidFieldSharingRule implements ValidationRule {
                     for (GraphQLAppliedDirective keyDirective : keyDirectives) {
                         GraphQLAppliedDirectiveArgument fieldsArg = keyDirective.getArgument("fields");
                         if (fieldsArg != null && fieldsArg.getValue() != null) {
-                            String keyFields = getStringValue(fieldsArg.getValue());
+                            String keyFields = stringValue(fieldsArg.getValue());
                             if (keyFields != null) {
                                 // Parse key fields (can be composite like "userId orderId")
                                 Set<String> fields = keyFieldsByType
@@ -158,7 +158,7 @@ public final class InvalidFieldSharingRule implements ValidationRule {
     private String lookupArgumentField(GraphQLArgument argument) {
         GraphQLAppliedDirective is = argument.getAppliedDirective(IS);
         GraphQLAppliedDirectiveArgument fieldArgument = is == null ? null : is.getArgument("field");
-        String selection = fieldArgument == null ? null : getStringValue(fieldArgument.getValue());
+        String selection = fieldArgument == null ? null : stringValue(fieldArgument.getValue());
         if (selection == null) {
             return argument.getName();
         }
@@ -167,18 +167,6 @@ public final class InvalidFieldSharingRule implements ValidationRule {
         return first.isEmpty() ? argument.getName() : first.split("\\s+")[0];
     }
 
-    /**
-     * Extracts string value from a GraphQL value (handles StringValue).
-     */
-    private String getStringValue(Object value) {
-        if (value instanceof graphql.language.StringValue stringValue) {
-            return stringValue.getValue();
-        }
-        if (value instanceof String s) {
-            return s;
-        }
-        return null;
-    }
     
     private void collectFields(Subgraph subgraph, Map<String, List<FieldInfo>> fieldsByCoordinate) {
         GraphQLSchema schema = subgraph.schema();
@@ -253,9 +241,6 @@ public final class InvalidFieldSharingRule implements ValidationRule {
         }
     }
     
-    private boolean isBuiltInType(String typeName) {
-        return Introspection.isIntrospectionTypes(typeName) || ScalarInfo.isGraphqlSpecifiedScalar(typeName);
-    }
     
     private record FieldInfo(String schemaName, String typeName, GraphQLFieldDefinition field, boolean typeIsExternal) {}
 }

@@ -3,7 +3,6 @@ package dev.feddi.federation.engine.compose.validation.rules;
 import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.compose.validation.PostMergeValidationRule;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
-import graphql.introspection.Introspection;
 import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLEnumValueDefinition;
 import graphql.schema.GraphQLNamedType;
@@ -12,6 +11,7 @@ import graphql.schema.GraphQLSchema;
 import java.util.List;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSIBLE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that enum types in the merged schema have at least one accessible value.
@@ -55,9 +55,5 @@ public final class EmptyMergedEnumTypeRule implements PostMergeValidationRule {
         }
         
         return builder.build();
-    }
-    
-    private boolean isBuiltInType(String typeName) {
-        return Introspection.isIntrospectionTypes(typeName);
     }
 }

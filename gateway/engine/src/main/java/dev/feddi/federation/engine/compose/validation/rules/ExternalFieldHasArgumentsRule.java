@@ -12,9 +12,9 @@ import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 
 import java.util.List;
-import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.EXTERNAL;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that @external fields do not have arguments.
@@ -29,12 +29,6 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.EXTERNAL;
 public final class ExternalFieldHasArgumentsRule implements ValidationRule {
 
     private static final String CODE = "EXTERNAL_FIELD_HAS_ARGUMENTS";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -62,7 +56,7 @@ public final class ExternalFieldHasArgumentsRule implements ValidationRule {
         String schemaName = subgraph.name();
 
         for (GraphQLNamedType type : schema.getAllTypesAsList()) {
-            if (BUILT_IN_TYPES.contains(type.getName())) {
+            if (isBuiltInType(type.getName())) {
                 continue;
             }
 

@@ -3,17 +3,16 @@ package dev.feddi.federation.engine.compose.validation.rules;
 import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.compose.validation.PostMergeValidationRule;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
-import graphql.introspection.Introspection;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLNamedType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
-import graphql.schema.idl.ScalarInfo;
 
 import java.util.List;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSIBLE;
 import static dev.feddi.federation.engine.compose.FederationDirectives.INTERNAL;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that object types in the merged schema have at least one accessible field.
@@ -58,9 +57,5 @@ public final class EmptyMergedObjectTypeRule implements PostMergeValidationRule 
         }
         
         return builder.build();
-    }
-    
-    private boolean isBuiltInType(String typeName) {
-        return Introspection.isIntrospectionTypes(typeName) || ScalarInfo.isGraphqlSpecifiedScalar(typeName);
     }
 }

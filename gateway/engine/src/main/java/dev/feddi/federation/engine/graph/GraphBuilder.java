@@ -10,10 +10,8 @@ import dev.feddi.federation.engine.parser.FieldSelectionMapParser;
 import dev.feddi.federation.engine.parser.InvalidSyntaxException;
 import graphql.language.ListType;
 import graphql.language.NonNullType;
-import graphql.language.StringValue;
 import graphql.language.Type;
 import graphql.language.TypeName;
-import graphql.introspection.Introspection;
 import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
 import graphql.schema.GraphQLArgument;
@@ -28,7 +26,6 @@ import graphql.schema.GraphQLOutputType;
 import graphql.schema.GraphQLSchema;
 import graphql.schema.GraphQLTypeUtil;
 import graphql.schema.GraphQLUnionType;
-import graphql.schema.idl.ScalarInfo;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -44,6 +41,8 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.LOOKUP;
 import static dev.feddi.federation.engine.compose.FederationDirectives.OVERRIDE;
 import static dev.feddi.federation.engine.compose.FederationDirectives.PROVIDES;
 import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.stringValue;
 
 /**
  * Builds a query planning Graph from a list of Subgraphs.
@@ -261,7 +260,7 @@ public final class GraphBuilder {
                 if (field.hasAppliedDirective(PROVIDES)) {
                     GraphQLAppliedDirective providesDirective = field.getAppliedDirective(PROVIDES);
                     GraphQLAppliedDirectiveArgument fieldsArg = providesDirective.getArgument("fields");
-                    String providedFieldsStr = getStringValue(fieldsArg);
+                    String providedFieldsStr = stringValue(fieldsArg);
                     if (providedFieldsStr != null) {
                         FieldSelectionSet selectionSet = parseFieldSelectionSet(providedFieldsStr);
                         providesList.add(new ProvidesInfo(sourceNode, targetNode, field.getName(), selectionSet));
@@ -585,7 +584,7 @@ public final class GraphBuilder {
                 // Use @is directive's field value as the fieldPath
                 GraphQLAppliedDirective isDirective = arg.getAppliedDirective(IS);
                 GraphQLAppliedDirectiveArgument fieldArg = isDirective.getArgument("field");
-                String fieldValue = getStringValue(fieldArg);
+                String fieldValue = stringValue(fieldArg);
                 if (fieldValue != null) {
                     lookupArguments.add(LookupArgument.of(arg.getName(), fieldValue, argType));
                 }
@@ -606,7 +605,7 @@ public final class GraphBuilder {
             if (arg.hasAppliedDirective(REQUIRE)) {
                 GraphQLAppliedDirective requireDirective = arg.getAppliedDirective(REQUIRE);
                 GraphQLAppliedDirectiveArgument fieldArg = requireDirective.getArgument("field");
-                String fieldSelectionMap = getStringValue(fieldArg);
+                String fieldSelectionMap = stringValue(fieldArg);
                 if (fieldSelectionMap != null) {
                     try {
                         SelectedValue selection = FieldSelectionMapParser.parseFieldSelectionMap(fieldSelectionMap);
@@ -625,18 +624,6 @@ public final class GraphBuilder {
         return requirements;
     }
     
-    /**
-     * Extracts a string value from a directive argument.
-     * For FieldSelectionMap arguments (custom scalar), the value is a StringValue AST node.
-     */
-    private String getStringValue(GraphQLAppliedDirectiveArgument arg) {
-        if (arg == null) return null;
-        Object value = arg.getValue();
-        if (value instanceof StringValue stringValue) {
-            return stringValue.getValue();
-        }
-        return value != null ? value.toString() : null;
-    }
     
     /**
      * Parses a FieldSelectionSet string (used by @provides and @key directives).
@@ -649,10 +636,6 @@ public final class GraphBuilder {
             throw new IllegalArgumentException(
                 "Invalid @provides field selection: " + e.getMessage(), e);
         }
-    }
-
-    private boolean isBuiltInType(String typeName) {
-        return Introspection.isIntrospectionTypes(typeName) || ScalarInfo.isGraphqlSpecifiedScalar(typeName);
     }
 
     /**

@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.stringValue;
 
 /**
  * Validates that @require directive field references exist in OTHER schemas (not the defining schema).
@@ -135,7 +136,7 @@ public final class RequireInvalidFieldsRule implements ValidationRule {
                 continue;
             }
 
-            String fieldString = extractStringValue(fieldArg.getValue());
+            String fieldString = stringValue(fieldArg.getValue());
             if (fieldString == null || fieldString.isBlank()) {
                 continue; // Type validation is done by another rule
             }
@@ -623,15 +624,5 @@ public final class RequireInvalidFieldsRule implements ValidationRule {
 
         // For non-object types, use argument nullability
         return argIsNonNull;
-    }
-
-    private String extractStringValue(Object value) {
-        if (value instanceof StringValue stringValue) {
-            return stringValue.getValue();
-        }
-        if (value instanceof String str) {
-            return str;
-        }
-        return value != null ? value.toString() : null;
     }
 }

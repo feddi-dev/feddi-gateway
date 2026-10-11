@@ -21,6 +21,7 @@ import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INTERNAL;
 import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that required arguments are present in all schemas defining a field.
@@ -34,12 +35,6 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
 public final class FieldWithMissingRequiredArgumentRule implements ValidationRule {
 
     private static final String CODE = "FIELD_WITH_MISSING_REQUIRED_ARGUMENT";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -140,7 +135,7 @@ public final class FieldWithMissingRequiredArgumentRule implements ValidationRul
                 fields = interfaceType.getFieldDefinitions();
             }
 
-            if (typeName == null || BUILT_IN_TYPES.contains(typeName)) {
+            if (typeName == null || isBuiltInType(typeName)) {
                 continue;
             }
 

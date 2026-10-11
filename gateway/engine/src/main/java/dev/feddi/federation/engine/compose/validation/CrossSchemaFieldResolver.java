@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
+
 /**
  * Utility for resolving fields across multiple schemas.
  * Used by IS_INVALID_FIELDS and REQUIRE_INVALID_FIELDS validation rules.
@@ -25,12 +27,6 @@ import java.util.Set;
  * directives can be resolved from OTHER schemas (not the defining schema).
  */
 public final class CrossSchemaFieldResolver {
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     /**
      * Builds a map of type name -> field names from all schemas except the excluded one.
@@ -54,7 +50,7 @@ public final class CrossSchemaFieldResolver {
             for (GraphQLType type : subgraph.schema().getAllTypesAsList()) {
                 if (type instanceof GraphQLFieldsContainer fieldsContainer) {
                     String typeName = ((GraphQLNamedType) type).getName();
-                    if (BUILT_IN_TYPES.contains(typeName)) {
+                    if (isBuiltInType(typeName)) {
                         continue;
                     }
 
@@ -96,7 +92,7 @@ public final class CrossSchemaFieldResolver {
             for (GraphQLType type : subgraph.schema().getAllTypesAsList()) {
                 if (type instanceof GraphQLFieldsContainer fieldsContainer) {
                     String typeName = ((GraphQLNamedType) type).getName();
-                    if (BUILT_IN_TYPES.contains(typeName)) {
+                    if (isBuiltInType(typeName)) {
                         continue;
                     }
 

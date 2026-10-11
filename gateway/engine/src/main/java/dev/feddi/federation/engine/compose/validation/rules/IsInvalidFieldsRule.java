@@ -14,7 +14,6 @@ import dev.feddi.federation.engine.compose.validation.FieldSelectionArguments;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
-import graphql.language.StringValue;
 import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
 import graphql.schema.GraphQLArgument;
@@ -31,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.IS;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.stringValue;
 
 /**
  * Validates that @is directive field references exist in OTHER schemas.
@@ -134,7 +134,7 @@ public final class IsInvalidFieldsRule implements ValidationRule {
                 continue;
             }
 
-            String fieldString = extractStringValue(fieldArg.getValue());
+            String fieldString = stringValue(fieldArg.getValue());
             if (fieldString == null || fieldString.isBlank()) {
                 continue; // Type validation is done by another rule
             }
@@ -336,19 +336,5 @@ public final class IsInvalidFieldsRule implements ValidationRule {
         }
 
         return typeName;
-    }
-
-    /**
-     * Extracts a string value from a directive argument.
-     * Handles both raw String and StringValue (GraphQL AST) types.
-     */
-    private String extractStringValue(Object value) {
-        if (value instanceof StringValue stringValue) {
-            return stringValue.getValue();
-        }
-        if (value instanceof String str) {
-            return str;
-        }
-        return value != null ? value.toString() : null;
     }
 }

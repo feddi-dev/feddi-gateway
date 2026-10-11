@@ -4,7 +4,6 @@ import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
-import graphql.language.StringValue;
 import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
 import graphql.schema.GraphQLFieldDefinition;
@@ -18,6 +17,7 @@ import graphql.schema.GraphQLType;
 import java.util.List;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.OVERRIDE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.stringValue;
 
 /**
  * Validates that @override(from:) does not reference the same schema.
@@ -72,7 +72,7 @@ public final class OverrideFromSelfRule implements ValidationRule {
                     continue;
                 }
 
-                String fromValue = extractStringValue(fromArg.getValue());
+                String fromValue = stringValue(fromArg.getValue());
                 if (fromValue != null && fromValue.equals(schemaName)) {
                     String coordinate = typeName + "." + field.getName();
                     String message = String.format(
@@ -83,14 +83,5 @@ public final class OverrideFromSelfRule implements ValidationRule {
                 }
             }
         }
-    }
-
-    private String extractStringValue(Object value) {
-        if (value instanceof String s) {
-            return s;
-        } else if (value instanceof StringValue sv) {
-            return sv.getValue();
-        }
-        return null;
     }
 }

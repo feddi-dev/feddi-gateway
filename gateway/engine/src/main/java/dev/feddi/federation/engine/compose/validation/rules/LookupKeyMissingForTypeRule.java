@@ -14,7 +14,6 @@ import dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectedValue;
 import dev.feddi.federation.engine.parser.FieldSelectionMapParser;
 import dev.feddi.federation.engine.parser.InvalidSyntaxException;
-import graphql.language.StringValue;
 import graphql.schema.GraphQLArgument;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLFieldsContainer;
@@ -30,6 +29,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.stringValue;
 import static dev.feddi.federation.engine.compose.FederationDirectives.IS;
 import static dev.feddi.federation.engine.compose.FederationDirectives.LOOKUP;
 import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
@@ -122,9 +122,7 @@ public final class LookupKeyMissingForTypeRule implements ValidationRule {
             return null;
         }
         var field = argument.getAppliedDirective(IS).getArgument("field");
-        Object value = field == null ? null : field.getValue();
-        String text = value instanceof StringValue stringValue ? stringValue.getValue()
-            : value == null ? null : value.toString();
+        String text = stringValue(field);
         if (text == null || text.isBlank()) {
             return null;
         }

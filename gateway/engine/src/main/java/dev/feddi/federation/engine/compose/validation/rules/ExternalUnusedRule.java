@@ -10,8 +10,6 @@ import dev.feddi.federation.engine.parser.InvalidSyntaxException;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
-import graphql.introspection.Introspection;
-import graphql.language.StringValue;
 import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
 import graphql.schema.GraphQLFieldDefinition;
@@ -21,7 +19,6 @@ import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import graphql.schema.GraphQLType;
 import graphql.schema.GraphQLTypeUtil;
-import graphql.schema.idl.ScalarInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +26,8 @@ import java.util.List;
 import static dev.feddi.federation.engine.compose.FederationDirectives.EXTERNAL;
 import static dev.feddi.federation.engine.compose.FederationDirectives.KEY;
 import static dev.feddi.federation.engine.compose.FederationDirectives.PROVIDES;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.stringValue;
 
 /**
  * Validates that every @external field is selected by a @key or a @provides directive of its schema.
@@ -110,7 +109,7 @@ public final class ExternalUnusedRule implements ValidationRule {
                     if (field.hasAppliedDirective(PROVIDES)) {
                         GraphQLAppliedDirective providesDirective = field.getAppliedDirective(PROVIDES);
                         GraphQLAppliedDirectiveArgument fieldsArg = providesDirective.getArgument("fields");
-                        String fieldsStr = getStringValue(fieldsArg);
+                        String fieldsStr = stringValue(fieldsArg);
                         if (fieldsStr != null) {
                             // Get the target type of this field (the type on which provides applies)
                             String targetTypeName = GraphQLTypeUtil.unwrapAll(field.getType()).getName();
@@ -125,7 +124,7 @@ public final class ExternalUnusedRule implements ValidationRule {
                     if (field.hasAppliedDirective(PROVIDES)) {
                         GraphQLAppliedDirective providesDirective = field.getAppliedDirective(PROVIDES);
                         GraphQLAppliedDirectiveArgument fieldsArg = providesDirective.getArgument("fields");
-                        String fieldsStr = getStringValue(fieldsArg);
+                        String fieldsStr = stringValue(fieldsArg);
                         if (fieldsStr != null) {
                             String targetTypeName = GraphQLTypeUtil.unwrapAll(field.getType()).getName();
                             if (targetTypeName != null) {
@@ -152,7 +151,7 @@ public final class ExternalUnusedRule implements ValidationRule {
                 default -> List.of();
             };
             for (GraphQLAppliedDirective key : keyDirectives) {
-                String fieldsStr = getStringValue(key.getArgument("fields"));
+                String fieldsStr = stringValue(key.getArgument("fields"));
                 if (fieldsStr != null) {
                     keys.add(new ProvidesInfo(type.getName(), fieldsStr, schema));
                 }
@@ -288,19 +287,6 @@ public final class ExternalUnusedRule implements ValidationRule {
             }
         }
         return null;
-    }
-
-    private String getStringValue(GraphQLAppliedDirectiveArgument arg) {
-        if (arg == null) return null;
-        Object value = arg.getValue();
-        if (value instanceof StringValue stringValue) {
-            return stringValue.getValue();
-        }
-        return value != null ? value.toString() : null;
-    }
-
-    private boolean isBuiltInType(String typeName) {
-        return Introspection.isIntrospectionTypes(typeName) || ScalarInfo.isGraphqlSpecifiedScalar(typeName);
     }
 
     /**

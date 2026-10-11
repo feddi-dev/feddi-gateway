@@ -23,6 +23,7 @@ import java.util.Queue;
 import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSIBLE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that all Interface, Object, and Union types in a subgraph are reachable
@@ -57,12 +58,6 @@ public final class UnreachableTypeRule implements ValidationRule {
 
     private static final String CODE = "UNREACHABLE_TYPE";
 
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
-
     @Override
     public String name() {
         return "UnreachableTypeRule";
@@ -93,7 +88,7 @@ public final class UnreachableTypeRule implements ValidationRule {
             String typeName = type.getName();
 
             // Skip built-in types
-            if (BUILT_IN_TYPES.contains(typeName)) {
+            if (isBuiltInType(typeName)) {
                 continue;
             }
 
@@ -172,7 +167,7 @@ public final class UnreachableTypeRule implements ValidationRule {
             GraphQLNamedType type = toVisit.poll();
             String typeName = type.getName();
 
-            if (visited.contains(typeName) || BUILT_IN_TYPES.contains(typeName)) {
+            if (visited.contains(typeName) || isBuiltInType(typeName)) {
                 continue;
             }
             visited.add(typeName);

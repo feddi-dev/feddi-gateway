@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSIBLE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that default values do not reference inaccessible enum values.
@@ -46,12 +47,6 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSI
 public final class EnumTypeDefaultValueInaccessibleRule implements ValidationRule {
 
     private static final String CODE = "ENUM_TYPE_DEFAULT_VALUE_INACCESSIBLE";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -102,7 +97,7 @@ public final class EnumTypeDefaultValueInaccessibleRule implements ValidationRul
     private void checkFieldArguments(String typeName, List<GraphQLFieldDefinition> fields,
                                      Map<String, Set<String>> inaccessibleEnumValues,
                                      String schemaName, ValidationResult.Builder builder) {
-        if (BUILT_IN_TYPES.contains(typeName)) {
+        if (isBuiltInType(typeName)) {
             return;
         }
 
@@ -121,7 +116,7 @@ public final class EnumTypeDefaultValueInaccessibleRule implements ValidationRul
     private void checkInputFields(GraphQLInputObjectType inputType,
                                   Map<String, Set<String>> inaccessibleEnumValues,
                                   String schemaName, ValidationResult.Builder builder) {
-        if (BUILT_IN_TYPES.contains(inputType.getName())) {
+        if (isBuiltInType(inputType.getName())) {
             return;
         }
 

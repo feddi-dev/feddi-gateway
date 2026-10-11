@@ -13,9 +13,9 @@ import graphql.schema.GraphQLSchema;
 import graphql.schema.GraphQLType;
 
 import java.util.List;
-import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSIBLE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that types implementing an interface have accessible fields for all interface fields.
@@ -26,12 +26,6 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSI
 public final class ImplementedByInaccessibleRule implements PostMergeValidationRule {
 
     private static final String CODE = "IMPLEMENTED_BY_INACCESSIBLE";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public String name() {
@@ -55,7 +49,7 @@ public final class ImplementedByInaccessibleRule implements PostMergeValidationR
 
     private void validateType(GraphQLImplementingType type, ValidationResult.Builder builder) {
         String typeName = ((GraphQLNamedType) type).getName();
-        if (BUILT_IN_TYPES.contains(typeName)) {
+        if (isBuiltInType(typeName)) {
             return;
         }
 

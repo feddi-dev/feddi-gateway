@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSIBLE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that accessible fields and arguments only reference accessible types.
@@ -38,12 +39,6 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSI
 public final class ReferenceToInaccessibleTypeRule implements ValidationRule {
 
     private static final String CODE = "REFERENCE_TO_INACCESSIBLE_TYPE";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -93,7 +88,7 @@ public final class ReferenceToInaccessibleTypeRule implements ValidationRule {
 
     private void checkInputType(GraphQLInputObjectType inputType, Set<String> inaccessibleTypes,
                                 String schemaName, ValidationResult.Builder builder) {
-        if (BUILT_IN_TYPES.contains(inputType.getName())) {
+        if (isBuiltInType(inputType.getName())) {
             return;
         }
         // Skip inaccessible types
@@ -121,7 +116,7 @@ public final class ReferenceToInaccessibleTypeRule implements ValidationRule {
     private void checkOutputFields(String typeName, List<GraphQLFieldDefinition> fields,
                                    GraphQLDirectiveContainer typeContainer, Set<String> inaccessibleTypes,
                                    String schemaName, ValidationResult.Builder builder) {
-        if (BUILT_IN_TYPES.contains(typeName)) {
+        if (isBuiltInType(typeName)) {
             return;
         }
         // Skip inaccessible types

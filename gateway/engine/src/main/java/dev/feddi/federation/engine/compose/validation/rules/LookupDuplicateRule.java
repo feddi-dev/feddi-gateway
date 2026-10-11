@@ -4,7 +4,6 @@ import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
-import graphql.language.StringValue;
 import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
 import graphql.schema.GraphQLArgument;
@@ -26,6 +25,7 @@ import java.util.stream.Collectors;
 import static dev.feddi.federation.engine.compose.FederationDirectives.IS;
 import static dev.feddi.federation.engine.compose.FederationDirectives.LOOKUP;
 import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.stringValue;
 
 /**
  * Warns about @lookup definitions that are redundant within a subgraph.
@@ -180,7 +180,7 @@ public final class LookupDuplicateRule implements ValidationRule {
                 // Explicit @is mapping
                 GraphQLAppliedDirective isDirective = arg.getAppliedDirective(IS);
                 GraphQLAppliedDirectiveArgument fieldArg = isDirective.getArgument("field");
-                fieldPath = extractStringValue(fieldArg);
+                fieldPath = stringValue(fieldArg);
             } else {
                 // Implicit mapping - argument name equals field path
                 fieldPath = arg.getName();
@@ -233,15 +233,6 @@ public final class LookupDuplicateRule implements ValidationRule {
 
         // Report error on the larger (redundant) lookup
         builder.addWarning(CODE, message, larger.coordinate(), schemaName);
-    }
-
-    private String extractStringValue(GraphQLAppliedDirectiveArgument arg) {
-        if (arg == null) return null;
-        Object value = arg.getValue();
-        if (value instanceof StringValue stringValue) {
-            return stringValue.getValue();
-        }
-        return value != null ? value.toString() : null;
     }
 
     /**

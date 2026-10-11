@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSIBLE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Warns about interface types used as return types that have no implementing type.
@@ -30,12 +31,6 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSI
 public final class InterfaceHasNoImplementationsRule implements PostMergeValidationRule {
 
     private static final String CODE = "INTERFACE_HAS_NO_IMPLEMENTATIONS";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public String name() {
@@ -50,7 +45,7 @@ public final class InterfaceHasNoImplementationsRule implements PostMergeValidat
         Set<String> interfacesWithNoImpl = new HashSet<>();
         for (GraphQLNamedType type : mergedSchema.getAllTypesAsList()) {
             if (type instanceof GraphQLInterfaceType interfaceType) {
-                if (BUILT_IN_TYPES.contains(interfaceType.getName())) {
+                if (isBuiltInType(interfaceType.getName())) {
                     continue;
                 }
                 // Skip @inaccessible interfaces

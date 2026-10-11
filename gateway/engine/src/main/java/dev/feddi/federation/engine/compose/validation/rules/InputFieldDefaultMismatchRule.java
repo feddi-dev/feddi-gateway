@@ -12,7 +12,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that input fields with the same name across schemas have consistent default values.
@@ -25,12 +26,6 @@ import java.util.Set;
 public final class InputFieldDefaultMismatchRule implements ValidationRule {
 
     private static final String CODE = "INPUT_FIELD_DEFAULT_MISMATCH";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -99,7 +94,7 @@ public final class InputFieldDefaultMismatchRule implements ValidationRule {
     private void collectFields(GraphQLInputObjectType type, String schemaName,
                                Map<String, List<FieldInfo>> fieldsByCoordinate) {
         String typeName = type.getName();
-        if (BUILT_IN_TYPES.contains(typeName)) {
+        if (isBuiltInType(typeName)) {
             return;
         }
 

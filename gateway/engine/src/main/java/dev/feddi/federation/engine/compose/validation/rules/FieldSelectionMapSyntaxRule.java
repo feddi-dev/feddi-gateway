@@ -6,7 +6,6 @@ import dev.feddi.federation.engine.parser.InvalidSyntaxException;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
-import graphql.introspection.Introspection;
 import graphql.language.StringValue;
 import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
@@ -16,7 +15,6 @@ import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLNamedType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
-import graphql.schema.idl.ScalarInfo;
 
 import java.util.List;
 import java.util.regex.Matcher;
@@ -26,6 +24,7 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.IS;
 import static dev.feddi.federation.engine.compose.FederationDirectives.KEY;
 import static dev.feddi.federation.engine.compose.FederationDirectives.PROVIDES;
 import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that all FieldSelectionMap and FieldSelectionSet values have valid syntax.
@@ -240,10 +239,6 @@ public final class FieldSelectionMapSyntaxRule implements ValidationRule {
             return stringValue.getValue();
         }
         return value != null ? value.toString() : null;
-    }
-
-    private boolean isBuiltInType(String typeName) {
-        return Introspection.isIntrospectionTypes(typeName) || ScalarInfo.isGraphqlSpecifiedScalar(typeName);
     }
 
     /**
