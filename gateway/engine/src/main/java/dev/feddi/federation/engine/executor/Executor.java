@@ -184,14 +184,14 @@ public final class Executor {
             return Mono.error(new ExecutionException("No client for subgraph: " + step.subgraph()));
         }
 
-        // Dependent steps are entity lookups, which always have key requirements and run once per entity
-        // (LOOKUP_MUST_HAVE_ARGUMENTS rules out lookups without a key), or root fields with @require arguments,
-        // which run once with the required values from the response root
+        // Dependent steps are entity lookups, which run once per entity, or root steps that wait for others: a
+        // root field with @require arguments, which reads them from the response root, or a group of a mutation's
+        // top-level fields, which runs after the group before it
         if (step.repeatedExecution()) {
             return executeRepeatedStep(step, client, ctx, queryVariables);
         }
-        if (step.requirements().isEmpty()) {
-            throw new ExecutionException("Dependent step " + step.id() + " has no requirements; "
+        if (step.entityPath() != null) {
+            throw new ExecutionException("Lookup step " + step.id() + " has no requirements to run per entity; "
                 + "execution plans must be created by the OperationPlanner");
         }
         Map<String, Object> stepVariables = new LinkedHashMap<>(queryVariables == null ? Map.of() : queryVariables);

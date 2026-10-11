@@ -36,21 +36,23 @@ final class PlanningContext {
      *
      * @param subgraph the subgraph name
      * @param entryLookup the lookup edge used to enter this subgraph, or null for root queries
+     * @param rootGroup for a root plan of a mutation, the group of top-level fields it executes (see
+     *                  {@link #startRootGroup}); 0 otherwise
      */
     record SubgraphPlanKey(String subgraph, LookupMoveEdge entryLookup, List<String> entryPath,
-                           Map<Integer, String> pathTypes) {
+                           Map<Integer, String> pathTypes, int rootGroup) {
         SubgraphPlanKey {
             entryPath = entryPath == null ? List.of() : List.copyOf(entryPath);
             pathTypes = pathTypes == null ? Map.of() : Map.copyOf(pathTypes);
         }
 
-        static SubgraphPlanKey forRoot(String subgraph) {
-            return new SubgraphPlanKey(subgraph, null, List.of(), Map.of());
+        static SubgraphPlanKey forRoot(String subgraph, int rootGroup) {
+            return new SubgraphPlanKey(subgraph, null, List.of(), Map.of(), rootGroup);
         }
 
         static SubgraphPlanKey forLookup(String subgraph, LookupMoveEdge entryLookup, List<String> entryPath,
                                          Map<Integer, String> pathTypes) {
-            return new SubgraphPlanKey(subgraph, entryLookup, entryPath, pathTypes);
+            return new SubgraphPlanKey(subgraph, entryLookup, entryPath, pathTypes, 0);
         }
 
         boolean isRootEntry() {
@@ -99,6 +101,10 @@ final class PlanningContext {
     // response path to the object they apply to
     private final Map<Integer, String> branchTypes = new HashMap<>();
 
+    // Mutations: the current group of top-level fields, and the group each plan was created for
+    private int rootGroup;
+    private final Map<Integer, Integer> planGroups = new HashMap<>();
+
     private final RequirementPlanner requirements;
     private final FieldPathSelector fieldPaths;
 
@@ -113,6 +119,18 @@ final class PlanningContext {
 
     /** The execution plan of the plans built so far. */
     ExecutionPlan buildPlan() {
+        // A mutation's groups of top-level fields execute in order: each group's root plans wait for every plan
+        // of the group before
+        for (SubgraphPlan plan : subgraphPlans.values()) {
+            int group = planGroups.get(plan.id);
+            if (plan.lookupEdge == null && group > 0) {
+                for (SubgraphPlan previous : subgraphPlans.values()) {
+                    if (planGroups.get(previous.id) == group - 1) {
+                        addPlanDependency(plan, previous);
+                    }
+                }
+            }
+        }
         return new PlanAssembler(graph, subgraphPlans.values(), planDependencies).assemble();
     }
 
@@ -145,12 +163,32 @@ final class PlanningContext {
     }
 
     /**
-     * Gets or creates a plan for a root query (no lookup entry).
+     * Starts the next group of a mutation's top-level fields. GraphQL executes them one after another: each group
+     * (consecutive fields of one subgraph) gets its own root plan, which waits for all plans of the group before
+     * it, including the lookups below its fields.
+     */
+    void startRootGroup() {
+        rootGroup++;
+    }
+
+    /** The current group of a mutation's top-level fields (see {@link #startRootGroup}); 0 for queries. */
+    int rootGroup() {
+        return rootGroup;
+    }
+
+    /**
+     * Gets or creates a plan for a root query (no lookup entry), of the current group of top-level fields.
      */
     SubgraphPlan getOrCreateRootPlan(String subgraph) {
-        SubgraphPlanKey key = SubgraphPlanKey.forRoot(subgraph);
-        return subgraphPlans.computeIfAbsent(key, k ->
-            new SubgraphPlan(stepIdGenerator.incrementAndGet(), subgraph, queryVariableDefinitions, operationType));
+        SubgraphPlanKey key = SubgraphPlanKey.forRoot(subgraph, rootGroup);
+        return subgraphPlans.computeIfAbsent(key, k -> newPlan(subgraph));
+    }
+
+    private SubgraphPlan newPlan(String subgraph) {
+        SubgraphPlan plan = new SubgraphPlan(stepIdGenerator.incrementAndGet(), subgraph, queryVariableDefinitions,
+            operationType);
+        planGroups.put(plan.id, rootGroup);
+        return plan;
     }
 
     /**
@@ -168,7 +206,7 @@ final class PlanningContext {
         String subgraph = lookupEdge.target().subgraph();
         SubgraphPlanKey key = SubgraphPlanKey.forLookup(subgraph, lookupEdge, parentPath, lookupPlanKey.pathTypes());
         SubgraphPlan plan = subgraphPlans.computeIfAbsent(key, k -> {
-            SubgraphPlan newPlan = new SubgraphPlan(stepIdGenerator.incrementAndGet(), subgraph, queryVariableDefinitions, operationType);
+            SubgraphPlan newPlan = newPlan(subgraph);
             newPlan.setLookupOrigin(lookupEdge, parentPath, lookupPlanKey.pathTypes());
             return newPlan;
         });

@@ -1,0 +1,32 @@
+name: "The next mutation field waits for the lookups below the previous one"
+description: |
+  A top-level field is complete with its selections: createReview runs after the lookup of the created
+  product's reviews.
+
+query: |
+  mutation {
+    createProduct(name: "A", price: 1) { id reviews { id } }
+    createReview(productId: "p1", text: "Nice", stars: 5) { id }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "mutation { createProduct(name: \"A\", price: 1) { id } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: reviews
+      operation: "query($id: ID!) { productById(id: $id) { reviews { id } } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: reviews
+      operation: "mutation { createReview(productId: \"p1\", text: \"Nice\", stars: 5) { id } }"
+      dependsOn: [1, 2]
+      repeatedExecution: false

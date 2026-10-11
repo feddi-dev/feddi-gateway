@@ -64,8 +64,18 @@ public final class OperationPlanner {
         PlanningContext context = new PlanningContext(query.variableDefinitions(), operationType, graph);
         collectClientFields(query.selections(), List.of(), null, context.clientFields);
 
-        // Plan each top-level selection
+        // Plan each top-level selection; a mutation's fields in order, a new group whenever the subgraph changes
+        String previousSubgraph = null;
         for (Selection selection : query.selections()) {
+            if (operationType == OperationDefinition.Operation.MUTATION
+                && selection instanceof FieldSelection field) {
+                List<OperationPath> paths = pathFinder.findPaths(rootPath, field.fieldName());
+                String subgraph = paths.isEmpty() ? null : paths.get(0).currentSubgraph();
+                if (previousSubgraph != null && !previousSubgraph.equals(subgraph)) {
+                    context.startRootGroup();
+                }
+                previousSubgraph = subgraph;
+            }
             planSelection(rootPath, selection, List.of(), context);
         }
 

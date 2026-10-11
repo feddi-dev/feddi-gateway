@@ -1,5 +1,6 @@
 package dev.feddi.federation.engine.planner;
 
+import dev.feddi.federation.engine.Constants;
 import dev.feddi.federation.engine.graph.Graph;
 import dev.feddi.federation.engine.graph.LookupMoveEdge;
 import dev.feddi.federation.engine.graph.Node;
@@ -50,6 +51,11 @@ final class RequirementPlanner {
      * response root ({@code search(filter: $filter)} after {@code { category }}).
      */
     void processRootRequirements(SubgraphPlan plan, String rootType, String fieldName) {
+        if (!Constants.QUERY.equals(rootType) && !graph.requirementsOf(rootType, plan.subgraph, fieldName).isEmpty()) {
+            // Resolving them would select another subgraph's mutation field, i.e. run another mutation
+            throw new PlanningException("@require on mutation field '" + fieldName + "' in '" + plan.subgraph
+                + "' is not supported");
+        }
         for (Requirement requirement : graph.requirementsOf(rootType, plan.subgraph, fieldName)) {
             Map<String, String> responseKeys = new HashMap<>();
             for (Path path : requirement.extractPaths()) {
@@ -491,6 +497,9 @@ final class RequirementPlanner {
             if (!key.subgraph().equals(subgraph) || waitsForRequirementTarget(entry.getValue())
                 || !resolvesType(entry.getValue(), parentPath, typeName)) {
                 continue;
+            }
+            if (key.isRootEntry() && key.rootGroup() != context.rootGroup()) {
+                continue;  // a root plan of an earlier group of a mutation's top-level fields
             }
             if (key.isRootEntry()) {
                 rootPlan = entry.getValue();

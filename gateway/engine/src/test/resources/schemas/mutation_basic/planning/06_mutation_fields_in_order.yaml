@@ -1,0 +1,31 @@
+name: "Mutation fields in order"
+description: |
+  GraphQL executes a mutation's top-level fields one after another. first and second are both products
+  fields, but review (in reviews) is between them: three steps, each waiting for the one before.
+
+query: |
+  mutation {
+    first: createProduct(name: "A", price: 1) { id }
+    review: createReview(productId: "p1", text: "Nice", stars: 5) { id }
+    second: createProduct(name: "B", price: 2) { id }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: products
+      operation: "mutation { first: createProduct(name: \"A\", price: 1) { id } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: reviews
+      operation: "mutation { review: createReview(productId: \"p1\", text: \"Nice\", stars: 5) { id } }"
+      dependsOn: [1]
+      repeatedExecution: false
+
+    - id: 3
+      subgraph: products
+      operation: "mutation { second: createProduct(name: \"B\", price: 2) { id } }"
+      dependsOn: [2]
+      repeatedExecution: false

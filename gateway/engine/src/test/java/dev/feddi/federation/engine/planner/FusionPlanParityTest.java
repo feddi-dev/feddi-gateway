@@ -8,6 +8,7 @@ import dev.feddi.federation.engine.compose.CompositionResult;
 import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.query.Operation;
 import dev.feddi.federation.engine.query.OperationNormalizer;
+import graphql.language.OperationDefinition;
 import graphql.parser.Parser;
 import graphql.schema.GraphQLSchema;
 import graphql.validation.ValidationError;
@@ -191,7 +192,11 @@ class FusionPlanParityTest {
             if (!"$introspection".equals(step.subgraph())) {
                 steps++;
             }
-            dependencies.put(step.id(), step.dependsOn());
+            // A mutation's top-level fields run one after another in both gateways, but Fusion's plan does not
+            // list that order as dependencies: leave it out of the depth here as well
+            boolean orderedMutationStep = step.operation().getOperation() == OperationDefinition.Operation.MUTATION
+                && !step.repeatedExecution() && step.requirements().isEmpty();
+            dependencies.put(step.id(), orderedMutationStep ? List.of() : step.dependsOn());
         }
         return new Outcome("ok", steps, depth(dependencies), fusionOperations, fusionDepth);
     }

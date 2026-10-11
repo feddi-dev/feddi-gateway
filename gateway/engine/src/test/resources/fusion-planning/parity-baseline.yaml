@@ -219,13 +219,13 @@ PlannerBehaviorTests/Mutations:
   fusionDepth: 2
 PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph:
   status: "ok"
-  steps: 3
+  steps: 4
   depth: 1
   fusionOperations: 4
   fusionDepth: 1
 PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph_Contiguous_Same_Service:
   status: "ok"
-  steps: 3
+  steps: 4
   depth: 1
   fusionOperations: 5
   fusionDepth: 1

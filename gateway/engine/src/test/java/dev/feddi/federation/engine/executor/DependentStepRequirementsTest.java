@@ -15,9 +15,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Dependent steps are entity lookups with key requirements, executed once per entity. Lookups
+ * Lookup steps (steps with an entity path) have key requirements and run once per entity. Lookups
  * without a key are rejected at composition (LOOKUP_MUST_HAVE_ARGUMENTS), so the planner never
- * creates a dependent step without requirements. A hand-assembled one fails the execution.
+ * creates a lookup step without requirements. A hand-assembled one fails the execution. (Root steps
+ * may wait for others: a mutation's later top-level fields, or root fields with @require.)
  */
 class DependentStepRequirementsTest {
 
