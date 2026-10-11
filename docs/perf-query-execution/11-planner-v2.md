@@ -22,15 +22,16 @@ Fusion composes all of them, 9 failed to plan, 9 produced an invalid subgraph op
 `tools/planner-compare` on feddi's own fixtures (132 queries, 119 ran on both gateways): feddi sent more operations
 than Fusion for 17 queries and had more depth for 5; it was better in 1.
 
-## Status (2026-10-10, evening): all Fusion planner tests green
+## Status (2026-10-10, late evening): all Fusion planner tests green
 
 | | v1 start | overnight run | now |
 |---|---|---|---|
 | Fusion planner tests planned with the monolith's data | 47 of 91 planned, data unchecked | 53 | **72 of 91** |
 | Fusion planner tests rejected for a spec reason | | | **19 of 91** (`fusion-planning/spec-rejections.yaml`) |
-| Correct data vs monolith (`PlanExecutionOracleTest`, all fixtures) | 170 of 223 | 181 of 223 | 213 of 232 (the rest: the 19 rejections) |
+| Correct data vs monolith (`PlanExecutionOracleTest`, all fixtures) | 170 of 223 | 181 of 223 | 221 of 240 (the rest: the 19 rejections) |
 | Wrong data without an error | | 4 | 0 (now also checking `@require` values) |
-| Planned with no more steps / depth than Fusion | | | 69 / 60 of 72 |
+| Planned with no more steps / depth than Fusion | | | **72 / 72 of 72** |
+| Random graphs (`RandomGraphOracleTest`, same data as a monolith) | | | 150 seeds in CI, 3000 checked locally |
 
 `FusionTestsGreenTest` fails unless every imported Fusion test is either planned with the monolith's data or
 rejected with the reason listed in `spec-rejections.yaml`. Fusion's tests do not validate their inputs; the 19
@@ -55,9 +56,9 @@ What changed for that, roughly in order (each a commit with numbers):
 - **Oracle**: the mock keeps an entity's type across lookups, picks abstract results per field, and checks every
   `@require` argument value against the required data.
 
-Open (not needed for green, plan quality only): Fusion batches equal lookups of several type branches into one
-operation (`Plan_Should_Merge_Nested_Lookups_Across_Union_Members...`: 13 steps vs 6); 12 plans are deeper than
-Fusion's.
+`RandomGraphOracleTest` generates graphs from fixed seeds (interfaces, unions, abstract lookups, keys by code,
+`@provides`, requirements) and compares feddi's data with a monolith's; `-PrandomGraphSeeds=N` runs more seeds.
+Failing seeds become hand-written fixtures.
 
 ## Spec readings
 
@@ -71,6 +72,13 @@ Where the draft (graphql/composite-schemas-spec at e5ce483, 2026-10-04) is ambig
 - `CollectExecutablePaths` walks into every possible type of an abstract field in the composite schema. A type
   that only another schema adds to the union (Fusion's `Union_Union_Member_Mix`) is no executable path from a
   schema whose field cannot return it; feddi walks into a possible type only from schemas that can return it.
+- `LOOKUP_KEY_MISSING_FOR_TYPE` asks whether "all fields referenced by {alternative} are defined for
+  {possibleType}" in the lookup's source schema, while `IS_INVALID_FIELDS` resolves the same `@is` paths across
+  the other schemas. feddi takes the possible types from the lookup's schema and accepts fields from any schema.
+- `MergeOutputFields` keeps an argument only if every merged field declares it, and does not say whether
+  `@external` definitions count. feddi leaves them out: they mirror the field, and `@external` fields cannot have
+  arguments anyway (`EXTERNAL_FIELD_HAS_ARGUMENTS`; the spec rejects them through `KEY_FIELDS_HAS_ARGUMENTS`,
+  `PROVIDES_FIELDS_HAS_ARGUMENTS` or `EXTERNAL_UNUSED`).
 
 ## Composition: aligning with the spec
 
@@ -83,6 +91,29 @@ Fusion composes all of its tests; feddi rejected 26. Each deviation is checked a
 | `INVALID_FIELD_SHARING`, key exemption | only `@key` fields | fields of a key; a key "that could be inferred from a lookup field's arguments MAY be omitted" (#224, 2026-07-09) | lookup argument fields count as keys; `@internal` types skipped |
 | `INVALID_FIELD_SHARING`, root lookups | exempt | no exemption for root fields | root lookups in several schemas need `@shareable` or `@internal` |
 | `UNREACHABLE_TYPE` (feddi-only lint) | error | not a spec rule; Fusion composes such schemas (e.g. a union in one schema that only contributes members) | warning |
+
+### Spec check of all composition rules (2026-10-10)
+
+Every error code of the draft's Section 4 (66) against feddi's rules, each rule probed with the draft's examples
+and counter-examples. All 66 codes are now reported. Changes:
+
+| Rule | feddi before | Now |
+|---|---|---|
+| `EXTERNAL_UNUSED` | a field used only by `@key` was an error | `@key` selections count as usage, as the spec says |
+| `ENUM_VALUES_MISMATCH` | not implemented: enum values of all schemas were combined | error; values only some schemas know must be `@inaccessible` |
+| `LOOKUP_KEY_MISSING_FOR_TYPE` | only unions, only `@is`, only the first path segment (`LOOKUP_UNION_KEY_FIELD_MISSING`) | the spec rule for objects, interfaces and unions, arguments by name or `@is` alternatives |
+| `IS_FIELDS_HAS_ARGUMENTS`, `REQUIRE_INCONSISTENT_ON_IMPLEMENTATION`, `REFERENCE_TO_INTERNAL_TYPE` | not implemented (the last: the field was dropped silently) | errors |
+| `INVALID_GRAPHQL` | `Composer.compose` threw graphql-java's exception | composition error |
+| `INTERFACE_FIELD_NO_IMPLEMENTATION`, `INTERFACE_FIELD_ARGUMENT_NO_IMPLEMENTATION` | `SCHEMA_BUILD_ERROR` | the spec codes (graphql-java's error types mapped) |
+| Merge of field arguments | union of all definitions' arguments | only arguments every definition declares (`MergeOutputFields`) |
+| `KEY_/PROVIDES_DIRECTIVE_IN_FIELDS_ARG` | misspelled codes | `..._IN_FIELDS_ARGUMENT` |
+| `REQUIRE_ON_NON_ENTITY` (feddi-only) | rejected `@require` on interface fields, which the spec allows | removed: interface fields with `@require` are planned per possible type (`schemas/interface_requirements`); satisfiability rejects requirements that cannot be resolved. `REQUIRE_ON_ROOT_FIELD` remains (see Open) |
+| `LOOKUP_DUPLICATE`, `INTERFACE_HAS_NO_IMPLEMENTATIONS` (feddi-only) | errors | warnings: the spec allows several lookups for a type, GraphQL an interface without implementations |
+
+feddi-only codes left: `EXTERNAL_FIELD_HAS_ARGUMENTS` (error; the spec rejects the same schemas through other
+rules, see Spec readings), `REQUIRE_ON_ROOT_FIELD` (error, a planner limit), `SCHEMA_BUILD_ERROR` (any other
+failure of building the merged schema) and the warnings `UNREACHABLE_TYPE`, `LOOKUP_DUPLICATE`,
+`INTERFACE_HAS_NO_IMPLEMENTATIONS`.
 
 ## Release notes (breaking)
 
@@ -101,11 +132,73 @@ Fusion composes all of its tests; feddi rejected 26. Each deviation is checked a
   be given).
 - Non-null `@lookup` fields compose with a warning instead of failing.
 - Types that are unreachable from a source schema's root types compose with a warning instead of failing.
+- **Enums with the same name must have the same values in every source schema** (`ENUM_VALUES_MISMATCH`); a value
+  only some schemas define must be `@inaccessible` there. Before, feddi combined the values.
+- **A field's arguments in the composite schema are those every source schema declares.** Before, feddi offered
+  the union, including arguments some subgraphs do not accept.
+- **Every lookup argument must map to a field of every possible type of the lookup's return type**
+  (`LOOKUP_KEY_MISSING_FOR_TYPE`, replaces `LOOKUP_UNION_KEY_FIELD_MISSING`).
+- New errors from the spec: `IS_FIELDS_HAS_ARGUMENTS`, `REQUIRE_INCONSISTENT_ON_IMPLEMENTATION`,
+  `REFERENCE_TO_INTERNAL_TYPE`. Invalid source schemas fail composition with `INVALID_GRAPHQL` instead of an
+  exception; broken interface contracts report `INTERFACE_FIELD_NO_IMPLEMENTATION` /
+  `INTERFACE_FIELD_ARGUMENT_NO_IMPLEMENTATION` instead of `SCHEMA_BUILD_ERROR`.
+- `@require` on interface fields is supported; on root fields it fails with `REQUIRE_ON_ROOT_FIELD` (was
+  `REQUIRE_ON_NON_ENTITY`, which also rejected interface fields). `@external` fields used only by a `@key` compose.
+- Renamed codes: `KEY_DIRECTIVE_IN_FIELDS_ARGUMENT`, `PROVIDES_DIRECTIVE_IN_FIELDS_ARGUMENT`. `LOOKUP_DUPLICATE`
+  and `INTERFACE_HAS_NO_IMPLEMENTATIONS` are warnings.
+
+## Performance
+
+Local benchmark (`scripts/local-benchmark.sh`, heavy query, 50 VUs, 30 s, two rounds each, alternating with v1 =
+`perf/query-execution` in the same runs; one machine, so relative only):
+
+| | req/s, round 1 / 2 |
+|---|---|
+| v1 | 923 / 864, then 865 / 903 |
+| v2 before optimizing | 828 / 850 |
+| v2 now | 897 / 892 |
+
+What it took (JFR under the benchmark load): `ResponseFieldOrder` collected the fields of the same selection sets
+again for every object and list item, about 10% of the CPU samples; it now caches them per response. Planning the
+heavy query took 1.47 ms in v2 vs 0.69 ms in v1 (plans are cached, so this only hits a query's first request):
+the per-child resolvability check ran also for fields with a single path, and `PathSegment` printed its arguments
+for every hash. Now 0.64 ms.
+
+## Review of the v2 code (2026-10-10)
+
+The v2 changes touch 39 files of the engine (+3374 / -1599 lines). Done in this review: the duplicated key loops
+of the lookup paths became `addLookupKeys`; `SubgraphPlan` keeps the lookup edge instead of copies of its parts;
+the lookup that enters a subgraph is found in one place (`enteringLookup`); unused `ExecutionStep` constructors and
+pre-v2 methods without callers are removed; satisfiability finds a schema's lookups for a type once per check.
+
+Recommended next, in order of value:
+
+1. **One code path for fields with and without a fragment context in `OperationPlanner`** (now 3184 lines). Many
+   steps exist twice, once with `fragmentContext`/`targetFragmentContext` and once without, and
+   `SubgraphPlan`'s field tree and `InlineFragmentNode` each have their own `addFieldAtPath`. A fragment is a
+   field-tree node with a type condition; treating it as one would remove the largest source of "fixed in one
+   branch only" bugs. Big change, best done with the oracle and random graphs as the safety net.
+2. **Index requirements by type and subgraph in `Graph`.** `fieldHasRequire` scans every edge on each call and
+   `PathFinder` calls it for every field edge it considers. Fine at today's schema sizes (planning 0.64 ms), linear
+   in the graph size.
+3. **Split `OperationPlanner`**: requirement handling (`processRequire*`, `resolveRequireField*`), lookup keys and
+   the plan tree (`SubgraphPlan`, `PlanNode`, `InlineFragmentNode`) are separable classes.
+
+Open:
+
+- **`@require` on root fields** (`REQUIRE_ON_ROOT_FIELD`): valid per spec if satisfiable (`Query.search(filter:
+  @require(field: "category"))` with `category` in another schema's Query), but the planner resolves
+  requirements only at lookups. Needs a root step whose result feeds variables into another root step.
+- **FieldsConflict**: when the planner adds a key field inside a fragment and another member type has a field with
+  the same response key and a different nullability, the subgraph rejects the operation. Needs the field types in
+  the graph so the planner can alias.
 
 ## Open questions for Andi
 
-- The two spec readings above (requirements and lookup inputs; possible types of abstract fields). Both could
-  be raised upstream as clarifications of the draft.
+- The spec readings above (requirements and lookup inputs; possible types of abstract fields; where lookup key
+  fields must be defined; `@external` in argument merging). All could be raised upstream as clarifications of
+  the draft.
+- `REQUIRE_ON_ROOT_FIELD`: support root-field requirements, or propose to the spec that they are invalid?
 
 - `composition/errors/lookup_does_not_imply_shareable.yaml` (June) asserted that a lookup does not make fields
   shareable. Spec PR #224 (July 9) added that keys may be inferred from lookup arguments, and Fusion treats such
