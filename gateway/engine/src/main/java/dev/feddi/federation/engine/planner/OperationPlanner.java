@@ -1541,9 +1541,9 @@ public final class OperationPlanner {
         }
 
         private boolean resolvesType(SubgraphPlan plan, List<String> parentPath, String typeName) {
-            return typeName == null || plan.lookupTargetType == null || !parentPath.equals(plan.lookupEntryPath)
-                || concreteTypes(plan.lookupTargetType).contains(typeName)
-                || concreteTypes(typeName).contains(plan.lookupTargetType);
+            return typeName == null || plan.lookupTargetType() == null || !parentPath.equals(plan.lookupEntryPath)
+                || concreteTypes(plan.lookupTargetType()).contains(typeName)
+                || concreteTypes(typeName).contains(plan.lookupTargetType());
         }
 
         private boolean isPathPrefix(List<String> prefix, List<String> path) {
@@ -1876,7 +1876,7 @@ public final class OperationPlanner {
                     artificialPaths,
                     requestedPaths,
                     plan.lookupEntryPath,
-                    concreteTypes(plan.lookupTargetType),
+                    concreteTypes(plan.lookupTargetType()),
                     concreteTypesByDepth(plan.lookupPathTypes),
                     possibleTypesOfConditions(stepRequirements.values())
                 );
@@ -2098,13 +2098,8 @@ public final class OperationPlanner {
         final Map<String, RequirementInfo> requirements = new LinkedHashMap<>();
 
         // Lookup origin tracking (for dependent subgraphs entered via @lookup)
-        String lookupFieldName;                     // e.g., "productById"
-        String lookupTargetType;                    // the entity type the lookup resolves, e.g. "Book"
-        String lookupReturnType;                    // the lookup field's type: lookupTargetType or an abstract type
         Map<Integer, String> lookupPathTypes = Map.of(); // type conditions along the lookup's entry path
         LookupMoveEdge lookupEdge;                  // the lookup that enters this plan, null for root plans
-        List<String> lookupPath = List.of();        // fields from Query to a nested lookup field (e.g. "lookups")
-        List<LookupArgument> lookupArguments;  // Key fields with argument info
         List<String> lookupEntryPath;               // The parentPath when we entered via lookup
 
         // Track field arguments from @require directives
@@ -2138,14 +2133,14 @@ public final class OperationPlanner {
         /**
          * Sets the lookup origin information for a subgraph entered via a @lookup edge.
          */
+        /** The entity type the plan's lookup resolves (e.g. "Book"), or null for a root plan. */
+        String lookupTargetType() {
+            return lookupEdge == null ? null : lookupEdge.target().typeName();
+        }
+
         void setLookupOrigin(LookupMoveEdge lookupEdge, List<String> entryPath, Map<Integer, String> pathTypes) {
             this.lookupEdge = lookupEdge;
             this.lookupPathTypes = pathTypes;
-            this.lookupTargetType = lookupEdge.target().typeName();
-            this.lookupReturnType = lookupEdge.returnType();
-            this.lookupPath = lookupEdge.lookupPath();
-            this.lookupFieldName = lookupEdge.lookupField();
-            this.lookupArguments = lookupEdge.lookupArguments();
             this.lookupEntryPath = new ArrayList<>(entryPath);
         }
 
@@ -2273,7 +2268,7 @@ public final class OperationPlanner {
          * fields. Null if a field on the way is not known.
          */
         String declaredTypeAt(List<String> parentPath, Graph graph) {
-            String type = lookupTargetType != null ? lookupTargetType
+            String type = lookupEdge != null ? lookupTargetType()
                 : operationType == OperationDefinition.Operation.MUTATION ? Constants.MUTATION : Constants.QUERY;
             SelectionNode node = root;
             for (String responseKey : adjustPath(parentPath)) {
@@ -2592,10 +2587,10 @@ public final class OperationPlanner {
             SelectionSet innerSelectionSet = buildSelectionSet(root);
             SelectionSet finalSelectionSet;
 
-            if (lookupFieldName != null && lookupArguments != null) {
+            if (lookupEdge != null) {
                 // Build lookup field with arguments
                 List<Argument> args = new ArrayList<>();
-                for (LookupArgument lookupArg :lookupArguments) {
+                for (LookupArgument lookupArg : lookupEdge.lookupArguments()) {
                     args.add(Argument.newArgument()
                         .name(lookupArg.argumentName())
                         .value(VariableReference.newVariableReference()
@@ -2604,17 +2599,17 @@ public final class OperationPlanner {
                         .build());
                 }
 
-                if (!lookupTargetType.equals(lookupReturnType)) {
+                if (!lookupTargetType().equals(lookupEdge.returnType())) {
                     // The lookup returns an interface or union: select the entity type's fields
                     innerSelectionSet = SelectionSet.newSelectionSet()
                         .selection(InlineFragment.newInlineFragment()
-                            .typeCondition(TypeName.newTypeName(lookupTargetType).build())
+                            .typeCondition(TypeName.newTypeName(lookupTargetType()).build())
                             .selectionSet(innerSelectionSet)
                             .build())
                         .build();
                 }
                 Field lookupField = Field.newField()
-                    .name(lookupFieldName)
+                    .name(lookupEdge.lookupField())
                     .arguments(args)
                     .selectionSet(innerSelectionSet)
                     .build();
@@ -2623,6 +2618,7 @@ public final class OperationPlanner {
                     .selections(List.of(lookupField))
                     .build();
                 // A nested lookup (Query.lookups.brandById) is selected through its argument-less parent fields
+                List<String> lookupPath = lookupEdge.lookupPath();
                 for (int i = lookupPath.size() - 1; i >= 0; i--) {
                     finalSelectionSet = SelectionSet.newSelectionSet()
                         .selections(List.of(Field.newField(lookupPath.get(i)).selectionSet(finalSelectionSet).build()))
@@ -2660,7 +2656,7 @@ public final class OperationPlanner {
             // Lookup steps are always queries, even if the original operation was a mutation
             // because @lookup fields are defined on Query type
             OperationDefinition.Operation effectiveOperationType =
-                (lookupFieldName != null) ? OperationDefinition.Operation.QUERY : operationType;
+                (lookupEdge != null) ? OperationDefinition.Operation.QUERY : operationType;
 
             var builder = OperationDefinition.newOperationDefinition()
                 .operation(effectiveOperationType)
