@@ -482,9 +482,9 @@ RequirementParityTests/Deep_Requires:
   fusionOperations: 4
   fusionDepth: 4
 RequirementParityTests/Keys_Mashup:
-  status: "composition: errors=['A' [@18:1] use an unknown argument 'resolvable' on\
-    \ directive 'key', 'A' [@18:1] use an unknown argument 'resolvable' on directive\
-    \ 'key']"
+  status: "composition: INVALID_GRAPHQL: Schema 'b' is not a valid GraphQL schema:\
+    \ errors=['A' [@18:1] use an unknown argument 'resolvable' on directive 'key',\
+    \ 'A' [@18:1] use an unkno"
   steps: 0
   depth: 0
   fusionOperations: 4

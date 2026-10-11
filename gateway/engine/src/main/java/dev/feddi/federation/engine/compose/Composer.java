@@ -6,6 +6,7 @@ import dev.feddi.federation.engine.graph.Graph;
 import dev.feddi.federation.engine.compose.validation.Diagnostic;
 import dev.feddi.federation.engine.compose.validation.SchemaValidator;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
+import graphql.GraphQLException;
 import graphql.schema.GraphQLSchema;
 
 import java.util.ArrayList;
@@ -36,11 +37,19 @@ public final class Composer {
      * @return the composition result
      */
     public CompositionResult compose(List<SubgraphInput> subgraphInputs) {
-        // Parse all subgraphs
+        // Parse all subgraphs; a schema that is not valid GraphQL is reported, not thrown
         List<Subgraph> subgraphs = new ArrayList<>();
+        List<Diagnostic> invalidSchemas = new ArrayList<>();
         for (SubgraphInput input : subgraphInputs) {
-            Subgraph subgraph = parser.parse(input.name(), input.url(), input.sdl());
-            subgraphs.add(subgraph);
+            try {
+                subgraphs.add(parser.parse(input.name(), input.url(), input.sdl()));
+            } catch (GraphQLException e) {
+                invalidSchemas.add(Diagnostic.error("INVALID_GRAPHQL",
+                    "Schema '" + input.name() + "' is not a valid GraphQL schema: " + e.getMessage(), null, input.name()));
+            }
+        }
+        if (!invalidSchemas.isEmpty()) {
+            return CompositionResult.failure(subgraphs, ValidationResult.of(invalidSchemas));
         }
 
         // Validate source schemas and pre-merge rules
