@@ -71,6 +71,23 @@ with keys and requirements, and a duplicate requirement variable (all fixed, wit
 Nice to have: a nightly CI job running a new range of seeds each night (e.g. 5000 from an offset by date), whose
 failures report a seed to reproduce and turn into fixtures; the 150 fixed seeds keep pull requests deterministic.
 
+## Spec compliance
+
+feddi's composition follows the composite-schemas spec draft (graphql/graphql-federation-spec, Section 4): all 66
+error codes are reported, each rule checked against the draft's examples and counter-examples. The breaking changes
+in the release notes are schemas feddi accepted before although the spec rejects them; they are now rejected as
+the spec requires.
+
+What remains:
+
+- **Ambiguous spec text** (4 places, see Spec readings): feddi follows one reading each; raised with the spec
+  authors.
+- **Not supported yet**: `@require` on mutation fields (resolving it would run another subgraph's mutation field),
+  and an `@external` field whose arguments all carry `@require` (any other `@external` field with arguments the
+  spec rejects as well).
+- **feddi-only warnings** (never block composition): `UNREACHABLE_TYPE`, `LOOKUP_DUPLICATE`,
+  `INTERFACE_HAS_NO_IMPLEMENTATIONS`.
+
 ## Spec readings
 
 Where the draft (graphql/composite-schemas-spec at e5ce483, 2026-10-04) is ambiguous, feddi reads it as follows
@@ -121,12 +138,15 @@ and counter-examples. All 66 codes are now reported. Changes:
 | `REQUIRE_ON_NON_ENTITY` (feddi-only) | rejected `@require` on interface fields, which the spec allows | removed: interface fields with `@require` are planned per possible type (`schemas/interface_requirements`); satisfiability rejects requirements that cannot be resolved. Root fields with `@require` are supported too (`schemas/root_requirements`) |
 | `LOOKUP_DUPLICATE`, `INTERFACE_HAS_NO_IMPLEMENTATIONS` (feddi-only) | errors | warnings: the spec allows several lookups for a type, GraphQL an interface without implementations |
 
-feddi-only codes left: `EXTERNAL_FIELD_HAS_ARGUMENTS` (error; the spec rejects the same schemas through other
-rules, see Spec readings), `SCHEMA_BUILD_ERROR` (any other
-failure of building the merged schema) and the warnings `UNREACHABLE_TYPE`, `LOOKUP_DUPLICATE`,
-`INTERFACE_HAS_NO_IMPLEMENTATIONS`.
+Codes besides the spec's: `EXTERNAL_FIELD_HAS_ARGUMENTS` (the schemas it rejects the spec rejects through other
+rules, apart from `@external` fields whose arguments all carry `@require`, which feddi does not support),
+`SCHEMA_BUILD_ERROR` (any other failure of building the merged schema, for schemas the spec rejects too) and the
+warnings `UNREACHABLE_TYPE`, `LOOKUP_DUPLICATE`, `INTERFACE_HAS_NO_IMPLEMENTATIONS`.
 
 ## Release notes (breaking)
+
+Composition now follows the spec where feddi accepted schemas the spec rejects; a schema that composed before can
+fail now. The planner and gateway changes keep results the same or fix wrong ones.
 
 - **Root fields defined by several source schemas must be `@shareable` (or `@internal`), lookups included.**
   The composite-schema spec has no exemption for lookups; Fusion rejects these schemas too
