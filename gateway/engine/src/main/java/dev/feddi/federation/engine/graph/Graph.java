@@ -36,11 +36,16 @@ public final class Graph {
     private final Map<String, Set<String>> typeMemberOfUnions;
     // Return types of @external fields per node ("Level1/a" -> level2 -> "Level2"), for fields reached via @provides
     private final Map<Node, Map<String, String>> externalFieldTypes;
+    // The @require arguments of each node's fields, by field name
+    private final Map<Node, Map<String, List<Requirement>>> requirements;
+    // The output type of each node's fields as GraphQL prints it ("[String!]"), by field name
+    private final Map<Node, Map<String, String>> fieldTypes;
 
     private Graph(Set<Node> nodes, List<Edge> edges, Map<String, Node> rootNodes,
                   Map<FieldMoveEdge, FieldSelectionSet> providesMap, Map<String, Set<String>> typeImplementsInterfaces,
                   Map<String, Set<String>> interfaceToImplementingTypes,
-                  Map<String, Set<String>> typeMemberOfUnions, Map<Node, Map<String, String>> externalFieldTypes) {
+                  Map<String, Set<String>> typeMemberOfUnions, Map<Node, Map<String, String>> externalFieldTypes,
+                  Map<Node, Map<String, List<Requirement>>> requirements, Map<Node, Map<String, String>> fieldTypes) {
         this.nodes = Set.copyOf(nodes);
         this.edges = List.copyOf(edges);
         this.rootNodes = Map.copyOf(rootNodes);
@@ -49,6 +54,8 @@ public final class Graph {
         this.interfaceToImplementingTypes = Map.copyOf(interfaceToImplementingTypes);
         this.typeMemberOfUnions = Map.copyOf(typeMemberOfUnions);
         this.externalFieldTypes = Map.copyOf(externalFieldTypes);
+        this.requirements = Map.copyOf(requirements);
+        this.fieldTypes = Map.copyOf(fieldTypes);
 
         // Build adjacency list for efficient edge lookup
         this.outgoingEdges = new HashMap<>();
@@ -253,37 +260,37 @@ public final class Graph {
     }
 
     /**
-     * Checks if a field on a type has @require dependencies.
-     * This is determined by checking if any LookupMoveEdge targeting that type/subgraph
-     * has requirements for the given field.
-     *
-     * @param typeName the type name
-     * @param subgraph the subgraph
-     * @param fieldName the field name to check
-     * @return true if the field has @require, false otherwise
+     * Whether a field of a type in a subgraph has @require arguments. An interface field counts as requiring when
+     * an implementation's field in the subgraph does: it is then resolved per possible type.
      */
     public boolean fieldHasRequire(String typeName, String subgraph, String fieldName) {
-        // An interface field with @require: its implementations' fields carry the requirement
+        if (!requirementsOf(typeName, subgraph, fieldName).isEmpty()) {
+            return true;
+        }
         for (String implementation : getImplementingTypesForInterface(typeName)) {
             if (fieldHasRequire(implementation, subgraph, fieldName)) {
                 return true;
             }
         }
-        // Check all lookup edges that target this type/subgraph
-        for (Edge edge : edges) {
-            if (edge instanceof LookupMoveEdge lookupEdge) {
-                if (lookupEdge.target().typeName().equals(typeName)
-                    && lookupEdge.target().subgraph().equals(subgraph)) {
-                    // Check if this lookup has @require for the field
-                    for (Requirement req : lookupEdge.requires()) {
-                        if (fieldName.equals(req.fieldName())) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
         return false;
+    }
+
+    /** The @require arguments of a field of a type in a subgraph. */
+    public List<Requirement> requirementsOf(String typeName, String subgraph, String fieldName) {
+        return requirements.getOrDefault(new Node(typeName, subgraph), Map.of()).getOrDefault(fieldName, List.of());
+    }
+
+    /** Whether the type is the root type of an operation (Query, Mutation). */
+    public boolean isRootOperationType(String typeName) {
+        return rootNodes.containsKey(typeName);
+    }
+
+    /**
+     * The output type of a field of a type in a subgraph as GraphQL prints it (e.g. {@code [String!]}), or null if
+     * the subgraph does not define the field.
+     */
+    public String fieldType(String typeName, String subgraph, String fieldName) {
+        return fieldTypes.getOrDefault(new Node(typeName, subgraph), Map.of()).get(fieldName);
     }
 
     /**
@@ -311,8 +318,25 @@ public final class Graph {
         private final Map<String, Set<String>> interfaceToImplementingTypes = new HashMap<>();
         private final Map<String, Set<String>> typeMemberOfUnions = new HashMap<>();
         private final Map<Node, Map<String, String>> externalFieldTypes = new HashMap<>();
+        private final Map<Node, Map<String, List<Requirement>>> requirements = new HashMap<>();
+        private final Map<Node, Map<String, String>> fieldTypes = new HashMap<>();
 
         private GraphBuilder() {}
+
+        /** Records a field's @require arguments. */
+        public GraphBuilder addRequirements(Node node, List<Requirement> fieldRequirements) {
+            for (Requirement requirement : fieldRequirements) {
+                requirements.computeIfAbsent(node, k -> new HashMap<>())
+                    .computeIfAbsent(requirement.fieldName(), k -> new ArrayList<>()).add(requirement);
+            }
+            return this;
+        }
+
+        /** Records a field's output type as GraphQL prints it. */
+        public GraphBuilder addFieldType(Node node, String fieldName, String printedType) {
+            fieldTypes.computeIfAbsent(node, k -> new HashMap<>()).put(fieldName, printedType);
+            return this;
+        }
 
         /**
          * Records the (named) return type of an @external field, which has no field edge.
@@ -454,7 +478,7 @@ public final class Graph {
                 }
             }
             return new Graph(nodes, edges, rootNodes, providesMap, typeImplementsInterfaces,
-                interfaceToImplementingTypes, typeMemberOfUnions, externalFieldTypes);
+                interfaceToImplementingTypes, typeMemberOfUnions, externalFieldTypes, requirements, fieldTypes);
         }
     }
 }

@@ -87,6 +87,9 @@ public final class GraphBuilder {
             processSubgraph(subgraph, builder, typeToSubgraphs, lookupFields, typeRequirements, providesList);
         }
         
+        typeRequirements.forEach((key, requirements) ->
+            builder.addRequirements(new Node(key.typeName(), key.subgraphName()), requirements));
+
         // Second pass: register @provides information with the graph
         registerProvidesInfo(builder, providesList);
         
@@ -239,6 +242,9 @@ public final class GraphBuilder {
 
         if (field.hasAppliedDirective(EXTERNAL)) {
             builder.addExternalFieldType(sourceNode, field.getName(), targetTypeName);
+        }
+        if (!isExternal) {
+            builder.addFieldType(sourceNode, field.getName(), GraphQLTypeUtil.simplePrint(fieldType));
         }
 
         // Create FieldMoveEdge for this field (unless it's @external)
