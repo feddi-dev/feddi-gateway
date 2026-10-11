@@ -11,7 +11,7 @@ All work stays on this branch until it is finished. Andi then reviews it before 
 | | |
 |---|---|
 | Branch | `perf/query-execution` (from `main` @ `912aeb5`) |
-| Current step | 7 CPU (done: 5 Spring e2e, 0 tests, 1 plan cache, 2 entity dedup, 3a shared calls, 4 batching, 7.1 JSONL parsing; 8 calls). Step 6 (planner v2) continues on `perf/planner-v2` |
+| Current step | 7 CPU (done: 5 Spring e2e, 0 tests, 1 plan cache, 2 entity dedup, 3a shared calls, 4 batching, 7.1 JSONL parsing; 8 calls). Step 6 (planner v2) is done on `perf/planner-v2`, waiting for review: all Fusion planner tests green, spec check of composition, refactoring ([11-planner-v2.md](11-planner-v2.md)) |
 | Benchmark result (published, commit `5ff8b61`) | Rust subgraphs: wrong results · .NET subgraphs: ~19 RPS (leaders ~2,400–2,900) · Burst: not run |
 
 ## Files
@@ -28,6 +28,7 @@ All work stays on this branch until it is finished. Andi then reviews it before 
 | [08-java-ecosystem.md](08-java-ecosystem.md) | Java subgraph tuning guide and the graphql-java / Spring follow-up track |
 | [09-architecture.md](09-architecture.md) | Target architecture: plan cache, optimizer passes, dedup, batching, transport |
 | [10-review-notes.md](10-review-notes.md) | Self-review: sabotage checks of the tests, fixes, open questions for Andi |
+| [11-planner-v2.md](11-planner-v2.md) | Planner v2: Fusion parity, spec readings and composition changes, release notes, performance, review and open questions |
 
 ## Summary
 
