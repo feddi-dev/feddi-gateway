@@ -57,11 +57,8 @@ final class RequirementReader {
     }
 
     /**
-     * Checks if essential key fields are present and non-null in the context.
-     *
-     * For single-segment paths (like "id"), the field must exist AND be non-null.
-     * This handles the case where a lookup returned null and the executor added
-     * the key with null value to the context.
+     * Checks if the requirements' fields are present in the context (whether a null value can be sent is up to
+     * the type of the variable it goes into; see {@code Executor.lacksNonNullVariable}).
      *
      * For multi-segment paths (like "data.baz"), we only check if the first
      * segment exists, since nested fields can be null due to type conditions
@@ -76,22 +73,11 @@ final class RequirementReader {
 
             for (Alternative alt : selectedValue.alternatives()) {
                 if (alt instanceof Path path) {
-                    if (path.segments().size() == 1) {
-                        // Single-segment path: must exist AND be non-null
-                        // This catches the case where lookup returned null
-                        String fieldName = path.segments().get(0).fieldName();
-                        if (context.containsKey(fieldName) && context.get(fieldName) != null) {
-                            hasValidAlternative = true;
-                            break;
-                        }
-                    } else {
-                        // Multi-segment path: only check first segment exists
-                        // Nested fields can be null due to type conditions
-                        String firstField = path.segments().get(0).fieldName();
-                        if (context.containsKey(firstField)) {
-                            hasValidAlternative = true;
-                            break;
-                        }
+                    // Only the first segment must exist: nested fields can be null due to type conditions
+                    String firstField = path.segments().get(0).fieldName();
+                    if (context.containsKey(firstField)) {
+                        hasValidAlternative = true;
+                        break;
                     }
                 } else {
                     // ObjectSelection or ListSelection - assume valid

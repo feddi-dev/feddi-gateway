@@ -186,6 +186,14 @@ fail now. The planner and gateway changes keep results the same or fix wrong one
   fields of one subgraph were merged across others (`A1, B, A2` became `{A1 A2}` and `{B}`). Now each group of
   consecutive fields of one subgraph is its own step, waiting for the previous group and its lookups.
   `@require` on mutation fields fails planning (resolving it would run another subgraph's mutation field).
+- **Nulls in non-null fields propagate to the nearest nullable parent**, with an error at the field's path, as the
+  GraphQL spec describes in "Handling Execution Errors". Before, feddi returned the null in the non-null field (an
+  invalid response), e.g. when an entity's lookup returned null and its non-null fields from that subgraph stayed
+  null.
+- **A key or `@require` value that is null for a non-null variable skips the entity's lookup** (the request would
+  be invalid); the fields it would fetch are null, and the null propagation above applies to non-null ones. A null
+  for a nullable variable is sent. Same semantics as ChilliCream's Fusion federation gateway. Before, a null key
+  skipped the lookup even for a nullable variable, and a null `@require` value for a non-null variable was sent.
 
 ## Performance
 
@@ -274,6 +282,11 @@ Afterwards (2026-10-11):
   are gone. Fragments without type condition are unwrapped. The fixtures that expected preserved conditions
   (`condition_variables`, formerly `directive_preservation`; `include_skip/05-06`) give variable values; Fusion
   parity evaluates its conditions so that everything is selected (unchanged results).
+- **`@require` argument nullability and null propagation** (see Release notes), as proposed in #46 for v1:
+  the `require_nullability` fixtures run now (case 3 corrected: the null propagates to the parent instead of
+  standing in a non-null field). `ExecutorTest` gives every subgraph a mock and checks that each expected call
+  was made (a skipped call went unnoticed before); three fixtures with stale or placeholder calls were cleaned
+  up, and two that expected nulls in non-null fields now expect the propagated null and its error.
 
 Left as they are: `SatisfiabilityValidationRule` extracts path sets the way the spec's algorithm does (products
 of object fields' alternatives), which is not a validation walk; `LookupKeyMissingForTypeRule` asks whether some

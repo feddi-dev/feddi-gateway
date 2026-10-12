@@ -18,9 +18,11 @@ import graphql.GraphQLError;
 import graphql.language.AstPrinter;
 import graphql.language.Document;
 import graphql.language.Field;
+import graphql.language.NonNullType;
 import graphql.language.OperationDefinition;
 import graphql.language.Selection;
 import graphql.language.SelectionSet;
+import graphql.language.VariableDefinition;
 import graphql.schema.GraphQLSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -198,6 +200,9 @@ public final class Executor {
         synchronized (ctx) {
             stepVariables.putAll(new RequirementReader(step.possibleTypes())
                 .extractVariables(step.requirements(), ctx.getMergedData()));
+        }
+        if (lacksNonNullVariable(step.operation(), stepVariables)) {
+            return Mono.just(nullRootFields(step.operation()));
         }
         return executeRootStep(step, stepVariables, clients);
     }
@@ -390,6 +395,10 @@ public final class Executor {
             // Requirement variables take precedence since they're entity-specific
             Map<String, Object> stepVariables = new LinkedHashMap<>(operationVariables);
             stepVariables.putAll(reader.extractVariables(step.requirements(), context));
+            if (lacksNonNullVariable(step.operation(), stepVariables)) {
+                skipped.add(new EntityResult(context, null));
+                continue;
+            }
             uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).positions().add(context);
         }
 
@@ -445,6 +454,37 @@ public final class Executor {
                 mergeIntoContext(entityResult.context(), data);
             }
         }
+    }
+
+    /**
+     * Whether a variable that the operation declares non-null (without default) has no value, e.g. a key or a
+     * {@code @require} value that resolved to null. Such a request is invalid, so it is not sent and the fields it
+     * would fetch become null, as in ChilliCream's Fusion federation gateway; the null propagation of the response
+     * reports non-null fields among them. Nullable variables are sent with null.
+     */
+    private static boolean lacksNonNullVariable(OperationDefinition operation, Map<String, Object> variables) {
+        for (VariableDefinition definition : operation.getVariableDefinitions()) {
+            if (definition.getType() instanceof NonNullType && definition.getDefaultValue() == null
+                && variables.get(definition.getName()) == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The result of a root step that is not sent: null for each of its top-level fields.
+     */
+    private static StepResult nullRootFields(OperationDefinition operation) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        for (Selection<?> selection : operation.getSelectionSet().getSelections()) {
+            if (selection instanceof Field field) {
+                data.put(field.getResultKey(), null);
+            }
+        }
+        StepResult stepResult = new StepResult();
+        stepResult.setRootData(data);
+        return stepResult;
     }
 
     /**

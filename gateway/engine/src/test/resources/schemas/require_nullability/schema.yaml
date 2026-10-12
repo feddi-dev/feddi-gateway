@@ -1,17 +1,11 @@
 name: "Require Nullability Tests"
 description: |
-  NOT YET IMPLEMENTED - These tests document expected future behavior for @require argument nullability.
-
-  Tests @require argument nullability behavior based on type definitions:
-  - Case 1: Nullable argument with null value -> Call subgraph with null
-  - Case 2: Non-null argument with null value, nullable field -> Skip call, return null
-  - Case 3: Non-null argument with null value, non-null field -> Skip call, return null, add error
-
-  Implementation requires:
-  1. Tracking which requirements are key fields (@is/@key) vs @require fields
-  2. Only enforcing non-null constraint on @require fields, not all requirements
-  3. Adding field return type information to ExecutionStep
-  4. Implementing nullability-aware skip logic in Executor
+  @require argument nullability, as in ChilliCream's Fusion federation gateway:
+  - Case 1: nullable argument, value null -> call the subgraph with null
+  - Case 2: non-null argument, value null, nullable field -> no call, field null
+  - Case 3: non-null argument, value null, non-null field -> no call, the null
+    propagates to the nearest nullable parent with an error
+  - Case 4: non-null argument with a value -> normal call
 
 subgraphs:
   products: |
