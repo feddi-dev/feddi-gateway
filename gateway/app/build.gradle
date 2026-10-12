@@ -65,7 +65,7 @@ dependencies {
 	integrationTestImplementation libs.testcontainers.junit.jupiter
 
 	// Engine test classes (for TestCaseLoader, etc.)
-	integrationTestImplementation project(':engine').sourceSets.test.output
+	integrationTestImplementation rootProject.project(':engine').sourceSets.test.output
 }
 
 // Copy engine test resources for integration tests
