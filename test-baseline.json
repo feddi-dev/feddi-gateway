@@ -1,8 +1,8 @@
 {
   "tests": {
     "gateway-engine": {
-      "total": 1133,
-      "passed": 1129,
+      "total": 1178,
+      "passed": 1174,
       "failed": 0,
       "errors": 0,
       "skipped": 4
@@ -43,7 +43,7 @@
       "total": 209
     },
     "engine-other": {
-      "total": 675
+      "total": 720
     }
   },
   "coverage": {
