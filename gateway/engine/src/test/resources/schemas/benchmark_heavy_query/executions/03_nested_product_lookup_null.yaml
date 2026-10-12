@@ -1,8 +1,10 @@
 name: "Null nested product lookup is scoped to that product"
 description: |
   If one nested Product entity lookup returns null, only that Product object
-  should receive nulls for fields from downstream subgraphs. Other nested
-  Product entities in the same response should still be completed normally.
+  is affected: its fields from downstream subgraphs are null, and since some of
+  them are non-null (inStock: Boolean!), the product itself becomes null with an
+  error. Other nested Product entities in the same response are completed
+  normally.
 
 query: |
   fragment ProductFields on Product {
@@ -80,18 +82,13 @@ expectedResponse: {
           },
           {
             id: "r2",
-            product: {
-              inStock: null,
-              name: null,
-              price: null,
-              shippingEstimate: null,
-              upc: "missing",
-              weight: null,
-              reviews: [{ id: "r2" }]
-            }
+            product: null
           }
         ]
       }
     ]
-  }
+  },
+  errors: [{
+    message: "Cannot return null for non-nullable field Product.inStock."
+  }]
 }

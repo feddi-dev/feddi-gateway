@@ -8,6 +8,7 @@ import dev.feddi.federation.engine.compose.Composer;
 import dev.feddi.federation.engine.compose.CompositionResult;
 import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.executor.Executor;
+import dev.feddi.federation.engine.executor.NonNullPropagation;
 import dev.feddi.federation.engine.executor.SubgraphClient;
 import dev.feddi.federation.engine.planner.ExecutionPlan;
 import dev.feddi.federation.engine.planner.OperationPlanner;
@@ -154,12 +155,14 @@ class PlanExecutionOracleTest {
         }
 
         ExecutionPlan plan;
+        OperationDefinition operation;
         try {
             // Like the gateway: @skip/@include on variables are evaluated with the request's values
             var normalizer = OperationNormalizer.builder(supergraph)
                 .inlineFragments(true).deduplicateFields(true).sortSelections(false).build()
                 .withConditionValues(OperationNormalizer.conditionValues(document, variables));
-            plan = new OperationPlanner(composition.graph()).plan(Operation.parse(c.query(), normalizer));
+            operation = normalizer.normalize(document).getDefinitionsOfType(OperationDefinition.class).get(0);
+            plan = new OperationPlanner(composition.graph()).plan(Operation.fromOperationDefinition(operation));
         } catch (RuntimeException e) {
             return "planning failed: " + firstLine(String.valueOf(e.getMessage()));
         }
@@ -171,6 +174,10 @@ class PlanExecutionOracleTest {
         ExecutionResult actual;
         try {
             actual = new Executor(clients, supergraph).execute(plan, variables).block(Duration.ofSeconds(30));
+            if (actual != null) {
+                // Like the gateway
+                actual = NonNullPropagation.apply(supergraph, operation, actual);
+            }
         } catch (RuntimeException e) {
             return "execution failed: " + firstLine(String.valueOf(e.getMessage()));
         }

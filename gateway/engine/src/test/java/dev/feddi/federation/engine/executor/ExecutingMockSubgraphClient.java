@@ -362,6 +362,17 @@ public final class ExecutingMockSubgraphClient implements SubgraphClient {
     }
 
     /**
+     * Returns the expected calls that no recorded call matched.
+     */
+    public List<SubgraphCall> uncalledExpectations() {
+        return expectedCalls.stream()
+            .filter(call -> recordedCalls.stream().noneMatch(recorded ->
+                operationsMatch(recorded.operation(), call.operation())
+                    && variablesMatch(recorded.variables(), call.variables())))
+            .toList();
+    }
+
+    /**
      * A recorded call to this client.
      */
     public record RecordedCall(String operation, Map<String, Object> variables) {}
