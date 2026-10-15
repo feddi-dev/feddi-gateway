@@ -111,6 +111,23 @@ class DefaultSubgraphClientBatchTest {
     }
 
     @Test
+    void probeDeclaresAndUsesAVariable() {
+        // A server may answer an operation without variables once, whatever the variables array
+        // (HotChocolate 16.6 does), so the probe must look like a lookup
+        start(body -> response(200, "application/jsonl", """
+            {"data":{"__typename":"Query"},"variableIndex":0}
+            {"data":{"__typename":"Query"},"variableIndex":1}
+            """));
+
+        client().supportsVariableBatching().block();
+
+        assertThat(requests).singleElement().satisfies(request -> {
+            assertThat((String) request.get("query")).contains("$probe: Boolean!").contains("if: $probe");
+            assertThat(request.get("variables")).isEqualTo(List.of(Map.of("probe", true), Map.of("probe", true)));
+        });
+    }
+
+    @Test
     void batchForwardsAuthorizationAndUserAgent() {
         start(body -> response(200, "application/jsonl", "{\"data\":{\"user\":null},\"variableIndex\":0}"));
         var context = FeddiGatewayRequestContext.builder(Map.of("Authorization", "Bearer t", "User-Agent", "k6")).build();

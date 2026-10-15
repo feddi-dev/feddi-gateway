@@ -10,6 +10,7 @@ import dev.feddi.federation.engine.executor.OperationTexts;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
+import graphql.Directives;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
 import graphql.language.OperationDefinition;
@@ -43,6 +44,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private static final TypeReference<List<Map<String, Object>>> LIST_OF_MAPS = new TypeReference<>() { };
     private static final ObjectReader MAP_READER = JSON.readerFor(MAP);
     private static final byte[] EMPTY = new byte[0];
+    private static final String PROBE_VARIABLE = "probe";
 
     private final WebClient webClient;
     private final String subgraphName;
@@ -151,6 +153,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
 
     /**
      * Checks whether the subgraph supports variable batching by sending a minimal batch of two.
+     * The probe declares and uses a variable, like the lookups it stands for: a server may answer
+     * an operation without variables once, whatever the variables array (HotChocolate 16.6 does).
      *
      * <p>Answers that say nothing about batching are inconclusive: authentication failures (the
      * probe carries no client's {@code Authorization}), rate limiting, timeouts and server errors.
@@ -161,8 +165,9 @@ public class DefaultSubgraphClient implements SubgraphClient {
      */
     Mono<Boolean> supportsVariableBatching() {
         Map<String, Object> requestBody = Map.of(
-            "query", "{ " + IntrospectionFields.TYPENAME + " }",
-            "variables", List.of(Map.of(), Map.of()));
+            "query", "query ($" + PROBE_VARIABLE + ": Boolean!) { " + IntrospectionFields.TYPENAME
+                + " @" + Directives.IncludeDirective.getName() + "(if: $" + PROBE_VARIABLE + ") }",
+            "variables", List.of(Map.of(PROBE_VARIABLE, true), Map.of(PROBE_VARIABLE, true)));
         return webClient.post()
             .contentType(MediaType.APPLICATION_JSON)
             .accept(JSONL, MediaType.APPLICATION_JSON)
