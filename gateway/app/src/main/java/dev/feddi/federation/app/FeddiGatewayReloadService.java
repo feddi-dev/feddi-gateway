@@ -49,7 +49,7 @@ public class FeddiGatewayReloadService {
 
     /**
      * Rebuilds the gateway and swaps it in once subgraphs configured with {@code batching: variables}
-     * are verified. Never blocks, so it can run on an event-loop thread.
+     * are checked. Never blocks, so it can run on an event-loop thread.
      *
      * @param gatewayDefinition logical feddi Gateway definition
      * @return completes when the new gateway is active; fails with a
@@ -58,12 +58,32 @@ public class FeddiGatewayReloadService {
      */
     public Mono<Void> reload(FeddiGatewayDefinition gatewayDefinition) {
         return Mono.fromCallable(() -> build(gatewayDefinition))
-            .flatMap(built -> verifyVariableBatching(built.variableBatchingClients())
-                .then(Mono.fromRunnable(() -> gatewayHolder.set(built.gateway()))));
+            .flatMap(built -> lackingVariableBatching(built.variableBatchingClients())
+                .map(lacking -> withAliasFallback(built, lacking)))
+            .flatMap(gateway -> Mono.fromRunnable(() -> gatewayHolder.set(gateway)));
     }
 
-    private record BuiltGateway(FeddiFederationGateway gateway,
+    private record BuiltGateway(FeddiFederationGateway gateway, Map<String, BatchingOptions> batching,
                                 Map<String, DefaultSubgraphClient> variableBatchingClients) {
+    }
+
+    /**
+     * The gateway with alias batching for subgraphs configured with {@code batching: variables} whose check says
+     * they lack it. Alias batching works with every GraphQL server, so a wrong configuration (or a check that
+     * misreads an answer) costs a little performance instead of stopping the gateway.
+     */
+    private static FeddiFederationGateway withAliasFallback(BuiltGateway built, List<String> lacking) {
+        if (lacking.isEmpty()) {
+            return built.gateway();
+        }
+        log.error("Subgraph(s) {} are configured with 'batching: variables' but do not seem to support variable "
+            + "batching; using 'batching: alias' for them instead. Set 'batching: alias' or 'none' to silence "
+            + "this.", lacking);
+        Map<String, BatchingOptions> batching = new HashMap<>(built.batching());
+        for (String name : lacking) {
+            batching.put(name, new BatchingOptions(BatchingOptions.Mode.ALIAS, batching.get(name).maxBatchSize()));
+        }
+        return built.gateway().withSubgraphBatching(batching);
     }
 
     private BuiltGateway build(FeddiGatewayDefinition gatewayDefinition) {
@@ -122,17 +142,16 @@ public class FeddiGatewayReloadService {
             gateway = FeddiFederationGateway.create(inputs, clients, gatewayMetrics,
                     gatewayMetrics, documentProvider, introspectionEnabled);
         }
-        return new BuiltGateway(gateway.withSubgraphBatching(batching), variableBatchingClients);
+        return new BuiltGateway(gateway.withSubgraphBatching(batching), batching, variableBatchingClients);
     }
 
     /**
-     * Checks that subgraphs configured with {@code batching: variables} support it. A subgraph that
-     * rejects a variable batch makes the definition invalid: the configuration is wrong and would
-     * fail every batched lookup. An unreachable subgraph or an inconclusive answer (authentication
-     * failure, rate limiting, server error) is accepted with a warning, so a subgraph that is down
-     * does not block the gateway.
+     * The subgraphs configured with {@code batching: variables} whose check says they lack it (they reject a
+     * variable batch or do not answer with one result per variable set). An unreachable subgraph or an
+     * inconclusive answer (authentication failure, rate limiting, server error) keeps the configured mode with a
+     * warning: the subgraph probably supports it, the check just could not tell.
      */
-    private Mono<Void> verifyVariableBatching(Map<String, DefaultSubgraphClient> clients) {
+    private Mono<List<String>> lackingVariableBatching(Map<String, DefaultSubgraphClient> clients) {
         return Flux.fromIterable(clients.entrySet())
             .flatMap(entry -> entry.getValue().supportsVariableBatching()
                 .timeout(VARIABLE_BATCHING_CHECK_TIMEOUT)
@@ -144,12 +163,7 @@ public class FeddiGatewayReloadService {
                 .filter(supported -> !supported)
                 .map(unsupported -> entry.getKey()))
             .sort()
-            .collectList()
-            .flatMap(unsupported -> unsupported.isEmpty()
-                ? Mono.<Void>empty()
-                : Mono.error(new FeddiGatewayDefinitionException("Subgraph(s) " + unsupported
-                    + " are configured with 'batching: variables' but do not support variable batching. "
-                    + "Use 'batching: alias' or 'none' for them.")));
+            .collectList();
     }
 
     private void validateSubgraph(String name, SubgraphDefinition subgraphDefinition) {

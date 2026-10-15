@@ -1429,7 +1429,7 @@ public class GatewayE2ETest {
 
     @Test
     @Order(35)
-    void builtInClientRejectsVariableBatchingForSpringSubgraph() throws IOException {
+    void builtInClientFallsBackToAliasBatchingForSpringSubgraph() throws IOException {
         // A gateway without the e2e extension, i.e. with feddi's built-in subgraph client
         String host = environment.getServiceHost("feddi-gateway-default-1", 9091);
         WebClient defaultAdmin = WebClient.create("http://" + host + ":"
@@ -1437,17 +1437,11 @@ public class GatewayE2ETest {
         WebClient defaultGateway = WebClient.create("http://" + host + ":"
             + environment.getServicePort("feddi-gateway-default-1", 8080));
 
-        Map<String, Object> accepted = upload(defaultAdmin, inventoryBatchingZip("alias"), HttpStatus.OK);
+        // Spring for GraphQL answers a variables array with HTTP 400: the configuration is wrong, so the gateway
+        // uses alias batching for the subgraph instead (works with every GraphQL server) and logs an error
+        Map<String, Object> accepted = upload(defaultAdmin, inventoryBatchingZip("variables"), HttpStatus.OK);
         assertEquals(true, accepted.get("success"), "Upload failed: " + accepted);
 
-        // Spring for GraphQL answers a variables array with HTTP 400: the configuration is wrong
-        Map<String, Object> rejected = upload(defaultAdmin, inventoryBatchingZip("variables"), HttpStatus.BAD_REQUEST);
-        assertEquals(false, rejected.get("success"));
-        assertTrue(rejected.get("error").toString().contains("[inventory]"), "Unexpected error: " + rejected);
-        assertTrue(rejected.get("error").toString().contains("do not support variable batching"),
-            "Unexpected error: " + rejected);
-
-        // The previous configuration (alias batching) stays active
         int before = inventoryRequests();
         @SuppressWarnings("unchecked")
         Map<String, Object> response = defaultGateway.post()

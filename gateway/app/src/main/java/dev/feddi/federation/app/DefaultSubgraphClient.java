@@ -160,8 +160,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
      * probe carries no client's {@code Authorization}), rate limiting, timeouts and server errors.
      *
      * @return true if supported, false if the subgraph rejected the batch or did not answer with
-     *         a valid batch response; an error if the result is inconclusive or the subgraph could
-     *         not be reached
+     *         two batch results; an error if the result is inconclusive or the subgraph could not be
+     *         reached
      */
     Mono<Boolean> supportsVariableBatching() {
         Map<String, Object> requestBody = Map.of(

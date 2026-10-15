@@ -173,9 +173,13 @@ class DefaultSubgraphClientBatchTest {
     }
 
     @Test
-    void probeTreatsInvalidSuccessfulResponseAsUnsupported() {
+    void probeTreatsSuccessfulResponseWithoutTwoResultsAsUnsupported() {
         start(body -> response(200, "text/html", "<html>not graphql</html>"));
+        assertThat(client().supportsVariableBatching().block()).isFalse();
+        server.disposeNow();
 
+        // One regular result for the whole batch, as HotChocolate 16.6 answers an operation without variables
+        start(body -> response(200, "application/json", "{\"data\":{\"__typename\":\"Query\"}}"));
         assertThat(client().supportsVariableBatching().block()).isFalse();
     }
 
@@ -242,18 +246,14 @@ class DefaultSubgraphClientBatchTest {
     }
 
     @Test
-    void reloadRejectsVariableBatchingWhenSubgraphLacksItAndKeepsActiveGateway() {
+    void reloadFallsBackToAliasBatchingWhenSubgraphLacksVariableBatching() {
         start(body -> response(400, "application/json", "{\"errors\":[{\"message\":\"bad request\"}]}"));
         var holder = new FeddiGatewayHolder();
-        var service = reloadService(holder);
-        service.reload(definition(url(), Map.of())).block();
-        var active = holder.get();
 
-        assertThatThrownBy(() -> service.reload(definition(url(), Map.of("batching", "variables"))).block())
-            .isInstanceOf(FeddiGatewayDefinitionException.class)
-            .hasMessageContaining("[accounts]")
-            .hasMessageContaining("do not support variable batching");
-        assertThat(holder.get()).isSameAs(active);
+        reloadService(holder).reload(definition(url(), Map.of("batching", "variables", "batch-max-size", "8"))).block();
+
+        assertThat(holder.get().batching("accounts"))
+            .isEqualTo(new BatchingOptions(BatchingOptions.Mode.ALIAS, 8));
     }
 
     private static FeddiGatewayReloadService reloadService(FeddiGatewayHolder holder) {

@@ -103,10 +103,18 @@ Consequences for feddi:
 3. **`variables` gets a check at startup or config load**: send a tiny variables-array request. If the subgraph
    rejects it, fail with a clear message ("subgraph X does not support variable batching; use `alias` or `none`").
    *Implemented:* the reload runs the check before the new gateway becomes active (non-blocking: `reload` returns a
-   `Mono`). A rejection (other 4xx, or 2xx without a valid batch response) makes the definition invalid: at startup
-   the gateway does not start, on an update the active gateway is kept and the error is logged. 401, 403, 408, 429
-   and 5xx are inconclusive (the probe carries no client authorization) and, like an unreachable subgraph, are
-   accepted with a warning. (An earlier version fell back to `alias` silently, after the gateway was already live.)
+   `Mono`). 401, 403, 408, 429 and 5xx are inconclusive (the probe carries no client authorization) and, like an
+   unreachable subgraph, keep `variables` with a warning. (An earlier version fell back to `alias` silently, after
+   the gateway was already live.)
+   *Changed 2026-10-15:* a subgraph whose check says it lacks variable batching (another 4xx, e.g. Spring's 400,
+   or a 2xx that is not two batch results) gets `alias` batching with an error in the log; before, the definition
+   was invalid and the gateway did not start. `alias` works with every GraphQL server and is about as fast
+   (689 vs 656 req/s), so a wrong configuration or a misread answer costs little instead of stopping the gateway.
+   The probe declares and uses a variable (`query ($probe: Boolean!) { __typename @include(if: $probe) }`):
+   HotChocolate 16.6 answers an operation without variables once, whatever the variables array (the
+   graphql-over-http#307 draft says a server MUST execute once per entry), so the old probe (`{ __typename }` with
+   two empty variable sets) took its subgraphs for unsupported, and with the strict check the gateway did not start
+   in the graphql-gateway-benchmarks harness.
 4. **`alias` safety:** a maximum batch size (split above it), and batch sizes rounded up to fixed buckets (1, 2, 4,
    8, …) so subgraph document caches get hits.
 5. **SPI:** `SubgraphClient` (published in `dev.feddi:feddi-gateway-extension`) gets a `default` method
