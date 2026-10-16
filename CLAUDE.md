@@ -36,11 +36,11 @@ constants instead of directive string literals, no introspection field literals 
   fixture over writing a new Java test.
 - `test-baseline.json` and the README test report are updated by CI on `main`; don't edit them by hand.
 
-## Working on `perf/query-execution`
+## Performance work
 
-- v1 of the performance work (`perf/query-execution`, tip `6a7c591`, pinned by the benchmark: don't rewrite or
-  delete it) is in review as 9 stacked PRs (feddi-dev/feddi-gateway#59, #60, #61, #66, #67, #62-#65; branches `review/v1-*`, docs #58);
-  draft PR #53 is closed. Planner v2 continues on `perf/planner-v2`, based on v1; Andi reviews before merging.
+- v1 and planner v2 of the performance work are merged into `main` (from `perf/planner-v2`). The v1 benchmark pin
+  `perf/query-execution` (tip `6a7c591`) stays: don't rewrite or delete it. The stacked v1 review PRs and their
+  `review/*` branches are closed as superseded.
 - Small commits, each with tests passing. Follow the step order in `docs/perf-query-execution/05-plan.md`.
 - feddi is **server-agnostic**: the baseline is plain GraphQL-over-HTTP. Batching is per-subgraph config
   `batching: none | alias | variables` with a gateway-wide default (built-in default `none`); `variables` is checked
