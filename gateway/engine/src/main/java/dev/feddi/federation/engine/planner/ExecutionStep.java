@@ -97,7 +97,9 @@ public record ExecutionStep(
         }
         dependsOn = dependsOn == null ? List.of() : List.copyOf(dependsOn);
         parallelWith = parallelWith == null ? List.of() : List.copyOf(parallelWith);
-        requirements = requirements == null ? Map.of() : Map.copyOf(requirements);
+        // Variable names interned like the parsed names they are looked up with
+        requirements = requirements == null ? Map.of() : requirements.entrySet().stream()
+            .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().intern(), Map.Entry::getValue));
         artificialFieldPaths = artificialFieldPaths == null ? Set.of() : Set.copyOf(artificialFieldPaths);
         requestedFieldPaths = requestedFieldPaths == null ? Set.of() : Set.copyOf(requestedFieldPaths);
     }

@@ -31,6 +31,7 @@ public final class ResponseWriter {
 
     private static final byte[] ERRORS_KEY = "\"errors\":".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] DATA_KEY = "\"data\":".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] EMPTY_OBJECT = {'{', '}'};
     private static final byte[] EXTENSIONS_KEY = "\"extensions\":".getBytes(StandardCharsets.US_ASCII);
 
     /**
@@ -129,7 +130,6 @@ public final class ResponseWriter {
 
     /** Writes an object; false if one of its non-null fields is null, the caller then discards what was written. */
     private boolean writeObject(ResponseShape shape, Map<?, ?> object) {
-        data.write((byte) '{');
         boolean first = true;
         String[] keys = shape.keys;
         CompactMap compact = object instanceof CompactMap map ? map : null;
@@ -149,7 +149,7 @@ public final class ResponseWriter {
                     continue;
                 }
             }
-            data.write(first ? shape.keyBytes[i] : shape.nextKeyBytes[i]);
+            data.write(first ? shape.firstKeyBytes[i] : shape.nextKeyBytes[i]);
             first = false;
             push(keys[i]);
             GraphQLType type = shape.types[i];
@@ -159,7 +159,11 @@ public final class ResponseWriter {
                 return false;
             }
         }
-        data.write((byte) '}');
+        if (first) {
+            data.write(EMPTY_OBJECT);
+        } else {
+            data.write((byte) '}');
+        }
         return true;
     }
 

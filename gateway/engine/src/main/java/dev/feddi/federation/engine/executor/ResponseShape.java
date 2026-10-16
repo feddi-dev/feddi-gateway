@@ -34,6 +34,8 @@ public final class ResponseShape {
     final byte[][] keyBytes;
     /** The keys as {@code ,"key":}, for the fields after the first. */
     final byte[][] nextKeyBytes;
+    /** The keys as <code>{"key":</code>, for the first field of an object. */
+    final byte[][] firstKeyBytes;
     final @Nullable GraphQLType[] types;
     final String[] coordinates;
     final @Nullable ResponseShape[] children;
@@ -43,6 +45,7 @@ public final class ResponseShape {
         keys = new String[size];
         keyBytes = new byte[size][];
         nextKeyBytes = new byte[size][];
+        firstKeyBytes = new byte[size][];
         types = new GraphQLType[size];
         coordinates = new String[size];
         children = new ResponseShape[size];
@@ -54,6 +57,8 @@ public final class ResponseShape {
             nextKeyBytes[i] = new byte[keyBytes[i].length + 1];
             nextKeyBytes[i][0] = ',';
             System.arraycopy(keyBytes[i], 0, nextKeyBytes[i], 1, keyBytes[i].length);
+            firstKeyBytes[i] = nextKeyBytes[i].clone();
+            firstKeyBytes[i][0] = '{';
             types[i] = entry.definition == null ? null : entry.definition.getType();
             coordinates[i] = entry.definition == null ? entry.key : entry.parentType + "." + entry.definition.getName();
             children[i] = entry.child;
