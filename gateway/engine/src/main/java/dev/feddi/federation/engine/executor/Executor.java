@@ -454,12 +454,21 @@ public final class Executor {
         // One lock for all merges (root and lookup results are merged deeply, so they can write to the same
         // nested objects)
         synchronized (ctx) {
-            if (data == null || data.values().stream().anyMatch(Objects::isNull)) {
+            if (data == null || hasNullValue(data)) {
                 nullFieldNames.forEach(fieldName -> entityResult.context().put(fieldName, null));
             } else {
                 mergeIntoContext(entityResult.context(), data);
             }
         }
+    }
+
+    private static boolean hasNullValue(Map<String, Object> data) {
+        for (Object value : data.values()) {
+            if (value == null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -24,6 +24,7 @@ import reactor.netty.http.client.HttpClient;
 import reactor.util.context.Context;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,14 +54,25 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private static final Function<Context, Context> CACHE_CONTEXT = context -> context;
 
     private final HttpClient httpClient;
-    private final String url;
+    /** The path (and query) of the subgraph URL; the client is configured with its scheme, host and port. */
+    private final String path;
     private final String subgraphName;
     private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
 
     public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
                                   @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
-        this.httpClient = httpClient;
-        this.url = url;
+        // Configured once: with an absolute URL, Reactor Netty parses it with a regular expression on every request
+        URI uri = URI.create(url);
+        if (uri.getHost() == null || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))) {
+            throw new IllegalArgumentException("Subgraph " + subgraphName + " has no valid http(s) URL: " + url);
+        }
+        boolean secure = "https".equals(uri.getScheme());
+        String host = uri.getHost().startsWith("[") ? uri.getHost().substring(1, uri.getHost().length() - 1)
+            : uri.getHost();
+        HttpClient configured = httpClient.host(host).port(uri.getPort() >= 0 ? uri.getPort() : secure ? 443 : 80);
+        this.httpClient = secure ? configured.secure() : configured;
+        String rawPath = uri.getRawPath() == null || uri.getRawPath().isEmpty() ? "/" : uri.getRawPath();
+        this.path = uri.getRawQuery() == null ? rawPath : rawPath + "?" + uri.getRawQuery();
         this.subgraphName = subgraphName;
         this.headerCustomizer = headerCustomizer;
     }
@@ -79,7 +91,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
      */
     private Mono<HttpResponse> post(byte[] body, boolean batch, FeddiGatewayRequestContext context) {
         return httpClient.post()
-            .uri(url)
+            .uri(path)
             .send((request, out) -> {
                 request.requestHeaders()
                     .set(HttpHeaderNames.CONTENT_TYPE, JSON_TYPE)
