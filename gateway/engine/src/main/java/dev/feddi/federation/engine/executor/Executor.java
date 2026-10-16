@@ -395,6 +395,7 @@ public final class Executor {
         final List<String> wrapperPath = lookupWrapperPath(step.operation());
         final Map<String, Object> operationVariables = filterVariablesForOperation(step.operation(), queryVariables);
         final RequirementReader reader = new RequirementReader(step.possibleTypes());
+        final String[] requiredVariables = requiredVariables(step.operation());
 
         // Group entities by the variables their lookup needs: the same entity often appears
         // at many positions (e.g. one product under many reviews), but is fetched only once.
@@ -406,7 +407,7 @@ public final class Executor {
             Map<String, Object> stepVariables = new CompactMap(operationVariables.size() + step.requirements().size());
             stepVariables.putAll(operationVariables);
             reader.putVariables(step.requirements(), context, stepVariables);
-            if (lacksNonNullVariable(step.operation(), stepVariables)) {
+            if (lacksAny(requiredVariables, stepVariables)) {
                 skipped.add(new EntityResult(context, null));
                 continue;
             }
@@ -501,9 +502,20 @@ public final class Executor {
      * reports non-null fields among them. Nullable variables are sent with null.
      */
     private static boolean lacksNonNullVariable(OperationDefinition operation, Map<String, Object> variables) {
-        for (VariableDefinition definition : operation.getVariableDefinitions()) {
-            if (definition.getType() instanceof NonNullType && definition.getDefaultValue() == null
-                && variables.get(definition.getName()) == null) {
+        return lacksAny(requiredVariables(operation), variables);
+    }
+
+    /** The variables an operation declares non-null without a default value (interned, as map keys are). */
+    private static String[] requiredVariables(OperationDefinition operation) {
+        return operation.getVariableDefinitions().stream()
+            .filter(definition -> definition.getType() instanceof NonNullType && definition.getDefaultValue() == null)
+            .map(definition -> definition.getName().intern())
+            .toArray(String[]::new);
+    }
+
+    private static boolean lacksAny(String[] names, Map<String, Object> variables) {
+        for (String name : names) {
+            if (variables.get(name) == null) {
                 return true;
             }
         }
@@ -742,6 +754,10 @@ public final class Executor {
      */
     @SuppressWarnings("unchecked")
     static void deepMerge(Map<String, Object> target, Map<String, Object> source) {
+        if (target instanceof CompactMap compactTarget) {
+            source.forEach((key, incoming) -> deepMergeField(compactTarget, key, incoming));
+            return;
+        }
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             Object existing = target.get(entry.getKey());
             Object incoming = entry.getValue();
@@ -758,6 +774,30 @@ public final class Executor {
             } else if (incoming != null || !target.containsKey(entry.getKey())) {
                 target.put(entry.getKey(), incoming);
             }
+        }
+    }
+
+    /** {@link #deepMerge} of one field into a compact map, with one lookup of the key. */
+    @SuppressWarnings("unchecked")
+    private static void deepMergeField(CompactMap target, String key, Object incoming) {
+        int index = target.indexOf(key, 0);
+        if (index < 0) {
+            target.append(key, incoming);
+            return;
+        }
+        Object existing = target.valueAt(index);
+        if (existing instanceof Map<?, ?> existingMap && incoming instanceof Map<?, ?> incomingMap) {
+            deepMerge((Map<String, Object>) existingMap, (Map<String, Object>) incomingMap);
+        } else if (existing instanceof List<?> existingList && incoming instanceof List<?> incomingList
+            && existingList.size() == incomingList.size()) {
+            for (int i = 0; i < existingList.size(); i++) {
+                if (existingList.get(i) instanceof Map<?, ?> existingItem
+                    && incomingList.get(i) instanceof Map<?, ?> incomingItem) {
+                    deepMerge((Map<String, Object>) existingItem, (Map<String, Object>) incomingItem);
+                }
+            }
+        } else if (incoming != null) {
+            target.setValueAt(index, incoming);
         }
     }
 

@@ -76,9 +76,24 @@ public final class RawString implements CharSequence {
         return toString().equals(raw.toString());
     }
 
+    /**
+     * The decoded {@code String}'s hash code; computed from the bytes for ASCII text without escapes (most keys and
+     * IDs), which decodes to the same characters.
+     */
     @Override
     public int hashCode() {
-        return toString().hashCode();
+        if (decoded != null) {
+            return decoded.hashCode();
+        }
+        int hash = 0;
+        for (int i = start + 1; i < end - 1; i++) {
+            byte b = bytes[i];
+            if (b < 0 || b == '\\') {
+                return toString().hashCode();
+            }
+            hash = 31 * hash + b;
+        }
+        return hash;
     }
 
     /**

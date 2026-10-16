@@ -72,6 +72,11 @@ public final class CompactMap extends AbstractMap<String, @Nullable Object> {
         return values[index];
     }
 
+    /** Replaces the value at an index found with {@link #indexOf(String, int)}. */
+    void setValueAt(int index, @Nullable Object value) {
+        values[index] = value;
+    }
+
     /**
      * Adds an entry without looking for an existing one with the key: for building a map whose keys are known to be
      * distinct, such as a parsed JSON object.

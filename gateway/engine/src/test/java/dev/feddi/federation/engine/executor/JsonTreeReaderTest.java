@@ -52,6 +52,11 @@ class JsonTreeReaderTest {
         Object escaped = ((Map<?, ?>) JsonTreeReader.read("{\"a\":\"ä\"}".getBytes(StandardCharsets.UTF_8))).get("a");
 
         assertThat(plain).isEqualTo(escaped).hasSameHashCodeAs(escaped).hasToString("ä");
+        for (String value : List.of("", "upc-1", "a\\\"b", "ä")) {
+            String json = new ObjectMapper().writeValueAsString(List.of(value));
+            Object raw = ((List<?>) JsonTreeReader.read(json.getBytes(StandardCharsets.UTF_8))).get(0);
+            assertThat(raw.hashCode()).as(value).isEqualTo(value.hashCode());
+        }
     }
 
     @Test
