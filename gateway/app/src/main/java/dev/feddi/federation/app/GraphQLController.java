@@ -1,5 +1,8 @@
 package dev.feddi.federation.app;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import dev.feddi.federation.engine.executor.ResponseWriter;
 import dev.feddi.federation.extension.ExecutionOutcome;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +36,9 @@ import java.util.Map;
 public class GraphQLController {
 
     private static final Logger log = LoggerFactory.getLogger(GraphQLController.class);
+    private static final ObjectReader REQUEST_READER = new ObjectMapper()
+        .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+        .readerFor(GraphQLRequest.class);
 
     private final FeddiGatewayHolder gatewayHolder;
     private final UsageReporter usageReporter;
@@ -45,7 +52,7 @@ public class GraphQLController {
 
     @PostMapping(value = "/graphql", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Mono<DataBuffer> executeQuery(
-            @RequestBody GraphQLRequest request,
+            @RequestBody byte[] body,
             @RequestHeader(value = "graphql-client-name", required = false) String clientName,
             @RequestHeader(value = "graphql-client-version", required = false) String clientVersion,
             org.springframework.http.server.reactive.ServerHttpRequest httpRequest) {
@@ -57,6 +64,7 @@ public class GraphQLController {
                 "feddi Gateway not initialized. Please upload subgraph configuration."));
         }
 
+        GraphQLRequest request = parse(body);
         log.debug("Executing GraphQL query: {}", request.query());
 
         var metricsSample = gatewayMetrics.startTimer();
@@ -134,6 +142,22 @@ public class GraphQLController {
                     .message("Internal server error")
                     .build()))));
             });
+    }
+
+    /**
+     * Reads the request body with a shared reader instead of Spring's JSON codec (the body is read as bytes, within
+     * the configured maximum request size).
+     */
+    private static GraphQLRequest parse(byte[] body) {
+        try {
+            GraphQLRequest request = REQUEST_READER.readValue(body);
+            if (request == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must be a JSON object");
+            }
+            return request;
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid JSON request body", e);
+        }
     }
 
     /** The written response as a buffer, without copying it. */
