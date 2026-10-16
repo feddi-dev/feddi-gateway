@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Fetch main for generated file guard
         if: github.event_name == 'pull_request'
@@ -34,13 +34,13 @@ jobs:
           git show origin/main:test-baseline.json > baseline-main/test-baseline.json 2>/dev/null || cp test-baseline.json baseline-main/test-baseline.json
 
       - name: Set up Java 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'corretto'
           java-version: '25'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Run tests
         run: ./scripts/run-all-tests.sh
@@ -57,7 +57,7 @@ jobs:
         run: node .github/scripts/test-report.js gate --baseline baseline-main/test-baseline.json --coverage gateway/build/reports/jacoco/jacocoAggregateReport/jacocoAggregateReport.xml
 
       - name: Upload test stats
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-stats
@@ -66,7 +66,7 @@ jobs:
           retention-days: 7
 
       - name: Upload coverage XML report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-report
@@ -75,7 +75,7 @@ jobs:
           retention-days: 7
 
       - name: Upload coverage HTML report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-html-report
@@ -84,7 +84,7 @@ jobs:
           retention-days: 7
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results
@@ -103,19 +103,19 @@ jobs:
 
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
           ssh-key: ${{ secrets.BASELINE_DEPLOY_KEY }}
 
       - name: Download test stats
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: test-stats
           path: test-stats
 
       - name: Download coverage report
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: coverage-report
           path: coverage
