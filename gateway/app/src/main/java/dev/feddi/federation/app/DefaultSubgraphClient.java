@@ -21,12 +21,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.util.context.Context;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Default SubgraphClient implementation using Spring WebClient.
@@ -45,6 +47,11 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private static final ObjectReader MAP_READER = JSON.readerFor(MAP);
     private static final byte[] EMPTY = new byte[0];
     private static final String PROBE_VARIABLE = "probe";
+    /**
+     * Caches the subscriber context at the end of a subgraph call. Reactor Netty reads the context several times per
+     * request, and each read walks up the whole chain of the gateway's operators otherwise.
+     */
+    private static final Function<Context, Context> CACHE_CONTEXT = context -> context;
 
     private final WebClient webClient;
     private final String subgraphName;
@@ -104,7 +111,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
                     log.error("[{}] Subgraph call failed with empty body: {}", subgraphName, response.statusCode());
                     return Mono.error(new RuntimeException("Subgraph call failed: " + response.statusCode()));
                 })))
-            .doOnError(e -> log.error("[{}] Subgraph call exception: {}", subgraphName, e.getMessage(), e));
+            .doOnError(e -> log.error("[{}] Subgraph call exception: {}", subgraphName, e.getMessage(), e))
+            .contextWrite(CACHE_CONTEXT);
     }
 
     private void logErrors(Map<String, Object> body) {
@@ -156,7 +164,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
                             "Subgraph " + subgraphName + " returned an invalid variable batch response: " + e.getMessage(), e));
                     }
                 }))
-            .doOnError(e -> log.error("[{}] Variable batch exception: {}", subgraphName, e.getMessage(), e));
+            .doOnError(e -> log.error("[{}] Variable batch exception: {}", subgraphName, e.getMessage(), e))
+            .contextWrite(CACHE_CONTEXT);
     }
 
     /**
