@@ -9,6 +9,8 @@ import graphql.GraphqlErrorBuilder;
 import graphql.language.OperationDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 
@@ -41,7 +44,7 @@ public class GraphQLController {
     }
 
     @PostMapping(value = "/graphql", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<byte[]> executeQuery(
+    public Mono<DataBuffer> executeQuery(
             @RequestBody GraphQLRequest request,
             @RequestHeader(value = "graphql-client-name", required = false) String clientName,
             @RequestHeader(value = "graphql-client-version", required = false) String clientVersion,
@@ -118,7 +121,7 @@ public class GraphQLController {
                 } else {
                     log.debug("GraphQL execution completed successfully");
                 }
-                return response.json();
+                return wrap(response);
             })
             .onErrorResume(e -> {
                 gatewayMetrics.recordRequestDuration(metricsSample, "QUERY");
@@ -127,10 +130,15 @@ public class GraphQLController {
                 // the server log to avoid leaking stack-frame hints, JDBC strings,
                 // file paths, or other internal state to clients.
                 log.error("GraphQL execution failed with exception", e);
-                return Mono.just(ResponseWriter.writeErrors(List.of(GraphqlErrorBuilder.newError()
+                return Mono.just(wrap(ResponseWriter.writeErrors(List.of(GraphqlErrorBuilder.newError()
                     .message("Internal server error")
-                    .build())).json());
+                    .build()))));
             });
+    }
+
+    /** The written response as a buffer, without copying it. */
+    private static DataBuffer wrap(ResponseWriter.Output response) {
+        return DefaultDataBufferFactory.sharedInstance.wrap(ByteBuffer.wrap(response.bytes(), 0, response.length()));
     }
 
     /**

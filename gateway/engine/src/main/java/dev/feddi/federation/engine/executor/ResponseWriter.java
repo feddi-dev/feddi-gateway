@@ -33,8 +33,16 @@ public final class ResponseWriter {
     private static final byte[] DATA_KEY = "\"data\":".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] EXTENSIONS_KEY = "\"extensions\":".getBytes(StandardCharsets.US_ASCII);
 
-    /** The response as JSON and the number of its errors. */
-    public record Output(byte[] json, int errorCount) {
+    /**
+     * The response as JSON (the first {@code length} bytes of {@code bytes}, which may be longer) and the number of
+     * its errors.
+     */
+    public record Output(byte[] bytes, int length, int errorCount) {
+
+        /** The response as an array of its own length. */
+        public byte[] json() {
+            return length == bytes.length ? bytes : Arrays.copyOf(bytes, length);
+        }
     }
 
     private final List<GraphQLError> errors;
@@ -58,25 +66,30 @@ public final class ResponseWriter {
      */
     public static Output write(ResponseShape shape, @Nullable Map<String, Object> data, List<GraphQLError> errors,
                                @Nullable Map<Object, Object> extensions) {
-        ResponseWriter writer = new ResponseWriter(errors, new JsonBuffer(4096));
-        boolean valid = data != null && writer.writeObject(shape, data);
+        // Written as {"data":...} into one buffer; errors, if any, go first, which needs a second buffer
+        JsonBuffer buffer = new JsonBuffer(8192);
+        buffer.write((byte) '{');
+        buffer.write(DATA_KEY);
+        int dataStart = buffer.position();
+        ResponseWriter writer = new ResponseWriter(errors, buffer);
+        if (data == null || !writer.writeObject(shape, data)) {
+            buffer.reset(dataStart);
+            buffer.writeNull();
+        }
         List<GraphQLError> allErrors = errors;
         if (!writer.added.isEmpty()) {
             allErrors = new ArrayList<>(errors);
             allErrors.addAll(writer.added);
         }
-        JsonBuffer out = new JsonBuffer(writer.data.position() + 64);
-        out.write((byte) '{');
+        JsonBuffer out = buffer;
         if (!allErrors.isEmpty()) {
+            out = new JsonBuffer(buffer.position() + 256);
+            out.write((byte) '{');
             out.write(ERRORS_KEY);
             writeErrors(out, allErrors);
             out.write((byte) ',');
-        }
-        out.write(DATA_KEY);
-        if (valid) {
-            out.write(writer.data);
-        } else {
-            out.writeNull();
+            out.write(DATA_KEY);
+            out.write(buffer, dataStart);
         }
         if (extensions != null) {
             out.write((byte) ',');
@@ -84,7 +97,7 @@ public final class ResponseWriter {
             out.writeValue(extensions);
         }
         out.write((byte) '}');
-        return new Output(out.toByteArray(), allErrors.size());
+        return new Output(out.array(), out.position(), allErrors.size());
     }
 
     /**
@@ -96,7 +109,7 @@ public final class ResponseWriter {
         out.write(ERRORS_KEY);
         writeErrors(out, errors);
         out.write((byte) '}');
-        return new Output(out.toByteArray(), errors.size());
+        return new Output(out.array(), out.position(), errors.size());
     }
 
     private static void writeErrors(JsonBuffer out, List<GraphQLError> errors) {
