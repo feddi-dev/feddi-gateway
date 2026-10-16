@@ -41,7 +41,15 @@ final class RequirementReader {
      */
     Map<String, Object> extractVariables(Map<String, SelectedValue> requirements, Map<String, Object> context) {
         Map<String, Object> variables = new CompactMap(requirements.size());
+        putVariables(requirements, context, variables);
+        return variables;
+    }
 
+    /**
+     * Puts the variables of {@link #extractVariables} into a map.
+     */
+    void putVariables(Map<String, SelectedValue> requirements, Map<String, Object> context,
+                      Map<String, Object> variables) {
         for (Map.Entry<String, SelectedValue> entry : requirements.entrySet()) {
             String varName = entry.getKey();
             SelectedValue selectedValue = entry.getValue();
@@ -52,8 +60,6 @@ final class RequirementReader {
             // the concrete type is Qux which doesn't have a baz field)
             variables.put(varName, value);
         }
-
-        return variables;
     }
 
     /**

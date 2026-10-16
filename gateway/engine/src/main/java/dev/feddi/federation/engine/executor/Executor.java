@@ -402,8 +402,9 @@ public final class Executor {
         for (Map<String, Object> context : parentContexts) {
             // Start with filtered query variables, then overlay requirement variables
             // Requirement variables take precedence since they're entity-specific
-            Map<String, Object> stepVariables = new CompactMap(operationVariables);
-            stepVariables.putAll(reader.extractVariables(step.requirements(), context));
+            Map<String, Object> stepVariables = new CompactMap(operationVariables.size() + step.requirements().size());
+            stepVariables.putAll(operationVariables);
+            reader.putVariables(step.requirements(), context, stepVariables);
             if (lacksNonNullVariable(step.operation(), stepVariables)) {
                 skipped.add(new EntityResult(context, null));
                 continue;
