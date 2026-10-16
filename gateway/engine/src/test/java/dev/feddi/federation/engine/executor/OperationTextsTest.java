@@ -59,13 +59,17 @@ class OperationTextsTest {
         OperationDefinition operation = (OperationDefinition) Parser.parse(
             "query ($id: ID!) { product(id: $id) { name } }").getDefinitions().get(0);
 
-        Map<?, ?> single = new ObjectMapper().readValue(
-            OperationTexts.requestBody(operation, Map.of("id", "1")), Map.class);
-        Map<?, ?> batch = new ObjectMapper().readValue(
-            OperationTexts.requestBody(operation, List.of(Map.of("id", "1"), Map.of("id", "2"))), Map.class);
+        Map<String, Object> single = parse(OperationTexts.requestBody(operation, Map.of("id", "1")));
+        Map<String, Object> batch = parse(
+            OperationTexts.requestBody(operation, List.of(Map.of("id", "1"), Map.of("id", "2"))));
 
         assertThat(single).containsEntry("query", AstPrinter.printAst(operation))
             .containsEntry("variables", Map.of("id", "1"));
         assertThat(batch.get("variables")).isEqualTo(List.of(Map.of("id", "1"), Map.of("id", "2")));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> parse(byte[] json) throws Exception {
+        return new ObjectMapper().readValue(json, Map.class);
     }
 }
