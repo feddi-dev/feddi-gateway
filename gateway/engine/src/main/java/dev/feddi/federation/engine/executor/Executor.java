@@ -399,7 +399,7 @@ public final class Executor {
         for (Map<String, Object> context : parentContexts) {
             // Start with filtered query variables, then overlay requirement variables
             // Requirement variables take precedence since they're entity-specific
-            Map<String, Object> stepVariables = new LinkedHashMap<>(operationVariables);
+            Map<String, Object> stepVariables = new CompactMap(operationVariables);
             stepVariables.putAll(reader.extractVariables(step.requirements(), context));
             if (lacksNonNullVariable(step.operation(), stepVariables)) {
                 skipped.add(new EntityResult(context, null));
@@ -884,7 +884,7 @@ public final class Executor {
         // Use regular HashMap for mergedData since it may contain null values from GraphQL responses
         // (e.g., when a field resolver throws an error, the field value is null).
         // ConcurrentHashMap doesn't allow null values, but we protect access with synchronized merge().
-        private final Map<String, Object> mergedData = new LinkedHashMap<>();
+        private final Map<String, Object> mergedData = new CompactMap();
         private final List<GraphQLError> errors = new CopyOnWriteArrayList<>();
 
         ExecutionContext() {}

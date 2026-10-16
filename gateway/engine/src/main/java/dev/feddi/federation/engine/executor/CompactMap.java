@@ -129,6 +129,33 @@ public final class CompactMap extends AbstractMap<String, @Nullable Object> {
     }
 
     @Override
+    public int hashCode() {
+        int hash = 0;
+        for (int i = 0; i < size; i++) {
+            hash += keys[i].hashCode() ^ Objects.hashCode(values[i]);
+        }
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (other == this) {
+            return true;
+        }
+        if (!(other instanceof Map<?, ?> map) || map.size() != size) {
+            return false;
+        }
+        for (int i = 0; i < size; i++) {
+            Object value = values[i];
+            Object otherValue = map.get(keys[i]);
+            if (!Objects.equals(value, otherValue) || otherValue == null && !map.containsKey(keys[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public Set<Entry<String, @Nullable Object>> entrySet() {
         return new AbstractSet<>() {
             @Override

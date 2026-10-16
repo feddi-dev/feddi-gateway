@@ -40,7 +40,7 @@ final class RequirementReader {
      * the variable is set to null.
      */
     Map<String, Object> extractVariables(Map<String, SelectedValue> requirements, Map<String, Object> context) {
-        Map<String, Object> variables = new LinkedHashMap<>();
+        Map<String, Object> variables = new CompactMap(requirements.size());
 
         for (Map.Entry<String, SelectedValue> entry : requirements.entrySet()) {
             String varName = entry.getKey();
