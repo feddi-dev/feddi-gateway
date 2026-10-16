@@ -8,7 +8,7 @@
 // (JAVA_HOME or /usr/libexec/java_home -v 25), Docker (for Fusion), zip. See README.md.
 
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Kind, parse as parseGraphQL, print, visit } from "graphql";
@@ -439,7 +439,8 @@ async function getLog() {
 
 function startProcess(command, args, logFile, spawnOptions = {}) {
   writeFileSync(logFile, "");
-  const child = spawn("sh", ["-c", `exec "$0" "$@" >> "${logFile}" 2>&1`, command, ...args], { ...spawnOptions, stdio: "ignore" });
+  const logFd = openSync(logFile, "a");
+  const child = spawn(command, args, { ...spawnOptions, stdio: ["ignore", logFd, logFd] });
   children.push(child);
   return child;
 }
