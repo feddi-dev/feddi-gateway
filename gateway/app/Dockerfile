@@ -26,11 +26,13 @@ USER feddi-gateway
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
   CMD wget --spider -q http://localhost:8080/actuator/health || exit 1
 
-# ZGC for low-latency, MaxRAMPercentage auto-sizes to container memory limit
+# ParallelGC with half the heap young (as the launcher's defaults); MaxRAMPercentage sizes the heap to the
+# container memory limit
 ENTRYPOINT ["java", \
-  "-XX:+UseZGC", \
+  "-XX:+UseParallelGC", \
   "-XX:MaxRAMPercentage=75.0", \
-  "-XX:+UseStringDeduplication", \
+  "-XX:InitialRAMPercentage=75.0", \
+  "-XX:NewRatio=1", \
   "-XX:+ExitOnOutOfMemoryError", \
   "-XX:+HeapDumpOnOutOfMemoryError", \
   "-XX:-OmitStackTraceInFastThrow", \

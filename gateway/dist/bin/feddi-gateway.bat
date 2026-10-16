@@ -85,7 +85,7 @@ if not exist "%APP_HOME%\app.jar" (
 @rem --------------------------------------------------------------------------
 @rem Default JVM options
 @rem --------------------------------------------------------------------------
-set DEFAULT_JVM_OPTS=-XX:+UseZGC -Xms256m -Xmx1g -XX:SoftMaxHeapSize=768m -XX:+UseStringDeduplication -XX:+AlwaysPreTouch -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:-OmitStackTraceInFastThrow --enable-native-access=ALL-UNNAMED
+set DEFAULT_JVM_OPTS=-XX:+UseParallelGC -Xms2g -Xmx2g -Xmn1g -XX:+AlwaysPreTouch -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:-OmitStackTraceInFastThrow --enable-native-access=ALL-UNNAMED
 if defined FEDDI_GATEWAY_JVM_OPTS set DEFAULT_JVM_OPTS=%FEDDI_GATEWAY_JVM_OPTS%
 
 @rem --------------------------------------------------------------------------
