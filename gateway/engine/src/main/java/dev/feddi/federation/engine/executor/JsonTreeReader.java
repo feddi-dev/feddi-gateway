@@ -4,7 +4,10 @@ import dev.feddi.federation.engine.IntrospectionFields;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.math.BigInteger;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -171,6 +174,15 @@ public final class JsonTreeReader {
     private void skipString() throws IOException {
         int at = pos + 1;
         byte[] in = this.in;
+        // Eight bytes at a time while none is a quote, a backslash or a control character (SWAR)
+        int last = in.length - Long.BYTES;
+        while (at <= last) {
+            long word = (long) LONGS.get(in, at);
+            if (hasZeroByte(word ^ QUOTES) || hasZeroByte(word ^ BACKSLASHES) || hasControl(word)) {
+                break;
+            }
+            at += Long.BYTES;
+        }
         while (true) {
             byte b = in[at];
             if (b == '"') {
@@ -185,6 +197,23 @@ public final class JsonTreeReader {
                 at++;
             }
         }
+    }
+
+    private static final long ONES = 0x0101010101010101L;
+    private static final long HIGH_BITS = 0x8080808080808080L;
+    private static final long QUOTES = 0x2222222222222222L;
+    private static final long BACKSLASHES = 0x5C5C5C5C5C5C5C5CL;
+    private static final long SPACES = 0x2020202020202020L;
+    private static final VarHandle LONGS = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
+
+    /** Whether one of the eight bytes is zero. */
+    private static boolean hasZeroByte(long word) {
+        return ((word - ONES) & ~word & HIGH_BITS) != 0;
+    }
+
+    /** Whether one of the eight bytes is an ASCII control character (below 0x20). */
+    private static boolean hasControl(long word) {
+        return ((word - SPACES) & ~word & HIGH_BITS) != 0;
     }
 
     /** Reads a field name, interned (through a symbol table, so repeated names cost a byte comparison). */

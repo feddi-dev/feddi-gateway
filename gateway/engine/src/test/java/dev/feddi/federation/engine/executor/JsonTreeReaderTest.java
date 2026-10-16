@@ -55,6 +55,26 @@ class JsonTreeReaderTest {
     }
 
     @Test
+    void readsLongStringsWithEscapesAtEveryOffset() throws Exception {
+        ObjectMapper jackson = new ObjectMapper();
+        for (int offset = 0; offset < 20; offset++) {
+            String prefix = "x".repeat(offset);
+            for (String special : List.of("\\\"", "\\\\", "\\n", "ä€", "\\u0041")) {
+                String json = "[\"" + prefix + special + "y".repeat(17) + "\",\"" + "z".repeat(offset) + "\"]";
+                Object read = RawString.decodeAll(JsonTreeReader.read(json.getBytes(StandardCharsets.UTF_8)));
+                assertThat(read).as(json).isEqualTo(jackson.readValue(json, List.class));
+            }
+        }
+    }
+
+    @Test
+    void rejectsControlCharactersInStrings() {
+        String json = "[\"" + "x".repeat(11) + "\u0001" + "\"]";
+        assertThatThrownBy(() -> JsonTreeReader.read(json.getBytes(StandardCharsets.UTF_8)))
+            .isInstanceOf(java.io.IOException.class);
+    }
+
+    @Test
     void rejectsInvalidJson() {
         assertThatThrownBy(() -> JsonTreeReader.read("{\"a\":".getBytes(StandardCharsets.UTF_8)))
             .isInstanceOf(java.io.IOException.class);
