@@ -170,13 +170,13 @@ final class JsonBuffer {
         switch (value) {
             case null -> writeNull();
             case String string -> writeString(string);
-            case Integer number -> writeAscii(Integer.toString(number));
-            case Long number -> writeAscii(Long.toString(number));
+            case Integer number -> writeLong(number);
+            case Long number -> writeLong(number);
             case Boolean bool -> write(bool ? TRUE : FALSE);
             case Double number -> writeFloating(number);
             case Float number -> writeFloating(number.doubleValue());
-            case Short number -> writeAscii(Short.toString(number));
-            case Byte number -> writeAscii(Byte.toString(number));
+            case Short number -> writeLong(number);
+            case Byte number -> writeLong(number);
             case BigInteger number -> writeAscii(number.toString());
             case BigDecimal number -> writeAscii(number.toString());
             case Map<?, ?> map -> {
@@ -208,6 +208,31 @@ final class JsonBuffer {
             case Enum<?> constant -> writeString(constant.name());
             default -> writeString(String.valueOf(value));
         }
+    }
+
+    /** Writes an integer's digits straight into the buffer, without a String. */
+    void writeLong(long number) {
+        if (number == Long.MIN_VALUE) {
+            writeAscii(Long.toString(number));
+            return;
+        }
+        if (size + 20 > bytes.length) {
+            grow(20);
+        }
+        if (number < 0) {
+            bytes[size++] = '-';
+            number = -number;
+        }
+        int digits = 1;
+        for (long rest = number / 10; rest != 0; rest /= 10) {
+            digits++;
+        }
+        int at = size + digits;
+        size = at;
+        do {
+            bytes[--at] = (byte) ('0' + number % 10);
+            number /= 10;
+        } while (number != 0);
     }
 
     private void writeFloating(double number) {

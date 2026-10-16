@@ -39,6 +39,16 @@ class JsonBufferTest {
     }
 
     @Test
+    void writesIntegersLikeJackson() throws Exception {
+        for (long number : new long[] {0, 7, -7, 10, 99, 100, -100, 123456789, Integer.MAX_VALUE, Integer.MIN_VALUE,
+            Long.MAX_VALUE, Long.MIN_VALUE}) {
+            assertThat(written(number)).isEqualTo(JSON.writeValueAsString(number));
+        }
+        assertThat(written((short) -12)).isEqualTo("-12");
+        assertThat(written(Integer.MIN_VALUE)).isEqualTo(Integer.toString(Integer.MIN_VALUE));
+    }
+
+    @Test
     void resetDiscardsWrittenBytes() {
         JsonBuffer buffer = new JsonBuffer(1);
         buffer.writeString("keep");
