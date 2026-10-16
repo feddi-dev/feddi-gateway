@@ -197,7 +197,7 @@ class ExecutorTest {
         Map<String, Object> expectedData = (Map<String, Object>) executionTest.expectedResponse().get("data");
 
         assertThat(actualData)
-            .as("Execution result data should match expected")
+            .as("Execution result data should match expected (errors: %s)", result.getErrors())
             .isEqualTo(expectedData);
 
         // Validate supergraph response (informational only until executor is fixed)

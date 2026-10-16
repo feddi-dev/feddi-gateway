@@ -1,0 +1,31 @@
+name: "An empty list has no entities to look up"
+description: |
+  The products subgraph returns no products: the reviews lookup is not sent.
+
+query: |
+  {
+    products {
+      name
+      reviews {
+        id
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { name id } }'
+    variables: {}
+    response: {
+      data: {
+        products: []
+      }
+    }
+
+expectedResponse: {
+  data: {
+    products: []
+  }
+}

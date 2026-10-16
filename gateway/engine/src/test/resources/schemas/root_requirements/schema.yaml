@@ -9,6 +9,7 @@ subgraphs:
       search(term: String!, filter: String @require(field: "category")): [String]
       localized(key: String!, locale: String @require(field: "settings.locale")): String
       greeting(language: String @require(field: "viewer.language")): String
+      strictSearch(filter: String! @require(field: "category")): [String]
       searchHint: String
     }
 

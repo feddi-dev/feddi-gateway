@@ -18,6 +18,9 @@ import java.util.stream.Collectors;
  */
 public final class FieldSelectionMapPrinter {
 
+    private FieldSelectionMapPrinter() {
+    }
+
     /**
      * Converts a SelectedValue to its string representation.
      *

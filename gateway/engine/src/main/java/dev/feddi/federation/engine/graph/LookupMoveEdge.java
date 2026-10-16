@@ -50,26 +50,11 @@ public record LookupMoveEdge(
     }
 
     /**
-     * Creates a LookupMoveEdge for a lookup field on Query.
-     */
-    public LookupMoveEdge(String lookupField, Node source, Node target, int cost,
-                          List<LookupArgument> lookupArguments, List<Requirement> requires, String returnType) {
-        this(lookupField, source, target, cost, lookupArguments, requires, returnType, List.of());
-    }
-
-    /**
      * Creates a LookupMoveEdge whose lookup field returns the target type.
      */
     public LookupMoveEdge(String lookupField, Node source, Node target, int cost,
                           List<LookupArgument> lookupArguments, List<Requirement> requires) {
         this(lookupField, source, target, cost, lookupArguments, requires, null, List.of());
-    }
-
-    /**
-     * Creates a LookupMoveEdge with default cost of 10 and no requirements.
-     */
-    public static LookupMoveEdge withDefaultCost(String lookupField, Node source, Node target, List<LookupArgument> lookupArguments) {
-        return new LookupMoveEdge(lookupField, source, target, 10, lookupArguments, List.of());
     }
 
     @Override

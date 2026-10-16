@@ -437,13 +437,6 @@ public final class Graph {
         }
 
         /**
-         * Adds a LookupMoveEdge with default cost.
-         */
-        public GraphBuilder addLookupEdge(String lookupField, Node source, Node target, List<LookupArgument> lookupArguments) {
-            return addEdge(LookupMoveEdge.withDefaultCost(lookupField, source, target, lookupArguments));
-        }
-        
-        /**
          * Associates @provides fields with a field edge.
          * @param edge the field edge that provides additional fields
          * @param providedFields the FieldSelectionSet provided when traversing this edge
@@ -492,11 +485,6 @@ public final class Graph {
         public Graph build() {
             if (rootNodes.isEmpty()) {
                 throw new IllegalStateException("At least one root node must be set");
-            }
-            for (Node rootNode : rootNodes.values()) {
-                if (!nodes.contains(rootNode)) {
-                    throw new IllegalStateException("Root node " + rootNode + " must be in the graph");
-                }
             }
             return new Graph(nodes, edges, rootNodes, providesMap, typeImplementsInterfaces,
                 interfaceToImplementingTypes, typeMemberOfUnions, externalFieldTypes, requirements, fieldTypes);
