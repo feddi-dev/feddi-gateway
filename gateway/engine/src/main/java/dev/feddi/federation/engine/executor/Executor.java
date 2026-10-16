@@ -423,11 +423,13 @@ public final class Executor {
                     return Mono.just(failed);
                 }))
             .concatMapIterable(results -> results)
-            .concatWith(Flux.fromIterable(skipped))
             .collectList()
             .map(entityResults -> {
                 StepResult stepResult = new StepResult();
                 for (EntityResult entityResult : entityResults) {
+                    mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
+                }
+                for (EntityResult entityResult : skipped) {
                     mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
                 }
                 return stepResult;
@@ -643,8 +645,16 @@ public final class Executor {
                 + "execution plans must be created by the OperationPlanner");
         }
         List<Map<String, Object>> targets = new ArrayList<>();
+        // The types required along the path, by depth (looked up once per object)
+        @SuppressWarnings("unchecked")
+        Set<String>[] pathTypes = new Set[step.entityPath().size() + 1];
+        step.entityPathTypes().forEach((depth, types) -> {
+            if (depth < pathTypes.length) {
+                pathTypes[depth] = types;
+            }
+        });
         synchronized (ctx) {
-            collectEntityTargets(ctx.getMergedData(), step.entityPath(), step.entityPathTypes(), 0, targets);
+            collectEntityTargets(ctx.getMergedData(), step.entityPath(), pathTypes, 0, targets);
         }
         if (!step.entityTypes().isEmpty()) {
             // A lookup for one concrete type (e.g. below "... on Book") skips entities of other types.
@@ -659,14 +669,14 @@ public final class Executor {
      * {@code __typename} is not one of the types required at their position.
      */
     @SuppressWarnings("unchecked")
-    private void collectEntityTargets(Object value, List<String> path, Map<Integer, Set<String>> pathTypes,
+    private void collectEntityTargets(Object value, List<String> path, Set<String>[] pathTypes,
                                       int index, List<Map<String, Object>> targets) {
         if (value instanceof List<?> list) {
             for (Object item : list) {
                 collectEntityTargets(item, path, pathTypes, index, targets);
             }
         } else if (value instanceof Map<?, ?> map) {
-            Set<String> types = pathTypes.get(index);
+            Set<String> types = pathTypes[index];
             if (types != null && map.get(IntrospectionFields.TYPENAME) instanceof String typename
                 && !types.contains(typename)) {
                 return;
