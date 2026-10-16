@@ -22,26 +22,26 @@ It works best overall when used together with the feddi Platform. For full docum
 ### Test Results
 | Suite | Tests | Passed | Failed | Errors | Skipped |
 |:------|------:|-------:|-------:|-------:|--------:|
-| Gateway engine | 1178 | 1174 | - | - | 4 |
-| Gateway app unit | 17 | 17 | - | - | - |
-| Gateway app integration | 343 | 339 | - | - | 4 |
-| E2E tests | 31 | 31 | - | - | - |
+| Gateway engine | 1775 | 1774 | - | - | 1 |
+| Gateway app unit | 71 | 71 | - | - | - |
+| Gateway app integration | 348 | 348 | - | - | - |
+| E2E tests | 35 | 35 | - | - | - |
 
 ### Test Categories
 | Category | Count |
 |:---------|------:|
-| Composition success | 39 |
-| Composition errors | 78 |
-| Planning | 132 |
-| Execution | 209 |
-| Engine other | 720 |
+| Composition success | 43 |
+| Composition errors | 85 |
+| Planning | 157 |
+| Execution | 212 |
+| Engine other | 1278 |
 
 ### Code Coverage
 | Metric | Coverage | Covered / Total |
 |:-------|---------:|----------------:|
-| Line | 84.3% | 7129/8454 |
-| Branch | 76.5% | 3458/4522 |
-| Method | 80.7% | 1237/1533 |
+| Line | 87.5% | 8351/9548 |
+| Branch | 79.2% | 4268/5388 |
+| Method | 85.4% | 1559/1825 |
 <!-- test-results-end -->
 
 ## Requirements
