@@ -18,7 +18,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
@@ -257,7 +257,7 @@ class DefaultSubgraphClientBatchTest {
     }
 
     private static FeddiGatewayReloadService reloadService(FeddiGatewayHolder holder) {
-        return new FeddiGatewayReloadService(holder, new DefaultSubgraphClientFactory(WebClient.builder(), null),
+        return new FeddiGatewayReloadService(holder, new DefaultSubgraphClientFactory(HttpClient.create(), null),
             new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
     }
 
@@ -308,6 +308,6 @@ class DefaultSubgraphClientBatchTest {
     }
 
     private DefaultSubgraphClient client(SubgraphRequestHeaderCustomizer customizer) {
-        return new DefaultSubgraphClient(WebClient.builder().baseUrl(url()).build(), "accounts", customizer);
+        return new DefaultSubgraphClient(HttpClient.create(), url(), "accounts", customizer);
     }
 }

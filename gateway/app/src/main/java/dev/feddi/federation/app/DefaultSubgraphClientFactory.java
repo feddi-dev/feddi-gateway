@@ -5,7 +5,7 @@ import dev.feddi.federation.extension.SubgraphClientFactory;
 import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
 import dev.feddi.federation.extension.SubgraphSettings;
 import org.jspecify.annotations.Nullable;
-import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 
 /**
  * Default factory for creating DefaultSubgraphClient instances.
@@ -17,19 +17,18 @@ import org.springframework.web.reactive.function.client.WebClient;
  */
 public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
 
-    private final WebClient.Builder webClientBuilder;
+    private final HttpClient httpClient;
     private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
 
-    public DefaultSubgraphClientFactory(WebClient.Builder webClientBuilder,
+    public DefaultSubgraphClientFactory(HttpClient httpClient,
                                          @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
-        this.webClientBuilder = webClientBuilder;
+        this.httpClient = httpClient;
         this.headerCustomizer = headerCustomizer;
     }
 
     @Override
     public SubgraphClient create(String subgraphName, SubgraphSettings settings) {
         String url = settings.config().get("url").toString();
-        WebClient webClient = webClientBuilder.baseUrl(url).build();
-        return new DefaultSubgraphClient(webClient, subgraphName, headerCustomizer);
+        return new DefaultSubgraphClient(httpClient, url, subgraphName, headerCustomizer);
     }
 }
