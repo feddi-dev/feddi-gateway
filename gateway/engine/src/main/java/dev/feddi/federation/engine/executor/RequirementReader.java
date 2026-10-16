@@ -67,8 +67,9 @@ final class RequirementReader {
      * Package-private for testing.
      */
     Object extractFromSelectedValue(Map<String, Object> context, SelectedValue selectedValue) {
-        for (Alternative alt : selectedValue.alternatives()) {
-            Object value = extractFromAlternative(context, alt);
+        List<Alternative> alternatives = selectedValue.alternatives();
+        for (int i = 0; i < alternatives.size(); i++) {
+            Object value = extractFromAlternative(context, alternatives.get(i));
             if (value != null) {
                 return value;
             }
@@ -281,8 +282,9 @@ final class RequirementReader {
     }
 
     private boolean contextCanProvideSelectedValue(Map<String, Object> context, SelectedValue selectedValue) {
-        for (Alternative alt : selectedValue.alternatives()) {
-            if (contextCanProvideAlternative(context, alt)) {
+        List<Alternative> alternatives = selectedValue.alternatives();
+        for (int i = 0; i < alternatives.size(); i++) {
+            if (contextCanProvideAlternative(context, alternatives.get(i))) {
                 return true;
             }
         }

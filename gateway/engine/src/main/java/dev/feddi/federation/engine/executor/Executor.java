@@ -887,7 +887,11 @@ public final class Executor {
                 throw new ExecutionException("Subgraph returned " + list.size() + " results for a batch of "
                     + batch.size());
             }
-            List<EntityResult> entityResults = new ArrayList<>();
+            int positions = 0;
+            for (UniqueEntity entity : batch) {
+                positions += entity.positions().size();
+            }
+            List<EntityResult> entityResults = new ArrayList<>(positions);
             for (int i = 0; i < batch.size(); i++) {
                 entityResults.addAll(fanOut(batch.get(i).positions(), list.get(i)));
             }
