@@ -412,31 +412,47 @@ public final class Executor {
             uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).positions().add(context);
         }
 
-        // Fetch the unique entities: one request each, or batched as configured for the subgraph
-        return Flux.fromIterable(batches(List.copyOf(uniqueEntities.values()), step.operation(), client.batching()))
-            .flatMap(batch -> fetchBatch(step.operation(), client, batch)
-                .onErrorResume(e -> {
-                    // Handle failures without failing the entire step. The error is reported
-                    // once; every position of the batch's entities gets null fields.
-                    List<EntityResult> failed = new ArrayList<>();
-                    for (UniqueEntity entity : batch) {
-                        for (Map<String, Object> context : entity.positions()) {
-                            failed.add(new EntityResult(context, null, failed.isEmpty() ? e : null));
-                        }
+        // Fetch the unique entities: one request each, or batched as configured for the subgraph. Most steps
+        // fit into one batch, which needs no Flux.
+        List<List<UniqueEntity>> batches = batches(List.copyOf(uniqueEntities.values()), step.operation(),
+            client.batching());
+        Mono<List<EntityResult>> fetched = batches.size() == 1
+            ? fetchBatchOrFail(step, client, batches.get(0))
+            : Flux.fromIterable(batches)
+                .flatMap(batch -> fetchBatchOrFail(step, client, batch))
+                .collectList()
+                .map(lists -> {
+                    List<EntityResult> all = new ArrayList<>();
+                    lists.forEach(all::addAll);
+                    return all;
+                });
+        return fetched.map(entityResults -> {
+            StepResult stepResult = new StepResult();
+            for (EntityResult entityResult : entityResults) {
+                mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
+            }
+            for (EntityResult entityResult : skipped) {
+                mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
+            }
+            return stepResult;
+        });
+    }
+
+    /**
+     * Fetches a batch; a failure does not fail the step: it is reported once, and every position of the batch's
+     * entities gets null fields.
+     */
+    private static Mono<List<EntityResult>> fetchBatchOrFail(ExecutionStep step, SubgraphClient client,
+                                                             List<UniqueEntity> batch) {
+        return fetchBatch(step.operation(), client, batch)
+            .onErrorResume(e -> {
+                List<EntityResult> failed = new ArrayList<>();
+                for (UniqueEntity entity : batch) {
+                    for (Map<String, Object> context : entity.positions()) {
+                        failed.add(new EntityResult(context, null, failed.isEmpty() ? e : null));
                     }
-                    return Mono.just(failed);
-                }))
-            .concatMapIterable(results -> results)
-            .collectList()
-            .map(entityResults -> {
-                StepResult stepResult = new StepResult();
-                for (EntityResult entityResult : entityResults) {
-                    mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
                 }
-                for (EntityResult entityResult : skipped) {
-                    mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
-                }
-                return stepResult;
+                return Mono.just(failed);
             });
     }
 
