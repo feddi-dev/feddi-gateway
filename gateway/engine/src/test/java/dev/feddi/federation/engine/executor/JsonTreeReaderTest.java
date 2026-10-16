@@ -1,6 +1,7 @@
 package dev.feddi.federation.engine.executor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.feddi.federation.engine.IntrospectionFields;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -21,7 +22,8 @@ class JsonTreeReaderTest {
     void readsLikeJackson() throws Exception {
         Object read = JsonTreeReader.read(JSON.getBytes(StandardCharsets.UTF_8));
 
-        assertThat(read).isInstanceOf(CompactMap.class).isEqualTo(new ObjectMapper().readValue(JSON, Map.class));
+        assertThat(read).isInstanceOf(CompactMap.class);
+        assertThat(RawString.decodeAll(read)).isEqualTo(new ObjectMapper().readValue(JSON, Map.class));
     }
 
     @Test
@@ -29,6 +31,27 @@ class JsonTreeReaderTest {
         List<Object> lines = JsonTreeReader.readSequence("{\"a\":1}\n{\"a\":2}\r\n".getBytes(StandardCharsets.UTF_8));
 
         assertThat(lines).containsExactly(Map.of("a", 1), Map.of("a", 2));
+    }
+
+    @Test
+    void keepsStringsAsTheirJsonTextExceptTypeNames() throws Exception {
+        byte[] json = ("{\"" + IntrospectionFields.TYPENAME + "\":\"Product\",\"name\":\"a \\\"b\\\"\"}")
+            .getBytes(StandardCharsets.UTF_8);
+        Map<?, ?> object = (Map<?, ?>) JsonTreeReader.read(json);
+
+        assertThat(object.get(IntrospectionFields.TYPENAME)).isEqualTo("Product");
+        assertThat(object.get("name")).isInstanceOf(RawString.class).hasToString("a \"b\"");
+        JsonBuffer buffer = new JsonBuffer(16);
+        buffer.writeValue(object);
+        assertThat(new String(buffer.toByteArray(), StandardCharsets.UTF_8)).isEqualTo(new String(json, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void rawStringsAreEqualByValue() throws Exception {
+        Object plain = ((Map<?, ?>) JsonTreeReader.read("{\"a\":\"\u00e4\"}".getBytes(StandardCharsets.UTF_8))).get("a");
+        Object escaped = ((Map<?, ?>) JsonTreeReader.read("{\"a\":\"ä\"}".getBytes(StandardCharsets.UTF_8))).get("a");
+
+        assertThat(plain).isEqualTo(escaped).hasSameHashCodeAs(escaped).hasToString("ä");
     }
 
     @Test

@@ -1,24 +1,35 @@
 package dev.feddi.federation.engine.executor;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
+import dev.feddi.federation.engine.IntrospectionFields;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
- * Reads JSON into the executor's data structures: objects as {@link CompactMap}s (field names interned, as Jackson
- * does by default), arrays as {@code ArrayList}s, integers as {@code Integer}, {@code Long} or {@code BigInteger},
- * decimals as {@code Double}. Reads one value or a sequence of root-level values (JSON lines).
+ * Reads JSON into the executor's data structures: objects as {@link CompactMap}s with interned field names, arrays
+ * as {@code ArrayList}s, strings as {@link RawString}s (except {@code __typename} values, which the executor
+ * compares, as {@code String}s), integers as {@code Integer}, {@code Long} or {@code BigInteger}, decimals as
+ * {@code Double}. Reads one value or a sequence of root-level values (JSON lines).
  */
 public final class JsonTreeReader {
 
-    private static final JsonFactory FACTORY = new JsonFactory();
+    private static final int SYMBOLS = 4096;
+    /** Interned field names by the hash of their bytes (racy, but entries are immutable). */
+    private static final Symbol[] SYMBOL_TABLE = new Symbol[SYMBOLS];
 
-    private JsonTreeReader() {
+    private record Symbol(byte[] bytes, String name) {
+    }
+
+    private final byte[] in;
+    private int pos;
+
+    private JsonTreeReader(byte[] in) {
+        this.in = in;
     }
 
     /**
@@ -27,16 +38,20 @@ public final class JsonTreeReader {
      * @throws IOException if the bytes are not one JSON value
      */
     public static @Nullable Object read(byte[] json) throws IOException {
-        try (JsonParser parser = FACTORY.createParser(json)) {
-            JsonToken token = parser.nextToken();
-            if (token == null) {
+        JsonTreeReader reader = new JsonTreeReader(json);
+        try {
+            reader.skipWhitespace();
+            if (reader.pos >= json.length) {
                 throw new IOException("No JSON value");
             }
-            Object value = readValue(parser, token);
-            if (parser.nextToken() != null) {
-                throw new IOException("More than one JSON value");
+            Object value = reader.readValue(null);
+            reader.skipWhitespace();
+            if (reader.pos != json.length) {
+                throw new IOException("More than one JSON value at " + reader.pos);
             }
             return value;
+        } catch (ArrayIndexOutOfBoundsException e) {
+            throw new IOException("Unexpected end of JSON", e);
         }
     }
 
@@ -46,55 +61,262 @@ public final class JsonTreeReader {
      * @throws IOException if the bytes are not JSON values
      */
     public static List<@Nullable Object> readSequence(byte[] json) throws IOException {
+        JsonTreeReader reader = new JsonTreeReader(json);
         List<Object> values = new ArrayList<>();
-        try (JsonParser parser = FACTORY.createParser(json)) {
-            JsonToken token;
-            while ((token = parser.nextToken()) != null) {
-                values.add(readValue(parser, token));
+        try {
+            reader.skipWhitespace();
+            while (reader.pos < json.length) {
+                values.add(reader.readValue(null));
+                reader.skipWhitespace();
             }
+        } catch (ArrayIndexOutOfBoundsException e) {
+            throw new IOException("Unexpected end of JSON", e);
         }
         return values;
     }
 
-    private static @Nullable Object readValue(JsonParser parser, JsonToken token) throws IOException {
-        switch (token) {
-            case START_OBJECT -> {
-                CompactMap object = new CompactMap();
-                String name;
-                while ((name = parser.nextFieldName()) != null) {
-                    // Field names of one object are distinct in practice (duplicates, which JSON leaves
-                    // undefined, keep both entries and lookups find the first)
-                    object.append(name, readValue(parser, parser.nextToken()));
-                }
-                return object;
+    private @Nullable Object readValue(@Nullable String fieldName) throws IOException {
+        byte b = in[pos];
+        switch (b) {
+            case '{' -> {
+                return readObject();
             }
-            case START_ARRAY -> {
-                List<Object> array = new ArrayList<>();
-                JsonToken next;
-                while ((next = parser.nextToken()) != JsonToken.END_ARRAY) {
-                    array.add(readValue(parser, next));
-                }
-                return array;
+            case '[' -> {
+                return readArray();
             }
-            case VALUE_STRING -> {
-                return parser.getText();
+            case '"' -> {
+                int start = pos;
+                skipString();
+                // Interned names compare by reference
+                return fieldName == IntrospectionFields.TYPENAME ? decodeString(in, start, pos)
+                    : new RawString(in, start, pos);
             }
-            case VALUE_NUMBER_INT -> {
-                return parser.getNumberValue();
-            }
-            case VALUE_NUMBER_FLOAT -> {
-                return parser.getDoubleValue();
-            }
-            case VALUE_TRUE -> {
+            case 't' -> {
+                expectLiteral("true");
                 return Boolean.TRUE;
             }
-            case VALUE_FALSE -> {
+            case 'f' -> {
+                expectLiteral("false");
                 return Boolean.FALSE;
             }
-            case VALUE_NULL -> {
+            case 'n' -> {
+                expectLiteral("null");
                 return null;
             }
-            default -> throw new IOException("Unexpected JSON token " + token);
+            default -> {
+                if (b == '-' || b >= '0' && b <= '9') {
+                    return readNumber();
+                }
+                throw new IOException("Unexpected character '" + (char) b + "' at " + pos);
+            }
         }
+    }
+
+    private CompactMap readObject() throws IOException {
+        pos++;
+        CompactMap object = new CompactMap();
+        skipWhitespace();
+        if (in[pos] == '}') {
+            pos++;
+            return object;
+        }
+        while (true) {
+            if (in[pos] != '"') {
+                throw new IOException("Expected a field name at " + pos);
+            }
+            String name = readName();
+            skipWhitespace();
+            if (in[pos++] != ':') {
+                throw new IOException("Expected ':' at " + (pos - 1));
+            }
+            skipWhitespace();
+            // Field names of one object are distinct in practice (duplicates, which JSON leaves undefined, keep
+            // both entries and lookups find the first)
+            object.append(name, readValue(name));
+            skipWhitespace();
+            byte next = in[pos++];
+            if (next == '}') {
+                return object;
+            }
+            if (next != ',') {
+                throw new IOException("Expected ',' or '}' at " + (pos - 1));
+            }
+            skipWhitespace();
+        }
+    }
+
+    private List<Object> readArray() throws IOException {
+        pos++;
+        List<Object> array = new ArrayList<>();
+        skipWhitespace();
+        if (in[pos] == ']') {
+            pos++;
+            return array;
+        }
+        while (true) {
+            array.add(readValue(null));
+            skipWhitespace();
+            byte next = in[pos++];
+            if (next == ']') {
+                return array;
+            }
+            if (next != ',') {
+                throw new IOException("Expected ',' or ']' at " + (pos - 1));
+            }
+            skipWhitespace();
+        }
+    }
+
+    /** Moves past a string starting at the quote at {@code pos}. */
+    private void skipString() throws IOException {
+        int at = pos + 1;
+        byte[] in = this.in;
+        while (true) {
+            byte b = in[at];
+            if (b == '"') {
+                pos = at + 1;
+                return;
+            }
+            if (b == '\\') {
+                at += 2;
+            } else if (b >= 0 && b < 0x20) {
+                throw new IOException("Control character in string at " + at);
+            } else {
+                at++;
+            }
+        }
+    }
+
+    /** Reads a field name, interned (through a symbol table, so repeated names cost a byte comparison). */
+    private String readName() throws IOException {
+        int start = pos;
+        int hash = 0;
+        int at = pos + 1;
+        boolean escaped = false;
+        while (true) {
+            byte b = in[at];
+            if (b == '"') {
+                break;
+            }
+            if (b == '\\') {
+                escaped = true;
+                at += 2;
+                continue;
+            }
+            hash = 31 * hash + b;
+            at++;
+        }
+        pos = at + 1;
+        if (escaped) {
+            return decodeString(in, start, pos).intern();
+        }
+        int slot = (hash ^ (hash >>> 16)) & (SYMBOLS - 1);
+        Symbol symbol = SYMBOL_TABLE[slot];
+        if (symbol != null && Arrays.equals(symbol.bytes(), 0, symbol.bytes().length, in, start + 1, at)) {
+            return symbol.name();
+        }
+        String name = new String(in, start + 1, at - start - 1, StandardCharsets.UTF_8).intern();
+        SYMBOL_TABLE[slot] = new Symbol(Arrays.copyOfRange(in, start + 1, at), name);
+        return name;
+    }
+
+    private Object readNumber() throws IOException {
+        int start = pos;
+        boolean negative = in[pos] == '-';
+        if (negative) {
+            pos++;
+        }
+        long value = 0;
+        int digits = 0;
+        while (pos < in.length && in[pos] >= '0' && in[pos] <= '9') {
+            value = value * 10 + (in[pos] - '0');
+            digits++;
+            pos++;
+        }
+        if (digits == 0) {
+            throw new IOException("Invalid number at " + start);
+        }
+        if (pos < in.length && (in[pos] == '.' || in[pos] == 'e' || in[pos] == 'E')) {
+            pos++;
+            while (pos < in.length && (in[pos] >= '0' && in[pos] <= '9' || in[pos] == 'e' || in[pos] == 'E'
+                || in[pos] == '+' || in[pos] == '-')) {
+                pos++;
+            }
+            try {
+                return Double.parseDouble(new String(in, start, pos - start, StandardCharsets.ISO_8859_1));
+            } catch (NumberFormatException e) {
+                throw new IOException("Invalid number at " + start, e);
+            }
+        }
+        if (digits > 18) {
+            BigInteger big = new BigInteger(new String(in, start, pos - start, StandardCharsets.ISO_8859_1));
+            return big.bitLength() < 64 ? (Object) big.longValue() : big;
+        }
+        long signed = negative ? -value : value;
+        if (signed >= Integer.MIN_VALUE && signed <= Integer.MAX_VALUE) {
+            return (int) signed;
+        }
+        return signed;
+    }
+
+    private void expectLiteral(String literal) throws IOException {
+        for (int i = 0; i < literal.length(); i++) {
+            if (in[pos + i] != literal.charAt(i)) {
+                throw new IOException("Invalid literal at " + pos);
+            }
+        }
+        pos += literal.length();
+    }
+
+    private void skipWhitespace() {
+        byte[] in = this.in;
+        int at = pos;
+        while (at < in.length) {
+            byte b = in[at];
+            if (b != ' ' && b != '\n' && b != '\r' && b != '\t') {
+                break;
+            }
+            at++;
+        }
+        pos = at;
+    }
+
+    /**
+     * Decodes a JSON string from its text.
+     *
+     * @param start the index of the opening quote
+     * @param end the index after the closing quote
+     */
+    static String decodeString(byte[] bytes, int start, int end) {
+        String content = new String(bytes, start + 1, end - start - 2, StandardCharsets.UTF_8);
+        int backslash = content.indexOf('\\');
+        if (backslash < 0) {
+            return content;
+        }
+        StringBuilder decoded = new StringBuilder(content.length());
+        decoded.append(content, 0, backslash);
+        for (int i = backslash; i < content.length(); i++) {
+            char c = content.charAt(i);
+            if (c != '\\' || i + 1 >= content.length()) {
+                decoded.append(c);
+                continue;
+            }
+            char escape = content.charAt(++i);
+            switch (escape) {
+                case 'b' -> decoded.append('\b');
+                case 'f' -> decoded.append('\f');
+                case 'n' -> decoded.append('\n');
+                case 'r' -> decoded.append('\r');
+                case 't' -> decoded.append('\t');
+                case 'u' -> {
+                    if (i + 4 < content.length()) {
+                        decoded.append((char) Integer.parseInt(content, i + 1, i + 5, 16));
+                        i += 4;
+                    }
+                }
+                default -> decoded.append(escape);
+            }
+        }
+        return decoded.toString();
     }
 }

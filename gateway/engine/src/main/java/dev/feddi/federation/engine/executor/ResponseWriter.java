@@ -216,7 +216,9 @@ public final class ResponseWriter {
         if (type instanceof GraphQLCompositeType && shape != null && value instanceof Map<?, ?> object) {
             return writeObject(shape, object);
         }
-        if (value instanceof String string) {
+        if (value instanceof RawString raw) {
+            raw.writeTo(data);
+        } else if (value instanceof String string) {
             writeString(string);
         } else {
             data.writeValue(value);

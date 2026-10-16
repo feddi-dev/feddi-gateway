@@ -356,7 +356,8 @@ public final class FeddiFederationGateway {
         public ExecutionResult executionResult() {
             if (completed == null) {
                 completed = prepared == null ? rawResult : completed(supergraph,
-                    Executor.withoutArtificialFields(rawResult, prepared.plan()), prepared.operation());
+                    Executor.withoutArtificialFields(Executor.decodeStrings(rawResult), prepared.plan()),
+                    prepared.operation());
             }
             return completed;
         }

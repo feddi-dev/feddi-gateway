@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.feddi.federation.engine.IntrospectionFields;
 import dev.feddi.federation.engine.executor.JsonTreeReader;
 import dev.feddi.federation.engine.executor.OperationTexts;
+import dev.feddi.federation.engine.executor.RawString;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
@@ -343,7 +344,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
 
         if (errors instanceof List) {
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> errorList = (List<Map<String, Object>>) errors;
+            // Errors are compared and logged as strings
+            List<Map<String, Object>> errorList = (List<Map<String, Object>>) RawString.decodeAll(errors);
             for (Map<String, Object> error : errorList) {
                 String message = error.get("message") != null ? error.get("message").toString() : "Unknown error";
 

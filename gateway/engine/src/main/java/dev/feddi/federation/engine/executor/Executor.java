@@ -107,7 +107,8 @@ public final class Executor {
      * @return the merged execution result wrapped in a Mono
      */
     public Mono<ExecutionResult> execute(ExecutionPlan plan, Map<String, Object> variables) {
-        return executeWithInternalFields(plan, variables).map(result -> withoutArtificialFields(result, plan));
+        return executeWithInternalFields(plan, variables)
+            .map(result -> withoutArtificialFields(decodeStrings(result), plan));
     }
 
     /**
@@ -534,6 +535,17 @@ public final class Executor {
             builder.addError(error);
         }
         return builder.build();
+    }
+
+    /**
+     * A result whose data has {@link RawString}s (as parsed from subgraph responses) with {@code String}s instead,
+     * for consumers of the data as maps.
+     */
+    public static ExecutionResult decodeStrings(ExecutionResult result) {
+        Object data = result.getData();
+        Object decoded = RawString.decodeAll(data);
+        return decoded == data ? result
+            : ExecutionResultImpl.newExecutionResult().from(result).data(decoded).build();
     }
 
     /**

@@ -63,6 +63,14 @@ final class JsonBuffer {
         size += raw.length;
     }
 
+    void write(byte[] raw, int offset, int length) {
+        if (size + length > bytes.length) {
+            grow(length);
+        }
+        System.arraycopy(raw, offset, bytes, size, length);
+        size += length;
+    }
+
     void writeNull() {
         write(NULL);
     }
@@ -175,6 +183,7 @@ final class JsonBuffer {
         switch (value) {
             case null -> writeNull();
             case String string -> writeString(string);
+            case RawString raw -> raw.writeTo(this);
             case Integer number -> writeLong(number);
             case Long number -> writeLong(number);
             case Boolean bool -> write(bool ? TRUE : FALSE);

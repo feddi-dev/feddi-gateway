@@ -3,6 +3,7 @@ package dev.feddi.federation.app;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.feddi.federation.engine.executor.BatchingOptions;
 import dev.feddi.federation.engine.executor.BatchingOptions.Mode;
+import dev.feddi.federation.engine.executor.RawString;
 import dev.feddi.federation.extension.FeddiGatewayDefinition;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.FeddiGatewaySettings;
@@ -60,7 +61,7 @@ class DefaultSubgraphClientBatchTest {
         List<ExecutionResult> results = client().executeBatch(LOOKUP,
             List.of(Map.of("id", "1"), Map.of("id", "2")), FeddiGatewayRequestContext.empty()).block();
 
-        assertThat(results).extracting(r -> (Object) r.getData()).containsExactly(
+        assertThat(results).extracting(r -> RawString.decodeAll(r.getData())).containsExactly(
             Map.of("user", Map.of("name", "Ann")), Map.of("user", Map.of("name", "Bob")));
         assertThat(requests).singleElement()
             .satisfies(r -> assertThat(r.get("variables")).isEqualTo(List.of(Map.of("id", "1"), Map.of("id", "2"))));
