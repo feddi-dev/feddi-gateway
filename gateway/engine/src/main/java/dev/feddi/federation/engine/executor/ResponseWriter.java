@@ -128,10 +128,22 @@ public final class ResponseWriter {
         data.write((byte) '{');
         boolean first = true;
         String[] keys = shape.keys;
+        CompactMap compact = object instanceof CompactMap map ? map : null;
+        int hint = 0;
         for (int i = 0; i < keys.length; i++) {
-            Object value = object.get(keys[i]);
-            if (value == null && !object.containsKey(keys[i])) {
-                continue;
+            Object value;
+            if (compact != null) {
+                int index = compact.indexOf(keys[i], hint);
+                if (index < 0) {
+                    continue;
+                }
+                value = compact.valueAt(index);
+                hint = index + 1;
+            } else {
+                value = object.get(keys[i]);
+                if (value == null && !object.containsKey(keys[i])) {
+                    continue;
+                }
             }
             if (!first) {
                 data.write((byte) ',');

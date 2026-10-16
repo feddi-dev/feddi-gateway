@@ -55,6 +55,22 @@ public final class CompactMap extends AbstractMap<String, @Nullable Object> {
     }
 
     /**
+     * The index of a key, trying the position {@code hint} first: objects usually hold their fields in the order in
+     * which a writer asks for them. -1 if the map has no such key.
+     */
+    int indexOf(String key, int hint) {
+        if (hint < size && keys[hint] == key) {
+            return hint;
+        }
+        return indexOf(key);
+    }
+
+    /** The value at an index found with {@link #indexOf(String, int)}. */
+    @Nullable Object valueAt(int index) {
+        return values[index];
+    }
+
+    /**
      * Adds an entry without looking for an existing one with the key: for building a map whose keys are known to be
      * distinct, such as a parsed JSON object.
      */
