@@ -30,6 +30,8 @@ public final class JsonTreeReader {
 
     private final byte[] in;
     private int pos;
+    private Object[] stack = new Object[64];
+    private int stackSize;
 
     private JsonTreeReader(byte[] in) {
         this.in = in;
@@ -148,19 +150,33 @@ public final class JsonTreeReader {
         }
     }
 
+    /**
+     * Reads an array. Its items are collected on a stack shared by all arrays of the document and copied into a list
+     * of the right size, instead of growing a list.
+     */
     private List<Object> readArray() throws IOException {
         pos++;
-        List<Object> array = new ArrayList<>();
         skipWhitespace();
         if (in[pos] == ']') {
             pos++;
-            return array;
+            return new ArrayList<>(0);
         }
+        int base = stackSize;
         while (true) {
-            array.add(readValue(null));
+            Object item = readValue(null);
+            if (stackSize == stack.length) {
+                stack = Arrays.copyOf(stack, stack.length * 2);
+            }
+            stack[stackSize++] = item;
             skipWhitespace();
             byte next = in[pos++];
             if (next == ']') {
+                List<Object> array = new ArrayList<>(stackSize - base);
+                for (int i = base; i < stackSize; i++) {
+                    array.add(stack[i]);
+                    stack[i] = null;
+                }
+                stackSize = base;
                 return array;
             }
             if (next != ',') {
