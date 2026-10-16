@@ -132,8 +132,11 @@ public final class Executor {
         // Collect all step results and merge them
         List<Mono<StepResult>> allSteps = new ArrayList<>(stepMonos.values());
 
+        // The context write caches the subscriber context for the steps: Reactor reads it per subgraph call and per
+        // cached step, and each read walks up the operator chain to the nearest context write
         return Mono.zip(allSteps, this::mergeAllStepResults)
-            .map(this::buildResult);
+            .map(this::buildResult)
+            .contextWrite(context -> context);
     }
 
     /**
