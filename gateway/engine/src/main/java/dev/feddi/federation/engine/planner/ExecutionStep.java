@@ -30,6 +30,15 @@ import java.util.stream.Collectors;
  * @param entityPath response keys locating lookup targets from the response root; required by the
  *                   executor for repeated steps, null only for root steps and expected plans in tests
  * @param requestedFieldPaths dot-notation paths of fields explicitly requested by the client
+ * @param entityTypes concrete types an entity at {@code entityPath} must have for this step to apply
+ *                    (by its {@code __typename}); empty means any. A lookup for {@code Book} below an
+ *                    abstract field must not run for the list's {@code Magazine} items.
+ * @param entityPathTypes concrete types the objects along {@code entityPath} must have, by the number of path
+ *                        segments that lead to them (1 is the object at the first response key); objects of
+ *                        other types are skipped. A lookup below {@code ... on UserReview { product }} must not
+ *                        run for an {@code AnonymousReview}'s product.
+ * @param possibleTypes the possible object types of the interfaces and unions used as type conditions in
+ *                      {@code requirements}, so that {@code <Bar>.bar} matches a {@code Qux} implementing Bar
  */
 public record ExecutionStep(
     int id,
@@ -41,7 +50,10 @@ public record ExecutionStep(
     boolean repeatedExecution,
     Set<String> artificialFieldPaths,
     Set<String> requestedFieldPaths,
-    List<String> entityPath
+    List<String> entityPath,
+    Set<String> entityTypes,
+    Map<Integer, Set<String>> entityPathTypes,
+    Map<String, Set<String>> possibleTypes
 ) {
 
     /**
@@ -53,11 +65,26 @@ public record ExecutionStep(
                          Map<String, SelectedValue> requirements, boolean repeatedExecution,
                          Set<String> artificialFieldPaths, Set<String> requestedFieldPaths) {
         this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
-            artificialFieldPaths, requestedFieldPaths, null);
+            artificialFieldPaths, requestedFieldPaths, null, Set.of(), Map.of(), Map.of());
+    }
+
+    /**
+     * Constructor without entity types: the step applies to every entity at its entity path.
+     */
+    public ExecutionStep(int id, String subgraph, OperationDefinition operation,
+                         List<Integer> dependsOn, List<Integer> parallelWith,
+                         Map<String, SelectedValue> requirements, boolean repeatedExecution,
+                         Set<String> artificialFieldPaths, Set<String> requestedFieldPaths,
+                         List<String> entityPath) {
+        this(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, Set.of(), Map.of(), Map.of());
     }
 
     public ExecutionStep {
         entityPath = entityPath == null ? null : List.copyOf(entityPath);
+        entityTypes = entityTypes == null ? Set.of() : Set.copyOf(entityTypes);
+        entityPathTypes = entityPathTypes == null ? Map.of() : Map.copyOf(entityPathTypes);
+        possibleTypes = possibleTypes == null ? Map.of() : Map.copyOf(possibleTypes);
         if (id < 1) {
             throw new IllegalArgumentException("id must be positive");
         }
@@ -74,49 +101,24 @@ public record ExecutionStep(
         requestedFieldPaths = requestedFieldPaths == null ? Set.of() : Set.copyOf(requestedFieldPaths);
     }
 
-    /**
-     * Creates a root step with no dependencies.
-     */
-    public static ExecutionStep root(int id, String subgraph, OperationDefinition operation) {
-        return new ExecutionStep(id, subgraph, operation, List.of(), List.of(), Map.of(), false, Set.of(), Set.of());
+    /** This step, depending on other steps. */
+    public ExecutionStep withDependsOn(List<Integer> dependsOn) {
+        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, possibleTypes);
     }
 
-    /**
-     * Creates a dependent step.
-     */
-    public static ExecutionStep dependent(
-        int id,
-        String subgraph,
-        OperationDefinition operation,
-        List<Integer> dependsOn,
-        Map<String, SelectedValue> requirements,
-        boolean repeatedExecution
-    ) {
-        return new ExecutionStep(id, subgraph, operation, dependsOn, List.of(), requirements, repeatedExecution, Set.of(), Set.of());
+    /** This step, running in parallel with other steps. */
+    public ExecutionStep withParallelWith(List<Integer> parallelWith) {
+        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, possibleTypes);
     }
 
-    /**
-     * Creates a dependent step with parallel execution information.
-     */
-    public static ExecutionStep dependent(
-        int id,
-        String subgraph,
-        OperationDefinition operation,
-        List<Integer> dependsOn,
-        List<Integer> parallelWith,
-        Map<String, SelectedValue> requirements,
-        boolean repeatedExecution
-    ) {
-        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution, Set.of(), Set.of());
+    /** This step, for entities along its entity path of other types. */
+    public ExecutionStep withEntityPathTypes(Map<Integer, Set<String>> entityPathTypes) {
+        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, possibleTypes);
     }
 
-    /**
-     * Checks if this step has any artificial fields that should be filtered.
-     */
-    public boolean hasArtificialFields() {
-        return !artificialFieldPaths.isEmpty();
-    }
-    
     /**
      * Returns a flattened list of all field names in this step.
      * Useful for debugging and simple comparisons.
@@ -158,20 +160,6 @@ public record ExecutionStep(
      */
     public boolean isRoot() {
         return dependsOn.isEmpty();
-    }
-    
-    /**
-     * Checks if this step has requirements from previous steps.
-     */
-    public boolean hasRequirements() {
-        return !requirements.isEmpty();
-    }
-    
-    /**
-     * Checks if this step can run in parallel with other steps.
-     */
-    public boolean hasParallelSteps() {
-        return !parallelWith.isEmpty();
     }
 
     @Override

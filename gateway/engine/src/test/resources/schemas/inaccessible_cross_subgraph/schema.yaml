@@ -4,7 +4,7 @@ description: |
   even if other source schemas define the same member without @inaccessible.
 
   In this test:
-  - Subgraph A defines Status enum with ACTIVE, INACTIVE (no @inaccessible)
+  - Subgraph A defines Status enum with ACTIVE, INACTIVE, PENDING (no @inaccessible)
   - Subgraph B defines Status enum with ACTIVE @inaccessible, INACTIVE, PENDING
 
   The supergraph should NOT include ACTIVE because it's @inaccessible in subgraph B,
@@ -14,7 +14,7 @@ subgraphs:
   a: |
     type Query {
       orders: [Order]
-      orderById(id: ID!): Order @lookup
+      orderById(id: ID!): Order @lookup @shareable
     }
 
     type Order @key(fields: "id") {
@@ -25,12 +25,13 @@ subgraphs:
     enum Status {
       ACTIVE
       INACTIVE
+      PENDING
     }
 
   b: |
     type Query {
       ordersByStatus(status: Status!): [Order!]
-      orderById(id: ID!): Order @lookup
+      orderById(id: ID!): Order @lookup @shareable
     }
 
     type Order @key(fields: "id") {

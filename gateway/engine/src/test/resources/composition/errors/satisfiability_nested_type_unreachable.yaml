@@ -1,4 +1,4 @@
-name: "SATISFIABILITY_ERROR - Nested type fields unreachable"
+name: "UNSATISFIABLE_QUERY_PATH - Nested type fields unreachable"
 description: "Product.details returns Details, but Details.weight in subgraph B is unreachable without a lookup"
 
 subgraphs:
@@ -29,4 +29,4 @@ subgraphs:
       dimensions: String
     }
 
-error: "SATISFIABILITY_ERROR"
+error: "UNSATISFIABLE_QUERY_PATH"

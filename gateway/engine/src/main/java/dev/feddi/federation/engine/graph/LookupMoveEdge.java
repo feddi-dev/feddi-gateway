@@ -13,6 +13,9 @@ import java.util.List;
  * @param cost the cost of this edge (typically higher than direct field access, e.g., 10)
  * @param lookupArguments the lookup arguments needed for the lookup (from @is mappings), with type info
  * @param requires the field requirements (from @require directive), with type info
+ * @param returnType the lookup field's return type: the target type, or an interface or union it belongs to
+ * @param lookupPath the fields without arguments from Query to the type that defines the lookup field (empty when
+ *                   it is a Query field), e.g. ["lookups"] for Query.lookups.brandById
  */
 public record LookupMoveEdge(
     String lookupField,
@@ -20,7 +23,9 @@ public record LookupMoveEdge(
     Node target,
     int cost,
     List<LookupArgument> lookupArguments,
-    List<Requirement> requires
+    List<Requirement> requires,
+    String returnType,
+    List<String> lookupPath
 ) implements Edge {
 
     public LookupMoveEdge {
@@ -38,13 +43,18 @@ public record LookupMoveEdge(
         }
         lookupArguments = lookupArguments == null ? List.of() : List.copyOf(lookupArguments);
         requires = requires == null ? List.of() : List.copyOf(requires);
+        if (returnType == null) {
+            returnType = target.typeName();
+        }
+        lookupPath = lookupPath == null ? List.of() : List.copyOf(lookupPath);
     }
 
     /**
-     * Creates a LookupMoveEdge with default cost of 10 and no requirements.
+     * Creates a LookupMoveEdge whose lookup field returns the target type.
      */
-    public static LookupMoveEdge withDefaultCost(String lookupField, Node source, Node target, List<LookupArgument> lookupArguments) {
-        return new LookupMoveEdge(lookupField, source, target, 10, lookupArguments, List.of());
+    public LookupMoveEdge(String lookupField, Node source, Node target, int cost,
+                          List<LookupArgument> lookupArguments, List<Requirement> requires) {
+        this(lookupField, source, target, cost, lookupArguments, requires, null, List.of());
     }
 
     @Override

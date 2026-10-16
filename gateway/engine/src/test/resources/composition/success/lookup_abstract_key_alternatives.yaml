@@ -1,0 +1,65 @@
+name: "Lookup on an interface with one @is alternative per possible type"
+description: "LOOKUP_KEY_MISSING_FOR_TYPE: the alternatives cover every possible type of Media"
+
+subgraphs:
+  media: |
+    type Query {
+      media: [Media]
+      mediaByKey(key: MediaKeyInput! @is(field: "{ isbn: <Book>.isbn } | { upc: <Movie>.upc } | { feedUrl: <Podcast>.feedUrl }")): Media @lookup
+    }
+
+    input MediaKeyInput @oneOf {
+      isbn: String
+      upc: String
+      feedUrl: String
+    }
+
+    interface Media {
+      id: ID!
+    }
+
+    type Book implements Media {
+      id: ID!
+      isbn: String!
+    }
+
+    type Movie implements Media {
+      id: ID!
+      upc: String!
+    }
+
+    type Podcast implements Media {
+      id: ID!
+      feedUrl: String!
+    }
+
+supergraph: |
+  type Query {
+    media: [Media]
+    mediaByKey(key: MediaKeyInput!): Media
+  }
+
+  interface Media {
+    id: ID!
+  }
+
+  type Book implements Media {
+    id: ID!
+    isbn: String!
+  }
+
+  type Movie implements Media {
+    id: ID!
+    upc: String!
+  }
+
+  type Podcast implements Media {
+    id: ID!
+    feedUrl: String!
+  }
+
+  input MediaKeyInput @oneOf {
+    isbn: String
+    upc: String
+    feedUrl: String
+  }

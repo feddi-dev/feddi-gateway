@@ -1,5 +1,5 @@
 name: "@include with variable=false excludes field at runtime"
-description: "When @include(if: $var) is used and $var=false, the field is excluded at runtime"
+description: "@include(if: $var) with var false: the field and the lookups for its requirements are not planned"
 
 query: |
   query GetProduct($showField: Boolean!) {
@@ -14,21 +14,9 @@ variables: { showField: false }
 subgraphCalls:
   - id: step1
     subgraph: a
-    operation: '{ product { id price } }'
+    operation: '{ product { id } }'
     variables: {}
-    response: { data: { product: { id: "p1", price: 100.0 } } }
-
-  - id: step3
-    subgraph: b
-    operation: 'query ($id: ID!, $price: Float!) { productById(id: $id) { isExpensive(price: $price) } }'
-    variables: { id: "p1", price: 100.0 }
-    response: { data: { productById: { isExpensive: false } } }
-
-  - id: step2
-    subgraph: c
-    operation: 'query ($id: ID!, $isExpensive: Boolean!, $showField: Boolean!) { productById(id: $id) { include(isExpensive: $isExpensive) @include(if: $showField) } }'
-    variables: { id: "p1", isExpensive: false, showField: false }
-    response: { data: { productById: {} } }
+    response: { data: { product: { id: "p1" } } }
 
 expectedResponse: {
   data: {

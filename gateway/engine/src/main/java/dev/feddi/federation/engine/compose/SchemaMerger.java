@@ -86,8 +86,11 @@ public final class SchemaMerger {
         stripInternalFromRegistry(secondRegistry);
 
         // Merge the registries
-        TypeDefinitionRegistry mergedRegistry = mergeRegistries(firstRegistry, secondRegistry);
+        return buildMerged(mergeRegistries(firstRegistry, secondRegistry));
+    }
 
+    /** Removes what the public schema does not show from merged source registries, and builds it. */
+    private GraphQLSchema buildMerged(TypeDefinitionRegistry mergedRegistry) {
         // Remove @inaccessible types from the merged registry
         Set<String> removedTypes = removeInaccessibleTypes(mergedRegistry);
 
@@ -432,11 +435,15 @@ public final class SchemaMerger {
             return stripFederationDirectives(schemas.get(0));
         }
 
-        GraphQLSchema result = schemas.get(0);
-        for (int i = 1; i < schemas.size(); i++) {
-            result = merge(result, schemas.get(i));
+        // Merge all source schemas before building: an intermediate schema can be invalid (an interface
+        // field from one schema whose implementation only gets it from a later one)
+        TypeDefinitionRegistry merged = null;
+        for (GraphQLSchema schema : schemas) {
+            TypeDefinitionRegistry registry = toTypeDefinitionRegistry(normalizeRootTypes(schema));
+            stripInternalFromRegistry(registry);
+            merged = merged == null ? registry : mergeRegistries(merged, registry);
         }
-        return result;
+        return buildMerged(merged);
     }
 
     /**
@@ -477,7 +484,6 @@ public final class SchemaMerger {
                 cleanRegistry.add(directiveDef);
             }
         });
-        registry.schemaDefinition().ifPresent(cleanRegistry::add);
 
         // Update unions to remove members that reference @inaccessible types
         updateUnionMembers(cleanRegistry, inaccessibleTypes);
@@ -511,7 +517,6 @@ public final class SchemaMerger {
             }
         });
         first.getDirectiveDefinitions().values().forEach(merged::add);
-        first.schemaDefinition().ifPresent(merged::add);
         
         // Add all type extensions from first
         first.objectTypeExtensions().forEach((name, exts) -> exts.forEach(merged::add));
@@ -1129,8 +1134,9 @@ public final class SchemaMerger {
     /**
      * Merges two field definitions.
      * Prefers non-external fields over external ones.
-     * Also merges arguments from both definitions (spec 3.3.9/3.3.10).
-     * If an argument is marked @inaccessible in ANY schema, it should be hidden
+     * An argument survives only if both definitions declare it (MergeOutputFields: "If length of {arguments} is
+     * not equal to the length of {fields}: Continue"); an @external definition only mirrors the field and does not
+     * take part. If an argument is marked @inaccessible in ANY schema, it should be hidden
      * from the supergraph, even if other schemas define it without @inaccessible.
      * Arguments marked with @require are removed entirely from the composite schema.
      */
@@ -1169,15 +1175,14 @@ public final class SchemaMerger {
             }
         }
 
-        // Merge arguments from both definitions, excluding @inaccessible and @require ones
+        // Keep the arguments both definitions declare (the base's only, when the other is an @external mirror),
+        // excluding @inaccessible and @require ones
+        boolean otherTakesPart = firstIsExternal == secondIsExternal;
+        Set<String> otherArgs = new HashSet<>();
+        other.getInputValueDefinitions().forEach(arg -> otherArgs.add(arg.getName()));
         Map<String, InputValueDefinition> mergedArgs = new LinkedHashMap<>();
         for (InputValueDefinition arg : base.getInputValueDefinitions()) {
-            if (!excludedArgs.contains(arg.getName())) {
-                mergedArgs.put(arg.getName(), arg);
-            }
-        }
-        for (InputValueDefinition arg : other.getInputValueDefinitions()) {
-            if (!mergedArgs.containsKey(arg.getName()) && !excludedArgs.contains(arg.getName())) {
+            if (!excludedArgs.contains(arg.getName()) && (!otherTakesPart || otherArgs.contains(arg.getName()))) {
                 mergedArgs.put(arg.getName(), arg);
             }
         }
@@ -1245,7 +1250,9 @@ public final class SchemaMerger {
     }
     
     /**
-     * Builds a GraphQLSchema from a TypeDefinitionRegistry.
+     * Builds the merged schema. It has no schema definition: the source schemas' root types are normalized to
+     * Query and Mutation, which become the root operation types by name (a schema definition of one source
+     * schema would leave out the Mutation type of the others).
      */
     private GraphQLSchema buildSchema(TypeDefinitionRegistry registry) {
         RuntimeWiring wiring = RuntimeWiring.newRuntimeWiring()

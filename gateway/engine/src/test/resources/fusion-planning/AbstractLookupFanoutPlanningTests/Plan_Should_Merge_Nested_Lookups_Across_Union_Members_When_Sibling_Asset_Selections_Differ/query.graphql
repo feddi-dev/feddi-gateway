@@ -1,0 +1,29 @@
+query testQuery {
+  search {
+    ... on ExistingResult {
+      asset {
+        meterType { type }
+        category { allowedMeterTypes { type } }
+      }
+    }
+    ... on ConfigMatchesResult {
+      asset {
+        category { allowedMeterTypes { type } }
+        meterType { type }
+      }
+    }
+    ... on NotSubmissableResult {
+      asset {
+        meterType { type }
+        statusMessage
+        category { allowedMeterTypes { type } }
+      }
+    }
+    ... on CustomResult {
+      asset {
+        meterType { type }
+        category { allowedMeterTypes { type } }
+      }
+    }
+  }
+}

@@ -5,7 +5,7 @@ subgraphs:
   age: |
     type Query {
       usersInAge: [User!]! @shareable
-      userById(id: ID!): User @lookup
+      userById(id: ID!): User @lookup @shareable
     }
 
     type User @key(fields: "id") {
@@ -16,7 +16,7 @@ subgraphs:
   friends: |
     type Query {
       usersInFriends: [User!]!
-      userById(id: ID!): User @lookup
+      userById(id: ID!): User @lookup @shareable
     }
 
     type User @key(fields: "id") {

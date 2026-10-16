@@ -22,7 +22,7 @@ subgraphs:
 
   reviews: |
     type Query {
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
       reviewByIdReviews(id: ID!): Review @lookup
     }
 
@@ -41,7 +41,7 @@ subgraphs:
 
   inventory: |
     type Query {
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
     }
 
     type Product @key(fields: "id") {
@@ -59,7 +59,7 @@ subgraphs:
 
   pricing: |
     type Query {
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
     }
 
     type Product @key(fields: "id") {

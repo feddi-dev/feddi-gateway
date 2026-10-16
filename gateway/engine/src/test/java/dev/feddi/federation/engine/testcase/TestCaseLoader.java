@@ -76,7 +76,6 @@ public final class TestCaseLoader {
             .inlineFragments(true)
             .deduplicateFields(true)
             .sortSelections(false)  // Don't sort to preserve query field order
-            .processSkipInclude(true)  // Evaluate literal @skip/@include at planning time
             .build();
     }
     
@@ -202,8 +201,12 @@ public final class TestCaseLoader {
     private QueryTest parseQueryTest(JsonNode node, GraphQLSchema supergraphSchema) {
         String name = node.path("name").asText("unnamed");
         String description = node.path("description").asText(null);
-        OperationNormalizer normalizer = createNormalizer(supergraphSchema);
-        Operation operation = Operation.parse(node.path("query").asText(), normalizer);
+        // Like the gateway: @skip/@include on variables are evaluated with the fixture's values
+        String query = node.path("query").asText();
+        Map<String, Object> variables = node.has("variables") ? parseJsonToMap(node.path("variables")) : Map.of();
+        OperationNormalizer normalizer = createNormalizer(supergraphSchema).withConditionValues(
+            OperationNormalizer.conditionValues(parser.parseDocument(query), variables));
+        Operation operation = Operation.parse(query, normalizer);
         ExecutionPlan expectedPlan = node.has("expectedPlan")
             ? parseExpectedPlan(node.path("expectedPlan"))
             : null;

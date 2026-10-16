@@ -1,5 +1,5 @@
 name: "@include with variable=true includes field at runtime"
-description: "When @include(if: $var) is used and $var=true, the field is included at runtime"
+description: "@include(if: $var) with var true: the field is planned without the directive"
 
 query: |
   query GetProduct($showField: Boolean!) {
@@ -26,8 +26,8 @@ subgraphCalls:
 
   - id: step2
     subgraph: c
-    operation: 'query ($id: ID!, $isExpensive: Boolean!, $showField: Boolean!) { productById(id: $id) { include(isExpensive: $isExpensive) @include(if: $showField) } }'
-    variables: { id: "p1", isExpensive: true, showField: true }
+    operation: 'query ($id: ID!, $isExpensive: Boolean!) { productById(id: $id) { include(isExpensive: $isExpensive) } }'
+    variables: { id: "p1", isExpensive: true }
     response: { data: { productById: { include: true } } }
 
 expectedResponse: {

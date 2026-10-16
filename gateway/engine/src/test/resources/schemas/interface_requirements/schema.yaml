@@ -1,0 +1,48 @@
+name: "Interface requirements"
+description: |
+  An interface field with @require: the interface's selection map is rooted at the interface and reaches the
+  implementations' fields through type conditions; each implementation declares the requirement as well
+  (REQUIRE_INCONSISTENT_ON_IMPLEMENTATION). The field is resolved per possible type, by re-entering catalog
+  with a lookup that carries the required value.
+
+subgraphs:
+  catalog: |
+    type Query {
+      media: [Media]
+      bookById(id: ID!): Book @lookup @internal
+      movieById(id: ID!): Movie @lookup @internal
+    }
+
+    interface Media {
+      id: ID!
+      title: String
+      price(rate: Float @require(field: "<Book>.rate | <Movie>.rate")): Float
+    }
+
+    type Book implements Media @key(fields: "id") {
+      id: ID!
+      title: String
+      price(rate: Float @require(field: "rate")): Float
+    }
+
+    type Movie implements Media @key(fields: "id") {
+      id: ID!
+      title: String
+      price(rate: Float @require(field: "rate")): Float
+    }
+
+  pricing: |
+    type Query {
+      bookById(id: ID!): Book @lookup @internal
+      movieById(id: ID!): Movie @lookup @internal
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      rate: Float
+    }
+
+    type Movie @key(fields: "id") {
+      id: ID!
+      rate: Float
+    }

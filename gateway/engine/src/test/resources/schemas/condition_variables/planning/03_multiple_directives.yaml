@@ -1,0 +1,21 @@
+name: "Several conditions with variables"
+description: "Each @skip/@include is evaluated with its variable before planning; no directive reaches the subgraph"
+
+query: |
+  query GetUser($skipName: Boolean!, $showEmail: Boolean!) {
+    user {
+      id
+      name @skip(if: $skipName)
+      email @include(if: $showEmail)
+    }
+  }
+
+variables: { skipName: false, showEmail: false }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: a
+      operation: "{ user { id name } }"
+      dependsOn: []
+      repeatedExecution: false

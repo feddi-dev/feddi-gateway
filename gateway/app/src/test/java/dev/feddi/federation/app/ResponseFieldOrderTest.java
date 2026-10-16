@@ -29,7 +29,7 @@ class ResponseFieldOrderTest {
     private static final String PRODUCTS_SDL = """
         type Query {
           products: [Product]
-          productById(id: ID!): Product @lookup
+          productById(id: ID!): Product @lookup @shareable
         }
         type Product @key(fields: "id") {
           id: ID!
@@ -40,7 +40,7 @@ class ResponseFieldOrderTest {
 
     private static final String INVENTORY_SDL = """
         type Query {
-          productById(id: ID!): Product @lookup
+          productById(id: ID!): Product @lookup @shareable
         }
         type Product @key(fields: "id") {
           id: ID!
@@ -83,11 +83,30 @@ class ResponseFieldOrderTest {
         assertThat(data.keySet()).containsExactly("second", "first");
     }
 
-    private static Map<String, Object> execute(String query) {
-        var gateway = FeddiFederationGateway.create(
+    @Test
+    void cachedPlansKeepTheQueryOrder() {
+        var gateway = gateway();
+        String query = "{ products { inStock name id } }";
+
+        execute(gateway, query);
+        var data = execute(gateway, query);
+
+        assertThat(list(data.get("products"))).allSatisfy(product ->
+            assertThat(product.keySet()).containsExactly("inStock", "name", "id"));
+    }
+
+    private static FeddiFederationGateway gateway() {
+        return FeddiFederationGateway.create(
             List.of(new SubgraphInput("products", "http://products", PRODUCTS_SDL),
                 new SubgraphInput("inventory", "http://inventory", INVENTORY_SDL)),
             Map.of("products", client(PRODUCTS_SDL, "products"), "inventory", client(INVENTORY_SDL, "inventory")));
+    }
+
+    private static Map<String, Object> execute(String query) {
+        return execute(gateway(), query);
+    }
+
+    private static Map<String, Object> execute(FeddiFederationGateway gateway, String query) {
         var result = gateway.execute(ExecutionInput.newExecutionInput().query(query).build()).block().executionResult();
         assertThat(result.getErrors()).isEmpty();
         return result.getData();
@@ -95,7 +114,7 @@ class ResponseFieldOrderTest {
 
     /** Executes subgraph operations against an executable copy of the subgraph schema. */
     private static SubgraphClient client(String sdl, String subgraph) {
-        String plainSdl = sdl.replace(" @lookup", "").replace(" @key(fields: \"id\")", "");
+        String plainSdl = sdl.replace(" @lookup", "").replace(" @shareable", "").replace(" @key(fields: \"id\")", "");
         var wiring = RuntimeWiring.newRuntimeWiring()
             .type("Query", t -> t
                 .dataFetcher("products", env -> copies(PRODUCTS))
@@ -104,7 +123,7 @@ class ResponseFieldOrderTest {
                     .map(LinkedHashMap::new).orElse(null)))
             .build();
         var graphQL = GraphQL.newGraphQL(new SchemaGenerator().makeExecutableSchema(new SchemaParser().parse(plainSdl), wiring)).build();
-        return (operation, variables, context) -> Mono.fromCallable(() -> graphQL.execute(ExecutionInput.newExecutionInput()
+        return (PerEntitySubgraphClient) (operation, variables, context) -> Mono.fromCallable(() -> graphQL.execute(ExecutionInput.newExecutionInput()
             .query(AstPrinter.printAst(Document.newDocument().definition(operation).build()))
             .variables(variables)
             .build()));

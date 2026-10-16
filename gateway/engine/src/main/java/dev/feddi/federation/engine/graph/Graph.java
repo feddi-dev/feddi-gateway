@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 /**
@@ -33,11 +34,18 @@ public final class Graph {
     private final Map<String, Set<String>> interfaceToImplementingTypes;
     // Maps type name to the unions it is a member of (across all subgraphs)
     private final Map<String, Set<String>> typeMemberOfUnions;
+    // Return types of @external fields per node ("Level1/a" -> level2 -> "Level2"), for fields reached via @provides
+    private final Map<Node, Map<String, String>> externalFieldTypes;
+    // The @require arguments of each node's fields, by field name
+    private final Map<Node, Map<String, List<Requirement>>> requirements;
+    // The output type of each node's fields as GraphQL prints it ("[String!]"), by field name
+    private final Map<Node, Map<String, String>> fieldTypes;
 
     private Graph(Set<Node> nodes, List<Edge> edges, Map<String, Node> rootNodes,
                   Map<FieldMoveEdge, FieldSelectionSet> providesMap, Map<String, Set<String>> typeImplementsInterfaces,
                   Map<String, Set<String>> interfaceToImplementingTypes,
-                  Map<String, Set<String>> typeMemberOfUnions) {
+                  Map<String, Set<String>> typeMemberOfUnions, Map<Node, Map<String, String>> externalFieldTypes,
+                  Map<Node, Map<String, List<Requirement>>> requirements, Map<Node, Map<String, String>> fieldTypes) {
         this.nodes = Set.copyOf(nodes);
         this.edges = List.copyOf(edges);
         this.rootNodes = Map.copyOf(rootNodes);
@@ -45,6 +53,9 @@ public final class Graph {
         this.typeImplementsInterfaces = Map.copyOf(typeImplementsInterfaces);
         this.interfaceToImplementingTypes = Map.copyOf(interfaceToImplementingTypes);
         this.typeMemberOfUnions = Map.copyOf(typeMemberOfUnions);
+        this.externalFieldTypes = Map.copyOf(externalFieldTypes);
+        this.requirements = Map.copyOf(requirements);
+        this.fieldTypes = Map.copyOf(fieldTypes);
 
         // Build adjacency list for efficient edge lookup
         this.outgoingEdges = new HashMap<>();
@@ -113,15 +124,7 @@ public final class Graph {
             .filter(e -> e.fieldName().equals(fieldName))
             .findFirst();
     }
-    
-    /**
-     * Finds all LookupMoveEdges from a node to a specific subgraph.
-     */
-    public Stream<LookupMoveEdge> findLookupEdgesToSubgraph(Node node, String subgraph) {
-        return lookupEdgesFrom(node)
-            .filter(e -> e.target().subgraph().equals(subgraph));
-    }
-    
+
     /**
      * Gets all unique subgraphs in the graph.
      */
@@ -150,12 +153,30 @@ public final class Graph {
     }
     
     /**
+     * The named return type of an @external field of {@code source}, or null.
+     */
+    public String externalFieldType(Node source, String fieldName) {
+        return externalFieldTypes.getOrDefault(source, Map.of()).get(fieldName);
+    }
+
+    /**
      * Gets the FieldSelectionSet provided by a field edge via @provides directive.
      * @param edge the field edge to check
      * @return the FieldSelectionSet provided by this edge, or empty selection set if none
      */
     public FieldSelectionSet getProvidedFields(FieldMoveEdge edge) {
-        return providesMap.getOrDefault(edge, new FieldSelectionSet(List.of()));
+        FieldSelectionSet provided = providesMap.get(edge);
+        if (provided == null && edge.source().subgraph().equals(dev.feddi.federation.engine.graph.GraphBuilder.ROOT_SUBGRAPH)) {
+            // A root field is reached from the unified root node; @provides is on the subgraph's own edge
+            for (var entry : providesMap.entrySet()) {
+                FieldMoveEdge own = entry.getKey();
+                if (own.fieldName().equals(edge.fieldName()) && own.target().equals(edge.target())
+                    && own.source().typeName().equals(edge.source().typeName())) {
+                    provided = entry.getValue();
+                }
+            }
+        }
+        return provided != null ? provided : new FieldSelectionSet(List.of());
     }
 
     /**
@@ -224,31 +245,73 @@ public final class Graph {
     }
 
     /**
-     * Checks if a field on a type has @require dependencies.
-     * This is determined by checking if any LookupMoveEdge targeting that type/subgraph
-     * has requirements for the given field.
-     *
-     * @param typeName the type name
-     * @param subgraph the subgraph
-     * @param fieldName the field name to check
-     * @return true if the field has @require, false otherwise
+     * Gets the member types of a union.
+     * @param unionName the union name
+     * @return set of member type names, or empty set if the union is unknown
+     */
+    public Set<String> getUnionMembers(String unionName) {
+        Set<String> members = new TreeSet<>();
+        typeMemberOfUnions.forEach((type, unions) -> {
+            if (unions.contains(unionName)) {
+                members.add(type);
+            }
+        });
+        return members;
+    }
+
+    /**
+     * Whether a field of a type in a subgraph has @require arguments. An interface field counts as requiring when
+     * an implementation's field in the subgraph does: it is then resolved per possible type.
      */
     public boolean fieldHasRequire(String typeName, String subgraph, String fieldName) {
-        // Check all lookup edges that target this type/subgraph
-        for (Edge edge : edges) {
-            if (edge instanceof LookupMoveEdge lookupEdge) {
-                if (lookupEdge.target().typeName().equals(typeName)
-                    && lookupEdge.target().subgraph().equals(subgraph)) {
-                    // Check if this lookup has @require for the field
-                    for (Requirement req : lookupEdge.requires()) {
-                        if (fieldName.equals(req.fieldName())) {
-                            return true;
-                        }
-                    }
-                }
+        if (!requirementsOf(typeName, subgraph, fieldName).isEmpty()) {
+            return true;
+        }
+        for (String implementation : getImplementingTypesForInterface(typeName)) {
+            if (fieldHasRequire(implementation, subgraph, fieldName)) {
+                return true;
             }
         }
         return false;
+    }
+
+    /** The @require arguments of a field of a type in a subgraph. */
+    public List<Requirement> requirementsOf(String typeName, String subgraph, String fieldName) {
+        return requirements.getOrDefault(new Node(typeName, subgraph), Map.of()).getOrDefault(fieldName, List.of());
+    }
+
+    /**
+     * The object types an object of {@code typeName} can have: an interface's implementations, a union's members,
+     * or the type itself; empty for null.
+     */
+    public Set<String> concreteTypes(String typeName) {
+        if (typeName == null) {
+            return Set.of();
+        }
+        Set<String> implementations = getImplementingTypesForInterface(typeName);
+        if (!implementations.isEmpty()) {
+            return implementations;
+        }
+        Set<String> members = getUnionMembers(typeName);
+        return members.isEmpty() ? Set.of(typeName) : members;
+    }
+
+    /** Whether the type is an interface with implementations or a union with members. */
+    public boolean isAbstract(String typeName) {
+        return !getImplementingTypesForInterface(typeName).isEmpty() || !getUnionMembers(typeName).isEmpty();
+    }
+
+    /** Whether the type is the root type of an operation (Query, Mutation). */
+    public boolean isRootOperationType(String typeName) {
+        return rootNodes.containsKey(typeName);
+    }
+
+    /**
+     * The output type of a field of a type in a subgraph as GraphQL prints it (e.g. {@code [String!]}), or null if
+     * the subgraph does not define the field.
+     */
+    public String fieldType(String typeName, String subgraph, String fieldName) {
+        return fieldTypes.getOrDefault(new Node(typeName, subgraph), Map.of()).get(fieldName);
     }
 
     /**
@@ -275,8 +338,34 @@ public final class Graph {
         private final Map<String, Set<String>> typeImplementsInterfaces = new HashMap<>();
         private final Map<String, Set<String>> interfaceToImplementingTypes = new HashMap<>();
         private final Map<String, Set<String>> typeMemberOfUnions = new HashMap<>();
+        private final Map<Node, Map<String, String>> externalFieldTypes = new HashMap<>();
+        private final Map<Node, Map<String, List<Requirement>>> requirements = new HashMap<>();
+        private final Map<Node, Map<String, String>> fieldTypes = new HashMap<>();
 
         private GraphBuilder() {}
+
+        /** Records a field's @require arguments. */
+        public GraphBuilder addRequirements(Node node, List<Requirement> fieldRequirements) {
+            for (Requirement requirement : fieldRequirements) {
+                requirements.computeIfAbsent(node, k -> new HashMap<>())
+                    .computeIfAbsent(requirement.fieldName(), k -> new ArrayList<>()).add(requirement);
+            }
+            return this;
+        }
+
+        /** Records a field's output type as GraphQL prints it. */
+        public GraphBuilder addFieldType(Node node, String fieldName, String printedType) {
+            fieldTypes.computeIfAbsent(node, k -> new HashMap<>()).put(fieldName, printedType);
+            return this;
+        }
+
+        /**
+         * Records the (named) return type of an @external field, which has no field edge.
+         */
+        public GraphBuilder addExternalFieldType(Node source, String fieldName, String typeName) {
+            externalFieldTypes.computeIfAbsent(source, k -> new HashMap<>()).put(fieldName, typeName);
+            return this;
+        }
         
         /**
          * Adds a node to the graph.
@@ -348,13 +437,6 @@ public final class Graph {
         }
 
         /**
-         * Adds a LookupMoveEdge with default cost.
-         */
-        public GraphBuilder addLookupEdge(String lookupField, Node source, Node target, List<LookupArgument> lookupArguments) {
-            return addEdge(LookupMoveEdge.withDefaultCost(lookupField, source, target, lookupArguments));
-        }
-        
-        /**
          * Associates @provides fields with a field edge.
          * @param edge the field edge that provides additional fields
          * @param providedFields the FieldSelectionSet provided when traversing this edge
@@ -404,13 +486,8 @@ public final class Graph {
             if (rootNodes.isEmpty()) {
                 throw new IllegalStateException("At least one root node must be set");
             }
-            for (Node rootNode : rootNodes.values()) {
-                if (!nodes.contains(rootNode)) {
-                    throw new IllegalStateException("Root node " + rootNode + " must be in the graph");
-                }
-            }
             return new Graph(nodes, edges, rootNodes, providesMap, typeImplementsInterfaces,
-                interfaceToImplementingTypes, typeMemberOfUnions);
+                interfaceToImplementingTypes, typeMemberOfUnions, externalFieldTypes, requirements, fieldTypes);
         }
     }
 }

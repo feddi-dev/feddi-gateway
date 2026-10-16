@@ -1,5 +1,5 @@
 name: "Mixed null and success with local fields"
-description: "When some entities have null lookups, successful ones should still return data for local fields"
+description: "When some entities have null lookups, successful ones still return data for local fields; a null lookup leaves the non-null Book.id null, so that book becomes null with an error"
 
 query: |
   {
@@ -33,7 +33,10 @@ expectedResponse: {
   data: {
     bookContainers: [
       { book: { upc: "upc1", id: "id1" } },
-      { book: { upc: "upc2", id: null } }
+      { book: null }
     ]
-  }
+  },
+  errors: [{
+    message: "Cannot return null for non-nullable field Book.id."
+  }]
 }

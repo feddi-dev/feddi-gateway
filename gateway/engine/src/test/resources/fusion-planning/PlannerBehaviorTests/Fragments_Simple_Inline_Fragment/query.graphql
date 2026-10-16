@@ -1,0 +1,11 @@
+query {
+  products {
+    price {
+      amount
+      currency
+    }
+    ... on Product {
+      isAvailable
+    }
+  }
+}

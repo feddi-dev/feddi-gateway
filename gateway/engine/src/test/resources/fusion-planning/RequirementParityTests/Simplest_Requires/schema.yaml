@@ -1,0 +1,29 @@
+name: Fusion RequirementParityTests.Simplest_Requires
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/RequirementParityTests.cs. MIT License.
+subgraphs:
+  products: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      products: [Product]
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      price: Int
+    }
+  inventory: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productByUpc(upc: String! @is(field: "upc")): Product @lookup @internal
+    }
+
+    type Product @key(fields: "upc") {
+      upc: String!
+      isExpensive(price: Int @require(field: "price")): Boolean
+    }

@@ -6,7 +6,6 @@ import dev.feddi.federation.engine.parser.InvalidSyntaxException;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
-import graphql.introspection.Introspection;
 import graphql.language.StringValue;
 import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
@@ -16,7 +15,6 @@ import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLNamedType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
-import graphql.schema.idl.ScalarInfo;
 
 import java.util.List;
 import java.util.regex.Matcher;
@@ -26,6 +24,7 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.IS;
 import static dev.feddi.federation.engine.compose.FederationDirectives.KEY;
 import static dev.feddi.federation.engine.compose.FederationDirectives.PROVIDES;
 import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that all FieldSelectionMap and FieldSelectionSet values have valid syntax.
@@ -38,11 +37,11 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
 public final class FieldSelectionMapSyntaxRule implements ValidationRule {
 
     private static final String KEY_CODE = "KEY_INVALID_SYNTAX";
-    private static final String KEY_DIRECTIVE_CODE = "KEY_DIRECTIVE_IN_FIELDS_ARG";
+    private static final String KEY_DIRECTIVE_CODE = "KEY_DIRECTIVE_IN_FIELDS_ARGUMENT";
     private static final String IS_CODE = "IS_INVALID_SYNTAX";
     private static final String REQUIRE_CODE = "REQUIRE_INVALID_SYNTAX";
     private static final String PROVIDES_CODE = "PROVIDES_INVALID_SYNTAX";
-    private static final String PROVIDES_DIRECTIVE_CODE = "PROVIDES_DIRECTIVE_IN_FIELDS_ARG";
+    private static final String PROVIDES_DIRECTIVE_CODE = "PROVIDES_DIRECTIVE_IN_FIELDS_ARGUMENT";
 
     // Pattern to detect directive syntax: @ followed by a valid GraphQL name
     // This matches @directiveName, @skip, @include, etc.
@@ -240,10 +239,6 @@ public final class FieldSelectionMapSyntaxRule implements ValidationRule {
             return stringValue.getValue();
         }
         return value != null ? value.toString() : null;
-    }
-
-    private boolean isBuiltInType(String typeName) {
-        return Introspection.isIntrospectionTypes(typeName) || ScalarInfo.isGraphqlSpecifiedScalar(typeName);
     }
 
     /**

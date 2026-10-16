@@ -12,8 +12,8 @@ subgraphs:
     type Query {
       media: [Media]
       mediaById(id: ID!): Media @lookup
-      bookById(id: ID!): Book @lookup
-      movieById(id: ID!): Movie @lookup
+      bookById(id: ID!): Book @lookup @shareable
+      movieById(id: ID!): Movie @lookup @shareable
     }
 
     interface Media @key(fields: "id") {
@@ -35,8 +35,8 @@ subgraphs:
 
   recommendations: |
     type Query {
-      bookById(id: ID!): Book @lookup
-      movieById(id: ID!): Movie @lookup
+      bookById(id: ID!): Book @lookup @shareable
+      movieById(id: ID!): Movie @lookup @shareable
     }
 
     interface Media @key(fields: "id") {

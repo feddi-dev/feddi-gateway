@@ -1,4 +1,4 @@
-name: "SATISFIABILITY_ERROR - Lookup chain broken"
+name: "UNSATISFIABLE_QUERY_PATH - Lookup chain broken"
 description: |
   Tests that satisfiability validation catches fields that are unreachable in the supergraph.
   The catalog subgraph returns Product, and inventory extends it with extra fields,
@@ -28,4 +28,4 @@ subgraphs:
       warehouse: String
     }
 
-error: "SATISFIABILITY_ERROR"
+error: "UNSATISFIABLE_QUERY_PATH"

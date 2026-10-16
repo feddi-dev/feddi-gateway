@@ -1,0 +1,10 @@
+query ($included: Boolean!) {
+  recommender @include(if: $included) {
+    id
+    results {
+      ... on Product {
+        id
+      }
+    }
+  }
+}

@@ -1,5 +1,5 @@
-name: "Field arguments - merge from different subgraphs"
-description: "Spec 3.3.9/3.3.10: Arguments on same field from different sources are merged"
+name: "Field arguments - only those every source schema declares"
+description: "MergeOutputFields keeps an argument only if every field it merges declares it"
 
 subgraphs:
   users: |
@@ -26,7 +26,7 @@ subgraphs:
 
 supergraph: |
   type Query {
-    users(limit: Int, sortBy: String, offset: Int, filter: String): [User]
+    users(limit: Int): [User]
     userById(id: ID!): User
     userByIdProfiles(id: ID!): User
   }

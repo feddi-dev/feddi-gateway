@@ -1,0 +1,6 @@
+query {
+  feed {
+    id
+    createdAt
+  }
+}

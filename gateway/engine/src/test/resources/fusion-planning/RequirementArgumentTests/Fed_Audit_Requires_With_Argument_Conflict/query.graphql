@@ -1,0 +1,9 @@
+query {
+  products {
+    upc
+    name
+    shippingEstimate
+    shippingEstimateEUR
+    isExpensiveCategory
+  }
+}

@@ -1,0 +1,21 @@
+name: "@skip directive with variable - skip false"
+description: "@skip(if: $skipEmail) with skipEmail false: the gateway evaluates the condition before planning, and email is fetched without the directive"
+
+query: |
+  query GetUser($skipEmail: Boolean!) {
+    user {
+      id
+      name
+      email @skip(if: $skipEmail)
+    }
+  }
+
+variables: { skipEmail: false }
+
+subgraphCalls:
+  - subgraph: a
+    operation: '{ user { id name email } }'
+    variables: {}
+    response: { data: { user: { id: "u1", name: "Alice", email: "alice@example.com" } } }
+
+expectedResponse: { data: { user: { id: "u1", name: "Alice", email: "alice@example.com" } } }

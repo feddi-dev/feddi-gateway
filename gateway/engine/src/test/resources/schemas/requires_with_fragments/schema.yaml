@@ -9,7 +9,7 @@ subgraphs:
   a: |
     type Query {
       a: Entity
-      entityById(id: ID!): Entity @lookup
+      entityById(id: ID!): Entity @lookup @shareable
     }
 
     type Entity @key(fields: "id") {
@@ -42,7 +42,7 @@ subgraphs:
     type Query {
       b: Entity
       bb: Entity
-      entityById(id: ID!): Entity @lookup
+      entityById(id: ID!): Entity @lookup @shareable
     }
 
     type Entity @key(fields: "id") {
@@ -50,9 +50,9 @@ subgraphs:
       data: Foo @shareable
       requirer(
         dataFoo: String @require(field: "data.foo")
-        dataBar: String @require(field: "data.bar")
-        dataBaz: String @require(field: "data.baz")
-        dataQux: String @require(field: "data.qux")
+        dataBar: String @require(field: "data<Bar>.bar")
+        dataBaz: String @require(field: "data<Baz>.baz")
+        dataQux: String @require(field: "data<Qux>.qux")
       ): String!
       requirer2(
         dataFoo: String @require(field: "data.foo")

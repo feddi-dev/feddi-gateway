@@ -1,0 +1,13 @@
+query SearchProduct {
+  searchProduct {
+    ... on ProductSearchResult {
+      product {
+        reviews {
+          author {
+            name
+          }
+        }
+      }
+    }
+  }
+}

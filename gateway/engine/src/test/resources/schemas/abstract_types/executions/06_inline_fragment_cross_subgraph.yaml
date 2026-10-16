@@ -31,25 +31,17 @@ subgraphCalls:
       { __typename: "Magazine", id: "m1" }
     ] } }
 
-  # Step 2: Look up each entity in reviews subgraph to get reviewsCount
-  # Note: The planner preserves the inline fragment from the original query.
-  # Currently the executor looks up ALL entities, including Magazine.
-  # The bookById lookup returns null for non-existent Magazines.
+  # Step 2: Look up the Book entities in the reviews subgraph to get reviewsCount
+  # (the lookup is below "... on Book", so the Magazine is not looked up)
   - subgraph: reviews
-    operation: 'query ($id: ID!) { bookById(id: $id) { ... on Book { reviewsCount } } }'
+    operation: 'query ($id: ID!) { bookById(id: $id) { reviewsCount } }'
     variables: { id: "b1" }
     response: { data: { bookById: { reviewsCount: 10 } } }
 
   - subgraph: reviews
-    operation: 'query ($id: ID!) { bookById(id: $id) { ... on Book { reviewsCount } } }'
+    operation: 'query ($id: ID!) { bookById(id: $id) { reviewsCount } }'
     variables: { id: "b2" }
     response: { data: { bookById: { reviewsCount: 25 } } }
-
-  # Magazine lookup returns null (bookById doesn't find a Magazine)
-  - subgraph: reviews
-    operation: 'query ($id: ID!) { bookById(id: $id) { ... on Book { reviewsCount } } }'
-    variables: { id: "m1" }
-    response: { data: { bookById: null } }
 
 expectedResponse: { data: { products: [
   { reviewsCount: 10 },

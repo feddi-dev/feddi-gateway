@@ -1,0 +1,7 @@
+{
+  cart {
+    items {
+      unitPrice
+    }
+  }
+}

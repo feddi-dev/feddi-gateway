@@ -4,7 +4,6 @@ import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
-import graphql.language.StringValue;
 import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
 import graphql.schema.GraphQLArgument;
@@ -26,9 +25,13 @@ import java.util.stream.Collectors;
 import static dev.feddi.federation.engine.compose.FederationDirectives.IS;
 import static dev.feddi.federation.engine.compose.FederationDirectives.LOOKUP;
 import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.stringValue;
 
 /**
- * Validates that @lookup definitions are not redundant within a subgraph.
+ * Warns about @lookup definitions that are redundant within a subgraph.
+ *
+ * Not a spec rule, and only a warning: the spec allows any number of lookups for a type, and the planner
+ * picks one.
  *
  * Two @lookup fields are considered duplicates if they:
  * 1. Return the same type (after unwrapping)
@@ -177,7 +180,7 @@ public final class LookupDuplicateRule implements ValidationRule {
                 // Explicit @is mapping
                 GraphQLAppliedDirective isDirective = arg.getAppliedDirective(IS);
                 GraphQLAppliedDirectiveArgument fieldArg = isDirective.getArgument("field");
-                fieldPath = extractStringValue(fieldArg);
+                fieldPath = stringValue(fieldArg);
             } else {
                 // Implicit mapping - argument name equals field path
                 fieldPath = arg.getName();
@@ -212,7 +215,7 @@ public final class LookupDuplicateRule implements ValidationRule {
         );
 
         // Use first duplicate's coordinate for the error
-        builder.addError(CODE, message, duplicates.get(0).coordinate(), schemaName, LOOKUP);
+        builder.addWarning(CODE, message, duplicates.get(0).coordinate(), schemaName);
     }
 
     private void reportSubsetDuplicate(LookupInfo smaller, LookupInfo larger, String schemaName,
@@ -229,16 +232,7 @@ public final class LookupDuplicateRule implements ValidationRule {
         );
 
         // Report error on the larger (redundant) lookup
-        builder.addError(CODE, message, larger.coordinate(), schemaName, LOOKUP);
-    }
-
-    private String extractStringValue(GraphQLAppliedDirectiveArgument arg) {
-        if (arg == null) return null;
-        Object value = arg.getValue();
-        if (value instanceof StringValue stringValue) {
-            return stringValue.getValue();
-        }
-        return value != null ? value.toString() : null;
+        builder.addWarning(CODE, message, larger.coordinate(), schemaName);
     }
 
     /**

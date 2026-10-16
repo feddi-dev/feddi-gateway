@@ -1,0 +1,38 @@
+name: "@external on a key field without @provides"
+description: "EXTERNAL_UNUSED: a field selected by @key counts as used"
+
+subgraphs:
+  email: |
+    type Query {
+      user: User
+      userById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      email: String!
+    }
+
+  nickname: |
+    type Query {
+      nicknameUserById(id: ID!): User @lookup
+    }
+
+    type User @key(fields: "id") @key(fields: "email") {
+      id: ID!
+      email: String! @external
+      nickname: String!
+    }
+
+supergraph: |
+  type Query {
+    user: User
+    userById(id: ID!): User
+    nicknameUserById(id: ID!): User
+  }
+
+  type User {
+    id: ID!
+    email: String!
+    nickname: String!
+  }

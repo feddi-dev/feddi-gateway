@@ -29,7 +29,7 @@ expectedPlan:
     - id: 2
       subgraph: shipping
       operation: "query($id: ID!, $weight: Int!, $price: Int!) { productShipping(id: $id) { shippingCost(weight: $weight, price: $price) } }"
-      dependsOn: [1, 3]
+      dependsOn: [3]
       requirements:
         id: "id"
         weight: "weight"
@@ -47,7 +47,7 @@ expectedPlan:
     - id: 4
       subgraph: shipping
       operation: "query($id: ID!, $weight: Int!, $price: Int!) { productShipping(id: $id) { shippingCost(weight: $weight, price: $price) } }"
-      dependsOn: [1, 5]
+      dependsOn: [5]
       requirements:
         id: "id"
         weight: "weight"

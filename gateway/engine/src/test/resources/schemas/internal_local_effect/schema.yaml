@@ -13,18 +13,19 @@ subgraphs:
   a: |
     type Query {
       products: [Product]
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
       productBySku(sku: ID!): Product @internal @lookup
     }
 
     type Product @key(fields: "id") {
       id: ID!
       name: String @shareable
+      sku: ID! @shareable
     }
 
   b: |
     type Query {
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
       productBySku(sku: ID!): Product @lookup
     }
 
@@ -32,6 +33,7 @@ subgraphs:
       id: ID!
       name: String @shareable
       price: Int
+      sku: ID! @shareable
     }
 
 supergraph: |
@@ -45,4 +47,5 @@ supergraph: |
     id: ID!
     name: String
     price: Int
+    sku: ID!
   }

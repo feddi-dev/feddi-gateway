@@ -1,0 +1,30 @@
+name: "LOOKUP_KEY_MISSING_FOR_TYPE - argument missing on a union member"
+description: |
+  Every argument of a lookup must map to a field of every possible type of its return
+  type. Clothing has no categoryId field.
+
+subgraphs:
+  products: |
+    type Query {
+      product(id: ID!, categoryId: Int): Product @lookup
+    }
+
+    union Product = Electronics | Clothing
+
+    type Electronics @key(fields: "id") {
+      id: ID!
+      categoryId: Int
+      name: String
+      brand: String
+      price: Float
+    }
+
+    # Clothing does not have categoryId field
+    type Clothing @key(fields: "id") {
+      id: ID!
+      name: String
+      size: String
+      price: Float
+    }
+
+error: "LOOKUP_KEY_MISSING_FOR_TYPE"

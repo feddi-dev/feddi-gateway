@@ -83,13 +83,11 @@ public class AdminServer implements SmartLifecycle {
 
     private Mono<ServerResponse> handleUpload(ServerRequest request) {
         return request.bodyToMono(byte[].class)
-                .flatMap(body -> {
-                    var result = uploadController.handleUpload(body);
-                    boolean success = Boolean.TRUE.equals(result.get("success"));
-                    var status = success ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
+                .flatMap(uploadController::handleUpload)
+                .flatMap(result -> {
                     try {
-                        String json = MAPPER.writeValueAsString(result);
-                        return ServerResponse.status(status)
+                        String json = MAPPER.writeValueAsString(result.body());
+                        return ServerResponse.status(result.status())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .bodyValue(json);
                     } catch (Exception e) {

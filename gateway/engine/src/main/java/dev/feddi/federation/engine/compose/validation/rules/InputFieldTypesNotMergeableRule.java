@@ -17,7 +17,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that input fields with the same name across subgraphs have mergeable types.
@@ -28,12 +29,6 @@ import java.util.Set;
 public final class InputFieldTypesNotMergeableRule implements ValidationRule {
 
     private static final String CODE = "INPUT_FIELD_TYPES_NOT_MERGEABLE";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -91,7 +86,7 @@ public final class InputFieldTypesNotMergeableRule implements ValidationRule {
     private void collectInputFields(GraphQLInputObjectType type, String schemaName,
                                     Map<String, List<InputFieldInfo>> fieldsByCoordinate) {
         String typeName = type.getName();
-        if (BUILT_IN_TYPES.contains(typeName)) {
+        if (isBuiltInType(typeName)) {
             return;
         }
 

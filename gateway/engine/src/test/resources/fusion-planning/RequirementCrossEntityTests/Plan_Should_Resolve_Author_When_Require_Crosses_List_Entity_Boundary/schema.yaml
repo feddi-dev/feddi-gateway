@@ -1,0 +1,48 @@
+name: Fusion RequirementCrossEntityTests.Plan_Should_Resolve_Author_When_Require_Crosses_List_Entity_Boundary
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/RequirementCrossEntityTests.cs. MIT License.
+subgraphs:
+  c: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      feed: [Post]
+      postById(id: ID! @is(field: "id")): Post @lookup @internal
+      commentById(id: ID! @is(field: "id")): Comment @lookup @internal
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+    }
+
+    type Comment @key(fields: "id") {
+      id: ID!
+      authorId: ID
+      body: String!
+    }
+  d: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      postById(id: ID! @is(field: "id")): Post @lookup @internal
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      comments(limit: Int): [Comment]
+      author(
+        commentAuthorIds: [ID]
+          @require(field: "comments[authorId]")): Author
+    }
+
+    type Comment @key(fields: "id") {
+      id: ID!
+    }
+
+    type Author {
+      id: ID!
+      name: String
+    }

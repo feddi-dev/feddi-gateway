@@ -1,0 +1,23 @@
+name: "Condition Variables"
+description: "@skip and @include on variables, evaluated with the request's values before planning"
+
+subgraphs:
+  a: |
+    type Query {
+      user: User
+    }
+    type User {
+      id: ID!
+      name: String!
+      email: String!
+    }
+
+supergraph: |
+  type Query {
+    user: User
+  }
+  type User {
+    id: ID!
+    name: String!
+    email: String!
+  }

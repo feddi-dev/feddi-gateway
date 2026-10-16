@@ -46,3 +46,21 @@ sourceSets {
         }
     }
 }
+
+tasks.named('test') {
+    // FusionPlanParityTest compares feddi's plans for the imported Fusion planner tests with a
+    // recorded baseline; ./gradlew :engine:test -PupdateFusionParity rewrites the baseline.
+    def baseline = file('src/test/resources/fusion-planning/parity-baseline.yaml')
+    systemProperty 'fusionParity.baseline', baseline.absolutePath
+    systemProperty 'fusionParity.update', project.hasProperty('updateFusionParity')
+    // PlanExecutionOracleTest compares feddi's results with a monolith; -PupdatePlanOracle rewrites its baseline.
+    systemProperty 'planOracle.baseline', file('src/test/resources/plan-oracle-baseline.yaml').absolutePath
+    systemProperty 'planOracle.update', project.hasProperty('updatePlanOracle')
+    // RandomGraphOracleTest runs 150 fixed seeds; -PrandomGraphSeeds=N runs more, -PrandomGraphFirstSeed=K from K,
+    // -PrandomGraphFeatures=mutations,rootRequires only those scenarios, -PrandomGraphWriteFixture=SEED writes that
+    // seed as a planner fixture to build/random-fixtures
+    systemProperty 'randomGraph.seeds', project.findProperty('randomGraphSeeds') ?: '150'
+    systemProperty 'randomGraph.firstSeed', project.findProperty('randomGraphFirstSeed') ?: '0'
+    systemProperty 'randomGraph.features', project.findProperty('randomGraphFeatures') ?: ''
+    systemProperty 'randomGraph.writeFixture', project.findProperty('randomGraphWriteFixture') ?: ''
+}

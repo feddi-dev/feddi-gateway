@@ -1,5 +1,6 @@
 package dev.feddi.federation.app;
 
+import dev.feddi.federation.app.OperationPlanCache.PreparedOperation;
 import dev.feddi.federation.extension.DocumentProvider;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.SubgraphClient;
@@ -9,8 +10,10 @@ import dev.feddi.federation.engine.compose.CompositionResult;
 import dev.feddi.federation.engine.compose.CustomScalarWiring;
 import dev.feddi.federation.engine.compose.SubgraphParser;
 import dev.feddi.federation.engine.compose.Subgraph;
+import dev.feddi.federation.engine.executor.BatchingOptions;
 import dev.feddi.federation.engine.executor.ExecutionListener;
 import dev.feddi.federation.engine.executor.Executor;
+import dev.feddi.federation.engine.executor.NonNullPropagation;
 import dev.feddi.federation.engine.executor.ResponseFieldOrder;
 import dev.feddi.federation.engine.graph.Graph;
 import dev.feddi.federation.engine.graph.GraphBuilder;
@@ -18,10 +21,12 @@ import dev.feddi.federation.engine.planner.ExecutionPlan;
 import dev.feddi.federation.engine.query.Operation;
 import dev.feddi.federation.engine.query.OperationNormalizer;
 import dev.feddi.federation.engine.planner.OperationPlanner;
+import graphql.ErrorType;
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
 import graphql.GraphQLError;
+import graphql.GraphqlErrorBuilder;
 import graphql.ParseAndValidate;
 import graphql.language.Document;
 import graphql.language.OperationDefinition;
@@ -54,6 +59,8 @@ public final class FeddiFederationGateway {
     private final ExecutionListener executionListener;
     private final FeddiGatewayMetrics gatewayMetrics;
     private final DocumentProvider documentProvider;
+    private final OperationPlanCache planCache;
+    private final Map<String, BatchingOptions> batching;
 
     private FeddiFederationGateway(Graph graph, GraphQLSchema supergraph,
                                    Map<String, SubgraphClient> subgraphClients,
@@ -84,13 +91,47 @@ public final class FeddiFederationGateway {
             .inlineFragments(true)
             .deduplicateFields(true)
             .sortSelections(false)  // Preserve query field order
-            .processSkipInclude(true)  // Evaluate literal @skip/@include at planning time
             .build();
         // Store extension clients — adapted per-request in execute() with context
         this.extensionClients = new LinkedHashMap<>(subgraphClients);
         this.executionListener = executionListener != null ? executionListener : ExecutionListener.NOOP;
         this.gatewayMetrics = gatewayMetrics;
         this.documentProvider = documentProvider;
+        this.planCache = new OperationPlanCache();
+        this.batching = Map.of();
+    }
+
+    // Copy constructor for withSubgraphBatching: must copy every field of the gateway.
+    private FeddiFederationGateway(FeddiFederationGateway source, Map<String, BatchingOptions> batching) {
+        this.graph = source.graph;
+        this.supergraph = source.supergraph;
+        this.introspectionEnabled = source.introspectionEnabled;
+        this.planner = source.planner;
+        this.normalizer = source.normalizer;
+        this.extensionClients = source.extensionClients;
+        this.executionListener = source.executionListener;
+        this.gatewayMetrics = source.gatewayMetrics;
+        this.documentProvider = source.documentProvider;
+        this.planCache = source.planCache;
+        this.batching = Map.copyOf(batching);
+    }
+
+    /**
+     * Returns a gateway that batches entity lookups per subgraph as configured. Subgraphs
+     * without an entry use {@link BatchingOptions#NONE}.
+     *
+     * @param batching batching options by subgraph name
+     * @return a new gateway sharing everything else with this one
+     */
+    public FeddiFederationGateway withSubgraphBatching(Map<String, BatchingOptions> batching) {
+        return new FeddiFederationGateway(this, batching);
+    }
+
+    /**
+     * Returns the batching options for a subgraph.
+     */
+    public BatchingOptions batching(String subgraphName) {
+        return batching.getOrDefault(subgraphName, BatchingOptions.NONE);
     }
     
     /**
@@ -301,63 +342,35 @@ public final class FeddiFederationGateway {
     public Mono<GatewayResult> execute(ExecutionInput executionInput, FeddiGatewayRequestContext requestContext) {
         Map<String, Object> variables = executionInput.getVariables();
 
-        // Resolve document: try provider first, fall back to ParseAndValidate
-        Mono<Document> documentMono;
+        // Resolve the prepared operation: try the provider first (persisted documents),
+        // then the plan cache by query text, then ParseAndValidate + normalize + plan.
+        Mono<PreparedOperation> preparedMono;
         if (documentProvider != null) {
-            documentMono = documentProvider.getDocument(executionInput, requestContext)
+            preparedMono = documentProvider.getDocument(executionInput, requestContext)
                 .flatMap(entry -> {
                     if (entry.hasErrors()) {
-                        return Mono.<Document>error(new DocumentResolutionException(entry.getErrors()));
+                        return Mono.<PreparedOperation>error(new DocumentResolutionException(entry.getErrors()));
                     }
                     log.debug("Using document from DocumentProvider");
-                    return Mono.just(entry.getDocument());
+                    Document providedDocument = entry.getDocument();
+                    Map<String, Boolean> conditions = OperationNormalizer.conditionValues(providedDocument, variables);
+                    return Mono.fromCallable(() -> planCache.getOrPrepare(providedDocument, conditions,
+                        () -> prepare(providedDocument, conditions)));
                 })
-                .switchIfEmpty(Mono.defer(() -> parseAndValidate(executionInput)));
+                .switchIfEmpty(Mono.defer(() -> prepareFromText(executionInput)));
         } else {
-            documentMono = Mono.defer(() -> parseAndValidate(executionInput));
+            preparedMono = Mono.defer(() -> prepareFromText(executionInput));
         }
 
-        return documentMono.flatMap(rawDocument -> {
-            // Normalize the document (inline fragments, deduplicate fields, etc.)
-            log.debug("Normalizing query");
-            Document document = normalizer.normalize(rawDocument);
-
-            OperationDefinition operationDef = document.getDefinitionsOfType(OperationDefinition.class)
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> {
-                    log.error("No operation found in query");
-                    return new ExecutionException("No operation found in query");
-                });
-
-            // Convert to our Operation model
-            log.debug("Converting to Operation model");
-            Operation query = Operation.fromOperationDefinition(operationDef);
-
-            // Plan the query
-            log.debug("Planning query execution");
-            var planningSample = gatewayMetrics != null ? gatewayMetrics.startTimer() : null;
-            ExecutionPlan plan;
-            try {
-                plan = planner.plan(query);
-                log.debug("Query planned with {} step(s)", plan.steps().size());
-                for (var step : plan.steps()) {
-                    log.debug("  Step {}: subgraph={}, dependsOn={}",
-                        step.id(), step.subgraph(), step.dependsOn());
-                }
-            } catch (Exception e) {
-                log.error("Query planning failed: {}", e.getMessage(), e);
-                throw e;
-            } finally {
-                if (planningSample != null) {
-                    gatewayMetrics.recordPlanningDuration(planningSample);
-                }
-            }
+        return preparedMono.flatMap(prepared -> {
+            Document document = prepared.document();
+            ExecutionPlan plan = prepared.plan();
 
             // Adapt clients per-request with the gateway request context
             var engineClients = new LinkedHashMap<String, dev.feddi.federation.engine.executor.SubgraphClient>();
             for (var entry : extensionClients.entrySet()) {
-                engineClients.put(entry.getKey(), new SubgraphClientAdapter(entry.getValue(), requestContext));
+                engineClients.put(entry.getKey(),
+                    new SubgraphClientAdapter(entry.getValue(), requestContext, batching(entry.getKey())));
             }
 
             // Execute the plan (pass supergraph schema only if introspection is enabled)
@@ -366,7 +379,7 @@ public final class FeddiFederationGateway {
                     introspectionEnabled ? supergraph : null, executionListener);
             final Document finalDoc = document;
             return executor.execute(plan, variables != null ? variables : Map.of())
-                .map(result -> new GatewayResult(inSelectionOrder(result, operationDef), finalDoc));
+                .map(result -> new GatewayResult(completed(result, prepared.operation()), finalDoc));
         }).onErrorResume(DocumentResolutionException.class, e -> {
             log.debug("Document resolution failed: {}", e.getErrors());
             return Mono.just(new GatewayResult(
@@ -374,17 +387,88 @@ public final class FeddiFederationGateway {
         });
     }
 
+    private Mono<PreparedOperation> prepareFromText(ExecutionInput executionInput) {
+        String query = executionInput.getQuery();
+        String operationName = executionInput.getOperationName();
+        Document validated = planCache.getDocument(query, operationName);
+        Mono<Document> document = validated != null ? Mono.just(validated)
+            : parseAndValidate(executionInput).doOnNext(d -> planCache.putDocument(query, operationName, d));
+        return document.map(d -> {
+            Map<String, Boolean> conditions = OperationNormalizer.conditionValues(d, executionInput.getVariables());
+            PreparedOperation cached = planCache.getByText(query, operationName, conditions);
+            if (cached != null) {
+                log.debug("Using cached plan");
+                return cached;
+            }
+            PreparedOperation prepared = prepare(d, conditions);
+            planCache.putByText(query, operationName, conditions, prepared);
+            return prepared;
+        });
+    }
+
     /**
-     * Puts the response fields into the order of the operation's selection set; the executor
-     * merges results from several subgraphs, which otherwise determines the order.
+     * Normalizes a validated document, with its @skip/@include conditions evaluated for these variable values, and
+     * plans it.
      */
-    private static ExecutionResult inSelectionOrder(ExecutionResult result, OperationDefinition operation) {
-        if (result.getData() == null) {
-            return result;
+    private PreparedOperation prepare(Document rawDocument, Map<String, Boolean> conditions) {
+        // Normalize the document (inline fragments, deduplicate fields, @skip/@include, etc.)
+        log.debug("Normalizing query");
+        Document document;
+        try {
+            document = normalizer.withConditionValues(conditions).normalize(rawDocument);
+        } catch (OperationNormalizer.MissingConditionValueException e) {
+            throw new DocumentResolutionException(List.of(GraphqlErrorBuilder.newError()
+                .message(e.getMessage())
+                .errorType(ErrorType.ValidationError)
+                .build()));
+        }
+
+        OperationDefinition operationDef = document.getDefinitionsOfType(OperationDefinition.class)
+            .stream()
+            .findFirst()
+            .orElseThrow(() -> {
+                log.error("No operation found in query");
+                return new ExecutionException("No operation found in query");
+            });
+
+        // Convert to our Operation model
+        log.debug("Converting to Operation model");
+        Operation query = Operation.fromOperationDefinition(operationDef);
+
+        // Plan the query
+        log.debug("Planning query execution");
+        var planningSample = gatewayMetrics != null ? gatewayMetrics.startTimer() : null;
+        try {
+            ExecutionPlan plan = planner.plan(query);
+            log.debug("Query planned with {} step(s)", plan.steps().size());
+            for (var step : plan.steps()) {
+                log.debug("  Step {}: subgraph={}, dependsOn={}",
+                    step.id(), step.subgraph(), step.dependsOn());
+            }
+            return new PreparedOperation(document, operationDef, plan);
+        } catch (Exception e) {
+            log.error("Query planning failed: {}", e.getMessage(), e);
+            throw e;
+        } finally {
+            if (planningSample != null) {
+                gatewayMetrics.recordPlanningDuration(planningSample);
+            }
+        }
+    }
+
+    /**
+     * Completes the response the executor assembled from several subgraph results: nulls in
+     * non-null fields propagate to the nearest nullable parent, and the fields are put into the
+     * order of the operation's selection set (the merge order otherwise determines it).
+     */
+    private ExecutionResult completed(ExecutionResult result, OperationDefinition operation) {
+        ExecutionResult propagated = NonNullPropagation.apply(supergraph, operation, result);
+        if (propagated.getData() == null) {
+            return propagated;
         }
         return ExecutionResultImpl.newExecutionResult()
-            .from(result)
-            .data(ResponseFieldOrder.reorder(operation.getSelectionSet(), result.getData()))
+            .from(propagated)
+            .data(ResponseFieldOrder.reorder(operation.getSelectionSet(), propagated.getData()))
             .build();
     }
 

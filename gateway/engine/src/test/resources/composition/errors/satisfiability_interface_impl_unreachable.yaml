@@ -1,4 +1,4 @@
-name: "SATISFIABILITY_ERROR - Interface implementing type fields unreachable"
+name: "UNSATISFIABLE_QUERY_PATH - Interface implementing type fields unreachable"
 description: "Query returns Content interface, but Article-specific fields in analytics subgraph are unreachable"
 
 subgraphs:
@@ -29,4 +29,4 @@ subgraphs:
       shareCount: Int
     }
 
-error: "SATISFIABILITY_ERROR"
+error: "UNSATISFIABLE_QUERY_PATH"

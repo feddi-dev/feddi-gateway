@@ -1,0 +1,48 @@
+name: Fusion PlannerAdvancedAdaptationTests.Union_Union_Member_Mix
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/PlannerAdvancedAdaptationTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      media: Media
+    }
+
+    union Media = Book | Song
+
+    type Book @key(fields: "id") {
+      id: ID!
+      title: String! @shareable
+      aTitle: String!
+    }
+
+    type Song @key(fields: "id") {
+      id: ID!
+      title: String!
+      aTitle: String!
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      bookById(id: ID! @is(field: "id")): Book @lookup @internal
+      movieById(id: ID! @is(field: "id")): Movie @lookup @internal
+    }
+
+    union Media = Book | Movie
+
+    type Book @key(fields: "id") {
+      id: ID!
+      title: String! @shareable
+      bTitle: String!
+    }
+
+    type Movie @key(fields: "id") {
+      id: ID!
+      title: String!
+      bTitle: String!
+    }

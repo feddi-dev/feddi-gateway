@@ -5,7 +5,7 @@ subgraphs:
   users: |
     type Query {
       users(active: Boolean, limit: Int): [User]
-      userById(id: ID!): User @lookup
+      userById(id: ID!): User @lookup @shareable
     }
 
     type User @key(fields: "id") {
@@ -16,7 +16,7 @@ subgraphs:
 
   orders: |
     type Query {
-      userById(id: ID!): User @lookup
+      userById(id: ID!): User @lookup @shareable
       ordersByStatus(status: OrderStatus): [Order]
       orderByIdOrders(orderId: ID!): Order @lookup
     }

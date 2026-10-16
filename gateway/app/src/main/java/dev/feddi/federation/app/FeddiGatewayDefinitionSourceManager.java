@@ -34,6 +34,9 @@ public class FeddiGatewayDefinitionSourceManager implements ApplicationRunner {
         );
 
         gatewayDefinitionSource.updates()
+            // A reload can take a while (variable batching checks). Keep only the newest pending
+            // definition meanwhile; the source never sees backpressure.
+            .onBackpressureLatest()
             .concatMap(this::reloadUpdatedDefinition)
             .subscribe(
                 unused -> { },
@@ -43,17 +46,18 @@ public class FeddiGatewayDefinitionSourceManager implements ApplicationRunner {
 
     private void reloadInitialDefinition(FeddiGatewayDefinition gatewayDefinition) {
         log.info("Loading feddi Gateway definition from {}", gatewayDefinitionSource.getClass().getName());
-        gatewayReloadService.reload(gatewayDefinition);
+        // Startup: an invalid definition must stop the application
+        gatewayReloadService.reload(gatewayDefinition).block();
         log.info("feddi Gateway initialized with {} subgraph(s)", gatewayDefinition.subgraphs().size());
     }
 
     private Mono<Void> reloadUpdatedDefinition(FeddiGatewayDefinition gatewayDefinition) {
-        return Mono.fromRunnable(() -> {
+        return Mono.defer(() -> {
                 log.info("Refreshing feddi Gateway definition from {}", gatewayDefinitionSource.getClass().getName());
-                gatewayReloadService.reload(gatewayDefinition);
-                log.info("feddi Gateway refreshed with {} subgraph(s)", gatewayDefinition.subgraphs().size());
+                return gatewayReloadService.reload(gatewayDefinition);
             })
-            .then()
+            .doOnSuccess(unused ->
+                log.info("feddi Gateway refreshed with {} subgraph(s)", gatewayDefinition.subgraphs().size()))
             .onErrorResume(e -> {
                 log.error("Failed to refresh feddi Gateway definition", e);
                 return Mono.<Void>empty();

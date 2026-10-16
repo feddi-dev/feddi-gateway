@@ -1,0 +1,6 @@
+query ($include: Boolean) {
+  product {
+    price
+    neverCalledInclude @include(if: $include)
+  }
+}

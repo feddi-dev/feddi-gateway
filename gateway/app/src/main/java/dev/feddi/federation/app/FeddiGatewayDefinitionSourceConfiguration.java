@@ -25,8 +25,9 @@ public class FeddiGatewayDefinitionSourceConfiguration {
     }
 
     @Bean
-    public ZipUploadService zipUploadService(DefaultFeddiGatewayDefinitionSource source) {
-        return new ZipUploadService(source);
+    public ZipUploadService zipUploadService(DefaultFeddiGatewayDefinitionSource source,
+                                             FeddiGatewayReloadService reloadService) {
+        return new ZipUploadService(source, reloadService);
     }
 
     @Bean

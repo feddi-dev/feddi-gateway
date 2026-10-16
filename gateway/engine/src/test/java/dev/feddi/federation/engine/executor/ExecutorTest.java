@@ -4,6 +4,8 @@ import dev.feddi.federation.engine.ResponseFieldValidator;
 import dev.feddi.federation.engine.planner.ExecutionPlan;
 import dev.feddi.federation.engine.query.Operation;
 import dev.feddi.federation.engine.query.OperationNormalizer;
+import graphql.language.OperationDefinition;
+import graphql.parser.Parser;
 import dev.feddi.federation.engine.planner.OperationPlanner;
 import graphql.schema.GraphQLSchema;
 import dev.feddi.federation.engine.testcase.ExecutionTest;
@@ -151,9 +153,12 @@ class ExecutorTest {
             .inlineFragments(true)
             .deduplicateFields(true)
             .sortSelections(false)  // Don't sort to preserve query field order
-            .processSkipInclude(true)  // Evaluate literal @skip/@include at planning time
-            .build();
-        Operation query = Operation.parse(executionTest.query(), normalizer);
+            .build()
+            .withConditionValues(OperationNormalizer.conditionValues(
+                Parser.parse(executionTest.query()), executionTest.variables()));
+        OperationDefinition operation = normalizer.normalize(Parser.parse(executionTest.query()))
+            .getDefinitionsOfType(OperationDefinition.class).get(0);
+        Operation query = Operation.fromOperationDefinition(operation);
         OperationPlanner planner = new OperationPlanner(schema.graph());
         ExecutionPlan plan = planner.plan(query);
 
@@ -175,7 +180,15 @@ class ExecutorTest {
 
         // Execute the plan
         Executor executor = new Executor(clients);
-        ExecutionResult result = executor.execute(plan, executionTest.variables()).block();
+        // Like the gateway: nulls in non-null fields propagate to the nearest nullable parent
+        ExecutionResult result = NonNullPropagation.apply(schema.supergraphSchema(), operation,
+            executor.execute(plan, executionTest.variables()).block());
+
+        // Every expected subgraph call must have been made (a skipped call would otherwise go unnoticed)
+        assertThat(mocks.stream().flatMap(mock -> mock.uncalledExpectations().stream())
+                .map(call -> call.subgraph() + ": " + call.operation() + " " + call.variables()).toList())
+            .as("Expected subgraph calls that were not made")
+            .isEmpty();
 
         // Verify the data result
         @SuppressWarnings("unchecked")
@@ -184,7 +197,7 @@ class ExecutorTest {
         Map<String, Object> expectedData = (Map<String, Object>) executionTest.expectedResponse().get("data");
 
         assertThat(actualData)
-            .as("Execution result data should match expected")
+            .as("Execution result data should match expected (errors: %s)", result.getErrors())
             .isEqualTo(expectedData);
 
         // Validate supergraph response (informational only until executor is fixed)
@@ -245,12 +258,17 @@ class ExecutorTest {
      * Uses ExecutingMockSubgraphClient which executes operations through GraphQL Java
      * to validate that planner-generated operations are syntactically and semantically valid.
      */
+    // The mock clients of the current test, to check that every expected call was made
+    private final List<ExecutingMockSubgraphClient> mocks = new ArrayList<>();
+
     private Map<String, SubgraphClient> createMockClients(SchemaDefinition schema,
                                                           List<SubgraphCall> calls,
                                                           FinishOrderController finishOrderController,
                                                           Long timeoutMs) {
-        // Group calls by subgraph
+        // Group calls by subgraph; every subgraph gets a client, so a call the fixture doesn't expect fails visibly
+        // instead of the step failing for lack of a client
         Map<String, List<SubgraphCall>> callsBySubgraph = new LinkedHashMap<>();
+        schema.subgraphSchemas().keySet().forEach(name -> callsBySubgraph.put(name, new ArrayList<>()));
         for (SubgraphCall call : calls) {
             callsBySubgraph
                 .computeIfAbsent(call.subgraph(), k -> new ArrayList<>())
@@ -259,16 +277,19 @@ class ExecutorTest {
 
         // Create mock client for each subgraph
         Map<String, SubgraphClient> clients = new LinkedHashMap<>();
+        mocks.clear();
         for (Map.Entry<String, List<SubgraphCall>> entry : callsBySubgraph.entrySet()) {
             String subgraphName = entry.getKey();
             graphql.schema.GraphQLSchema subgraphSchema = schema.getSubgraphSchema(subgraphName);
 
-            SubgraphClient mockClient = new ExecutingMockSubgraphClient(
+            ExecutingMockSubgraphClient executingMock = new ExecutingMockSubgraphClient(
                 subgraphName,
                 subgraphSchema,
                 entry.getValue(),
                 finishOrderController
             );
+            mocks.add(executingMock);
+            SubgraphClient mockClient = executingMock;
 
             // Wrap with timeout if specified
             if (timeoutMs != null) {

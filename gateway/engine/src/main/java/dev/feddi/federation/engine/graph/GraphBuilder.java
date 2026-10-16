@@ -3,16 +3,15 @@ package dev.feddi.federation.engine.graph;
 import dev.feddi.federation.engine.Constants;
 
 import dev.feddi.federation.engine.compose.Subgraph;
+import dev.feddi.federation.engine.parser.FieldSelectionMap;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.FieldSelectionSet;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectedValue;
 import dev.feddi.federation.engine.parser.FieldSelectionMapParser;
 import dev.feddi.federation.engine.parser.InvalidSyntaxException;
 import graphql.language.ListType;
 import graphql.language.NonNullType;
-import graphql.language.StringValue;
 import graphql.language.Type;
 import graphql.language.TypeName;
-import graphql.introspection.Introspection;
 import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
 import graphql.schema.GraphQLArgument;
@@ -27,8 +26,8 @@ import graphql.schema.GraphQLOutputType;
 import graphql.schema.GraphQLSchema;
 import graphql.schema.GraphQLTypeUtil;
 import graphql.schema.GraphQLUnionType;
-import graphql.schema.idl.ScalarInfo;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -39,8 +38,11 @@ import java.util.Set;
 import static dev.feddi.federation.engine.compose.FederationDirectives.EXTERNAL;
 import static dev.feddi.federation.engine.compose.FederationDirectives.IS;
 import static dev.feddi.federation.engine.compose.FederationDirectives.LOOKUP;
+import static dev.feddi.federation.engine.compose.FederationDirectives.OVERRIDE;
 import static dev.feddi.federation.engine.compose.FederationDirectives.PROVIDES;
 import static dev.feddi.federation.engine.compose.FederationDirectives.REQUIRE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.stringValue;
 
 /**
  * Builds a query planning Graph from a list of Subgraphs.
@@ -54,6 +56,8 @@ public final class GraphBuilder {
     
     private static final int FIELD_MOVE_COST = 1;
     private static final int LOOKUP_MOVE_COST = 10;
+
+    private Set<String> overridden = Set.of();
     
     /**
      * Builds a Graph from the given subgraphs.
@@ -63,6 +67,7 @@ public final class GraphBuilder {
      */
     public Graph build(List<Subgraph> subgraphs) {
         Graph.GraphBuilder builder = Graph.builder();
+        overridden = collectOverriddenFields(subgraphs);
         
         // Track all types and their subgraphs
         Map<String, Set<String>> typeToSubgraphs = new HashMap<>();
@@ -81,6 +86,9 @@ public final class GraphBuilder {
             processSubgraph(subgraph, builder, typeToSubgraphs, lookupFields, typeRequirements, providesList);
         }
         
+        typeRequirements.forEach((key, requirements) ->
+            builder.addRequirements(new Node(key.typeName(), key.subgraphName()), requirements));
+
         // Second pass: register @provides information with the graph
         registerProvidesInfo(builder, providesList);
         
@@ -93,6 +101,25 @@ public final class GraphBuilder {
         return builder.build();
     }
     
+    /** "subgraph|type|field" for each field definition that another subgraph overrides. */
+    private static Set<String> collectOverriddenFields(List<Subgraph> subgraphs) {
+        Set<String> overridden = new HashSet<>();
+        for (Subgraph subgraph : subgraphs) {
+            for (GraphQLNamedType type : subgraph.schema().getAllTypesAsList()) {
+                if (!(type instanceof GraphQLObjectType objectType)) {
+                    continue;
+                }
+                for (GraphQLFieldDefinition field : objectType.getFieldDefinitions()) {
+                    GraphQLAppliedDirective override = field.getAppliedDirective(OVERRIDE);
+                    if (override != null && override.getArgument("from").getValue() instanceof String from) {
+                        overridden.add(from + "|" + type.getName() + "|" + field.getName());
+                    }
+                }
+            }
+        }
+        return overridden;
+    }
+
     private void processSubgraph(Subgraph subgraph, Graph.GraphBuilder builder,
             Map<String, Set<String>> typeToSubgraphs,
             List<LookupInfo> lookupFields,
@@ -161,9 +188,14 @@ public final class GraphBuilder {
                     builder.addTypeImplementsInterfaces(interfaceType.getName(), parentInterfaceNames);
                 }
 
-                // Process fields on the interface
+                // Process fields on the interface. A field that an implementation no longer resolves here
+                // (@override from this subgraph) cannot be resolved on the interface as a whole.
                 for (GraphQLFieldDefinition field : interfaceType.getFieldDefinitions()) {
-                    processField(interfaceType.getName(), field, subgraphName, builder, lookupFields, providesList);
+                    boolean overriddenOnImplementation = schema.getImplementations(interfaceType).stream()
+                        .anyMatch(impl -> overridden.contains(subgraphName + "|" + impl.getName() + "|" + field.getName()));
+                    if (!overriddenOnImplementation) {
+                        processField(interfaceType.getName(), field, subgraphName, builder, lookupFields, providesList);
+                    }
 
                     // Collect @require directives from regular fields.
                     // Note: @require is NOT allowed on @lookup fields (see comment above).
@@ -202,8 +234,17 @@ public final class GraphBuilder {
         GraphQLOutputType fieldType = field.getType();
         String targetTypeName = GraphQLTypeUtil.unwrapAll(fieldType).getName();
 
-        // Skip @external fields - they can't be resolved directly by this subgraph
-        boolean isExternal = field.hasAppliedDirective(EXTERNAL);
+        // Skip @external fields - they can't be resolved directly by this subgraph - and fields another
+        // subgraph took over with @override(from: "this subgraph")
+        boolean isExternal = field.hasAppliedDirective(EXTERNAL)
+            || overridden.contains(subgraphName + "|" + parentTypeName + "|" + field.getName());
+
+        if (field.hasAppliedDirective(EXTERNAL)) {
+            builder.addExternalFieldType(sourceNode, field.getName(), targetTypeName);
+        }
+        if (!isExternal) {
+            builder.addFieldType(sourceNode, field.getName(), GraphQLTypeUtil.simplePrint(fieldType));
+        }
 
         // Create FieldMoveEdge for this field (unless it's @external)
         if (!isExternal) {
@@ -219,7 +260,7 @@ public final class GraphBuilder {
                 if (field.hasAppliedDirective(PROVIDES)) {
                     GraphQLAppliedDirective providesDirective = field.getAppliedDirective(PROVIDES);
                     GraphQLAppliedDirectiveArgument fieldsArg = providesDirective.getArgument("fields");
-                    String providedFieldsStr = getStringValue(fieldsArg);
+                    String providedFieldsStr = stringValue(fieldsArg);
                     if (providedFieldsStr != null) {
                         FieldSelectionSet selectionSet = parseFieldSelectionSet(providedFieldsStr);
                         providesList.add(new ProvidesInfo(sourceNode, targetNode, field.getName(), selectionSet));
@@ -239,7 +280,8 @@ public final class GraphBuilder {
                 parentTypeName,
                 field.getName(),
                 targetTypeName,
-                lookupArguments
+                lookupArguments,
+                List.of()
             ));
         }
     }
@@ -256,13 +298,17 @@ public final class GraphBuilder {
 
         // For each lookup, create edges from all subgraphs that have the target type
         // to the subgraph providing the lookup
-        for (LookupInfo lookup : lookupFields) {
-            String targetTypeName = lookup.targetTypeName();
+        for (LookupInfo declaredLookup : lookupFields) {
+            String targetTypeName = declaredLookup.targetTypeName();
             if (targetTypeName == null) continue;
 
             // Get the target subgraph's schema to check for implementations
-            Subgraph targetSubgraph = subgraphByName.get(lookup.subgraphName());
+            Subgraph targetSubgraph = subgraphByName.get(declaredLookup.subgraphName());
             if (targetSubgraph == null) continue;
+            List<String> lookupPath = pathToType(targetSubgraph.schema(), declaredLookup.parentTypeName());
+            if (lookupPath == null) continue;  // not reachable from Query without arguments
+            LookupInfo lookup = new LookupInfo(declaredLookup.subgraphName(), declaredLookup.parentTypeName(),
+                declaredLookup.fieldName(), targetTypeName, declaredLookup.lookupArguments(), lookupPath);
 
             // Find all subgraphs that have this target type
             for (Subgraph subgraph : subgraphs) {
@@ -270,6 +316,8 @@ public final class GraphBuilder {
 
                 // Don't create a lookup edge to the same subgraph
                 if (sourceSubgraph.equals(lookup.subgraphName())) continue;
+
+                createAbstractLookupEdges(builder, lookup, targetSubgraph, subgraph, typeRequirements);
 
                 // Check if this subgraph has the target type (can be object, interface, or union)
                 GraphQLNamedType sourceType = (GraphQLNamedType) subgraph.schema()
@@ -302,7 +350,9 @@ public final class GraphBuilder {
                     targetNode,
                     LOOKUP_MOVE_COST,
                     lookupArguments,
-                    allRequirements
+                    allRequirements,
+                    targetTypeName,
+                    lookup.lookupPath()
                 ));
 
                 // If the target type is an interface, also create edges to implementing types
@@ -326,7 +376,9 @@ public final class GraphBuilder {
                             implTargetNode,
                             LOOKUP_MOVE_COST,
                             lookupArguments,
-                            allRequirements
+                            allRequirements,
+                            targetTypeName,
+                            lookup.lookupPath()
                         ));
                     }
                 } else if (targetType instanceof GraphQLUnionType unionType) {
@@ -345,7 +397,9 @@ public final class GraphBuilder {
                             memberTargetNode,
                             LOOKUP_MOVE_COST,
                             lookupArguments,
-                            allRequirements
+                            allRequirements,
+                            targetTypeName,
+                            lookup.lookupPath()
                         ));
                     }
                 }
@@ -353,6 +407,96 @@ public final class GraphBuilder {
         }
     }
     
+    /**
+     * A lookup that returns an interface or union also resolves its object types: creates an edge from each of
+     * them that the source subgraph defines with the lookup's key fields (e.g. {@code Product} in a subgraph without
+     * {@code Node} to {@code node(id:)}). It costs a little more than a lookup that returns the type itself.
+     */
+    private void createAbstractLookupEdges(Graph.GraphBuilder builder, LookupInfo lookup, Subgraph targetSubgraph,
+                                           Subgraph sourceSubgraph,
+                                           Map<TypeSubgraphKey, List<Requirement>> typeRequirements) {
+        GraphQLSchema targetSchema = targetSubgraph.schema();
+        List<GraphQLObjectType> possibleTypes = switch (targetSchema.getType(lookup.targetTypeName())) {
+            case GraphQLInterfaceType interfaceType -> targetSchema.getImplementations(interfaceType);
+            case GraphQLUnionType unionType -> unionType.getTypes().stream()
+                .filter(GraphQLObjectType.class::isInstance)
+                .map(GraphQLObjectType.class::cast)
+                .toList();
+            case null, default -> List.of();
+        };
+        for (GraphQLObjectType possibleType : possibleTypes) {
+            String typeName = possibleType.getName();
+            if (!(sourceSubgraph.schema().getType(typeName) instanceof GraphQLObjectType sourceType)
+                || !hasLookupKeyFields(sourceType, lookup.lookupArguments())) {
+                continue;
+            }
+            builder.addEdge(new LookupMoveEdge(
+                lookup.fieldName(),
+                new Node(typeName, sourceSubgraph.name()),
+                new Node(typeName, targetSubgraph.name()),
+                LOOKUP_MOVE_COST + 1,
+                lookup.lookupArguments(),
+                typeRequirements.getOrDefault(new TypeSubgraphKey(typeName, targetSubgraph.name()), List.of()),
+                lookup.targetTypeName(),
+                lookup.lookupPath()
+            ));
+        }
+    }
+
+    /** Whether {@code type} has the first field of one alternative of every lookup argument. */
+    private static boolean hasLookupKeyFields(GraphQLObjectType type, List<LookupArgument> lookupArguments) {
+        for (LookupArgument argument : lookupArguments) {
+            boolean found = false;
+            for (FieldSelectionMap.Path path : argument.extractPaths()) {
+                if (path.hasInitialTypeCondition() && !path.initialTypeCondition().equals(type.getName())) {
+                    continue;
+                }
+                String firstField = path.segments().isEmpty()
+                    ? argument.argumentName() : path.segments().get(0).fieldName();
+                if (type.getFieldDefinition(firstField) != null) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The fields without arguments that lead from Query to {@code typeName} (a lookup field "must be reachable by
+     * following a chain of fields - starting from the Query root type - where none of the intermediate fields have
+     * arguments"): empty for Query itself, the shortest chain otherwise, null if there is none.
+     */
+    private static List<String> pathToType(GraphQLSchema schema, String typeName) {
+        GraphQLObjectType query = schema.getQueryType();
+        if (query == null) {
+            return null;
+        }
+        Map<String, List<String>> paths = new HashMap<>();
+        paths.put(query.getName(), List.of());
+        ArrayDeque<GraphQLObjectType> pending = new ArrayDeque<>(List.of(query));
+        while (!pending.isEmpty()) {
+            GraphQLObjectType type = pending.poll();
+            if (type.getName().equals(typeName)) {
+                return paths.get(typeName);
+            }
+            for (GraphQLFieldDefinition field : type.getFieldDefinitions()) {
+                if (field.getArguments().isEmpty()
+                    && GraphQLTypeUtil.unwrapAll(field.getType()) instanceof GraphQLObjectType next
+                    && !paths.containsKey(next.getName())) {
+                    List<String> path = new ArrayList<>(paths.get(type.getName()));
+                    path.add(field.getName());
+                    paths.put(next.getName(), path);
+                    pending.add(next);
+                }
+            }
+        }
+        return null;
+    }
+
     /**
      * Special subgraph name for the unified root nodes.
      * These nodes aggregate all Query/Mutation fields from all subgraphs.
@@ -440,7 +584,7 @@ public final class GraphBuilder {
                 // Use @is directive's field value as the fieldPath
                 GraphQLAppliedDirective isDirective = arg.getAppliedDirective(IS);
                 GraphQLAppliedDirectiveArgument fieldArg = isDirective.getArgument("field");
-                String fieldValue = getStringValue(fieldArg);
+                String fieldValue = stringValue(fieldArg);
                 if (fieldValue != null) {
                     lookupArguments.add(LookupArgument.of(arg.getName(), fieldValue, argType));
                 }
@@ -461,7 +605,7 @@ public final class GraphBuilder {
             if (arg.hasAppliedDirective(REQUIRE)) {
                 GraphQLAppliedDirective requireDirective = arg.getAppliedDirective(REQUIRE);
                 GraphQLAppliedDirectiveArgument fieldArg = requireDirective.getArgument("field");
-                String fieldSelectionMap = getStringValue(fieldArg);
+                String fieldSelectionMap = stringValue(fieldArg);
                 if (fieldSelectionMap != null) {
                     try {
                         SelectedValue selection = FieldSelectionMapParser.parseFieldSelectionMap(fieldSelectionMap);
@@ -480,18 +624,6 @@ public final class GraphBuilder {
         return requirements;
     }
     
-    /**
-     * Extracts a string value from a directive argument.
-     * For FieldSelectionMap arguments (custom scalar), the value is a StringValue AST node.
-     */
-    private String getStringValue(GraphQLAppliedDirectiveArgument arg) {
-        if (arg == null) return null;
-        Object value = arg.getValue();
-        if (value instanceof StringValue stringValue) {
-            return stringValue.getValue();
-        }
-        return value != null ? value.toString() : null;
-    }
     
     /**
      * Parses a FieldSelectionSet string (used by @provides and @key directives).
@@ -504,10 +636,6 @@ public final class GraphBuilder {
             throw new IllegalArgumentException(
                 "Invalid @provides field selection: " + e.getMessage(), e);
         }
-    }
-
-    private boolean isBuiltInType(String typeName) {
-        return Introspection.isIntrospectionTypes(typeName) || ScalarInfo.isGraphqlSpecifiedScalar(typeName);
     }
 
     /**
@@ -543,7 +671,8 @@ public final class GraphBuilder {
         String parentTypeName,
         String fieldName,
         String targetTypeName,
-        List<LookupArgument> lookupArguments
+        List<LookupArgument> lookupArguments,
+        List<String> lookupPath
     ) {}
     
     /**

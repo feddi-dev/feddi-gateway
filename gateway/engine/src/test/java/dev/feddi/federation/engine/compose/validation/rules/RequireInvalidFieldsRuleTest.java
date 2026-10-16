@@ -2421,6 +2421,7 @@ class RequireInvalidFieldsRuleTest {
                 }
                 interface Media {
                   id: ID!
+                  title: String
                 }
                 type Book implements Media {
                   id: ID!
@@ -2447,6 +2448,41 @@ class RequireInvalidFieldsRuleTest {
 
             // Should pass: code has complete coverage (Book|Movie), name uses common field
             assertValid(validate(catalog, analytics));
+        }
+
+        @Test
+        void invalid_fieldOnlyOnImplementations() {
+            // Appendix A, Path Field Selections: title is not defined on Media, only on Book and Movie;
+            // the path needs a type condition per type (<Book>.title | <Movie>.title)
+            Subgraph catalog = subgraph("catalog", """
+                type Query {
+                  library: Library
+                }
+                type Library @key(fields: "id") {
+                  id: ID!
+                  featured: Media @shareable
+                }
+                interface Media {
+                  id: ID!
+                }
+                type Book implements Media {
+                  id: ID!
+                  title: String @shareable
+                }
+                type Movie implements Media {
+                  id: ID!
+                  title: String @shareable
+                }
+                """);
+
+            Subgraph analytics = subgraph("analytics", """
+                type Library @key(fields: "id") {
+                  id: ID!
+                  analyze(title: String @require(field: "featured.title")): String
+                }
+                """);
+
+            assertInvalid(validate(catalog, analytics));
         }
 
         @Test

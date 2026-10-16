@@ -39,27 +39,28 @@ class UnreachableTypeRuleTest {
     }
 
     private void assertValid(ValidationResult result) {
-        assertThat(result.isValid())
-            .as("Expected validation to pass but got errors: %s", result.errors())
-            .isTrue();
+        assertThat(result.warnings())
+            .as("Expected no unreachable type warnings")
+            .noneMatch(d -> d.code().equals(CODE));
     }
 
+    /** Unreachable types are warnings: composition continues. */
     private void assertInvalid(ValidationResult result) {
-        assertThat(result.hasErrors())
-            .as("Expected validation to fail")
+        assertThat(result.isValid())
+            .as("Unreachable types must not fail composition: %s", result.errors())
             .isTrue();
-        assertThat(result.errors())
+        assertThat(result.warnings())
             .anyMatch(d -> d.code().equals(CODE));
     }
 
     private void assertInvalidWithCoordinate(ValidationResult result, String coordinate) {
         assertInvalid(result);
-        assertThat(result.errors())
+        assertThat(result.warnings())
             .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals(coordinate));
     }
 
     private void assertValidType(ValidationResult result, String typeName) {
-        assertThat(result.errors())
+        assertThat(result.warnings())
             .noneMatch(d -> d.code().equals(CODE) && d.coordinate().equals(typeName));
     }
 
@@ -373,7 +374,7 @@ class UnreachableTypeRuleTest {
                 """);
 
             ValidationResult result = validate(products);
-            assertThat(result.errors())
+            assertThat(result.warnings())
                 .hasSize(3)
                 .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals("Product"))
                 .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals("Category"))
@@ -412,7 +413,7 @@ class UnreachableTypeRuleTest {
 
             ValidationResult result = validate(search);
             // SearchResult, Product, and Category are all unreachable
-            assertThat(result.errors())
+            assertThat(result.warnings())
                 .hasSize(3)
                 .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals("SearchResult"))
                 .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals("Product"))
@@ -496,7 +497,7 @@ class UnreachableTypeRuleTest {
                 """);
 
             ValidationResult result = validate(products);
-            assertThat(result.errors())
+            assertThat(result.warnings())
                 .hasSize(2)
                 .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals("DisconnectedA"))
                 .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals("DisconnectedB"));
@@ -523,7 +524,7 @@ class UnreachableTypeRuleTest {
                 """);
 
             ValidationResult result = validate(valid, invalid);
-            assertThat(result.errors())
+            assertThat(result.warnings())
                 .hasSize(1)
                 .anyMatch(d -> d.code().equals(CODE)
                     && d.coordinate().equals("OrphanedType")
@@ -547,7 +548,7 @@ class UnreachableTypeRuleTest {
 
             ValidationResult result = validate(products);
             // Both should be unreachable
-            assertThat(result.errors())
+            assertThat(result.warnings())
                 .hasSize(2)
                 .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals("Node"))
                 .anyMatch(d -> d.code().equals(CODE) && d.coordinate().equals("OrphanedType"));

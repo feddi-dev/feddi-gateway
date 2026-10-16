@@ -1,0 +1,12 @@
+query($includeMedia: Boolean!, $skipPublication: Boolean!) {
+  book {
+    ... on Media @include(if: $includeMedia) {
+      id
+    }
+    ... on Publication @skip(if: $skipPublication) {
+      ... on Book {
+        title
+      }
+    }
+  }
+}

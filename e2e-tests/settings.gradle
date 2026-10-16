@@ -1,3 +1,5 @@
 rootProject.name = 'e2e-tests'
 
 include 'extensions'
+
+include 'spring-subgraph'

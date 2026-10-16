@@ -7,6 +7,9 @@ import dev.feddi.federation.engine.graph.FieldMoveEdge;
 import dev.feddi.federation.engine.graph.Graph;
 import dev.feddi.federation.engine.graph.LookupMoveEdge;
 import dev.feddi.federation.engine.graph.Node;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.FieldSelection;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.InlineFragment;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectionItem;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.Path;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectedValue;
@@ -53,6 +56,11 @@ public final class PathFinder {
             fieldName, 
             currentPath.copyVisitedSubgraphs()
         );
+        if (indirectPaths.isEmpty()) {
+            // Last resort: lookups whose keys the current subgraph only partly has, the rest fetched through
+            // another lookup (a lookup by id, pid and category, with pid in another subgraph)
+            indirectPaths = findIndirectPaths(currentPath, fieldName, currentPath.copyVisitedSubgraphs(), true);
+        }
         
         return BestPathTracker.findBestPaths(indirectPaths);
     }
@@ -154,29 +162,24 @@ public final class PathFinder {
         String typeName = edge.source().typeName();
         String subgraph = edge.source().subgraph();
 
-        // Check if this field has @require
-        if (!graph.fieldHasRequire(typeName, subgraph, fieldName)) {
-            // No @require, field can be accessed directly
+        // Fields without @require, and root fields, whose requirements are resolved from the response root, can be
+        // accessed directly
+        if (!graph.fieldHasRequire(typeName, subgraph, fieldName) || graph.isRootOperationType(typeName)) {
             return true;
         }
 
-        // Field has @require - check if we've gone through a lookup that provides it
-        for (Edge pathEdge : currentPath.getEdges()) {
-            if (pathEdge instanceof LookupMoveEdge lookupEdge) {
-                // Check if this lookup targets the same type/subgraph and has @require for our field
-                if (lookupEdge.target().typeName().equals(typeName)
-                    && lookupEdge.target().subgraph().equals(subgraph)) {
-                    for (var req : lookupEdge.requires()) {
-                        if (fieldName.equals(req.fieldName())) {
-                            // Found a lookup that provides the @require arguments
-                            return true;
-                        }
-                    }
+        // Field has @require: the requirement values are per object, so the object itself must have been entered
+        // through a lookup that carries them (the path's last edge); a lookup into the same type further up the
+        // path is for another object
+        List<Edge> edges = currentPath.getEdges();
+        if (!edges.isEmpty() && edges.get(edges.size() - 1) instanceof LookupMoveEdge lookupEdge
+            && lookupEdge.target().typeName().equals(typeName) && lookupEdge.target().subgraph().equals(subgraph)) {
+            for (var req : lookupEdge.requires()) {
+                if (fieldName.equals(req.fieldName())) {
+                    return true;
                 }
             }
         }
-
-        // Field has @require but no lookup in path provides it - can't access directly
         return false;
     }
 
@@ -189,29 +192,57 @@ public final class PathFinder {
         List<OperationPath> result = new ArrayList<>();
         Node currentNode = currentPath.tail();
         String typeContext = currentPath.typeContext();
+        List<Edge> edges = currentPath.getEdges();
 
-        // Check if any edge in the path provides this field
-        for (Edge edge : currentPath.getEdges()) {
-            if (edge instanceof FieldMoveEdge fieldEdge) {
-                // Check if this edge provides the field we're looking for
-                // Pass typeContext to handle inline fragments with type conditions
-                if (graph.providesField(fieldEdge, fieldName, typeContext)) {
-                    // The field is provided - check if we're at the right target node
-                    if (fieldEdge.target().equals(currentNode)) {
-                        // Create a synthetic field edge for the provided field (self-referential for scalars)
-                        FieldMoveEdge providedFieldEdge = new FieldMoveEdge(
-                            fieldName, currentNode, currentNode, 1
-                        );
-                        OperationPath newPath = currentPath.advance(providedFieldEdge);
-                        result.add(newPath);
-                    }
-                }
+        // A field edge with @provides makes its selection available below it: follow the fields after it on the
+        // path through that selection (level1 @provides "level2 { level3 { value } }" provides value below
+        // level1.level2.level3), staying in the same subgraph.
+        for (int i = 0; i < edges.size(); i++) {
+            if (!(edges.get(i) instanceof FieldMoveEdge providing)) {
+                continue;
             }
+            List<SelectionItem> provided = graph.getProvidedFields(providing).items();
+            for (int j = i + 1; j < edges.size() && provided != null; j++) {
+                provided = edges.get(j) instanceof FieldMoveEdge next
+                    && next.source().subgraph().equals(providing.target().subgraph())
+                    ? subSelection(provided, next.fieldName(), typeContext) : null;
+            }
+            if (provided == null || subSelection(provided, fieldName, typeContext) == null) {
+                continue;
+            }
+            // A provided field leads to its type's node (external fields have no edge of their own)
+            String externalType = graph.externalFieldType(new Node(currentNode.typeName(), currentNode.subgraph()), fieldName);
+            Node target = externalType != null && !subSelection(provided, fieldName, typeContext).isEmpty()
+                ? new Node(externalType, currentNode.subgraph()) : currentNode;
+            result.add(currentPath.advance(new FieldMoveEdge(fieldName, currentNode, target, 1)));
+            break;
         }
 
         return result;
     }
-    
+
+    /** The sub-selection of a field in a provided selection (also inside matching fragments), or null. */
+    private static List<SelectionItem> subSelection(List<SelectionItem> items, String fieldName, String typeContext) {
+        for (SelectionItem item : items) {
+            switch (item) {
+                case FieldSelection field -> {
+                    if (field.fieldName().equals(fieldName)) {
+                        return field.subSelections();
+                    }
+                }
+                case InlineFragment fragment -> {
+                    if (typeContext == null || fragment.typeName().equals(typeContext)) {
+                        List<SelectionItem> nested = subSelection(fragment.selections(), fieldName, typeContext);
+                        if (nested != null) {
+                            return nested;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     /**
      * Finds indirect paths to a field via lookup edges.
      * Uses BFS-style exploration with cycle prevention.
@@ -225,6 +256,15 @@ public final class PathFinder {
         OperationPath currentPath,
         String fieldName,
         Set<String> excludedSubgraphs
+    ) {
+        return findIndirectPaths(currentPath, fieldName, excludedSubgraphs, false);
+    }
+
+    private List<OperationPath> findIndirectPaths(
+        OperationPath currentPath,
+        String fieldName,
+        Set<String> excludedSubgraphs,
+        boolean keysThroughLookups
     ) {
         BestPathTracker tracker = new BestPathTracker();
 
@@ -308,7 +348,7 @@ public final class PathFinder {
                 }
                 
                 // Check if we can satisfy the lookup requirements
-                if (!canSatisfyRequirements(state.path(), lookupEdge)) {
+                if (!canSatisfyRequirements(state.path(), lookupEdge, keysThroughLookups)) {
                     continue;
                 }
                 
@@ -355,7 +395,7 @@ public final class PathFinder {
      * at least ONE alternative must be fully resolvable. This is because alternatives represent
      * different type-conditioned paths and only the matching one is used at runtime.
      */
-    private boolean canSatisfyRequirements(OperationPath path, LookupMoveEdge lookupEdge) {
+    private boolean canSatisfyRequirements(OperationPath path, LookupMoveEdge lookupEdge, boolean keysThroughLookups) {
         Node sourceNode = path.tail();
         String typeContext = path.typeContext();
 
@@ -363,9 +403,10 @@ public final class PathFinder {
             var alternatives = lookupArg.selection().alternatives();
 
             if (alternatives.size() <= 1) {
-                // Single alternative: all paths must be resolvable
+                // Single alternative: all paths must be resolvable, here or through one other lookup
                 for (var argPath : lookupArg.extractPaths()) {
-                    if (!canResolvePath(sourceNode, argPath, typeContext)) {
+                    if (!canResolvePath(sourceNode, argPath, typeContext)
+                        && !(keysThroughLookups && canResolveThroughLookup(sourceNode, argPath, typeContext, lookupEdge))) {
                         return false;
                     }
                 }
@@ -393,6 +434,19 @@ public final class PathFinder {
         }
 
         return true;
+    }
+
+    /**
+     * Whether a key path of {@code lookupEdge} that the source subgraph does not have can be fetched through
+     * another lookup whose own keys are in the source subgraph (e.g. a product's pid from the subgraph that has it,
+     * for a lookup by id, pid and category).
+     */
+    private boolean canResolveThroughLookup(Node sourceNode, Path path, String typeContext, LookupMoveEdge lookupEdge) {
+        return graph.lookupEdgesFrom(sourceNode).anyMatch(other ->
+            !other.target().subgraph().equals(lookupEdge.target().subgraph())
+                && other.lookupArguments().stream().allMatch(argument -> argument.extractPaths().stream()
+                    .allMatch(keyPath -> canResolvePath(sourceNode, keyPath, typeContext)))
+                && canResolvePath(other.target(), path, typeContext));
     }
 
     /**

@@ -1,0 +1,43 @@
+name: "Requirement resolved through two lookups"
+description: "weight is fetched from warehouse with the sku catalog returns; shippingCost re-enters shop."
+
+query: |
+  {
+    products {
+      name
+      shippingCost
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: shop
+      operation: "{ products { name id } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: shop
+      operation: "query($id: ID!, $weight: Float) { productById(id: $id) { shippingCost(weight: $weight) } }"
+      dependsOn: [4]
+      requirements:
+        id: "id"
+        weight: "weight"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: catalog
+      operation: "query($id: ID!) { productById(id: $id) { id sku } }"
+      dependsOn: [1]
+      requirements:
+        id: "id"
+      repeatedExecution: true
+
+    - id: 4
+      subgraph: warehouse
+      operation: "query($sku: String!) { productBySku(sku: $sku) { weight } }"
+      dependsOn: [3]
+      requirements:
+        sku: "sku"
+      repeatedExecution: true

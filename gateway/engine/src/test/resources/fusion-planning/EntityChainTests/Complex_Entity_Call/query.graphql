@@ -1,0 +1,10 @@
+{
+  topProducts {
+    products {
+      id
+      price {
+        price
+      }
+    }
+  }
+}

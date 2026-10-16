@@ -1,0 +1,23 @@
+name: "Root field with a requirement"
+description: "search requires category, a root field of settings: search waits for it."
+
+query: |
+  {
+    search(term: "shoes")
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: search
+      operation: "query($filter: String) { search(term: \"shoes\", filter: $filter) }"
+      dependsOn: [2]
+      requirements:
+        filter: "category"
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: settings
+      operation: "{ category }"
+      dependsOn: []
+      repeatedExecution: false

@@ -1,0 +1,44 @@
+name: Fusion RequirementCrossEntityTests.Plan_Should_Resolve_ByNovice_When_Require_Crosses_Entity_Boundary
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/RequirementCrossEntityTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      feed: [Post]
+      postById(id: ID! @is(field: "id")): Post @lookup @internal
+      authorById(id: ID! @is(field: "id")): Author @lookup @internal
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      byExpert(byNovice: Boolean! @require(field: "byNovice")): Boolean!
+    }
+
+    type Author @key(fields: "id") {
+      id: ID!
+      name: String!
+      yearsOfExperience: Int!
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      postById(id: ID! @is(field: "id")): Post @lookup @internal
+    }
+
+    type Post @key(fields: "id") {
+      id: ID!
+      author: Author!
+      byNovice(
+        yearsOfExperience: Int!
+          @require(field: "author.yearsOfExperience")): Boolean!
+    }
+
+    type Author @key(fields: "id") {
+      id: ID!
+    }

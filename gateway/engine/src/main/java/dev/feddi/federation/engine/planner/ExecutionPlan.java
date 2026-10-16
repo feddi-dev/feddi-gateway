@@ -60,23 +60,6 @@ public record ExecutionPlan(List<ExecutionStep> steps) {
             .filter(ExecutionStep::isRoot)
             .toList();
     }
-    
-    /**
-     * Gets all unique subgraphs involved in this plan.
-     */
-    public List<String> involvedSubgraphs() {
-        return steps.stream()
-            .map(ExecutionStep::subgraph)
-            .distinct()
-            .toList();
-    }
-    
-    /**
-     * Calculates the total cost based on number of steps (simple metric).
-     */
-    public int totalCost() {
-        return steps.size();
-    }
 
     /**
      * Aggregates all artificial field paths from all steps.
@@ -103,27 +86,6 @@ public record ExecutionPlan(List<ExecutionStep> steps) {
         return paths;
     }
 
-    /**
-     * Returns paths that should be filtered from the final response.
-     * A field should be filtered if it's artificial AND NOT requested.
-     * This handles cases where the same field path is artificial in one step
-     * but explicitly requested in another step.
-     */
-    public Set<String> pathsToFilter() {
-        Set<String> artificial = allArtificialFieldPaths();
-        Set<String> requested = allRequestedFieldPaths();
-        Set<String> toFilter = new HashSet<>(artificial);
-        toFilter.removeAll(requested);
-        return toFilter;
-    }
-
-    /**
-     * Checks if any step has artificial fields that need filtering.
-     */
-    public boolean hasArtificialFields() {
-        return steps.stream().anyMatch(ExecutionStep::hasArtificialFields);
-    }
-    
     @Override
     public String toString() {
         if (isEmpty()) {

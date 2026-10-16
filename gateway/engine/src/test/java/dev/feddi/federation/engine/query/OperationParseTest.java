@@ -576,5 +576,12 @@ class OperationParseTest {
             assertThatThrownBy(() -> Operation.parse("not valid graphql"))
                 .isInstanceOf(Operation.OperationParseException.class);
         }
+
+        @Test
+        void rejectsUnevaluatedDirectives() {
+            assertThatThrownBy(() -> Operation.parse("{ a @skip(if: true) }"))
+                .isInstanceOf(Operation.OperationParseException.class)
+                .hasMessageContaining("unevaluated directive @skip");
+        }
     }
 }

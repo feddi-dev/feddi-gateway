@@ -1,0 +1,45 @@
+name: "GraphQL errors of a root step propagate to the response"
+description: |
+  A root step's subgraph returns partial data with an error: the data and the error are both in the response.
+
+query: |
+  {
+    products {
+      id
+      name
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { id name } }'
+    variables: {}
+    response: {
+      data: {
+        products: [
+          { id: "p1", name: null }
+        ]
+      },
+      errors: [
+        {
+          message: "Name unavailable",
+          path: ["products", 0, "name"]
+        }
+      ]
+    }
+
+expectedResponse: {
+  data: {
+    products: [
+      { id: "p1", name: null }
+    ]
+  },
+  errors: [
+    {
+      message: "Name unavailable",
+      path: ["products", 0, "name"]
+    }
+  ]
+}

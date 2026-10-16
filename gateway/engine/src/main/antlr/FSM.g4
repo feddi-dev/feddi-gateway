@@ -36,11 +36,20 @@ selectedListValue: '[' selectedValue ']' | '[' selectedListValue ']';
 
 selectedObjectValue: '{' selectedObjectField+ '}';
 
-selectedObjectField: name ':' selectedValue | name;
+selectedObjectField: name ':' selectedValue | name arguments?;
 
 path: '<' typeName '>' '.' pathSegment | pathSegment;
 
-pathSegment: fieldName | fieldName '.' pathSegment | fieldName '<' typeName '>' '.' pathSegment;
+pathSegment: fieldName arguments? | fieldName arguments? '.' pathSegment | fieldName arguments? '<' typeName '>' '.' pathSegment;
+
+// Arguments[Const]: literal values only, as in GraphQL (no variables)
+arguments: '(' argument+ ')';
+
+argument: name ':' value;
+
+value: STRING | NUMBER | name | '[' value* ']' | '{' objectValueField* '}';
+
+objectValueField: name ':' value;
 
 // ============================================================================
 // Common rules
@@ -50,6 +59,8 @@ fieldName: name;
 typeName: name;
 name: NAME;
 NAME: [_A-Za-z][_0-9A-Za-z]*;
+STRING: '"' (~["\\\r\n] | '\\' .)* '"';
+NUMBER: '-'? [0-9]+ ('.' [0-9]+)? ([eE] [+-]? [0-9]+)?;
 
 LF: [\n] -> channel(3);
 CR: [\r] -> channel(3);

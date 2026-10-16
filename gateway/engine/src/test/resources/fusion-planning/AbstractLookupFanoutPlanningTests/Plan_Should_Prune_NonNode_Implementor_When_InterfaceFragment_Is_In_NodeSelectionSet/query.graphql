@@ -1,0 +1,7 @@
+query($id: ID!) {
+  node(id: $id) {
+    __typename
+    ... on Node { id }
+    ... on Manageable { canEdit }
+  }
+}

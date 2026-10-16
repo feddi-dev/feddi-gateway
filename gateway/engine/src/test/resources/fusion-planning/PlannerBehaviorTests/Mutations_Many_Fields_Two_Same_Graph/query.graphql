@@ -1,0 +1,6 @@
+mutation {
+  five: add(num: 5)
+  ten: multiply(by: 2)
+  twelve: add(num: 2)
+  final: delete
+}

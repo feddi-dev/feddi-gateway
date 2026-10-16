@@ -15,9 +15,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Dependent steps are entity lookups with key requirements, executed once per entity. Lookups
+ * Lookup steps (steps with an entity path) have key requirements and run once per entity. Lookups
  * without a key are rejected at composition (LOOKUP_MUST_HAVE_ARGUMENTS), so the planner never
- * creates a dependent step without requirements. A hand-assembled one fails the execution.
+ * creates a lookup step without requirements. A hand-assembled one fails the execution. (Root steps
+ * may wait for others: a mutation's later top-level fields, or root fields with @require.)
  */
 class DependentStepRequirementsTest {
 
@@ -28,8 +29,7 @@ class DependentStepRequirementsTest {
         try (var input = getClass().getResourceAsStream("/schemas/products_reviews/executions/basic_lookup.yaml")) {
             var fixture = loader.loadExecutionTest(input);
             var normalizer = OperationNormalizer.builder(schema.supergraphSchema())
-                .inlineFragments(true).deduplicateFields(true).sortSelections(false)
-                .processSkipInclude(true).build();
+                .inlineFragments(true).deduplicateFields(true).sortSelections(false).build();
             var planned = new OperationPlanner(schema.graph()).plan(Operation.parse(fixture.query(), normalizer));
             var plan = ExecutionPlan.of(planned.steps().stream().map(step -> step.isRoot() ? step
                 : new ExecutionStep(step.id(), step.subgraph(), step.operation(), step.dependsOn(),

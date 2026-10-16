@@ -1,0 +1,16 @@
+name: Fusion AbstractLookupFanoutPlanningTests.Plan_Should_Prune_NonNode_Implementor_When_NodeSelectionSet_Has_No_Shared_Selections
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/AbstractLookupFanoutPlanningTests.cs. MIT License.
+subgraphs:
+  tickets: |-
+    schema { query: Query }
+
+    type Query {
+      node(id: ID!): Node @lookup
+      draft: Draft
+    }
+
+    interface Node { id: ID! }
+    interface Manageable { canEdit: Boolean! }
+
+    type Ticket implements Node & Manageable { id: ID! canEdit: Boolean! }
+    type Draft implements Manageable { canEdit: Boolean! name: String }

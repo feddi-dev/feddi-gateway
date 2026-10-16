@@ -20,7 +20,7 @@ expectedPlan:
     - id: 2
       subgraph: c
       operation: "query ($id: ID!, $isExpensive: Boolean!) { productById(id: $id) { skip(isExpensive: $isExpensive) } }"
-      dependsOn: [1, 3]
+      dependsOn: [3]
       requirements:
         id: "id"
         isExpensive: "isExpensive"

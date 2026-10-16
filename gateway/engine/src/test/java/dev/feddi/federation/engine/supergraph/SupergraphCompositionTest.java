@@ -110,7 +110,8 @@ class SupergraphCompositionTest {
         }
         
         assertThat(result.isSuccess())
-            .as("Composition should succeed for: %s", testCase.name())
+            .as("Composition should succeed for: %s, errors: %s", testCase.name(),
+                result.validationResult().errors().stream().map(e -> e.code() + ": " + e.message()).toList())
             .isTrue();
         
         GraphQLSchema generatedSupergraph = result.supergraph();

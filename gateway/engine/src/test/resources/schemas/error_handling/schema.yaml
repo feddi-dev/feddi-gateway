@@ -8,7 +8,7 @@ subgraphs:
   products: |
     type Query {
       products: [Product]
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
     }
 
     type Product @key(fields: "id") {
@@ -19,7 +19,7 @@ subgraphs:
 
   reviews: |
     type Query {
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
     }
 
     type Product @key(fields: "id") {

@@ -1,0 +1,14 @@
+query {
+  ordersByAgent {
+    edges {
+      node {
+        id
+        customer {
+          __typename
+          id
+          email
+        }
+      }
+    }
+  }
+}

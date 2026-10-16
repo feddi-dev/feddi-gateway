@@ -1,0 +1,47 @@
+name: Fusion RequirementArgumentTests.Plan_Should_Succeed_When_Require_Only_Input_Type_And_Upload_Scalar_Exist
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/RequirementArgumentTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+      mutation: Mutation
+    }
+
+    type Query {
+      products: [Product]
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
+    }
+
+    type Mutation {
+      uploadProductPicture(file: Upload!): Boolean
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      variants: [Variant]
+    }
+
+    type Variant {
+      price: Float!
+    }
+
+    scalar Upload
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      discountedPrice(
+        prices: [PriceInput!]!
+          @require(field: "variants[{ price: price }]")): Float!
+    }
+
+    input PriceInput {
+      price: Float!
+    }

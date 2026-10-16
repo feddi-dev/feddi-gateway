@@ -7,7 +7,7 @@ subgraphs:
   users: |
     type Query {
       users(filter: UserFilter): [User]
-      userById(id: ID!): User @lookup
+      userById(id: ID!): User @lookup @shareable
     }
     type Mutation {
       createUser(input: CreateUserInput!): User
@@ -46,7 +46,7 @@ subgraphs:
   orders: |
     type Query {
       orders(filter: OrderFilter): [Order]
-      userById(id: ID!): User @lookup
+      userById(id: ID!): User @lookup @shareable
     }
     type User @key(fields: "id") {
       id: ID!

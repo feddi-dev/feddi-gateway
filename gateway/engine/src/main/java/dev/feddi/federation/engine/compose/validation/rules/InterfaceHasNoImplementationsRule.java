@@ -18,25 +18,19 @@ import java.util.List;
 import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSIBLE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
- * Validates that interface types used as return types have at least one implementing type.
+ * Warns about interface types used as return types that have no implementing type.
  *
- * An interface with no implementations cannot be resolved at runtime, as GraphQL requires
- * abstract types to resolve to concrete types when returning data.
+ * Not a spec rule, and only a warning: GraphQL allows such an interface; a field returning it can only
+ * return null.
  *
- * This rule only reports an error if the interface is actually used as a return type
- * somewhere in the schema. Unused interfaces with no implementations are allowed.
+ * Only interfaces used as a return type somewhere in the schema are reported.
  */
 public final class InterfaceHasNoImplementationsRule implements PostMergeValidationRule {
 
     private static final String CODE = "INTERFACE_HAS_NO_IMPLEMENTATIONS";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public String name() {
@@ -51,7 +45,7 @@ public final class InterfaceHasNoImplementationsRule implements PostMergeValidat
         Set<String> interfacesWithNoImpl = new HashSet<>();
         for (GraphQLNamedType type : mergedSchema.getAllTypesAsList()) {
             if (type instanceof GraphQLInterfaceType interfaceType) {
-                if (BUILT_IN_TYPES.contains(interfaceType.getName())) {
+                if (isBuiltInType(interfaceType.getName())) {
                     continue;
                 }
                 // Skip @inaccessible interfaces
@@ -86,7 +80,7 @@ public final class InterfaceHasNoImplementationsRule implements PostMergeValidat
                 "At least one type must implement this interface for it to be resolvable at runtime.",
                 interfaceName
             );
-            builder.addError(CODE, message, interfaceName, null, null);
+            builder.addWarning(CODE, message, interfaceName, null);
         }
 
         return builder.build();

@@ -1,19 +1,20 @@
 package dev.feddi.federation.engine.compose.validation.rules;
 
-import dev.feddi.federation.engine.Constants;
-
 import dev.feddi.federation.engine.compose.Subgraph;
 import dev.feddi.federation.engine.compose.validation.ValidationPhase;
 import dev.feddi.federation.engine.compose.validation.ValidationResult;
 import dev.feddi.federation.engine.compose.validation.ValidationRule;
-import graphql.introspection.Introspection;
 import graphql.schema.GraphQLAppliedDirective;
 import graphql.schema.GraphQLAppliedDirectiveArgument;
+import graphql.schema.GraphQLArgument;
 import graphql.schema.GraphQLFieldDefinition;
+import graphql.schema.GraphQLFieldsContainer;
+import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLNamedType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
-import graphql.schema.idl.ScalarInfo;
+import graphql.schema.GraphQLTypeUtil;
+import graphql.schema.GraphQLUnionType;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,9 +25,13 @@ import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.EXTERNAL;
 import static dev.feddi.federation.engine.compose.FederationDirectives.INTERNAL;
+import static dev.feddi.federation.engine.compose.FederationDirectives.IS;
 import static dev.feddi.federation.engine.compose.FederationDirectives.KEY;
 import static dev.feddi.federation.engine.compose.FederationDirectives.LOOKUP;
+import static dev.feddi.federation.engine.compose.FederationDirectives.OVERRIDE;
 import static dev.feddi.federation.engine.compose.FederationDirectives.SHAREABLE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.stringValue;
 
 /**
  * Validates that fields defined in multiple subgraphs are marked as @shareable.
@@ -34,9 +39,15 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.SHAREABLE
  * Spec: https://graphql.github.io/composite-schemas-spec/draft/#sec-Invalid-Field-Sharing
  * 
  * Exceptions:
- * - Key fields (fields mentioned in @key directive) are implicitly shareable
+ * - Key fields are implicitly shareable: fields in a @key directive, and fields that a lookup
+ *   argument maps to (a key that "could be inferred from a lookup field's arguments MAY be
+ *   omitted", spec section @key)
  * - External fields are allowed (they reference fields from other subgraphs)
- * - Lookup fields on Query type are allowed (they're entity resolution entry points)
+ * - Types and fields marked @internal do not take part
+ * - Overridden fields (one definition has @override) are exempt
+ *
+ * Root fields follow the same rule: a lookup that several source schemas define needs @shareable
+ * (or @internal), like any other field.
  */
 public final class InvalidFieldSharingRule implements ValidationRule {
     
@@ -78,7 +89,7 @@ public final class InvalidFieldSharingRule implements ValidationRule {
     }
     
     /**
-     * Collects all key fields from all subgraphs.
+     * Collects all key fields from all subgraphs: @key fields and the fields lookup arguments map to.
      * Key fields are implicitly shareable.
      */
     private Map<String, Set<String>> collectKeyFields(List<Subgraph> subgraphs) {
@@ -88,13 +99,16 @@ public final class InvalidFieldSharingRule implements ValidationRule {
             GraphQLSchema schema = subgraph.schema();
             
             for (GraphQLNamedType type : schema.getAllTypesAsList()) {
+                if (type instanceof GraphQLFieldsContainer container) {
+                    collectLookupKeyFields(schema, container, keyFieldsByType);
+                }
                 if (type instanceof GraphQLObjectType objectType) {
                     // Check if type has @key directive
                     List<GraphQLAppliedDirective> keyDirectives = objectType.getAppliedDirectives(KEY);
                     for (GraphQLAppliedDirective keyDirective : keyDirectives) {
                         GraphQLAppliedDirectiveArgument fieldsArg = keyDirective.getArgument("fields");
                         if (fieldsArg != null && fieldsArg.getValue() != null) {
-                            String keyFields = getStringValue(fieldsArg.getValue());
+                            String keyFields = stringValue(fieldsArg.getValue());
                             if (keyFields != null) {
                                 // Parse key fields (can be composite like "userId orderId")
                                 Set<String> fields = keyFieldsByType
@@ -113,23 +127,53 @@ public final class InvalidFieldSharingRule implements ValidationRule {
     }
     
     /**
-     * Extracts string value from a GraphQL value (handles StringValue).
+     * Adds the fields that the arguments of the container's lookup fields map to (the argument name,
+     * or the first field of its @is selection) as keys of the lookup's return type; for an abstract
+     * return type, of every possible object type.
      */
-    private String getStringValue(Object value) {
-        if (value instanceof graphql.language.StringValue stringValue) {
-            return stringValue.getValue();
+    private void collectLookupKeyFields(GraphQLSchema schema, GraphQLFieldsContainer container,
+                                        Map<String, Set<String>> keyFieldsByType) {
+        for (GraphQLFieldDefinition field : container.getFieldDefinitions()) {
+            if (!field.hasAppliedDirective(LOOKUP)) {
+                continue;
+            }
+            GraphQLNamedType returnType = GraphQLTypeUtil.unwrapAllAs(field.getType());
+            List<String> entityTypes = new ArrayList<>();
+            if (returnType instanceof GraphQLObjectType objectType) {
+                entityTypes.add(objectType.getName());
+            } else if (returnType instanceof GraphQLInterfaceType interfaceType) {
+                schema.getImplementations(interfaceType).forEach(t -> entityTypes.add(t.getName()));
+            } else if (returnType instanceof GraphQLUnionType unionType) {
+                unionType.getTypes().forEach(t -> entityTypes.add(t.getName()));
+            }
+            for (GraphQLArgument argument : field.getArguments()) {
+                String keyField = lookupArgumentField(argument);
+                for (String entityType : entityTypes) {
+                    keyFieldsByType.computeIfAbsent(entityType, k -> new HashSet<>()).add(keyField);
+                }
+            }
         }
-        if (value instanceof String s) {
-            return s;
-        }
-        return null;
     }
+
+    private String lookupArgumentField(GraphQLArgument argument) {
+        GraphQLAppliedDirective is = argument.getAppliedDirective(IS);
+        GraphQLAppliedDirectiveArgument fieldArgument = is == null ? null : is.getArgument("field");
+        String selection = fieldArgument == null ? null : stringValue(fieldArgument.getValue());
+        if (selection == null) {
+            return argument.getName();
+        }
+        // First field of the selection: "id", "product.id", "{ id sku }", "<Book>.isbn"
+        String first = selection.replaceAll("<[^>]*>\\s*\\.?", " ").replaceAll("[{}.:,|\\[\\]]", " ").trim();
+        return first.isEmpty() ? argument.getName() : first.split("\\s+")[0];
+    }
+
     
     private void collectFields(Subgraph subgraph, Map<String, List<FieldInfo>> fieldsByCoordinate) {
         GraphQLSchema schema = subgraph.schema();
         
         for (GraphQLNamedType type : schema.getAllTypesAsList()) {
-            if (type instanceof GraphQLObjectType objectType && !isBuiltInType(objectType.getName())) {
+            if (type instanceof GraphQLObjectType objectType && !isBuiltInType(objectType.getName())
+                && !objectType.hasAppliedDirective(INTERNAL)) {
                 // Check if the type itself is marked as @external
                 boolean typeIsExternal = objectType.hasAppliedDirective(EXTERNAL);
                 
@@ -161,17 +205,11 @@ public final class InvalidFieldSharingRule implements ValidationRule {
             return; // Key fields are implicitly shareable
         }
         
-        // Query fields with @lookup are entity resolution entry points and are expected
-        // to have similar fields across subgraphs
-        if (typeName.equals(Constants.QUERY)) {
-            // Check if any of the fields is a lookup
-            boolean anyLookup = fields.stream()
-                .anyMatch(f -> f.field().hasAppliedDirective(LOOKUP));
-            if (anyLookup) {
-                return; // Lookup fields on Query are allowed
-            }
+        // Overridden fields are exempt (spec: field names "part of a @key directive, or overridden")
+        if (fields.stream().anyMatch(f -> f.field().hasAppliedDirective(OVERRIDE))) {
+            return;
         }
-        
+
         // Count non-external definitions - only flag if multiple non-external instances exist
         List<FieldInfo> nonExternalFields = fields.stream()
             .filter(f -> !f.field().hasAppliedDirective(EXTERNAL) && !f.typeIsExternal())
@@ -203,9 +241,6 @@ public final class InvalidFieldSharingRule implements ValidationRule {
         }
     }
     
-    private boolean isBuiltInType(String typeName) {
-        return Introspection.isIntrospectionTypes(typeName) || ScalarInfo.isGraphqlSpecifiedScalar(typeName);
-    }
     
     private record FieldInfo(String schemaName, String typeName, GraphQLFieldDefinition field, boolean typeIsExternal) {}
 }

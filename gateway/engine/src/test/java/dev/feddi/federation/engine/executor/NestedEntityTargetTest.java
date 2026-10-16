@@ -24,8 +24,7 @@ class NestedEntityTargetTest {
                 "/schemas/nested_entity_targets/executions/" + scenario + ".yaml")) {
             var fixture = loader.loadExecutionTest(input);
             var normalizer = OperationNormalizer.builder(schema.supergraphSchema())
-                .inlineFragments(true).deduplicateFields(true).sortSelections(false)
-                .processSkipInclude(true).build();
+                .inlineFragments(true).deduplicateFields(true).sortSelections(false).build();
             var plan = new OperationPlanner(schema.graph()).plan(Operation.parse(fixture.query(), normalizer));
             Map<String, SubgraphClient> clients = new LinkedHashMap<>();
             for (String subgraph : List.of("products", "reviews", "users")) {

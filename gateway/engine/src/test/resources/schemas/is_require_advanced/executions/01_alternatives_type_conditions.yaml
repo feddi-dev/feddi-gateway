@@ -35,7 +35,7 @@ subgraphCalls:
     }
 
   - subgraph: ratings
-    operation: 'query($code:String!){movieByImdb(code:$code){...on Movie{rating reviewCount}}}'
+    operation: 'query($code:String!){movieByImdb(code:$code){rating reviewCount}}'
     variables: { code: "tt1375666" }
     response: {
       data: {
@@ -47,7 +47,7 @@ subgraphCalls:
     }
 
   - subgraph: ratings
-    operation: 'query($code:String!){tvShowByTvdb(code:$code){...on TVShow{rating reviewCount}}}'
+    operation: 'query($code:String!){tvShowByTvdb(code:$code){rating reviewCount}}'
     variables: { code: "81189" }
     response: {
       data: {

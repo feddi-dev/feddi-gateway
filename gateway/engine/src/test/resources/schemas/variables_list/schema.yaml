@@ -8,7 +8,7 @@ subgraphs:
     type Query {
       productsByIds(ids: [ID!]!): [Product]
       productsByTags(tags: [String]): [Product]
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
     }
     type Product @key(fields: "id") {
       id: ID!
@@ -19,7 +19,7 @@ subgraphs:
   inventory: |
     type Query {
       stockLevels(productIds: [ID!]!, warehouseIds: [ID]): [StockLevel]
-      productById(id: ID!): Product @lookup
+      productById(id: ID!): Product @lookup @shareable
     }
     type Product @key(fields: "id") {
       id: ID!

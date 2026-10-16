@@ -9,7 +9,7 @@ description: |
 subgraphs:
   customers: |
     type Query {
-      customerById(id: ID!): Customer @lookup
+      customerById(id: ID!): Customer @lookup @shareable
     }
 
     type Customer @key(fields: "id") {
@@ -30,7 +30,7 @@ subgraphs:
 
   notifications: |
     type Query {
-      customerById(id: ID!): Customer @lookup
+      customerById(id: ID!): Customer @lookup @shareable
     }
 
     type Customer @key(fields: "id") {

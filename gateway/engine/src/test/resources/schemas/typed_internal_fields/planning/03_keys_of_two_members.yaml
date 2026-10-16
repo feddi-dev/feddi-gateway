@@ -1,0 +1,40 @@
+name: "Keys of two members with different nullability"
+description: |
+  Gift.code (String!) and Voucher.code (String) are both lookup keys: the second key the planner adds gets an
+  alias.
+
+query: |
+  {
+    entries {
+      ... on Gift {
+        name
+      }
+      ... on Voucher {
+        discount
+      }
+    }
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: catalog
+      operation: "{ entries { __typename ... on Gift { code } ... on Voucher { __gql_code: code } } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: gifts
+      operation: "query($code: String!) { giftByCode(code: $code) { name } }"
+      dependsOn: [1]
+      requirements:
+        code: "code"
+      repeatedExecution: true
+
+    - id: 3
+      subgraph: vouchers
+      operation: "query($code: String) { voucherByCode(code: $code) { discount } }"
+      dependsOn: [1]
+      requirements:
+        code: "__gql_code"
+      repeatedExecution: true

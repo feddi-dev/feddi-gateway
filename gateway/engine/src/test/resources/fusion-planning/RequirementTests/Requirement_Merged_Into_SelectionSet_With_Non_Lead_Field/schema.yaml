@@ -1,0 +1,35 @@
+name: Fusion RequirementTests.Requirement_Merged_Into_SelectionSet_With_Non_Lead_Field
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/RequirementTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Brand {
+      id: Int!
+      name: String!
+    }
+
+    type Product @key(fields: "id") {
+      id: Int!
+      name: String!
+      brand: Brand
+    }
+
+    type Query {
+      products: [Product]
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Product {
+      nameAndId(name: String! @require(field: "name")): String!
+      id: Int!
+    }
+
+    type Query {
+      productById(id: Int!): Product @lookup @internal
+    }

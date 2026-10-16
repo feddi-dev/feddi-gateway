@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -227,7 +228,6 @@ class OperationNormalizerTest {
         void disableFragmentInlining() {
             OperationNormalizer noInlining = OperationNormalizer.builder(TEST_SCHEMA)
                 .inlineFragments(false)
-                .processSkipInclude(false)
                 .deduplicateFields(false)
                 .sortSelections(false)
                 .build();
@@ -246,32 +246,10 @@ class OperationNormalizerTest {
         }
 
         @Test
-        @DisplayName("Can disable directive processing")
-        void disableDirectiveProcessing() {
-            OperationNormalizer noDirectives = OperationNormalizer.builder(TEST_SCHEMA)
-                .inlineFragments(false)
-                .processSkipInclude(false)
-                .deduplicateFields(false)
-                .sortSelections(false)
-                .build();
-
-            String input = "{ user { id @skip(if: true) } }";
-
-            Document result = noDirectives.normalize(parse(input));
-            OperationDefinition op = getOperation(result);
-            Field userField = (Field) op.getSelectionSet().getSelections().get(0);
-            Field idField = (Field) userField.getSelectionSet().getSelections().get(0);
-
-            assertThat(idField.getDirectives()).hasSize(1);
-            assertThat(idField.getDirectives().get(0).getName()).isEqualTo("skip");
-        }
-
-        @Test
         @DisplayName("Can disable field deduplication")
         void disableDeduplication() {
             OperationNormalizer noDedupe = OperationNormalizer.builder(TEST_SCHEMA)
                 .inlineFragments(false)
-                .processSkipInclude(false)
                 .deduplicateFields(false)
                 .sortSelections(false)
                 .build();
@@ -290,7 +268,6 @@ class OperationNormalizerTest {
         void disableSorting() {
             OperationNormalizer noSort = OperationNormalizer.builder(TEST_SCHEMA)
                 .inlineFragments(false)
-                .processSkipInclude(false)
                 .deduplicateFields(false)
                 .sortSelections(false)
                 .build();
@@ -313,13 +290,11 @@ class OperationNormalizerTest {
         void builderConfiguration() {
             OperationNormalizer custom = OperationNormalizer.builder(TEST_SCHEMA)
                 .inlineFragments(false)
-                .processSkipInclude(true)
                 .deduplicateFields(false)
                 .sortSelections(true)
                 .build();
 
             assertThat(custom.isInlineFragmentsEnabled()).isFalse();
-            assertThat(custom.isProcessSkipIncludeEnabled()).isTrue();
             assertThat(custom.isDeduplicateFieldsEnabled()).isFalse();
             assertThat(custom.isSortSelectionsEnabled()).isTrue();
         }
@@ -452,14 +427,13 @@ class OperationNormalizerTest {
                 }
                 """;
 
-            Document result = normalizer.normalize(parse(input));
+            Document result = normalizer.withConditionValues(Map.of("includePrivate", true)).normalize(parse(input));
             OperationDefinition op = getOperation(result);
             Field userField = (Field) op.getSelectionSet().getSelections().get(0);
             var selections = userField.getSelectionSet().getSelections();
 
             // address removed (@skip(if: true))
-            // phone directive removed (@skip(if: false) evaluated)
-            // email directive preserved (variable reference)
+            // phone and email directives removed (@skip(if: false), @include(if: $includePrivate) evaluated)
             // Fields sorted: email, id, name, phone
 
             List<String> fieldNames = selections.stream()
@@ -468,17 +442,10 @@ class OperationNormalizerTest {
 
             assertThat(fieldNames).containsExactly("email", "id", "name", "phone");
 
-            // email should still have @include directive
-            Field emailField = (Field) selections.get(0);
-            assertThat(emailField.getDirectives()).hasSize(1);
-            assertThat(emailField.getDirectives().get(0).getName()).isEqualTo("include");
-
-            // phone should have no directives
-            Field phoneField = (Field) selections.get(3);
-            assertThat(phoneField.getDirectives()).isEmpty();
+            assertThat(selections).allSatisfy(selection -> assertThat(((Field) selection).getDirectives()).isEmpty());
 
             // SDL verification
-            assertSdlEquals(result, "query UserProfile($includePrivate: Boolean!) { user { email @include(if: $includePrivate) id name phone } }");
+            assertSdlEquals(result, "query UserProfile($includePrivate: Boolean!) { user { email id name phone } }");
         }
 
         @Test
@@ -573,7 +540,6 @@ class OperationNormalizerTest {
             OperationNormalizer fromBuilder = OperationNormalizer.builder(TEST_SCHEMA).build();
 
             assertThat(fromBuilder.isInlineFragmentsEnabled()).isTrue();
-            assertThat(fromBuilder.isProcessSkipIncludeEnabled()).isTrue();
             assertThat(fromBuilder.isDeduplicateFieldsEnabled()).isTrue();
             assertThat(fromBuilder.isSortSelectionsEnabled()).isTrue();
         }
@@ -594,7 +560,7 @@ class OperationNormalizerTest {
     class InlineFragmentTests {
 
         @Test
-        @DisplayName("Preserves inline fragment without type condition")
+        @DisplayName("Unwraps inline fragment without type condition")
         void inlineFragmentWithoutTypeCondition() {
             String input = """
                 {
@@ -608,15 +574,8 @@ class OperationNormalizerTest {
                 """;
 
             Document result = normalizer.normalize(parse(input));
-            var selections = getSelections(result, "user");
 
-            assertThat(selections).hasSize(1);
-            assertThat(selections.get(0)).isInstanceOf(InlineFragment.class);
-            InlineFragment fragment = (InlineFragment) selections.get(0);
-            assertThat(fragment.getTypeCondition()).isNull();
-
-            // SDL verification
-            assertSdlEquals(result,"{user {... {id name}}}");
+            assertSdlEquals(result, "{user {id name}}");
         }
 
         @Test
@@ -869,12 +828,15 @@ class OperationNormalizerTest {
                 .inlineFragments(true)
                 .deduplicateFields(true)
                 .sortSelections(true)
-                .processSkipInclude(true)
                 .build();
         }
 
         private void assertSimplifiedEquals(String input, String expected) {
-            Document result = schemaNormalizer.normalize(parse(input));
+            assertSimplifiedEquals(input, Map.of(), expected);
+        }
+
+        private void assertSimplifiedEquals(String input, Map<String, Boolean> conditions, String expected) {
+            Document result = schemaNormalizer.withConditionValues(conditions).normalize(parse(input));
             String actual = AstPrinter.printAstCompact(result);
             String expectedCompact = AstPrinter.printAstCompact(parse(expected));
             assertThat(actual).isEqualTo(expectedCompact);
@@ -996,6 +958,33 @@ class OperationNormalizerTest {
                 }
                 """,
                 "{ animals { ... on Cat { color } ... on Dog { breed id } } }"
+            );
+        }
+
+        @Test
+        @DisplayName("Evaluates @skip/@include of a redundant type condition and unwraps it")
+        void redundantTypeConditionWithCondition() {
+            assertSimplifiedEquals(
+                "query($a: Boolean!) { dog { ... on Animal @include(if: $a) { id } } }",
+                Map.of("a", true),
+                "query($a: Boolean!) { dog { id } }"
+            );
+        }
+
+        @Test
+        @DisplayName("Evaluates conditions of fragments inside one narrowed to the parent type")
+        void conditionalWideningFragments() {
+            assertSimplifiedEquals(
+                """
+                query($a: Boolean!, $b: Boolean!) {
+                    dog {
+                        ... on Animal @include(if: $a) { id }
+                        ... on SearchResult @skip(if: $b) { ... on Dog { breed } }
+                    }
+                }
+                """,
+                Map.of("a", false, "b", false),
+                "query($a: Boolean!, $b: Boolean!) { dog { breed } }"
             );
         }
     }
@@ -1242,7 +1231,7 @@ class OperationNormalizerTest {
         }
 
         @Test
-        @DisplayName("Preserves variables in @skip directive")
+        @DisplayName("Evaluates variables in @skip directive")
         void variablesInSkipDirective() {
             String input = """
                 query GetUser($skipEmail: Boolean!) {
@@ -1253,23 +1242,15 @@ class OperationNormalizerTest {
                 }
                 """;
 
-            Document result = normalizer.normalize(parse(input));
-            var selections = getSelections(result, "user");
+            Document result = normalizer.withConditionValues(Map.of("skipEmail", true)).normalize(parse(input));
 
-            // email field should remain with directive
-            assertThat(selections).hasSize(2);
-            Field emailField = (Field) selections.get(0); // sorted: email, id
-            assertThat(emailField.getName()).isEqualTo("email");
-            assertThat(emailField.getDirectives()).hasSize(1);
-            assertThat(emailField.getDirectives().get(0).getName()).isEqualTo("skip");
-
-            // SDL verification
-            String expectedSdl = "query GetUser($skipEmail: Boolean!) {user {email @skip(if: $skipEmail) id}}";
+            // SDL verification: email skipped, the variable stays defined
+            String expectedSdl = "query GetUser($skipEmail: Boolean!) {user {id}}";
             assertSdlEquals(result,expectedSdl);
         }
 
         @Test
-        @DisplayName("Preserves variables in @include directive")
+        @DisplayName("Evaluates variables in @include directive")
         void variablesInIncludeDirective() {
             String input = """
                 query GetUser($includeProfile: Boolean!) {
@@ -1282,16 +1263,10 @@ class OperationNormalizerTest {
                 }
                 """;
 
-            Document result = normalizer.normalize(parse(input));
-            var selections = getSelections(result, "user");
-
-            assertThat(selections).hasSize(2);
-            Field profileField = (Field) selections.get(1); // sorted: id, profile
-            assertThat(profileField.getName()).isEqualTo("profile");
-            assertThat(profileField.getDirectives()).hasSize(1);
+            Document result = normalizer.withConditionValues(Map.of("includeProfile", true)).normalize(parse(input));
 
             // SDL verification
-            String expectedSdl = "query GetUser($includeProfile: Boolean!) {user {id profile @include(if: $includeProfile) {bio}}}";
+            String expectedSdl = "query GetUser($includeProfile: Boolean!) {user {id profile {bio}}}";
             assertSdlEquals(result,expectedSdl);
         }
 
@@ -2117,13 +2092,21 @@ class OperationNormalizerTest {
                 }
                 """;
 
-            Document result = normalizer.normalize(parse(input));
-            var selections = getSelections(result, "user");
+            // Skipped if either condition is true
+            assertSdlEquals(normalizer.withConditionValues(Map.of("a", false, "b", true)).normalize(parse(input)),
+                "query Test($a: Boolean!, $b: Boolean!) {user}");
+            assertSdlEquals(normalizer.withConditionValues(Map.of("a", false, "b", false)).normalize(parse(input)),
+                "query Test($a: Boolean!, $b: Boolean!) {user {id}}");
+        }
 
-            assertThat(selections).hasSize(1);
-            Field idField = (Field) selections.get(0);
-            // Both variable directives preserved
-            assertThat(idField.getDirectives()).hasSize(2);
+        @Test
+        @DisplayName("Fails for a condition variable without a value")
+        void conditionVariableWithoutValue() {
+            String input = "query Test($a: Boolean!) { user { id @skip(if: $a) } }";
+
+            assertThatThrownBy(() -> normalizer.normalize(parse(input)))
+                .isInstanceOf(OperationNormalizer.MissingConditionValueException.class)
+                .hasMessageContaining("'a'");
         }
 
         @Test
@@ -2137,16 +2120,10 @@ class OperationNormalizerTest {
                 }
                 """;
 
-            Document result = normalizer.normalize(parse(input));
-            var selections = getSelections(result, "user");
-
-            assertThat(selections).hasSize(1);
-            Field idField = (Field) selections.get(0);
-            assertThat(idField.getDirectives()).hasSize(2);
-
-            // SDL verification
-            String expectedSdl = "query Test($include: Boolean!, $skip: Boolean!) {user {id @include(if: $include) @skip(if: $skip)}}";
-            assertSdlEquals(result,expectedSdl);
+            // Included only if not skipped and included
+            Document result = normalizer.withConditionValues(Map.of("skip", false, "include", true))
+                .normalize(parse(input));
+            assertSdlEquals(result, "query Test($include: Boolean!, $skip: Boolean!) {user {id}}");
         }
 
         @Test
@@ -2197,16 +2174,10 @@ class OperationNormalizerTest {
                 }
                 """;
 
-            Document result = normalizer.normalize(parse(input));
-            var selections = getSelections(result, "node");
-
-            assertThat(selections).hasSize(1);
-            InlineFragment fragment = (InlineFragment) selections.get(0);
-            assertThat(fragment.getDirectives()).hasSize(1);
-            assertThat(fragment.getDirectives().get(0).getName()).isEqualTo("include");
+            Document result = normalizer.withConditionValues(Map.of("showAdmin", true)).normalize(parse(input));
 
             // SDL verification
-            String expectedSdl = "query Test($showAdmin: Boolean!) {node {... on User @include(if: $showAdmin) {adminField}}}";
+            String expectedSdl = "query Test($showAdmin: Boolean!) {node {... on User {adminField}}}";
             assertSdlEquals(result,expectedSdl);
         }
     }
@@ -2493,7 +2464,8 @@ class OperationNormalizerTest {
                 }
                 """;
 
-            Document result = normalizer.normalize(parse(input));
+            Document result = normalizer.withConditionValues(
+                Map.of("includeRecommendations", true, "skipOutOfStock", false)).normalize(parse(input));
 
             // Verify structure
             assertThat(result.getDefinitions()).hasSize(1);
@@ -2504,7 +2476,7 @@ class OperationNormalizerTest {
                 .map(s -> ((Field) s).getName())
                 .toList();
 
-            // Sorted and recommendations with directive preserved
+            // Sorted, with recommendations included
             assertThat(fieldNames).contains("id", "items", "recommendations", "subtotal", "tax", "total");
         }
 

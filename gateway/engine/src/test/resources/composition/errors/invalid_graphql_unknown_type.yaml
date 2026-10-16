@@ -1,0 +1,10 @@
+name: "INVALID_GRAPHQL - unknown type"
+description: "A source schema must be a valid GraphQL schema: Foo is not defined."
+
+subgraphs:
+  broken: |
+    type Query {
+      a: Foo
+    }
+
+error: "INVALID_GRAPHQL"

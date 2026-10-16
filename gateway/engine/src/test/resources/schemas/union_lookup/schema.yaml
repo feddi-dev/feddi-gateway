@@ -14,7 +14,7 @@ subgraphs:
   content: |
     type Query {
       allMedia: [Media]
-      mediaById(id: ID!): Media @lookup
+      mediaById(id: ID!): Media @lookup @shareable
     }
 
     union Media = Book | Movie
@@ -33,7 +33,7 @@ subgraphs:
 
   ratings: |
     type Query {
-      mediaById(id: ID!): Media @lookup
+      mediaById(id: ID!): Media @lookup @shareable
     }
 
     union Media = Book | Movie

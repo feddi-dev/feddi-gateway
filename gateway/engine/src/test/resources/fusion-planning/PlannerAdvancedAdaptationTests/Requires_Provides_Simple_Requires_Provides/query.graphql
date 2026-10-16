@@ -1,0 +1,14 @@
+query {
+  me {
+    reviews {
+      id
+      author {
+        id
+        username
+      }
+      product {
+        inStock
+      }
+    }
+  }
+}

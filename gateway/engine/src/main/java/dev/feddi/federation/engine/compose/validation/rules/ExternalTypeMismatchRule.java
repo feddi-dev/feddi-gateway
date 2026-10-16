@@ -17,9 +17,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.EXTERNAL;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that @external fields have the same type as their base definition.
@@ -29,12 +29,6 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.EXTERNAL;
 public final class ExternalTypeMismatchRule implements ValidationRule {
 
     private static final String CODE = "EXTERNAL_TYPE_MISMATCH";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -97,7 +91,7 @@ public final class ExternalTypeMismatchRule implements ValidationRule {
     private void collectFields(GraphQLFieldsContainer type, String schemaName,
                                Map<String, List<FieldInfo>> fieldsByCoordinate) {
         String typeName = ((GraphQLNamedType) type).getName();
-        if (BUILT_IN_TYPES.contains(typeName)) {
+        if (isBuiltInType(typeName)) {
             return;
         }
 

@@ -1,4 +1,4 @@
-name: "SATISFIABILITY_ERROR - Orphan type extension without lookup"
+name: "UNSATISFIABLE_QUERY_PATH - Orphan type extension without lookup"
 description: "Type extension in subgraph B is unreachable because no @lookup exists to reach it from subgraph A"
 
 subgraphs:
@@ -22,4 +22,4 @@ subgraphs:
       extra: String
     }
 
-error: "SATISFIABILITY_ERROR"
+error: "UNSATISFIABLE_QUERY_PATH"

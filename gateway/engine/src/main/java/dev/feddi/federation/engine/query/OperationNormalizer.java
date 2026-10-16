@@ -2,6 +2,7 @@ package dev.feddi.federation.engine.query;
 
 import graphql.Directives;
 import graphql.language.Argument;
+import graphql.language.AstPrinter;
 import graphql.language.BooleanValue;
 import graphql.language.Definition;
 import graphql.language.Directive;
@@ -16,6 +17,7 @@ import graphql.language.SelectionSet;
 import graphql.language.TypeName;
 import graphql.language.Value;
 import graphql.language.VariableDefinition;
+import graphql.language.VariableReference;
 import graphql.schema.GraphQLCompositeType;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInterfaceType;
@@ -34,6 +36,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import static graphql.schema.GraphQLTypeUtil.unwrapAll;
 
@@ -42,14 +46,15 @@ import static graphql.schema.GraphQLTypeUtil.unwrapAll;
  *
  * <p>At each selection set level, the normalizer applies:
  * <ol>
- *   <li><b>Inline &amp; Filter</b>: Expands fragment spreads, evaluates @skip/@include directives</li>
+ *   <li><b>Inline &amp; Filter</b>: Expands fragment spreads, evaluates @skip/@include directives (literals, and
+ *   variables with the values from {@link #withConditionValues}); none remains in the normalized document</li>
  *   <li><b>Recurse</b>: Normalizes child selection sets (bottom-up)</li>
  *   <li><b>Simplify</b>: Removes redundant type conditions using schema info</li>
  *   <li><b>Merge</b>: Deduplicates fields and inline fragments</li>
  *   <li><b>Sort</b>: Orders selections deterministically</li>
  * </ol>
  *
- * <p>Each step can be individually enabled or disabled via the builder.
+ * <p>Each step except the evaluation of @skip/@include can be enabled or disabled via the builder.
  * A {@link GraphQLSchema} is always required for type-aware normalization.
  */
 public final class OperationNormalizer {
@@ -59,17 +64,92 @@ public final class OperationNormalizer {
     private static final String IF_ARGUMENT = "if";
 
     private final boolean inlineFragments;
-    private final boolean processSkipInclude;
     private final boolean deduplicateFields;
     private final boolean sortSelections;
     private final GraphQLSchema schema;
+    // Values of variables that @skip/@include use, evaluated like literals (see withConditionValues)
+    private final Map<String, Boolean> conditionValues;
 
     private OperationNormalizer(Builder builder) {
         this.inlineFragments = builder.inlineFragments;
-        this.processSkipInclude = builder.processSkipInclude;
         this.deduplicateFields = builder.deduplicateFields;
         this.sortSelections = builder.sortSelections;
         this.schema = builder.schema;
+        this.conditionValues = Map.of();
+    }
+
+    private OperationNormalizer(OperationNormalizer normalizer, Map<String, Boolean> conditionValues) {
+        this.inlineFragments = normalizer.inlineFragments;
+        this.deduplicateFields = normalizer.deduplicateFields;
+        this.sortSelections = normalizer.sortSelections;
+        this.schema = normalizer.schema;
+        this.conditionValues = Map.copyOf(conditionValues);
+    }
+
+    /**
+     * This normalizer, evaluating the @skip/@include conditions on these variables (see {@link #conditionValues}). A
+     * condition on a variable without a value fails normalization ({@link MissingConditionValueException}).
+     */
+    public OperationNormalizer withConditionValues(Map<String, Boolean> values) {
+        return new OperationNormalizer(this, values);
+    }
+
+    /**
+     * The values of the variables that a document's @skip/@include conditions use, from the request's variables or
+     * the variables' defaults; a variable without a Boolean value is left out. A plan for a document normalized
+     * with them holds for every request with the same values.
+     */
+    public static Map<String, Boolean> conditionValues(Document document, Map<String, Object> variables) {
+        Set<String> names = new TreeSet<>();
+        Map<String, Boolean> defaults = new HashMap<>();
+        for (var definition : document.getDefinitions()) {
+            if (definition instanceof OperationDefinition operation) {
+                for (VariableDefinition variable : operation.getVariableDefinitions()) {
+                    if (variable.getDefaultValue() instanceof BooleanValue value) {
+                        defaults.put(variable.getName(), value.isValue());
+                    }
+                }
+                collectConditionVariables(operation.getSelectionSet(), names);
+            } else if (definition instanceof FragmentDefinition fragment) {
+                collectConditionVariables(fragment.getSelectionSet(), names);
+            }
+        }
+        Map<String, Boolean> values = new TreeMap<>();
+        for (String name : names) {
+            Object value = variables == null ? null : variables.get(name);
+            if (value instanceof Boolean flag) {
+                values.put(name, flag);
+            } else if (value == null && defaults.containsKey(name)) {
+                values.put(name, defaults.get(name));
+            }
+        }
+        return values;
+    }
+
+    private static void collectConditionVariables(SelectionSet selectionSet, Set<String> names) {
+        if (selectionSet == null) {
+            return;
+        }
+        for (Selection<?> selection : selectionSet.getSelections()) {
+            List<Directive> directives = switch (selection) {
+                case Field field -> field.getDirectives();
+                case InlineFragment fragment -> fragment.getDirectives();
+                case FragmentSpread spread -> spread.getDirectives();
+                default -> List.of();
+            };
+            for (Directive directive : directives) {
+                if ((SKIP_DIRECTIVE.equals(directive.getName()) || INCLUDE_DIRECTIVE.equals(directive.getName()))
+                    && directive.getArgument(IF_ARGUMENT) != null
+                    && directive.getArgument(IF_ARGUMENT).getValue() instanceof VariableReference variable) {
+                    names.add(variable.getName());
+                }
+            }
+            if (selection instanceof Field field) {
+                collectConditionVariables(field.getSelectionSet(), names);
+            } else if (selection instanceof InlineFragment fragment) {
+                collectConditionVariables(fragment.getSelectionSet(), names);
+            }
+        }
     }
 
     /**
@@ -297,24 +377,24 @@ public final class OperationNormalizer {
                                         Map<String, FragmentDefinition> fragments,
                                         Set<String> visitedFragments,
                                         List<Selection<?>> output) {
-        // Evaluate directives
-        if (processSkipInclude) {
-            DirectiveResult directiveResult = evaluateDirectives(inlineFragment.getDirectives());
-            if (directiveResult.shouldRemove) {
-                return;
-            }
-            inlineFragment = inlineFragment.transform(builder ->
-                builder.directives(directiveResult.remainingDirectives)
-            );
+        DirectiveResult directiveResult = evaluateDirectives(inlineFragment.getDirectives());
+        if (directiveResult.shouldRemove) {
+            return;
         }
+        inlineFragment = inlineFragment.transform(builder ->
+            builder.directives(directiveResult.remainingDirectives)
+        );
 
         String typeConditionName = inlineFragment.getTypeCondition() != null
             ? inlineFragment.getTypeCondition().getName()
             : null;
 
-        // Determine the type context for children
+        boolean redundantTypeCondition = typeConditionName != null && currentType != null
+            && isTypeConditionRedundant(currentType, typeConditionName);
+
+        // Determine the type context for children (the parent's type if it is narrower than the condition)
         GraphQLCompositeType fragmentType;
-        if (typeConditionName != null) {
+        if (typeConditionName != null && !redundantTypeCondition) {
             GraphQLCompositeType resolved = getCompositeType(typeConditionName);
             fragmentType = resolved != null ? resolved : currentType;
         } else {
@@ -326,18 +406,21 @@ public final class OperationNormalizer {
             inlineFragment.getSelectionSet(), fragmentType, fragments, visitedFragments
         );
 
-        // Type condition simplification: unwrap if redundant
-        if (typeConditionName != null && currentType != null
-                && isTypeConditionRedundant(currentType, typeConditionName)) {
+        // Type condition simplification: unwrap a fragment without (or with a redundant) type condition
+        if ((typeConditionName == null || redundantTypeCondition) && inlineFragment.getDirectives().isEmpty()) {
             if (normalizedChildren != null) {
                 for (Selection<?> child : normalizedChildren.getSelections()) {
                     output.add(child);
                 }
             }
         } else {
-            InlineFragment result = inlineFragment.transform(builder ->
-                builder.selectionSet(normalizedChildren)
-            );
+            // A redundant type condition is dropped; the fragment stays for its directives
+            InlineFragment result = inlineFragment.transform(builder -> {
+                builder.selectionSet(normalizedChildren);
+                if (redundantTypeCondition) {
+                    builder.typeCondition(null);
+                }
+            });
 
             if (sortSelections) {
                 List<Directive> sortedDirs = sortDirectiveList(result.getDirectives());
@@ -353,16 +436,13 @@ public final class OperationNormalizer {
                                Map<String, FragmentDefinition> fragments,
                                Set<String> visitedFragments,
                                List<Selection<?>> output) {
-        // Evaluate directives
-        if (processSkipInclude) {
-            DirectiveResult directiveResult = evaluateDirectives(field.getDirectives());
-            if (directiveResult.shouldRemove) {
-                return;
-            }
-            field = field.transform(builder ->
-                builder.directives(directiveResult.remainingDirectives)
-            );
+        DirectiveResult directiveResult = evaluateDirectives(field.getDirectives());
+        if (directiveResult.shouldRemove) {
+            return;
         }
+        field = field.transform(builder ->
+            builder.directives(directiveResult.remainingDirectives)
+        );
 
         // Recurse into children
         if (field.getSelectionSet() != null) {
@@ -659,23 +739,9 @@ public final class OperationNormalizer {
             String name = directive.getName();
 
             if (SKIP_DIRECTIVE.equals(name)) {
-                Value<?> ifValue = getIfArgumentValue(directive);
-                if (ifValue instanceof BooleanValue boolValue) {
-                    if (boolValue.isValue()) {
-                        shouldRemove = true;
-                    }
-                } else {
-                    remaining.add(directive);
-                }
+                shouldRemove |= conditionValue(directive);
             } else if (INCLUDE_DIRECTIVE.equals(name)) {
-                Value<?> ifValue = getIfArgumentValue(directive);
-                if (ifValue instanceof BooleanValue boolValue) {
-                    if (!boolValue.isValue()) {
-                        shouldRemove = true;
-                    }
-                } else {
-                    remaining.add(directive);
-                }
+                shouldRemove |= !conditionValue(directive);
             } else {
                 remaining.add(directive);
             }
@@ -684,13 +750,23 @@ public final class OperationNormalizer {
         return new DirectiveResult(shouldRemove, remaining);
     }
 
-    private Value<?> getIfArgumentValue(Directive directive) {
+    private boolean conditionValue(Directive directive) {
         for (Argument argument : directive.getArguments()) {
             if (IF_ARGUMENT.equals(argument.getName())) {
-                return argument.getValue();
+                Value<?> value = argument.getValue();
+                if (value instanceof BooleanValue literal) {
+                    return literal.isValue();
+                }
+                if (value instanceof VariableReference variable) {
+                    Boolean known = conditionValues.get(variable.getName());
+                    if (known == null) {
+                        throw new MissingConditionValueException(variable.getName(), directive.getName());
+                    }
+                    return known;
+                }
             }
         }
-        return BooleanValue.of(false);
+        return false;
     }
 
     private record DirectiveResult(boolean shouldRemove, List<Directive> remainingDirectives) {
@@ -712,9 +788,14 @@ public final class OperationNormalizer {
         return field.getAlias() != null ? field.getAlias() : field.getName();
     }
 
+    /** Fragments merge when their type conditions and their directives (@skip, @include) are the same. */
     private String getTypeKey(InlineFragment fragment) {
         TypeName typeCondition = fragment.getTypeCondition();
-        return typeCondition != null ? typeCondition.getName() : "";
+        StringBuilder key = new StringBuilder(typeCondition != null ? typeCondition.getName() : "");
+        for (Directive directive : fragment.getDirectives()) {
+            key.append(' ').append(AstPrinter.printAstCompact(directive));
+        }
+        return key.toString();
     }
 
     private String getTypeConditionName(InlineFragment fragment) {
@@ -801,10 +882,6 @@ public final class OperationNormalizer {
         return inlineFragments;
     }
 
-    public boolean isProcessSkipIncludeEnabled() {
-        return processSkipInclude;
-    }
-
     public boolean isDeduplicateFieldsEnabled() {
         return deduplicateFields;
     }
@@ -817,7 +894,6 @@ public final class OperationNormalizer {
 
     public static final class Builder {
         private boolean inlineFragments = true;
-        private boolean processSkipInclude = true;
         private boolean deduplicateFields = true;
         private boolean sortSelections = true;
         private final GraphQLSchema schema;
@@ -831,11 +907,6 @@ public final class OperationNormalizer {
 
         public Builder inlineFragments(boolean enabled) {
             this.inlineFragments = enabled;
-            return this;
-        }
-
-        public Builder processSkipInclude(boolean enabled) {
-            this.processSkipInclude = enabled;
             return this;
         }
 
@@ -855,6 +926,20 @@ public final class OperationNormalizer {
     }
 
     // ==================== EXCEPTION CLASSES ====================
+
+    /** A @skip/@include condition on a variable that has no Boolean value. */
+    public static class MissingConditionValueException extends RuntimeException {
+        private final String variableName;
+
+        public MissingConditionValueException(String variableName, String directiveName) {
+            super("Variable '" + variableName + "' of @" + directiveName + " has no Boolean value");
+            this.variableName = variableName;
+        }
+
+        public String getVariableName() {
+            return variableName;
+        }
+    }
 
     public static class OperationNotFoundException extends RuntimeException {
         private final String operationName;

@@ -2,7 +2,7 @@ scalar DateTime
 
 type Query {
   reviews: [Review]
-  productById(id: ID! @is(field: "id")): Product @lookup
+  productById(id: ID! @is(field: "id")): Product @lookup @shareable
   failingQuery: String
   reviewsByProductId(productId: ID!): [Review]
 }

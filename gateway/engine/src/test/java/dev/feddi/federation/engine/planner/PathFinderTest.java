@@ -4,6 +4,8 @@ import dev.feddi.federation.engine.graph.FieldMoveEdge;
 import dev.feddi.federation.engine.graph.Graph;
 import dev.feddi.federation.engine.graph.LookupArgument;
 import dev.feddi.federation.engine.graph.Node;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.Path;
+import dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -253,5 +255,49 @@ class PathFinderTest {
             .satisfies(path -> {
                 assertThat(path.currentSubgraph()).isEqualTo("ratings");
             });
+    }
+
+    /** Media in "main" with the given fields and a lookup to "details", which has the title, by the key. */
+    private static List<OperationPath> pathsToTitle(String key, String typeContext, String... mainFields) {
+        return pathsToTitle(LookupArgument.of("key", key), typeContext, mainFields);
+    }
+
+    private static List<OperationPath> pathsToTitle(LookupArgument key, String typeContext, String... mainFields) {
+        Node queryNode = new Node("Query", "root");
+        Node mediaMain = new Node("Media", "main");
+        Node mediaDetails = new Node("Media", "details");
+        Graph.GraphBuilder builder = Graph.builder()
+            .root(queryNode)
+            .addFieldEdge("media", queryNode, mediaMain)
+            .addLookupEdge("mediaByKey", mediaMain, mediaDetails, 10, List.of(key))
+            .addFieldEdge("title", mediaDetails, mediaDetails);
+        for (String field : mainFields) {
+            builder.addFieldEdge(field, mediaMain, mediaMain);
+            builder.addFieldEdge(field, new Node("Book", "main"), new Node("Book", "main"));
+        }
+        OperationPath startPath = OperationPath.startAt(queryNode)
+            .advance(new FieldMoveEdge("media", queryNode, mediaMain, 1));
+        if (typeContext != null) {
+            startPath = startPath.withTypeContext(typeContext);
+        }
+        return new PathFinder(builder.build()).findPaths(startPath, "title");
+    }
+
+    @Test
+    void lookupKeyWithAlternativesNeedsOneResolvableAlternative() {
+        assertThat(pathsToTitle("<Book>.isbn | <Movie>.code", null, "code")).singleElement()
+            .satisfies(path -> assertThat(path.currentSubgraph()).isEqualTo("details"));
+        assertThat(pathsToTitle("<Book>.isbn | <Movie>.code", null, "name")).isEmpty();
+    }
+
+    @Test
+    void lookupKeyWithTypeConditionMatchesTheCurrentTypeOrTheTypeContext() {
+        assertThat(pathsToTitle(idWithTypeCondition("Media"), null, "id")).hasSize(1);
+        assertThat(pathsToTitle(idWithTypeCondition("Book"), null, "id")).isEmpty();
+        assertThat(pathsToTitle(idWithTypeCondition("Book"), "Book", "id")).hasSize(1);
+    }
+
+    private static LookupArgument idWithTypeCondition(String typeName) {
+        return LookupArgument.of("key", new Path(new PathSegment("id", typeName)), null);
     }
 }

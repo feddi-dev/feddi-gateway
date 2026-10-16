@@ -1,0 +1,41 @@
+name: "Root requirements"
+description: |
+  Root fields with @require arguments: the required fields are selected on the root types of other subgraphs,
+  and the root field's step waits for them and reads them from the response root.
+
+subgraphs:
+  search: |
+    type Query {
+      search(term: String!, filter: String @require(field: "category")): [String]
+      localized(key: String!, locale: String @require(field: "settings.locale")): String
+      greeting(language: String @require(field: "viewer.language")): String
+      strictSearch(filter: String! @require(field: "category")): [String]
+      searchHint: String
+    }
+
+  settings: |
+    type Query {
+      category: String
+      settings: Settings
+      viewer: User
+      settingsLabel(hint: String @require(field: "searchHint")): String
+    }
+
+    type Settings {
+      locale: String
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  profiles: |
+    type Query {
+      userById(id: ID!): User @lookup @internal
+    }
+
+    type User @key(fields: "id") {
+      id: ID!
+      language: String
+    }

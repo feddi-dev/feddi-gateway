@@ -1,0 +1,49 @@
+name: Fusion PlannerBehaviorTests.Fragments_Simple_Inline_Fragment
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/PlannerBehaviorTests.cs. MIT License.
+subgraphs:
+  store: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      products: [Product]
+    }
+
+    type Product @key(fields: "id") {
+      id: ID! @shareable
+      name: String!
+    }
+  info: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
+    }
+
+    type Product
+      @key(fields: "id") {
+      id: ID! @shareable
+      uuid: ID! @shareable
+      isAvailable: Boolean!
+    }
+  cost: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productByUuid(uuid: ID! @is(field: "uuid")): Product @lookup @internal
+    }
+
+    type Product @key(fields: "uuid") {
+      uuid: ID! @shareable
+      price: Price
+    }
+
+    type Price {
+      amount: Float!
+      currency: String!
+    }

@@ -1,0 +1,10 @@
+{
+  feed {
+    author {
+      id
+    }
+    comments(limit: 1) {
+      id
+    }
+  }
+}

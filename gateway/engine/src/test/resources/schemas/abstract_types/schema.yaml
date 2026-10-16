@@ -14,14 +14,14 @@ subgraphs:
   books: |
     type Query {
       books: [Book]
-      bookById(id: ID!): Book @lookup
+      bookById(id: ID!): Book @lookup @shareable
     }
     type Book @key(fields: "id") { id: ID!, title: String }
 
   magazines: |
     type Query {
       magazines: [Magazine]
-      magazineById(id: ID!): Magazine @lookup
+      magazineById(id: ID!): Magazine @lookup @shareable
     }
     type Magazine @key(fields: "id") { id: ID!, title: String }
 
@@ -29,8 +29,8 @@ subgraphs:
     type Query {
       products: [Product]
       similar(id: ID!): [Product]
-      bookById(id: ID!): Book @lookup
-      magazineById(id: ID!): Magazine @lookup
+      bookById(id: ID!): Book @lookup @shareable
+      magazineById(id: ID!): Magazine @lookup @shareable
     }
     interface Product {
       id: ID!
@@ -71,8 +71,8 @@ subgraphs:
 
   inventory: |
     type Query {
-      bookById(id: ID!): Book @lookup
-      magazineById(id: ID!): Magazine @lookup
+      bookById(id: ID!): Book @lookup @shareable
+      magazineById(id: ID!): Magazine @lookup @shareable
     }
     interface Product {
       id: ID!
@@ -96,8 +96,8 @@ subgraphs:
   reviews: |
     type Query {
       review(id: Int!): Review
-      bookById(id: ID!): Book @lookup
-      magazineById(id: ID!): Magazine @lookup
+      bookById(id: ID!): Book @lookup @shareable
+      magazineById(id: ID!): Magazine @lookup @shareable
     }
     interface Product {
       id: ID!

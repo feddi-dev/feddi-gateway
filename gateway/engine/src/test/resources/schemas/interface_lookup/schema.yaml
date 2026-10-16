@@ -16,7 +16,7 @@ subgraphs:
   content: |
     type Query {
       contents: [Content]
-      contentById(id: ID!): Content @lookup
+      contentById(id: ID!): Content @lookup @shareable
     }
 
     interface Content @key(fields: "id") {
@@ -38,7 +38,7 @@ subgraphs:
 
   ratings: |
     type Query {
-      contentById(id: ID!): Content @lookup
+      contentById(id: ID!): Content @lookup @shareable
     }
 
     interface Content @key(fields: "id") {

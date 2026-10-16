@@ -24,7 +24,7 @@ subgraphs:
       internalResults: [InternalResult]
       node(id: ID!): Node
       internalNode(id: ID!): InternalNode
-      userById(id: ID!): User @lookup
+      userById(id: ID!): User @lookup @shareable
     }
 
     type User @key(fields: "id") {
@@ -80,7 +80,7 @@ subgraphs:
   b: |
     type Query {
       users(filter: UserFilter, internalFilter: String @inaccessible): [User] @shareable
-      userById(id: ID!): User @lookup
+      userById(id: ID!): User @lookup @shareable
     }
 
     type User @key(fields: "id") {

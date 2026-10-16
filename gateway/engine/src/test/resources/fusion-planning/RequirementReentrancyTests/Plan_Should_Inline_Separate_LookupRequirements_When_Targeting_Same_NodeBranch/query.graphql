@@ -1,0 +1,12 @@
+query GetProduct($id: ID!) {
+  node(id: $id) {
+    ... on Product {
+      reviews {
+        body
+      }
+      recommendations {
+        text
+      }
+    }
+  }
+}

@@ -17,7 +17,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that types with the same name across different subgraphs have the same kind.
@@ -28,12 +29,6 @@ import java.util.Set;
 public final class TypeKindMismatchRule implements ValidationRule {
 
     private static final String CODE = "TYPE_KIND_MISMATCH";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -55,7 +50,7 @@ public final class TypeKindMismatchRule implements ValidationRule {
         for (Subgraph subgraph : subgraphs) {
             for (GraphQLType type : subgraph.schema().getAllTypesAsList()) {
                 String typeName = getTypeName(type);
-                if (typeName == null || BUILT_IN_TYPES.contains(typeName)) {
+                if (typeName == null || isBuiltInType(typeName)) {
                     continue;
                 }
 

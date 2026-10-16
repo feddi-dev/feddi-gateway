@@ -1,0 +1,7 @@
+{
+  test {
+    id
+    fieldWithRequiresAndArgs
+    anotherWithRequiresAndArgs
+  }
+}

@@ -1,0 +1,41 @@
+name: Fusion ProvidesPlannerTests.PlanOperation_Should_CoverOnlyMatchingUnionMember_When_ProvidesIsTypeConditioned
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/ProvidesPlannerTests.cs. MIT License.
+subgraphs:
+  media: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      media: [Media] @provides(fields: "... on Book { title }")
+    }
+
+    union Media = Book | Movie
+
+    type Book @key(fields: "id") {
+      id: ID!
+      title: String @external
+    }
+
+    type Movie @key(fields: "id") {
+      id: ID!
+    }
+  titles: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      bookById(id: ID! @is(field: "id")): Book @lookup @internal
+      movieById(id: ID! @is(field: "id")): Movie @lookup @internal
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      title: String
+    }
+
+    type Movie @key(fields: "id") {
+      id: ID!
+      title: String
+    }

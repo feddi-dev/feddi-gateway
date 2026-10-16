@@ -1,0 +1,71 @@
+name: Fusion PlannerAdvancedAdaptationTests.Issues_Issue_281
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/PlannerAdvancedAdaptationTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      viewer: Viewer!
+    }
+
+    type Viewer {
+      review: Review
+    }
+
+    union Review = AnonymousReview | UserReview
+
+    type UserReview {
+      product: Product
+    }
+
+    type AnonymousReview {
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productById(id: ID! @is(field: "id")): Product @lookup @internal
+    }
+
+    type Product
+      @key(fields: "id")
+      @key(fields: "pid") {
+      id: ID!
+      pid: ID!
+      b: String!
+    }
+  c: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productByPid(pid: ID! @is(field: "pid")): Product @lookup @internal
+    }
+
+    type Product @key(fields: "pid") {
+      pid: ID!
+      c: String!
+    }
+  d: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      productByPid(pid: ID! @is(field: "pid")): Product @lookup @internal
+    }
+
+    type Product @key(fields: "pid") {
+      pid: ID!
+      d: String!
+    }

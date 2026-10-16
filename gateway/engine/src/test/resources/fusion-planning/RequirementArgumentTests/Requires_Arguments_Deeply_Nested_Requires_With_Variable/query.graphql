@@ -1,0 +1,10 @@
+query ($limit: Int = 1) {
+  feed {
+    author {
+      id
+    }
+    comments(limit: $limit) {
+      id
+    }
+  }
+}

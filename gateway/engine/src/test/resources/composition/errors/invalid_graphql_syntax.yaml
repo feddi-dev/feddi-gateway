@@ -1,0 +1,9 @@
+name: "INVALID_GRAPHQL - syntax error"
+description: "A source schema that cannot be parsed is reported, not thrown."
+
+subgraphs:
+  broken: |
+    type Query {
+      a: String
+
+error: "INVALID_GRAPHQL"

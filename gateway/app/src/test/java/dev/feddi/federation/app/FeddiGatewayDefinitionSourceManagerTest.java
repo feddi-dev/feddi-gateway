@@ -10,9 +10,13 @@ import graphql.ExecutionResultImpl;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.DefaultApplicationArguments;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -22,7 +26,7 @@ class FeddiGatewayDefinitionSourceManagerTest {
 
     @Test
     void initializesGatewayFromSourceAtStartup() {
-        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
+        TestGatewayDefinitionSource source = new TestGatewayDefinitionSource();
         source.replace(gatewayDefinition("startup"));
 
         FeddiGatewayHolder holder = new FeddiGatewayHolder();
@@ -37,7 +41,7 @@ class FeddiGatewayDefinitionSourceManagerTest {
 
     @Test
     void refreshesGatewayWhenSourcePublishesUpdate() {
-        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
+        TestGatewayDefinitionSource source = new TestGatewayDefinitionSource();
 
         FeddiGatewayHolder holder = new FeddiGatewayHolder();
         FeddiGatewayReloadService reloadService = new FeddiGatewayReloadService(holder, subgraphClientFactory(), new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
@@ -47,6 +51,35 @@ class FeddiGatewayDefinitionSourceManagerTest {
         source.replace(gatewayDefinition("update"));
 
         assertTrue(holder.isInitialized());
+        assertQueryResult(holder, "Loaded from update");
+    }
+
+    @Test
+    void updatesDuringASlowReloadAreNotLostAndTheNewestIsApplied() throws Exception {
+        TestGatewayDefinitionSource source = new TestGatewayDefinitionSource();
+        FeddiGatewayHolder holder = new FeddiGatewayHolder();
+        List<String> reloaded = new CopyOnWriteArrayList<>();
+        FeddiGatewayReloadService reloadService = new FeddiGatewayReloadService(holder, subgraphClientFactory(),
+            new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile()) {
+            @Override
+            public Mono<Void> reload(FeddiGatewayDefinition gatewayDefinition) {
+                // Slow, like a reload waiting for a variable batching check
+                String url = gatewayDefinition.subgraphs().get("catalog").settings().config().get("url").toString();
+                reloaded.add(url.substring(url.lastIndexOf('/') + 1));
+                return Mono.delay(Duration.ofMillis(200)).then(super.reload(gatewayDefinition));
+            }
+        };
+        new FeddiGatewayDefinitionSourceManager(source, reloadService).run(new DefaultApplicationArguments(new String[0]));
+
+        assertEquals(Sinks.EmitResult.OK, source.replace(gatewayDefinition("first")));
+        // The next updates arrive while the first reload runs (waiting for it to start makes the test independent
+        // of scheduling; without it, the manager may rightly skip "first" in favour of a newer update)
+        awaitUntil(() -> reloaded.contains("first"));
+        assertEquals(Sinks.EmitResult.OK, source.replace(gatewayDefinition("second")));
+        assertEquals(Sinks.EmitResult.OK, source.replace(gatewayDefinition("update")));
+
+        awaitUntil(() -> reloaded.size() >= 2 && queryResult(holder).contains("Loaded from update"));
+        assertEquals(List.of("first", "update"), reloaded);
         assertQueryResult(holder, "Loaded from update");
     }
 
@@ -89,7 +122,7 @@ class FeddiGatewayDefinitionSourceManagerTest {
         var openingHours = Map.of("mon", "09:00-17:00", "tue", "09:00-17:00");
 
         SubgraphClientFactory factory = (subgraphName, settings) ->
-                (operation, variables, context) -> reactor.core.publisher.Mono.just(
+                (PerEntitySubgraphClient) (operation, variables, context) -> reactor.core.publisher.Mono.just(
                         ExecutionResultImpl.newExecutionResult()
                                 .data(Map.of("attractions", List.of(Map.of(
                                         "id", 1,
@@ -100,7 +133,7 @@ class FeddiGatewayDefinitionSourceManagerTest {
                                 .build()
                 );
 
-        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
+        TestGatewayDefinitionSource source = new TestGatewayDefinitionSource();
         source.replace(new FeddiGatewayDefinition(
                 Map.of(
                         "attractions", new SubgraphDefinition(
@@ -168,7 +201,7 @@ class FeddiGatewayDefinitionSourceManagerTest {
     }
 
     private SubgraphClientFactory subgraphClientFactory() {
-        return (subgraphName, settings) -> (operation, variables, context) -> reactor.core.publisher.Mono.just(
+        return (subgraphName, settings) -> (PerEntitySubgraphClient) (operation, variables, context) -> reactor.core.publisher.Mono.just(
             ExecutionResultImpl.newExecutionResult()
                 .data(Map.of("products", List.of(Map.of("id", "1", "name", extractExpectedName(settings.config().get("url").toString())))))
                 .build()
@@ -181,7 +214,7 @@ class FeddiGatewayDefinitionSourceManagerTest {
 
     @Test
     void introspectionDisabledReturnsError() {
-        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
+        TestGatewayDefinitionSource source = new TestGatewayDefinitionSource();
         source.replace(gatewayDefinition("introspection-test"));
 
         FeddiGatewayConfigFile config = new FeddiGatewayConfigFile();
@@ -214,7 +247,7 @@ class FeddiGatewayDefinitionSourceManagerTest {
 
     @Test
     void introspectionEnabledByDefaultReturnsSchema() {
-        DefaultFeddiGatewayDefinitionSource source = new DefaultFeddiGatewayDefinitionSource();
+        TestGatewayDefinitionSource source = new TestGatewayDefinitionSource();
         source.replace(gatewayDefinition("introspection-enabled"));
 
         FeddiGatewayHolder holder = new FeddiGatewayHolder();
@@ -238,6 +271,23 @@ class FeddiGatewayDefinitionSourceManagerTest {
         var data = (Map<String, Object>) spec.get("data");
         assertNotNull(data, "Introspection should return data when enabled: " + spec);
         assertNotNull(data.get("__schema"), "Should have __schema: " + spec);
+    }
+
+    private static void awaitUntil(java.util.function.BooleanSupplier condition) throws InterruptedException {
+        long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+        while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
+            Thread.sleep(20);
+        }
+    }
+
+    private static String queryResult(FeddiGatewayHolder holder) {
+        try {
+            var result = holder.get().execute(
+                ExecutionInput.newExecutionInput().query("{ products { id name } }").build()).block();
+            return String.valueOf(result.executionResult().toSpecification());
+        } catch (RuntimeException e) {
+            return "";
+        }
     }
 
     private void assertQueryResult(FeddiGatewayHolder holder, String expectedName) {

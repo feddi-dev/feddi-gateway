@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSIBLE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that required (non-null) input fields exist in all schemas defining the input type.
@@ -32,12 +33,6 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSI
 public final class InputWithMissingRequiredFieldsRule implements ValidationRule {
 
     private static final String CODE = "INPUT_WITH_MISSING_REQUIRED_FIELDS";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -60,7 +55,7 @@ public final class InputWithMissingRequiredFieldsRule implements ValidationRule 
             for (GraphQLType type : subgraph.schema().getAllTypesAsList()) {
                 if (type instanceof GraphQLInputObjectType inputType) {
                     String typeName = inputType.getName();
-                    if (BUILT_IN_TYPES.contains(typeName)) {
+                    if (isBuiltInType(typeName)) {
                         continue;
                     }
                     // Skip @inaccessible types

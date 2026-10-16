@@ -1426,7 +1426,7 @@ class IsInvalidFieldsRuleTest {
             // @is on @lookup with union return type
             Subgraph search = subgraph("search", """
                 type Query {
-                  searchById(searchId: ID! @is(field: "id")): SearchResult @lookup
+                  searchById(searchId: ID! @is(field: "<Product>.id | <Category>.id")): SearchResult @lookup
                 }
                 union SearchResult = Product | Category
 
@@ -1441,6 +1441,26 @@ class IsInvalidFieldsRuleTest {
                 """);
 
             assertValid(validate(search));
+        }
+
+        @Test
+        void invalid_unionReturnTypeWithoutTypeConditions() {
+            // A union has no fields: "id" must be selected per member type (Appendix A, Path Field Selections)
+            Subgraph search = subgraph("search", """
+                type Query {
+                  searchById(searchId: ID! @is(field: "id")): SearchResult @lookup
+                }
+                union SearchResult = Product | Category
+
+                type Product @key(fields: "id") {
+                  id: ID!
+                }
+                type Category @key(fields: "id") {
+                  id: ID!
+                }
+                """);
+
+            assertInvalid(validate(search));
         }
 
         @Test

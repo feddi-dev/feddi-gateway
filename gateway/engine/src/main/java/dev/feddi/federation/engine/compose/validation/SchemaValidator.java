@@ -115,10 +115,11 @@ public final class SchemaValidator {
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.FieldSelectionMapSyntaxRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.IsInvalidUsageRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.RequireInvalidUsageRule());
+        rules.add(new dev.feddi.federation.engine.compose.validation.rules.RequireInconsistentOnImplementationRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupReturnsListRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupMustHaveArgumentsRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupReturnsNonNullableRule());
-        rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupUnionKeyFieldMissingRule());
+        rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupKeyMissingForTypeRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.LookupDuplicateRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.QueryRootTypeInaccessibleRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.ExternalUnusedRule());
@@ -135,8 +136,8 @@ public final class SchemaValidator {
 
         // @is and @require semantic field validation (cross-schema)
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.IsInvalidFieldsRule());
+        rules.add(new dev.feddi.federation.engine.compose.validation.rules.IsFieldsHasArgumentsRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.RequireInvalidFieldsRule());
-        rules.add(new dev.feddi.federation.engine.compose.validation.rules.RequireOnNonEntityRule());
 
         // Root type naming rules
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.RootQueryUsedRule());
@@ -169,20 +170,14 @@ public final class SchemaValidator {
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.InputWithMissingRequiredFieldsRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.FieldWithMissingRequiredArgumentRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.ReferenceToInaccessibleTypeRule());
+        rules.add(new dev.feddi.federation.engine.compose.validation.rules.ReferenceToInternalTypeRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.EnumTypeDefaultValueInaccessibleRule());
-        // Note: ENUM_VALUES_MISMATCH is not implemented - the feddi Gateway merges enum values from
-        // different subgraphs (union of values), which differs from strict spec interpretation
+        rules.add(new dev.feddi.federation.engine.compose.validation.rules.EnumValuesMismatchRule());
 
         // External pre-merge validation rules
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.ExternalMissingOnBaseRule());
         rules.add(new dev.feddi.federation.engine.compose.validation.rules.ExternalTypeMismatchRule());
-        // Note: EXTERNAL_ARGUMENT_MISSING, EXTERNAL_ARGUMENT_TYPE_MISMATCH, and
-        // EXTERNAL_ARGUMENT_DEFAULT_MISMATCH are NOT implemented. The spec defines these rules
-        // but they conflict with EXTERNAL_UNUSED and PROVIDES_FIELDS_HAS_ARGUMENTS:
-        // - @external fields must be in @provides (EXTERNAL_UNUSED)
-        // - @provides cannot reference fields with arguments (PROVIDES_FIELDS_HAS_ARGUMENTS)
-        // Therefore, @external fields cannot have arguments, making those rules unreachable.
-        // We enforce this with ExternalFieldHasArgumentsRule in the SOURCE_SCHEMA phase.
+        // @external fields cannot have arguments (ExternalFieldHasArgumentsRule, SOURCE_SCHEMA phase)
 
         return rules;
     }

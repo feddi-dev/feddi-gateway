@@ -1,0 +1,54 @@
+name: Fusion RequirementParityTests.Keys_Mashup
+description: Imported from ChilliCream/graphql-platform 972f3f9 (972f3f9e39f19614d625cd3948a52c5d89565d03), src/HotChocolate/Fusion/test/Fusion.Execution.Tests/Planning/RequirementParityTests.cs. MIT License.
+subgraphs:
+  a: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      aById(id: ID!): A @lookup @internal
+    }
+
+    type A
+      @key(fields: "id")
+      @key(fields: "id compositeId { two three }") {
+      id: ID!
+      compositeId: CompositeID!
+      name: String!
+    }
+
+    type CompositeID {
+      two: ID!
+      three: ID!
+    }
+  b: |-
+    schema {
+      query: Query
+    }
+
+    type Query {
+      b: B
+      aByIdAndCompositeId(
+        id: ID! @is(field: "id")
+        compositeIdTwo: ID! @is(field: "compositeId.two")
+        compositeIdThree: ID! @is(field: "compositeId.three")): A @lookup @internal
+    }
+
+    type B {
+      id: ID!
+      a: [A!]!
+    }
+
+    type A
+      @key(fields: "id", resolvable: false)
+      @key(fields: "id compositeId { two three }", resolvable: true) {
+      id: ID!
+      compositeId: CompositeID!
+      nameInB(name: String! @require(field: "name")): String!
+    }
+
+    type CompositeID {
+      two: ID!
+      three: ID!
+    }

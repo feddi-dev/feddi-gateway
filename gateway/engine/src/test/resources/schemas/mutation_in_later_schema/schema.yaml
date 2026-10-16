@@ -1,0 +1,30 @@
+name: "Mutation in a later schema"
+description: |
+  Only the second source schema has a Mutation type: the composite schema's mutation root is still Mutation
+  (the first schema's schema definition used to decide the root types).
+
+subgraphs:
+  products: |
+    type Query {
+      products: [Product]
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  orders: |
+    type Query {
+      orderById(id: ID!): Order @lookup
+    }
+
+    type Mutation {
+      placeOrder(productId: ID!): Order
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      productId: ID!
+    }

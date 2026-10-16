@@ -1,0 +1,21 @@
+name: "@skip directive with variable - skip true"
+description: "The gateway evaluates @skip(if: $skipEmail) before planning: with skipEmail true, email is not selected"
+
+query: |
+  query GetUser($skipEmail: Boolean!) {
+    user {
+      id
+      name
+      email @skip(if: $skipEmail)
+    }
+  }
+
+variables: { skipEmail: true }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: a
+      operation: "{ user { id name } }"
+      dependsOn: []
+      repeatedExecution: false

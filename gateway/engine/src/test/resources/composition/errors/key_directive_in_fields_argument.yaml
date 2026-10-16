@@ -1,0 +1,15 @@
+name: "KEY_DIRECTIVE_IN_FIELDS_ARGUMENT - directive in @key fields"
+description: "The fields argument of @key must not contain directives"
+
+subgraphs:
+  products: |
+    type Query {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id @deprecated") {
+      id: ID!
+      name: String
+    }
+
+error: "KEY_DIRECTIVE_IN_FIELDS_ARGUMENT"

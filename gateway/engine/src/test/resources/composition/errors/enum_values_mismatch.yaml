@@ -1,0 +1,39 @@
+name: "ENUM_VALUES_MISMATCH - enums with different values"
+description: "Enums with the same name must have the same values, apart from @inaccessible ones"
+
+subgraphs:
+  orders: |
+    type Query {
+      orders(status: OrderStatus): [Order]
+      orderById(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      status: OrderStatus @shareable
+    }
+
+    enum OrderStatus {
+      PENDING
+      PROCESSING
+      SHIPPED
+    }
+
+  fulfillment: |
+    type Query {
+      orderByIdFulfillment(id: ID!): Order @lookup
+    }
+
+    type Order @key(fields: "id") {
+      id: ID!
+      status: OrderStatus @shareable
+      trackingNumber: String
+    }
+
+    enum OrderStatus {
+      SHIPPED
+      DELIVERED
+      RETURNED
+    }
+
+error: "ENUM_VALUES_MISMATCH"

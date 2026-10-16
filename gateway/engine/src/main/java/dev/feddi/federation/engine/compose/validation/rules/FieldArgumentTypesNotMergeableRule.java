@@ -20,9 +20,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INTERNAL;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that field arguments with the same name across subgraphs have mergeable types.
@@ -33,12 +33,6 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.INTERNAL;
 public final class FieldArgumentTypesNotMergeableRule implements ValidationRule {
 
     private static final String CODE = "FIELD_ARGUMENT_TYPES_NOT_MERGEABLE";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -98,7 +92,7 @@ public final class FieldArgumentTypesNotMergeableRule implements ValidationRule 
     private void collectFieldArguments(GraphQLFieldsContainer type, String schemaName,
                                        Map<String, List<ArgumentInfo>> argumentsByCoordinate) {
         String typeName = ((GraphQLNamedType) type).getName();
-        if (BUILT_IN_TYPES.contains(typeName)) {
+        if (isBuiltInType(typeName)) {
             return;
         }
 

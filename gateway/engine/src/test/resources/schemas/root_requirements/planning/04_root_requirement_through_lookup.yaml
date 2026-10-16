@@ -1,0 +1,33 @@
+name: "Root requirement resolved through a lookup"
+description: |
+  greeting requires viewer.language: viewer is a root field of settings, language is resolved for it in
+  profiles with a lookup.
+
+query: |
+  {
+    greeting
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: search
+      operation: "query($language: String) { greeting(language: $language) }"
+      dependsOn: [3]
+      requirements:
+        language: "viewer.language"
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: settings
+      operation: "{ viewer { id } }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 3
+      subgraph: profiles
+      operation: "query($id: ID!) { userById(id: $id) { language } }"
+      dependsOn: [2]
+      requirements:
+        id: "id"
+      repeatedExecution: true

@@ -1,0 +1,37 @@
+name: "INTERFACE_FIELD_NO_IMPLEMENTATION - merged interface field missing on an implementation"
+description: "The merged User interface has email (from a), but GuestUser (from b) does not."
+
+subgraphs:
+  a: |
+    type Query {
+      users: [User]
+    }
+
+    interface User {
+      id: ID!
+      name: String
+      email: String
+    }
+
+    type RegisteredUser implements User {
+      id: ID!
+      name: String
+      email: String
+    }
+
+  b: |
+    type Query {
+      guests: [User]
+    }
+
+    interface User {
+      id: ID!
+      name: String
+    }
+
+    type GuestUser implements User {
+      id: ID!
+      name: String
+    }
+
+error: "INTERFACE_FIELD_NO_IMPLEMENTATION"

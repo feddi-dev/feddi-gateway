@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.OVERRIDE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that @override directives do not form cycles or have multiple sources.
@@ -36,12 +37,6 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.OVERRIDE;
 public final class OverrideSourceHasOverrideRule implements ValidationRule {
 
     private static final String CODE = "OVERRIDE_SOURCE_HAS_OVERRIDE";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -149,7 +144,7 @@ public final class OverrideSourceHasOverrideRule implements ValidationRule {
         for (GraphQLType type : subgraph.schema().getAllTypesAsList()) {
             if (type instanceof GraphQLObjectType objectType) {
                 String typeName = objectType.getName();
-                if (BUILT_IN_TYPES.contains(typeName)) {
+                if (isBuiltInType(typeName)) {
                     continue;
                 }
 

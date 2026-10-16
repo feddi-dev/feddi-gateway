@@ -1,0 +1,10 @@
+query {
+  b {
+    id
+    a {
+      id
+      name
+      nameInB
+    }
+  }
+}

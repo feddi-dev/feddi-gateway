@@ -1,0 +1,11 @@
+query {
+  productFromD(id: "1") {
+    id
+    name
+    category {
+      id
+      name
+      details
+    }
+  }
+}

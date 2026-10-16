@@ -1,0 +1,7 @@
+query GetTopProducts {
+  topProduct {
+    id
+    name
+    price
+  }
+}

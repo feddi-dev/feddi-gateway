@@ -13,9 +13,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSIBLE;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that non-null input fields from source schemas exist in the composed schema.
@@ -30,12 +30,6 @@ import static dev.feddi.federation.engine.compose.FederationDirectives.INACCESSI
 public final class NonNullInputFieldIsInaccessibleRule implements PostMergeValidationRule {
 
     private static final String CODE = "NON_NULL_INPUT_FIELD_IS_INACCESSIBLE";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public String name() {
@@ -54,7 +48,7 @@ public final class NonNullInputFieldIsInaccessibleRule implements PostMergeValid
             for (GraphQLType type : subgraph.schema().getAllTypesAsList()) {
                 if (type instanceof GraphQLInputObjectType inputType) {
                     String typeName = inputType.getName();
-                    if (BUILT_IN_TYPES.contains(typeName)) {
+                    if (isBuiltInType(typeName)) {
                         continue;
                     }
 

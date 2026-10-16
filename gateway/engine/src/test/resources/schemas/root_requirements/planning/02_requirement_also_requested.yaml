@@ -1,0 +1,24 @@
+name: "Root requirement the client also selects"
+description: "category is selected once and returned to the client."
+
+query: |
+  {
+    category
+    search(term: "shoes")
+  }
+
+expectedPlan:
+  steps:
+    - id: 1
+      subgraph: settings
+      operation: "{ category }"
+      dependsOn: []
+      repeatedExecution: false
+
+    - id: 2
+      subgraph: search
+      operation: "query($filter: String) { search(term: \"shoes\", filter: $filter) }"
+      dependsOn: [1]
+      requirements:
+        filter: "category"
+      repeatedExecution: false

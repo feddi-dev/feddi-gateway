@@ -1,0 +1,31 @@
+name: "REQUIRE_INCONSISTENT_ON_IMPLEMENTATION - @require on the interface argument only"
+description: "Book.price(rate:) implements Media.price(rate:), which is annotated with @require; Book's is not."
+
+subgraphs:
+  catalog: |
+    type Query {
+      media: [Media]
+      bookById(id: ID!): Book @lookup
+    }
+
+    interface Media {
+      id: ID!
+      price(rate: Float @require(field: "<Book>.rate")): Float
+    }
+
+    type Book implements Media @key(fields: "id") {
+      id: ID!
+      price(rate: Float): Float
+    }
+
+  pricing: |
+    type Query {
+      bookById(id: ID!): Book @lookup @internal
+    }
+
+    type Book @key(fields: "id") {
+      id: ID!
+      rate: Float
+    }
+
+error: "REQUIRE_INCONSISTENT_ON_IMPLEMENTATION"

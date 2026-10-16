@@ -18,8 +18,11 @@ import graphql.GraphQLError;
 import graphql.language.AstPrinter;
 import graphql.language.Document;
 import graphql.language.Field;
+import graphql.language.NonNullType;
 import graphql.language.OperationDefinition;
 import graphql.language.Selection;
+import graphql.language.SelectionSet;
+import graphql.language.VariableDefinition;
 import graphql.schema.GraphQLSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +35,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -132,6 +136,11 @@ public final class Executor {
         // Thread-safe context for collecting results from completed steps
         ExecutionContext sharedContext = new ExecutionContext();
 
+        // Per-execution clients that share identical query calls between steps
+        Map<String, SubgraphClient> clients = new HashMap<>();
+        subgraphClients.forEach((name, client) ->
+            clients.put(name, new SharedCallSubgraphClient(new ListeningSubgraphClient(client, name, listener))));
+
         Map<Integer, Mono<StepResult>> stepMonos = new LinkedHashMap<>();
 
         for (ExecutionStep step : sorted) {
@@ -139,7 +148,7 @@ public final class Executor {
 
             if (step.isRoot()) {
                 // Root step: execute immediately with query variables
-                stepMono = executeStepWithErrorRecovery(step, executeRootStep(step, queryVariables))
+                stepMono = executeStepWithErrorRecovery(step, executeRootStep(step, queryVariables, clients))
                     .doOnNext(sharedContext::merge);
             } else {
                 // Dependent step: wait for direct dependencies only, then execute
@@ -150,7 +159,7 @@ public final class Executor {
                 // Dependencies complete only after their results have entered the shared
                 // response tree. Absolute entity paths must start at that tree's root.
                 stepMono = Mono.zip(dependencies, results -> sharedContext)
-                    .flatMap(ctx -> executeStepWithErrorRecovery(step, executeStepWithContext(step, ctx, queryVariables)))
+                    .flatMap(ctx -> executeStepWithErrorRecovery(step, executeStepWithContext(step, ctx, queryVariables, clients)))
                     .doOnNext(sharedContext::merge);
             }
 
@@ -165,24 +174,37 @@ public final class Executor {
      * Executes a step with a pre-built context from its dependencies.
      */
     private Mono<StepResult> executeStepWithContext(ExecutionStep step, ExecutionContext ctx,
-                                                     Map<String, Object> queryVariables) {
+                                                     Map<String, Object> queryVariables,
+                                                     Map<String, SubgraphClient> clients) {
         // Introspection steps should always be root steps, but handle it just in case
         if (INTROSPECTION_SUBGRAPH.equals(step.subgraph())) {
             return executeIntrospectionStep(step, Map.of());
         }
 
-        SubgraphClient client = subgraphClients.get(step.subgraph());
+        SubgraphClient client = clients.get(step.subgraph());
         if (client == null) {
             return Mono.error(new ExecutionException("No client for subgraph: " + step.subgraph()));
         }
 
-        // Dependent steps are entity lookups, which always have key requirements and run
-        // once per entity. LOOKUP_MUST_HAVE_ARGUMENTS rules out lookups without a key.
-        if (!step.repeatedExecution()) {
-            throw new ExecutionException("Dependent step " + step.id() + " has no requirements; "
+        // Dependent steps are entity lookups, which run once per entity, or root steps that wait for others: a
+        // root field with @require arguments, which reads them from the response root, or a group of a mutation's
+        // top-level fields, which runs after the group before it
+        if (step.repeatedExecution()) {
+            return executeRepeatedStep(step, client, ctx, queryVariables);
+        }
+        if (step.entityPath() != null) {
+            throw new ExecutionException("Lookup step " + step.id() + " has no requirements to run per entity; "
                 + "execution plans must be created by the OperationPlanner");
         }
-        return executeRepeatedStep(step, client, ctx, queryVariables);
+        Map<String, Object> stepVariables = new LinkedHashMap<>(queryVariables == null ? Map.of() : queryVariables);
+        synchronized (ctx) {
+            stepVariables.putAll(new RequirementReader(step.possibleTypes())
+                .extractVariables(step.requirements(), ctx.getMergedData()));
+        }
+        if (lacksNonNullVariable(step.operation(), stepVariables)) {
+            return Mono.just(nullRootFields(step.operation()));
+        }
+        return executeRootStep(step, stepVariables, clients);
     }
 
     /**
@@ -194,16 +216,20 @@ public final class Executor {
         return execution.onErrorResume(e -> {
             log.error("Step {} to subgraph '{}' failed: {}", step.id(), step.subgraph(), e.getMessage(), e);
             StepResult errorResult = new StepResult();
-            if (e instanceof SubgraphTimeoutException ste) {
-                log.warn("Subgraph '{}' timed out", ste.subgraphName());
-                listener.onSubgraphTimeout(ste.subgraphName());
-                errorResult.addError(new SubgraphTimeoutError(ste.subgraphName()));
-            } else {
-                log.warn("Subgraph '{}' execution error: {}", step.subgraph(), e.getMessage());
-                errorResult.addError(new SubgraphExecutionError(step.subgraph(), e.getMessage()));
-            }
+            errorResult.addError(subgraphError(step.subgraph(), e));
             return Mono.just(errorResult);
         });
+    }
+
+    /** The GraphQL error for a failed subgraph request; a timeout is also reported to the listener. */
+    private GraphQLError subgraphError(String subgraph, Throwable e) {
+        if (e instanceof SubgraphTimeoutException timeout) {
+            log.warn("Subgraph '{}' timed out", timeout.subgraphName());
+            listener.onSubgraphTimeout(timeout.subgraphName());
+            return new SubgraphTimeoutError(timeout.subgraphName());
+        }
+        log.warn("Subgraph '{}' execution error: {}", subgraph, e.getMessage());
+        return new SubgraphExecutionError(subgraph, e.getMessage());
     }
 
     /**
@@ -266,24 +292,21 @@ public final class Executor {
     /**
      * Executes a root step with the query variables.
      */
-    private Mono<StepResult> executeRootStep(ExecutionStep step, Map<String, Object> variables) {
+    private Mono<StepResult> executeRootStep(ExecutionStep step, Map<String, Object> variables,
+                                             Map<String, SubgraphClient> clients) {
         // Handle introspection subgraph internally
         if (INTROSPECTION_SUBGRAPH.equals(step.subgraph())) {
             return executeIntrospectionStep(step, variables);
         }
 
-        SubgraphClient client = subgraphClients.get(step.subgraph());
+        SubgraphClient client = clients.get(step.subgraph());
         if (client == null) {
             return Mono.error(new ExecutionException("No client for subgraph: " + step.subgraph()));
         }
 
         // Filter variables to only those defined in the step's operation
         Map<String, Object> filteredVariables = filterVariablesForOperation(step.operation(), variables);
-
-        long start = System.nanoTime();
         return client.execute(step.operation(), filteredVariables)
-            .doOnNext(result -> listener.onSubgraphFetchComplete(step.subgraph(), System.nanoTime() - start, true))
-            .doOnError(e -> listener.onSubgraphFetchComplete(step.subgraph(), System.nanoTime() - start, false))
             .map(result -> {
                 StepResult stepResult = new StepResult();
                 if (result.getData() != null) {
@@ -350,95 +373,111 @@ public final class Executor {
             return Mono.just(new StepResult());
         }
 
-        final List<Map<String, Object>> contexts = parentContexts;
         // Get field names that should be set to null for skipped entities
         final Set<String> nullFieldNames = getFirstLevelFieldNames(step.operation());
+        final List<String> wrapperPath = lookupWrapperPath(step.operation());
+        final Map<String, Object> operationVariables = filterVariablesForOperation(step.operation(), queryVariables);
+        final RequirementReader reader = new RequirementReader(step.possibleTypes());
 
-        // Execute all entity calls in parallel
-        return Flux.fromIterable(contexts)
-            .flatMap(context -> {
-                // Start with filtered query variables, then overlay requirement variables
-                // Requirement variables take precedence since they're entity-specific
-                Map<String, Object> stepVariables = new LinkedHashMap<>(
-                    filterVariablesForOperation(step.operation(), queryVariables));
-                Map<String, Object> extractedVars = extractVariables(step.requirements(), context);
-                stepVariables.putAll(extractedVars);
+        // Group entities by the variables their lookup needs: the same entity often appears
+        // at many positions (e.g. one product under many reviews), but is fetched only once.
+        Map<Map<String, Object>, UniqueEntity> uniqueEntities = new LinkedHashMap<>();
+        List<EntityResult> skipped = new ArrayList<>();
+        for (Map<String, Object> context : parentContexts) {
+            // Start with filtered query variables, then overlay requirement variables
+            // Requirement variables take precedence since they're entity-specific
+            Map<String, Object> stepVariables = new LinkedHashMap<>(operationVariables);
+            stepVariables.putAll(reader.extractVariables(step.requirements(), context));
+            if (lacksNonNullVariable(step.operation(), stepVariables)) {
+                skipped.add(new EntityResult(context, null));
+                continue;
+            }
+            uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).positions().add(context);
+        }
 
-                // Skip entities that don't have essential key fields (null key handling)
-                // This happens when an intermediate lookup returned null.
-                // We check if key fields EXIST in context (not if they're null).
-                if (!hasEssentialKeyFields(step.requirements(), context)) {
-                    return Mono.just(new EntityResult(context, null));
-                }
-
-                long entityStart = System.nanoTime();
-                return client.execute(step.operation(), stepVariables)
-                    .doOnNext(result -> listener.onSubgraphFetchComplete(step.subgraph(), System.nanoTime() - entityStart, true))
-                    .doOnError(e -> listener.onSubgraphFetchComplete(step.subgraph(), System.nanoTime() - entityStart, false))
-                    .map(result -> new EntityResult(context, result))
-                    .onErrorResume(e -> {
-                        // Handle individual entity errors without failing the entire step
-                        // Capture the error so we can add it to the response
-                        return Mono.just(new EntityResult(context, null, e));
-                    });
-            })
+        // Fetch the unique entities: one request each, or batched as configured for the subgraph
+        return Flux.fromIterable(batches(List.copyOf(uniqueEntities.values()), step.operation(), client.batching()))
+            .flatMap(batch -> fetchBatch(step.operation(), client, batch)
+                .onErrorResume(e -> {
+                    // Handle failures without failing the entire step. The error is reported
+                    // once; every position of the batch's entities gets null fields.
+                    List<EntityResult> failed = new ArrayList<>();
+                    for (UniqueEntity entity : batch) {
+                        for (Map<String, Object> context : entity.positions()) {
+                            failed.add(new EntityResult(context, null, failed.isEmpty() ? e : null));
+                        }
+                    }
+                    return Mono.just(failed);
+                }))
+            .concatMapIterable(results -> results)
+            .concatWith(Flux.fromIterable(skipped))
             .collectList()
             .map(entityResults -> {
                 StepResult stepResult = new StepResult();
-
-                for (EntityResult er : entityResults) {
-                    if (er.result() != null && er.result().getData() != null) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> data = (Map<String, Object>) er.result().getData();
-
-                        // Capture any GraphQL errors from the subgraph response
-                        if (er.result().getErrors() != null) {
-                            for (graphql.GraphQLError error : er.result().getErrors()) {
-                                stepResult.addError(error);
-                            }
-                        }
-
-                        // Check if the lookup returned null (e.g., {bookByUpc: null})
-                        boolean lookupReturnedNull = data.values().stream()
-                            .anyMatch(v -> v == null);
-
-                        if (lookupReturnedNull) {
-                            // Lookup returned null - set the expected fields to null
-                            // Synchronize: parallel steps may share the same context map
-                            synchronized (er.context()) {
-                                for (String fieldName : nullFieldNames) {
-                                    er.context().put(fieldName, null);
-                                }
-                            }
-                        } else {
-                            // Synchronize: parallel steps may share the same context map
-                            synchronized (er.context()) {
-                                mergeIntoContext(er.context(), data);
-                            }
-                        }
-                    } else {
-                        // For skipped/failed entities (null result), set the expected fields to null
-                        // This ensures the response shows null for fields that couldn't be fetched
-                        // Synchronize: parallel steps may share the same context map
-                        synchronized (er.context()) {
-                            for (String fieldName : nullFieldNames) {
-                                er.context().put(fieldName, null);
-                            }
-                        }
-                        // If there was an error (e.g., timeout), record it
-                        if (er.error() != null) {
-                            if (er.error() instanceof SubgraphTimeoutException ste) {
-                                listener.onSubgraphTimeout(ste.subgraphName());
-                                stepResult.addError(new SubgraphTimeoutError(ste.subgraphName()));
-                            } else {
-                                stepResult.addError(new SubgraphExecutionError(step.subgraph(), er.error().getMessage()));
-                            }
-                        }
-                    }
+                for (EntityResult entityResult : entityResults) {
+                    mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
                 }
-
                 return stepResult;
             });
+    }
+
+    /**
+     * Merges one entity's lookup result into its position in the response: the lookup's data, or null for the
+     * step's fields when the entity was skipped, its lookup returned null (e.g. {@code {bookByUpc: null}}) or its
+     * request failed. The subgraph's errors and the failure go into {@code stepResult}.
+     */
+    private void mergeEntityResult(EntityResult entityResult, ExecutionStep step, ExecutionContext ctx,
+                                   List<String> wrapperPath, Set<String> nullFieldNames, StepResult stepResult) {
+        ExecutionResult result = entityResult.result();
+        if (result != null && result.getErrors() != null) {
+            result.getErrors().forEach(stepResult::addError);
+        }
+        if (entityResult.error() != null) {
+            stepResult.addError(subgraphError(step.subgraph(), entityResult.error()));
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = result == null || result.getData() == null ? null
+            : unwrapLookup((Map<String, Object>) result.getData(), wrapperPath);
+        // One lock for all merges (root and lookup results are merged deeply, so they can write to the same
+        // nested objects)
+        synchronized (ctx) {
+            if (data == null || data.values().stream().anyMatch(Objects::isNull)) {
+                nullFieldNames.forEach(fieldName -> entityResult.context().put(fieldName, null));
+            } else {
+                mergeIntoContext(entityResult.context(), data);
+            }
+        }
+    }
+
+    /**
+     * Whether a variable that the operation declares non-null (without default) has no value, e.g. a key or a
+     * {@code @require} value that resolved to null. Such a request is invalid, so it is not sent and the fields it
+     * would fetch become null, as in ChilliCream's Fusion federation gateway; the null propagation of the response
+     * reports non-null fields among them. Nullable variables are sent with null.
+     */
+    private static boolean lacksNonNullVariable(OperationDefinition operation, Map<String, Object> variables) {
+        for (VariableDefinition definition : operation.getVariableDefinitions()) {
+            if (definition.getType() instanceof NonNullType && definition.getDefaultValue() == null
+                && variables.get(definition.getName()) == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The result of a root step that is not sent: null for each of its top-level fields.
+     */
+    private static StepResult nullRootFields(OperationDefinition operation) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        for (Selection<?> selection : operation.getSelectionSet().getSelections()) {
+            if (selection instanceof Field field) {
+                data.put(field.getResultKey(), null);
+            }
+        }
+        StepResult stepResult = new StepResult();
+        stepResult.setRootData(data);
+        return stepResult;
     }
 
     /**
@@ -448,10 +487,12 @@ public final class Executor {
     private ExecutionResult buildResult(ExecutionContext ctx, ExecutionPlan plan) {
         Map<String, Object> mergedData = ctx.getMergedData();
 
-        // Filter artificial fields from the final response
-        // Only filter paths that are artificial AND NOT requested (handles overlap cases)
-        Set<String> pathsToFilter = plan.pathsToFilter();
-        Map<String, Object> filteredData = filterArtificialFields(mergedData, pathsToFilter, "");
+        // Filter artificial fields from the final response: those that are artificial and not requested, for the
+        // object's type (paths are "parent.field" or "parent<Type>.field")
+        Set<String> artificial = plan.allArtificialFieldPaths();
+        Set<String> requested = plan.allRequestedFieldPaths();
+        Map<String, Object> filteredData = artificial.isEmpty() ? mergedData
+            : filterArtificialFields(mergedData, artificial, requested, "");
 
         ExecutionResultImpl.Builder builder = ExecutionResultImpl.newExecutionResult()
             .data(filteredData);
@@ -471,37 +512,31 @@ public final class Executor {
      * @param currentPath the current path prefix for nested fields
      * @return a new map with artificial fields removed
      */
-    private Map<String, Object> filterArtificialFields(Map<String, Object> data,
-                                                        Set<String> artificialPaths,
-                                                        String currentPath) {
-        if (artificialPaths.isEmpty()) {
-            return data;
-        }
-
+    private Map<String, Object> filterArtificialFields(Map<String, Object> data, Set<String> artificial,
+                                                        Set<String> requested, String currentPath) {
+        String typename = data.get(IntrospectionFields.TYPENAME) instanceof String name ? name : null;
         Map<String, Object> result = new LinkedHashMap<>();
-
         for (Map.Entry<String, Object> entry : data.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
             String fieldPath = currentPath.isEmpty() ? key : currentPath + "." + key;
-
-            // Skip artificial fields
-            if (artificialPaths.contains(fieldPath)) {
+            String typedPath = typename == null ? null
+                : (currentPath.isEmpty() ? "" : currentPath) + "<" + typename + ">." + key;
+            boolean isArtificial = artificial.contains(fieldPath) || (typedPath != null && artificial.contains(typedPath));
+            boolean isRequested = requested.contains(fieldPath) || (typedPath != null && requested.contains(typedPath));
+            if (isArtificial && !isRequested) {
                 continue;
             }
-
-            // Recursively filter nested structures
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> mapValue = (Map<String, Object>) value;
-                result.put(key, filterArtificialFields(mapValue, artificialPaths, fieldPath));
-            } else if (value instanceof List) {
-                result.put(key, filterArtificialFieldsInList((List<?>) value, artificialPaths, fieldPath));
+                result.put(key, filterArtificialFields(mapValue, artificial, requested, fieldPath));
+            } else if (value instanceof List<?> list) {
+                result.put(key, filterArtificialFieldsInList(list, artificial, requested, fieldPath));
             } else {
                 result.put(key, value);
             }
         }
-
         return result;
     }
 
@@ -509,13 +544,17 @@ public final class Executor {
      * Filters artificial fields from a list of values.
      * Each item in the list uses the same path prefix for filtering.
      */
-    private List<?> filterArtificialFieldsInList(List<?> list, Set<String> artificialPaths, String currentPath) {
+    private List<?> filterArtificialFieldsInList(List<?> list, Set<String> artificial, Set<String> requested,
+                                                 String currentPath) {
         return list.stream()
             .map(item -> {
                 if (item instanceof Map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> mapItem = (Map<String, Object>) item;
-                    return filterArtificialFields(mapItem, artificialPaths, currentPath);
+                    return filterArtificialFields(mapItem, artificial, requested, currentPath);
+                }
+                if (item instanceof List<?> nested) {
+                    return filterArtificialFieldsInList(nested, artificial, requested, currentPath);
                 }
                 return item;
             })
@@ -550,262 +589,19 @@ public final class Executor {
     }
 
     /**
-     * Extracts variables from a data context based on requirement paths.
-     * All requirement variables are included in the result - if a path doesn't exist
-     * in the context (e.g., a type-specific field on a different concrete type),
-     * the variable is set to null.
-     */
-    private Map<String, Object> extractVariables(Map<String, SelectedValue> requirements, Map<String, Object> context) {
-        Map<String, Object> variables = new LinkedHashMap<>();
-
-        for (Map.Entry<String, SelectedValue> entry : requirements.entrySet()) {
-            String varName = entry.getKey();
-            SelectedValue selectedValue = entry.getValue();
-
-            Object value = extractFromSelectedValue(context, selectedValue);
-            // Always include the variable, even if null - this is expected for
-            // type-conditional fields (e.g., @require(field: "data.baz") when
-            // the concrete type is Qux which doesn't have a baz field)
-            variables.put(varName, value);
-        }
-
-        return variables;
-    }
-
-    /**
-     * Checks if essential key fields are present and non-null in the context.
-     *
-     * For single-segment paths (like "id"), the field must exist AND be non-null.
-     * This handles the case where a lookup returned null and the executor added
-     * the key with null value to the context.
-     *
-     * For multi-segment paths (like "data.baz"), we only check if the first
-     * segment exists, since nested fields can be null due to type conditions
-     * (e.g., @require(field: "data.baz") when entity is Qux which has no baz).
-     *
-     * For alternatives, if ANY alternative provides a valid value, we proceed.
-     */
-    private boolean hasEssentialKeyFields(Map<String, SelectedValue> requirements, Map<String, Object> context) {
-        for (SelectedValue selectedValue : requirements.values()) {
-            // For each requirement, check if ANY alternative can provide a value
-            boolean hasValidAlternative = false;
-
-            for (Alternative alt : selectedValue.alternatives()) {
-                if (alt instanceof Path path) {
-                    if (path.segments().size() == 1) {
-                        // Single-segment path: must exist AND be non-null
-                        // This catches the case where lookup returned null
-                        String fieldName = path.segments().get(0).fieldName();
-                        if (context.containsKey(fieldName) && context.get(fieldName) != null) {
-                            hasValidAlternative = true;
-                            break;
-                        }
-                    } else {
-                        // Multi-segment path: only check first segment exists
-                        // Nested fields can be null due to type conditions
-                        String firstField = path.segments().get(0).fieldName();
-                        if (context.containsKey(firstField)) {
-                            hasValidAlternative = true;
-                            break;
-                        }
-                    }
-                } else {
-                    // ObjectSelection or ListSelection - assume valid
-                    hasValidAlternative = true;
-                    break;
-                }
-            }
-
-            if (!hasValidAlternative) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
      * Extracts a value from a SelectedValue, trying alternatives in order.
      * Package-private for testing.
      */
     Object extractFromSelectedValue(Map<String, Object> context, SelectedValue selectedValue) {
-        for (Alternative alt : selectedValue.alternatives()) {
-            Object value = extractFromAlternative(context, alt);
-            if (value != null) {
-                return value;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Extracts a value from a single Alternative.
-     */
-    private Object extractFromAlternative(Map<String, Object> context, Alternative alt) {
-        return switch (alt) {
-            case Path path -> extractValueFromPath(context, path);
-            case ObjectSelection obj -> extractFromObjectSelection(context, obj);
-            case ListSelection list -> extractFromListSelection(context, list);
-        };
+        return new RequirementReader(Map.of()).extractFromSelectedValue(context, selectedValue);
     }
 
     /**
      * Extracts a value from a context following a path.
-     * Handles list traversal by collecting values from all list elements.
      * Package-private for testing.
      */
     Object extractValueFromPath(Map<String, Object> context, Path path) {
-        return extractValueFromPathWithIndex(context, path, 0);
-    }
-
-    /**
-     * Recursive helper for extractValueFromPath that handles list traversal.
-     */
-    private Object extractValueFromPathWithIndex(Object current, Path path, int segmentIndex) {
-        List<PathSegment> segments = path.segments();
-
-        // Check initial type condition at the start of path extraction
-        // e.g., for path <Movie>.code, only extract if context is a Movie
-        if (segmentIndex == 0 && path.hasInitialTypeCondition() && current instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) current;
-            String typename = (String) map.get(IntrospectionFields.TYPENAME);
-            if (typename == null || !path.initialTypeCondition().equals(typename)) {
-                return null;
-            }
-        }
-
-        for (int i = segmentIndex; i < segments.size(); i++) {
-            PathSegment segment = segments.get(i);
-
-            if (current instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) current;
-
-                // Get the field value first
-                current = map.get(segment.fieldName());
-
-                // Check infix type condition on the result
-                if (segment.typeCondition() != null) {
-                    if (current instanceof Map) {
-                        // Single object: check typename directly
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> resultMap = (Map<String, Object>) current;
-                        String typename = (String) resultMap.get(IntrospectionFields.TYPENAME);
-                        if (typename == null || !segment.typeCondition().equals(typename)) {
-                            return null;
-                        }
-                    } else if (current instanceof List) {
-                        // List: filter elements by typename, then continue extraction
-                        @SuppressWarnings("unchecked")
-                        List<Object> list = (List<Object>) current;
-                        List<Object> results = new ArrayList<>();
-                        for (Object item : list) {
-                            if (item instanceof Map) {
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> itemMap = (Map<String, Object>) item;
-                                String typename = (String) itemMap.get(IntrospectionFields.TYPENAME);
-                                if (typename != null && segment.typeCondition().equals(typename)) {
-                                    // Type matches - continue extraction from this item
-                                    Object extracted = extractValueFromPathWithIndex(item, path, i + 1);
-                                    if (extracted != null) {
-                                        if (extracted instanceof List) {
-                                            results.addAll((List<?>) extracted);
-                                        } else {
-                                            results.add(extracted);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        return results.isEmpty() ? null : results;
-                    } else {
-                        // Type condition on non-object/non-list - can't match
-                        return null;
-                    }
-                }
-            } else if (current instanceof List) {
-                // When we encounter a list, extract from each element and collect results
-                @SuppressWarnings("unchecked")
-                List<Object> list = (List<Object>) current;
-                List<Object> results = new ArrayList<>();
-                for (Object item : list) {
-                    Object extracted = extractValueFromPathWithIndex(item, path, i);
-                    if (extracted != null) {
-                        if (extracted instanceof List) {
-                            // Flatten nested lists
-                            results.addAll((List<?>) extracted);
-                        } else {
-                            results.add(extracted);
-                        }
-                    }
-                }
-                return results;
-            } else {
-                return null;
-            }
-        }
-
-        return current;
-    }
-
-    /**
-     * Extracts an object from an ObjectSelection pattern.
-     */
-    private Object extractFromObjectSelection(Map<String, Object> context, ObjectSelection obj) {
-        Map<String, Object> source = context;
-        if (obj.pathPrefix() != null) {
-            Object prefixValue = extractValueFromPath(context, obj.pathPrefix());
-            if (prefixValue instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> prefixMap = (Map<String, Object>) prefixValue;
-                source = prefixMap;
-            } else {
-                return null;
-            }
-        }
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        for (ObjectField field : obj.fields()) {
-            Object value = extractFromSelectedValue(source, field.value());
-            if (value != null) {
-                result.put(field.name(), value);
-            }
-        }
-
-        return result.isEmpty() ? null : result;
-    }
-
-    /**
-     * Extracts values from a ListSelection pattern.
-     */
-    private Object extractFromListSelection(Map<String, Object> context, ListSelection list) {
-        Object listValue;
-        if (list.pathPrefix() != null) {
-            listValue = extractValueFromPath(context, list.pathPrefix());
-        } else {
-            return null;
-        }
-
-        if (!(listValue instanceof List)) {
-            return null;
-        }
-
-        @SuppressWarnings("unchecked")
-        List<Object> sourceList = (List<Object>) listValue;
-
-        List<Object> result = new ArrayList<>();
-        for (Object item : sourceList) {
-            if (item instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> itemMap = (Map<String, Object>) item;
-                Object extracted = extractFromSelectedValue(itemMap, list.elementValue());
-                if (extracted != null) {
-                    result.add(extracted);
-                }
-            }
-        }
-
-        return result;
+        return new RequirementReader(Map.of()).extractValueFromPath(context, path);
     }
 
     /**
@@ -820,102 +616,39 @@ public final class Executor {
         }
         List<Map<String, Object>> targets = new ArrayList<>();
         synchronized (ctx) {
-            collectEntityTargets(ctx.getMergedData(), step.entityPath(), 0, targets);
+            collectEntityTargets(ctx.getMergedData(), step.entityPath(), step.entityPathTypes(), 0, targets);
         }
-        return filterContextsForRequirements(targets, step.requirements());
-    }
-
-    /** Follow response keys, traversing lists without consuming a path segment. */
-    @SuppressWarnings("unchecked")
-    private void collectEntityTargets(Object value, List<String> path, int index,
-                                      List<Map<String, Object>> targets) {
-        if (value instanceof List<?> list) {
-            for (Object item : list) {
-                collectEntityTargets(item, path, index, targets);
-            }
-        } else if (value instanceof Map<?, ?> map) {
-            if (index == path.size()) {
-                targets.add((Map<String, Object>) map);
-            } else {
-                collectEntityTargets(map.get(path.get(index)), path, index + 1, targets);
-            }
+        if (!step.entityTypes().isEmpty()) {
+            // A lookup for one concrete type (e.g. below "... on Book") skips entities of other types.
+            targets.removeIf(target -> target.get(IntrospectionFields.TYPENAME) instanceof String typename
+                && !step.entityTypes().contains(typename));
         }
-    }
-
-    private List<Map<String, Object>> filterContextsForRequirements(List<Map<String, Object>> contexts,
-                                                                     Map<String, SelectedValue> requirements) {
-        if (contexts == null || contexts.isEmpty()) {
-            return List.of();
-        }
-        if (requirements.isEmpty()) {
-            return contexts;
-        }
-
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Map<String, Object> context : contexts) {
-            if (contextCanProvideRequirements(context, requirements)) {
-                result.add(context);
-            }
-        }
-        return result;
+        return new RequirementReader(step.possibleTypes()).filterContextsForRequirements(targets, step.requirements());
     }
 
     /**
-     * Checks whether a context has the source fields for every requirement.
-     * Null values count as present so downstream steps can still write nulls for
-     * fields that cannot be resolved after a null lookup.
+     * Follow response keys, traversing lists without consuming a path segment, and skipping objects whose
+     * {@code __typename} is not one of the types required at their position.
      */
-    private boolean contextCanProvideRequirements(Map<String, Object> context,
-                                                   Map<String, SelectedValue> requirements) {
-        for (SelectedValue selectedValue : requirements.values()) {
-            if (!contextCanProvideSelectedValue(context, selectedValue)) {
-                return false;
+    @SuppressWarnings("unchecked")
+    private void collectEntityTargets(Object value, List<String> path, Map<Integer, Set<String>> pathTypes,
+                                      int index, List<Map<String, Object>> targets) {
+        if (value instanceof List<?> list) {
+            for (Object item : list) {
+                collectEntityTargets(item, path, pathTypes, index, targets);
+            }
+        } else if (value instanceof Map<?, ?> map) {
+            Set<String> types = pathTypes.get(index);
+            if (types != null && map.get(IntrospectionFields.TYPENAME) instanceof String typename
+                && !types.contains(typename)) {
+                return;
+            }
+            if (index == path.size()) {
+                targets.add((Map<String, Object>) map);
+            } else {
+                collectEntityTargets(map.get(path.get(index)), path, pathTypes, index + 1, targets);
             }
         }
-        return true;
-    }
-
-    private boolean contextCanProvideSelectedValue(Map<String, Object> context, SelectedValue selectedValue) {
-        for (Alternative alt : selectedValue.alternatives()) {
-            if (contextCanProvideAlternative(context, alt)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean contextCanProvideAlternative(Map<String, Object> context, Alternative alt) {
-        return switch (alt) {
-            case Path path -> contextHasPathSource(context, path);
-            case ObjectSelection obj -> contextCanProvideObjectSelection(context, obj);
-            case ListSelection list -> list.pathPrefix() != null
-                && contextHasPathSource(context, list.pathPrefix());
-        };
-    }
-
-    private boolean contextCanProvideObjectSelection(Map<String, Object> context, ObjectSelection obj) {
-        if (obj.pathPrefix() != null) {
-            return contextHasPathSource(context, obj.pathPrefix());
-        }
-        for (ObjectField field : obj.fields()) {
-            if (!contextCanProvideSelectedValue(context, field.value())) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean contextHasPathSource(Map<String, Object> context, Path path) {
-        if (path.hasInitialTypeCondition()) {
-            String typename = (String) context.get(IntrospectionFields.TYPENAME);
-            if (typename == null || !path.initialTypeCondition().equals(typename)) {
-                return false;
-            }
-        }
-        if (path.segments().isEmpty()) {
-            return true;
-        }
-        return context.containsKey(path.segments().get(0).fieldName());
     }
 
     /**
@@ -926,9 +659,69 @@ public final class Executor {
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> innerData = (Map<String, Object>) value;
-                context.putAll(innerData);
+                deepMerge(context, innerData);
             }
         }
+    }
+
+    /**
+     * Merges {@code source} into {@code target} in place: objects that several steps return for the same response
+     * path (e.g. {@code category} with {@code details} from one subgraph and {@code id} from another) are combined
+     * field by field, also inside lists of the same length. Nested objects are updated in place, because later
+     * steps may already hold them as lookup targets. A null does not replace a value another step returned.
+     */
+    @SuppressWarnings("unchecked")
+    static void deepMerge(Map<String, Object> target, Map<String, Object> source) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            Object existing = target.get(entry.getKey());
+            Object incoming = entry.getValue();
+            if (existing instanceof Map<?, ?> existingMap && incoming instanceof Map<?, ?> incomingMap) {
+                deepMerge((Map<String, Object>) existingMap, (Map<String, Object>) incomingMap);
+            } else if (existing instanceof List<?> existingList && incoming instanceof List<?> incomingList
+                && existingList.size() == incomingList.size()) {
+                for (int i = 0; i < existingList.size(); i++) {
+                    if (existingList.get(i) instanceof Map<?, ?> existingItem
+                        && incomingList.get(i) instanceof Map<?, ?> incomingItem) {
+                        deepMerge((Map<String, Object>) existingItem, (Map<String, Object>) incomingItem);
+                    }
+                }
+            } else if (incoming != null || !target.containsKey(entry.getKey())) {
+                target.put(entry.getKey(), incoming);
+            }
+        }
+    }
+
+    /**
+     * The argument-less fields that lead from a lookup operation's root to its lookup field, as for a lookup nested
+     * below Query ({@code lookups { brandById(id: $id) { ... } }} gives ["lookups"]); empty for a lookup on Query.
+     */
+    static List<String> lookupWrapperPath(OperationDefinition operation) {
+        List<String> path = new ArrayList<>();
+        SelectionSet level = operation.getSelectionSet();
+        while (level != null && level.getSelections().size() == 1 && level.getSelections().get(0) instanceof Field field
+            && field.getArguments().isEmpty() && field.getSelectionSet() != null) {
+            path.add(field.getResultKey());
+            level = field.getSelectionSet();
+        }
+        return path;
+    }
+
+    /**
+     * The lookup field's result below a nested lookup's wrapper fields, as {lookupField: result}; a null on the way
+     * counts as a null lookup result.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> unwrapLookup(Map<String, Object> data, List<String> wrapperPath) {
+        Map<String, Object> current = data;
+        for (String key : wrapperPath) {
+            if (!(current.get(key) instanceof Map<?, ?> next)) {
+                Map<String, Object> nullResult = new HashMap<>();
+                nullResult.put(key, null);
+                return nullResult;
+            }
+            current = (Map<String, Object>) next;
+        }
+        return current;
     }
 
     /**
@@ -942,8 +735,12 @@ public final class Executor {
         if (operation.getSelectionSet() == null) {
             return fieldNames;
         }
+        SelectionSet lookupLevel = operation.getSelectionSet();
+        for (int i = 0; i < lookupWrapperPath(operation).size(); i++) {
+            lookupLevel = ((Field) lookupLevel.getSelections().get(0)).getSelectionSet();
+        }
         // The first selection is typically the lookup field (e.g., bookById)
-        for (Selection<?> selection : operation.getSelectionSet().getSelections()) {
+        for (Selection<?> selection : lookupLevel.getSelections()) {
             if (selection instanceof Field rootField && rootField.getSelectionSet() != null) {
                 // Get the fields under the root (e.g., author under bookById)
                 for (Selection<?> innerSelection : rootField.getSelectionSet().getSelections()) {
@@ -969,6 +766,83 @@ public final class Executor {
 
         void setRootData(Map<String, Object> data) { this.rootData = data; }
         void addError(GraphQLError error) { this.errors.add(error); }
+    }
+
+    /**
+     * An entity to fetch once: the variables of its lookup and every position where it appears.
+     */
+    private record UniqueEntity(Map<String, Object> variables, List<Map<String, Object>> positions) {
+        UniqueEntity(Map<String, Object> variables) {
+            this(variables, new ArrayList<>());
+        }
+    }
+
+    /**
+     * Splits the unique entities of a step into the requests to send: one entity per request
+     * without batching (or when the operation can't be alias-batched), otherwise chunks of at
+     * most {@link BatchingOptions#maxBatchSize()} entities.
+     */
+    private static List<List<UniqueEntity>> batches(List<UniqueEntity> entities, OperationDefinition operation,
+                                                    BatchingOptions batching) {
+        boolean batched = switch (batching.mode()) {
+            case NONE -> false;
+            case ALIAS -> AliasBatch.supports(operation);
+            case VARIABLES -> true;
+        };
+        int size = batched ? batching.maxBatchSize() : 1;
+        List<List<UniqueEntity>> batches = new ArrayList<>();
+        for (int start = 0; start < entities.size(); start += size) {
+            batches.add(entities.subList(start, Math.min(start + size, entities.size())));
+        }
+        return batches;
+    }
+
+    /**
+     * Fetches one batch of unique entities and distributes the results to their positions.
+     */
+    private static Mono<List<EntityResult>> fetchBatch(OperationDefinition operation, SubgraphClient client,
+                                                       List<UniqueEntity> batch) {
+        List<Map<String, Object>> variableSets = batch.stream().map(UniqueEntity::variables).toList();
+        Mono<List<ExecutionResult>> results;
+        if (variableSets.size() == 1) {
+            results = client.execute(operation, variableSets.get(0)).map(List::of);
+        } else if (client.batching().mode() == BatchingOptions.Mode.VARIABLES) {
+            results = client.executeBatch(operation, variableSets);
+        } else {
+            AliasBatch aliasBatch = AliasBatch.create(operation, variableSets, client.batching().maxBatchSize());
+            results = client.execute(aliasBatch.operation(), aliasBatch.variables()).map(aliasBatch::split);
+        }
+        return results.map(list -> {
+            if (list.size() != batch.size()) {
+                throw new ExecutionException("Subgraph returned " + list.size() + " results for a batch of "
+                    + batch.size());
+            }
+            List<EntityResult> entityResults = new ArrayList<>();
+            for (int i = 0; i < batch.size(); i++) {
+                entityResults.addAll(fanOut(batch.get(i).positions(), list.get(i)));
+            }
+            return entityResults;
+        });
+    }
+
+    /**
+     * Distributes one subgraph result to every position of a deduplicated entity. Errors are
+     * reported once, with the first position.
+     *
+     * <p>The positions share the result's data: all positions of a repeated step lie on the
+     * step's entity path, so every later step merges the same fields into all of them. (Sharing
+     * across different paths is not safe; see {@link SharedCallSubgraphClient}, which copies.)
+     */
+    private static List<EntityResult> fanOut(List<Map<String, Object>> contexts, ExecutionResult result) {
+        List<EntityResult> results = new ArrayList<>(contexts.size());
+        results.add(new EntityResult(contexts.get(0), result));
+        if (contexts.size() > 1) {
+            ExecutionResult withoutErrors = ExecutionResultImpl.newExecutionResult().data(result.getData()).build();
+            for (int i = 1; i < contexts.size(); i++) {
+                results.add(new EntityResult(contexts.get(i), withoutErrors));
+            }
+        }
+        return results;
     }
 
     /**
@@ -998,7 +872,7 @@ public final class Executor {
 
         synchronized void merge(StepResult result) {
             if (result.getRootData() != null) {
-                mergedData.putAll(result.getRootData());
+                deepMerge(mergedData, result.getRootData());
             }
             if (result.getErrors() != null && !result.getErrors().isEmpty()) {
                 errors.addAll(result.getErrors());

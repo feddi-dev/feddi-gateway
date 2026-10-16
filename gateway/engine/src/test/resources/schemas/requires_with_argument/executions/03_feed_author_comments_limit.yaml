@@ -4,6 +4,8 @@ description: |
   The query requests both author (which internally requires comments) and
   comments(limit: 1). The feddi Gateway must handle both the @require-driven fetch
   and the user-requested comments field.
+  The requirement comments[authorId] selects comments without arguments: all of a post's comments, not
+  the client's comments(limit: ...). It gets its own alias.
 
 query: |
   {
@@ -21,21 +23,21 @@ variables: {}
 
 subgraphCalls:
   - subgraph: c
-    operation: '{feed{id comments(limit:1){authorId id}}}'
+    operation: '{feed{id __gql_comments:comments{authorId} comments(limit:1){id}}}'
     variables: {}
     response: { data: { feed: [
-      { id: "p1", comments: [{ authorId: "a2", id: "c1" }] },
-      { id: "p2", comments: [{ authorId: "a1", id: "c4" }] }
+      { id: "p1", __gql_comments: [{ authorId: "a2" }, { authorId: "a3" }], comments: [{ id: "c1" }] },
+      { id: "p2", __gql_comments: [{ authorId: "a1" }, { authorId: "a4" }], comments: [{ id: "c4" }] }
     ] } }
 
   - subgraph: d
     operation: 'query ($id:ID!,$commentAuthorIds:[ID]){postById(id:$id){author(commentAuthorIds:$commentAuthorIds){id}}}'
-    variables: { id: "p1", commentAuthorIds: ["a2"] }
+    variables: { id: "p1", commentAuthorIds: ["a2", "a3"] }
     response: { data: { postById: { author: { id: "a2" } } } }
 
   - subgraph: d
     operation: 'query ($id:ID!,$commentAuthorIds:[ID]){postById(id:$id){author(commentAuthorIds:$commentAuthorIds){id}}}'
-    variables: { id: "p2", commentAuthorIds: ["a1"] }
+    variables: { id: "p2", commentAuthorIds: ["a1", "a4"] }
     response: { data: { postById: { author: { id: "a1" } } } }
 
 expectedResponse: { data: { feed: [

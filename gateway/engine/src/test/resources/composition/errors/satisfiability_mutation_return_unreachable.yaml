@@ -1,4 +1,4 @@
-name: "SATISFIABILITY_ERROR - Mutation return type fields unreachable"
+name: "UNSATISFIABLE_QUERY_PATH - Mutation return type fields unreachable"
 description: "Mutation returns Order but Order fields in shipping subgraph are unreachable"
 
 subgraphs:
@@ -33,4 +33,4 @@ subgraphs:
       estimatedDelivery: String
     }
 
-error: "SATISFIABILITY_ERROR"
+error: "UNSATISFIABLE_QUERY_PATH"

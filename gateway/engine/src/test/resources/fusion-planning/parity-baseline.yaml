@@ -1,0 +1,581 @@
+# feddi's plans for the imported Fusion planner tests, written by FusionPlanParityTest
+# (./gradlew :engine:test -PupdateFusionParity). steps/depth: feddi; fusion*: Fusion's plan.
+# 91 tests (4 with an invalid query), 72 planned by feddi, 72 with no more steps than Fusion, 72 with no more depth
+AbstractLookupFanoutPlanningTests/Plan_Should_Keep_SiblingBranch_Clean_When_Duplicate_TypeFragments_Present:
+  status: "ok"
+  steps: 4
+  depth: 2
+  fusionOperations: 4
+  fusionDepth: 3
+AbstractLookupFanoutPlanningTests/Plan_Should_Merge_Nested_Lookups_Across_Union_Members_When_Sibling_Asset_Selections_Differ:
+  status: "ok"
+  steps: 6
+  depth: 3
+  fusionOperations: 6
+  fusionDepth: 3
+AbstractLookupFanoutPlanningTests/Plan_Should_Prune_Impossible_Concrete_Fragment_When_Parent_Is_Object:
+  status: "ok"
+  steps: 6
+  depth: 3
+  fusionOperations: 6
+  fusionDepth: 4
+AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_InterfaceFragment_Is_In_NodeSelectionSet:
+  status: "ok"
+  steps: 1
+  depth: 1
+  fusionOperations: 3
+  fusionDepth: 2
+AbstractLookupFanoutPlanningTests/Plan_Should_Prune_NonNode_Implementor_When_NodeSelectionSet_Has_No_Shared_Selections:
+  status: "ok"
+  steps: 1
+  depth: 1
+  fusionOperations: 3
+  fusionDepth: 2
+EntityChainTests/Complex_Entity_Call:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 3
+  fusionDepth: 3
+EntityChainTests/Parent_Entity_Call_Complex:
+  status: "ok"
+  steps: 4
+  depth: 3
+  fusionOperations: 4
+  fusionDepth: 3
+InterfaceFieldOverridePlanningTests/Plan_Should_Keep_Owning_Branch_And_Route_Only_Diverged_Branch:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+InterfaceFieldOverridePlanningTests/Plan_Should_Spill_Interface_Field_When_Concrete_Ownership_Diverges:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+InterfaceLookupPlanningTests/Abstract_Customer_Interface_With_Email_Is_Plannable:
+  status: "ok"
+  steps: 3
+  depth: 2
+  fusionOperations: 3
+  fusionDepth: 2
+LookupTests/Nested_Lookup:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+LookupTests/Require_Inaccessible_Data:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+OperationPlannerTests/Plan_Key_Requirement:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 3
+  fusionDepth: 3
+OperationPlannerTests/Plan_Requirement_That_Cannot_Be_Inlined:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+OperationPlannerTests/Plan_Simple_Interface_Lookup:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+OperationPlannerTests/Plan_Simple_Lookup:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+OperationPlannerTests/Plan_Simple_Requirement:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+OperationPlannerTests/Plan_Simple_Union_Lookup:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+PlannerAdvancedAdaptationTests/Issues_Issue_190_Inline_Fragment:
+  status: "ok"
+  steps: 1
+  depth: 1
+  fusionOperations: 1
+  fusionDepth: 1
+PlannerAdvancedAdaptationTests/Issues_Issue_190_With_Typename:
+  status: "ok"
+  steps: 1
+  depth: 1
+  fusionOperations: 1
+  fusionDepth: 1
+PlannerAdvancedAdaptationTests/Issues_Issue_190_Without_Typename:
+  status: "ok"
+  steps: 1
+  depth: 1
+  fusionOperations: 1
+  fusionDepth: 1
+PlannerAdvancedAdaptationTests/Issues_Issue_281:
+  status: "ok"
+  steps: 5
+  depth: 3
+  fusionOperations: 5
+  fusionDepth: 4
+PlannerAdvancedAdaptationTests/Provides_Nested_Provides:
+  status: "composition: UNSATISFIABLE_QUERY_PATH: Field 'Category.details' cannot\
+    \ be resolved on the query path 'Query.products.categories.details': no source\
+    \ schema can resolve it the"
+  steps: 0
+  depth: 0
+  fusionOperations: 1
+  fusionDepth: 1
+PlannerAdvancedAdaptationTests/Provides_Simple_Provides:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+PlannerAdvancedAdaptationTests/Requires_Provides_Simple_Requires_Provides:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 3
+  fusionDepth: 3
+PlannerAdvancedAdaptationTests/Union_Union_Member_Mix:
+  status: "ok"
+  steps: 1
+  depth: 1
+  fusionOperations: 1
+  fusionDepth: 1
+PlannerAdvancedAdaptationTests/Union_Union_Overfetching_Test:
+  status: "ok"
+  steps: 4
+  depth: 2
+  fusionOperations: 4
+  fusionDepth: 2
+PlannerBehaviorTests/Fragments_Fragment_Spread:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 4
+  fusionDepth: 3
+PlannerBehaviorTests/Fragments_Simple_Inline_Fragment:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 4
+  fusionDepth: 3
+PlannerBehaviorTests/Include_Skip_Basic_Include:
+  status: "invalid query: Validation error (VariableTypeMismatch@[product/neverCalledInclude])\
+    \ : Variable 'include' of type 'Boolean' used in position expecting type 'Boolean!'"
+  steps: 0
+  depth: 0
+  fusionOperations: 3
+  fusionDepth: 3
+PlannerBehaviorTests/Include_Skip_Basic_Skip:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 3
+  fusionDepth: 3
+PlannerBehaviorTests/Include_Skip_Include_At_Root_Fetch:
+  status: "invalid query: Validation error (VariableTypeMismatch@[product/price])\
+    \ : Variable 'include' of type 'Boolean' used in position expecting type 'Boolean!'"
+  steps: 0
+  depth: 0
+  fusionOperations: 1
+  fusionDepth: 1
+PlannerBehaviorTests/Include_Skip_Include_Fragment:
+  status: "invalid query: Validation error (VariableTypeMismatch@[product]) : Variable\
+    \ 'include' of type 'Boolean' used in position expecting type 'Boolean!'"
+  steps: 0
+  depth: 0
+  fusionOperations: 3
+  fusionDepth: 3
+PlannerBehaviorTests/Include_Skip_Include_Fragment_At_Root_Fetch:
+  status: "invalid query: Validation error (VariableTypeMismatch@[product]) : Variable\
+    \ 'include' of type 'Boolean' used in position expecting type 'Boolean!'"
+  steps: 0
+  depth: 0
+  fusionOperations: 1
+  fusionDepth: 1
+PlannerBehaviorTests/Mutations:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph:
+  status: "ok"
+  steps: 4
+  depth: 1
+  fusionOperations: 4
+  fusionDepth: 1
+PlannerBehaviorTests/Mutations_Many_Fields_Two_Same_Graph_Contiguous_Same_Service:
+  status: "ok"
+  steps: 4
+  depth: 1
+  fusionOperations: 5
+  fusionDepth: 1
+PlannerBehaviorTests/Root_Types_Shared_Root:
+  status: "ok"
+  steps: 3
+  depth: 1
+  fusionOperations: 3
+  fusionDepth: 1
+ProvidesPlannerTests/PlanOperation_Should_CoverOnlyMatchingUnionMember_When_ProvidesIsTypeConditioned:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+ProvidesPlannerTests/Planner_Should_Route_To_Owning_Source_When_Local_Field_Is_Orphan_External:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+ProvidesPlannerTests/Provides_Deeply_Nested_Chain:
+  status: "ok"
+  steps: 1
+  depth: 1
+  fusionOperations: 1
+  fusionDepth: 1
+ProvidesPlannerTests/Provides_External_Without_Cover:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 3
+  fusionDepth: 3
+ProvidesPlannerTests/Provides_On_Interface:
+  status: "ok"
+  steps: 1
+  depth: 1
+  fusionOperations: 1
+  fusionDepth: 1
+ProvidesPlannerTests/Provides_Partial_Covers_Some:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 3
+  fusionDepth: 3
+ProvidesPlannerTests/Provides_Shareable_Override:
+  status: "ok"
+  steps: 1
+  depth: 1
+  fusionOperations: 1
+  fusionDepth: 1
+ProvidesPlannerTests/Provides_With_Requires_Interaction:
+  status: "composition: UNSATISFIABLE_QUERY_PATH: Field 'Item.shippingCost' cannot\
+    \ be resolved on the query path 'Query.orders.item.shippingCost': no source schema\
+    \ can resolve it there"
+  steps: 0
+  depth: 0
+  fusionOperations: 3
+  fusionDepth: 2
+RequirementArgumentTests/Fed_Audit_Requires_With_Argument_Conflict:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementArgumentTests/Multiple_Plain_Field_And_Requires_With_Args_That_Conflicts:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 5
+  fusionDepth: 3
+RequirementArgumentTests/Multiple_Plain_Field_And_Requires_With_Args_That_Does_Not_Conflicts_Should_Merge:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 4
+  fusionDepth: 3
+RequirementArgumentTests/Multiple_Requires_With_Args_That_Conflicts:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 4
+  fusionDepth: 3
+RequirementArgumentTests/Plan_Should_Succeed_When_Require_Only_Input_Type_And_Upload_Scalar_Exist:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementArgumentTests/Requires_Arguments_Deeply_Nested_Requires:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementArgumentTests/Requires_Arguments_Deeply_Nested_Requires_With_Variable:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementArgumentTests/Requires_Arguments_Deeply_Nested_Requires_With_Variables_And_Fragments:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementArgumentTests/Requires_Arguments_Reentrant_Comments_Collides_With_Client_Comments:
+  status: "composition: EXTERNAL_UNUSED: External field 'somethingElse' on type 'Comment'\
+    \ in schema 'd' is not referenced by any @key or @provides directive."
+  steps: 0
+  depth: 0
+  fusionOperations: 5
+  fusionDepth: 4
+RequirementArgumentTests/Requires_With_Arguments:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 4
+  fusionDepth: 3
+RequirementArgumentTests/Simple_Requires_Arguments:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 4
+  fusionDepth: 3
+RequirementChainTests/Requires_Circular_1:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementChainTests/Requires_Circular_2:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 4
+  fusionDepth: 3
+RequirementChainTests/Requires_Requires_Many:
+  status: "ok"
+  steps: 4
+  depth: 4
+  fusionOperations: 6
+  fusionDepth: 4
+RequirementChainTests/Requires_Requires_One:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 3
+  fusionDepth: 3
+RequirementChainTests/Requires_Requires_Two_Fields_Same_Requirement_Different_Order:
+  status: "ok"
+  steps: 4
+  depth: 4
+  fusionOperations: 6
+  fusionDepth: 4
+RequirementCrossEntityTests/Plan_Should_Keep_Requirement_And_Client_List_Field_Separate_When_Arguments_Differ:
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.author(comments)'\
+    \ in schema 'd' references field 'comments' on type 'Post' which only exists in\
+    \ the same sch"
+  steps: 0
+  depth: 0
+  fusionOperations: 5
+  fusionDepth: 4
+RequirementCrossEntityTests/Plan_Should_Reenter_Requiring_Schema_When_Requiring_Type_Has_Lookup:
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
+    \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
+    \ in th"
+  steps: 0
+  depth: 0
+  fusionOperations: 4
+  fusionDepth: 3
+RequirementCrossEntityTests/Plan_Should_Resolve_Author_When_Require_Crosses_List_Entity_Boundary:
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.author(commentAuthorIds)'\
+    \ in schema 'd' references field 'comments' on type 'Post' which only exists in\
+    \ the "
+  steps: 0
+  depth: 0
+  fusionOperations: 4
+  fusionDepth: 4
+RequirementCrossEntityTests/Plan_Should_Resolve_Author_When_Require_Uses_Input_Object_List_Form:
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.author(comments)'\
+    \ in schema 'd' references field 'comments' on type 'Post' which only exists in\
+    \ the same sch"
+  steps: 0
+  depth: 0
+  fusionOperations: 4
+  fusionDepth: 4
+RequirementCrossEntityTests/Plan_Should_Resolve_ByExpert_When_Circular_Require_Chains_Through_ByNovice:
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.byNovice(yearsOfExperience)'\
+    \ in schema 'b' references field 'author' on type 'Post' which only exists in\
+    \ the"
+  steps: 0
+  depth: 0
+  fusionOperations: 6
+  fusionDepth: 5
+RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Both_Providers_Have_Author_Lookup:
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.byNovice(yearsOfExperience)'\
+    \ in schema 'b' references field 'author' on type 'Post' which only exists in\
+    \ the"
+  steps: 0
+  depth: 0
+  fusionOperations: 4
+  fusionDepth: 4
+RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Require_Crosses_Entity_Boundary:
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.byNovice(yearsOfExperience)'\
+    \ in schema 'b' references field 'author' on type 'Post' which only exists in\
+    \ the"
+  steps: 0
+  depth: 0
+  fusionOperations: 4
+  fusionDepth: 4
+RequirementCrossEntityTests/Plan_Should_Resolve_ByNovice_When_Require_Is_Single_Provider:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementCrossEntityTests/Plan_Should_Resolve_NeedsFlag_When_Require_Is_Same_Entity_Direct_Field:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 4
+  fusionDepth: 3
+RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice:
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
+    \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
+    \ in th"
+  steps: 0
+  depth: 0
+  fusionOperations: 4
+  fusionDepth: 3
+RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice_Next_To_Required_Parent:
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
+    \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
+    \ in th"
+  steps: 0
+  depth: 0
+  fusionOperations: 4
+  fusionDepth: 3
+? RequirementCrossEntityTests/Plan_Should_Resolve_Nested_Require_When_Requiring_Field_Is_Selected_Twice_Next_To_Required_Parent_Under_Interface
+: status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'CartItem.unitPrice(price)'\
+    \ in schema 'cart' references field 'product' on type 'CartItem' which only exists\
+    \ in th"
+  steps: 0
+  depth: 0
+  fusionOperations: 4
+  fusionDepth: 3
+RequirementParityTests/Deep_Requires:
+  status: "composition: REQUIRE_INVALID_FIELDS: @require directive at 'Post.author(commentAuthorIds)'\
+    \ in schema 'd': 'Post.comments' is selected without its required argument 'limit'."
+  steps: 0
+  depth: 0
+  fusionOperations: 4
+  fusionDepth: 4
+RequirementParityTests/Keys_Mashup:
+  status: "composition: INVALID_GRAPHQL: Schema 'b' is not a valid GraphQL schema:\
+    \ errors=['A' [@18:1] use an unknown argument 'resolvable' on directive 'key',\
+    \ 'A' [@18:1] use an unkno"
+  steps: 0
+  depth: 0
+  fusionOperations: 4
+  fusionDepth: 3
+RequirementParityTests/Requires_With_Fragments_On_Interfaces:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementParityTests/Simple_Requires:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementParityTests/Simplest_Requires:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementParityTests/Two_Fields_Same_Subgraph_Same_Requirement:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementParityTests/Two_Same_Service_Calls_With_Args_Conflicts:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 5
+  fusionDepth: 3
+RequirementParityTests/Two_Same_Service_Calls_With_Different_Requirement_Args_Do_Not_Merge:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 5
+  fusionDepth: 3
+RequirementReentrancyTests/Plan_Should_Inline_Separate_LookupRequirements_When_Targeting_Same_NodeBranch:
+  status: "ok"
+  steps: 3
+  depth: 2
+  fusionOperations: 5
+  fusionDepth: 3
+RequirementReentrancyTests/Plan_Should_Reenter_Catalog_When_EnteringFromRecommendation_Standalone:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_ConcreteFragment_IsConditional:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 5
+  fusionDepth: 4
+RequirementReentrancyTests/Plan_Should_Resolve_User_When_Node_Entry_Crosses_Required_Field:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 5
+  fusionDepth: 4
+RequirementReentrancyTests/Plan_Should_Resolve_User_When_Union_Entry_Crosses_Required_Field:
+  status: "ok"
+  steps: 3
+  depth: 3
+  fusionOperations: 3
+  fusionDepth: 3
+RequirementReentrancyTests/Plan_Should_StayInRecommendation_When_InnerProduct_Selects_OnlyId:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementTests/Plan_Simple_Operation_1_Source_Schema:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+RequirementTests/Requirement_Merged_Into_SelectionSet_With_Non_Lead_Field:
+  status: "ok"
+  steps: 2
+  depth: 2
+  fusionOperations: 2
+  fusionDepth: 2
+SupertypeNarrowingPlanningTests/Plan_Should_Preserve_Interface_And_Union_Supertype_Directives_When_Parent_Is_Concrete_Object:
+  status: "ok"
+  steps: 1
+  depth: 1
+  fusionOperations: 1
+  fusionDepth: 1

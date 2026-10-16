@@ -1,0 +1,23 @@
+name: "Root field whose non-null @require value is null"
+description: |
+  The required value is null for a non-null argument: the root field's step is not sent and the field is null, as in
+  ChilliCream's Fusion federation gateway.
+
+query: |
+  {
+    strictSearch
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: settings
+    operation: '{ category }'
+    variables: {}
+    response: {
+      data: { category: null }
+    }
+
+expectedResponse: {
+  data: { strictSearch: null }
+}

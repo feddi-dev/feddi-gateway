@@ -12,43 +12,23 @@ import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 
 import java.util.List;
-import java.util.Set;
 
 import static dev.feddi.federation.engine.compose.FederationDirectives.EXTERNAL;
+import static dev.feddi.federation.engine.compose.validation.SchemaElements.isBuiltInType;
 
 /**
  * Validates that @external fields do not have arguments.
  *
- * <h2>Rationale</h2>
- * The GraphQL Composite Schemas Specification has conflicting rules regarding
- * @external fields with arguments:
- * <ul>
- *   <li>EXTERNAL_UNUSED requires @external fields to be referenced by @provides</li>
- *   <li>PROVIDES_FIELDS_HAS_ARGUMENTS forbids @provides from referencing fields with arguments</li>
- *   <li>EXTERNAL_ARGUMENT_* rules imply @external fields can have arguments</li>
- * </ul>
- *
- * These rules are mutually exclusive in practice. To have a sound and consistent
- * validation system, we enforce that @external fields cannot have arguments.
- * This simplifies the model and avoids unreachable validation states.
- *
  * <h2>Spec Note</h2>
- * This rule is stricter than the spec. The spec defines EXTERNAL_ARGUMENT_MISSING,
- * EXTERNAL_ARGUMENT_TYPE_MISMATCH, and EXTERNAL_ARGUMENT_DEFAULT_MISMATCH rules
- * which imply @external fields can have arguments. However, due to the interaction
- * with EXTERNAL_UNUSED and PROVIDES_FIELDS_HAS_ARGUMENTS, those rules are effectively
- * unreachable. This implementation makes that constraint explicit by forbidding
- * arguments entirely.
+ * Not a spec rule. An @external field serves a @key or a @provides (EXTERNAL_UNUSED), and both must select
+ * fields without arguments (KEY_FIELDS_HAS_ARGUMENTS, PROVIDES_FIELDS_HAS_ARGUMENTS), so the spec rejects
+ * such fields as well, apart from one whose arguments are all @require arguments, which @provides allows.
+ * This rule says so directly; it also lets composition ignore @external definitions when it merges a
+ * field's arguments.
  */
 public final class ExternalFieldHasArgumentsRule implements ValidationRule {
 
     private static final String CODE = "EXTERNAL_FIELD_HAS_ARGUMENTS";
-
-    private static final Set<String> BUILT_IN_TYPES = Set.of(
-        "String", "Int", "Float", "Boolean", "ID",
-        "__Schema", "__Type", "__Field", "__InputValue", "__EnumValue",
-        "__TypeKind", "__Directive", "__DirectiveLocation"
-    );
 
     @Override
     public ValidationPhase phase() {
@@ -76,7 +56,7 @@ public final class ExternalFieldHasArgumentsRule implements ValidationRule {
         String schemaName = subgraph.name();
 
         for (GraphQLNamedType type : schema.getAllTypesAsList()) {
-            if (BUILT_IN_TYPES.contains(type.getName())) {
+            if (isBuiltInType(type.getName())) {
                 continue;
             }
 
