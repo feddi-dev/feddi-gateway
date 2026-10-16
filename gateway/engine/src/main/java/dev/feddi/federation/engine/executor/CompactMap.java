@@ -44,19 +44,28 @@ public final class CompactMap extends AbstractMap<String, @Nullable Object> {
             return -1;
         }
         String[] keys = this.keys;
-        for (int i = 0; i < size; i++) {
-            if (keys[i] == string) {
-                return i;
-            }
-        }
         int hash = string.hashCode();
         for (int i = 0; i < size; i++) {
             String candidate = keys[i];
-            if (candidate.hashCode() == hash && candidate.equals(string)) {
+            if (candidate == string || candidate.hashCode() == hash && candidate.equals(string)) {
                 return i;
             }
         }
         return -1;
+    }
+
+    /**
+     * Adds an entry without looking for an existing one with the key: for building a map whose keys are known to be
+     * distinct, such as a parsed JSON object.
+     */
+    void append(String key, @Nullable Object value) {
+        if (size == keys.length) {
+            keys = Arrays.copyOf(keys, size * 2);
+            values = Arrays.copyOf(values, size * 2);
+        }
+        keys[size] = key;
+        values[size] = value;
+        size++;
     }
 
     @Override
@@ -84,13 +93,7 @@ public final class CompactMap extends AbstractMap<String, @Nullable Object> {
             return previous;
         }
         Objects.requireNonNull(key, "map keys cannot be null");
-        if (size == keys.length) {
-            keys = Arrays.copyOf(keys, size * 2);
-            values = Arrays.copyOf(values, size * 2);
-        }
-        keys[size] = key;
-        values[size] = value;
-        size++;
+        append(key, value);
         return null;
     }
 

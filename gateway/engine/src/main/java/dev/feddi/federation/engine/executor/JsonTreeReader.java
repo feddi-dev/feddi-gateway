@@ -62,7 +62,9 @@ public final class JsonTreeReader {
                 CompactMap object = new CompactMap();
                 String name;
                 while ((name = parser.nextFieldName()) != null) {
-                    object.put(name, readValue(parser, parser.nextToken()));
+                    // Field names of one object are distinct in practice (duplicates, which JSON leaves
+                    // undefined, keep both entries and lookups find the first)
+                    object.append(name, readValue(parser, parser.nextToken()));
                 }
                 return object;
             }
