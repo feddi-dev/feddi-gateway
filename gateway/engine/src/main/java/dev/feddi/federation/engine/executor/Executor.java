@@ -107,6 +107,19 @@ public final class Executor {
      * @return the merged execution result wrapped in a Mono
      */
     public Mono<ExecutionResult> execute(ExecutionPlan plan, Map<String, Object> variables) {
+        return executeWithInternalFields(plan, variables).map(result -> withoutArtificialFields(result, plan));
+    }
+
+    /**
+     * Executes the plan like {@link #execute}, but leaves the fields the planner added for its own use (keys,
+     * requirements, type names) in the data, for a writer that only writes the selected fields anyway, such as the
+     * {@link ResponseWriter}.
+     *
+     * @param plan the execution plan to execute
+     * @param variables the query variables
+     * @return the merged execution result wrapped in a Mono
+     */
+    public Mono<ExecutionResult> executeWithInternalFields(ExecutionPlan plan, Map<String, Object> variables) {
         if (plan.isEmpty()) {
             return Mono.just(ExecutionResultImpl.newExecutionResult()
                 .data(Map.of())
@@ -120,7 +133,7 @@ public final class Executor {
         List<Mono<StepResult>> allSteps = new ArrayList<>(stepMonos.values());
 
         return Mono.zip(allSteps, this::mergeAllStepResults)
-            .map(ctx -> buildResult(ctx, plan));
+            .map(this::buildResult);
     }
 
     /**
@@ -481,27 +494,33 @@ public final class Executor {
     }
 
     /**
-     * Builds the final ExecutionResult from the execution context.
-     * Filters out artificial fields that were added for internal purposes.
+     * Builds the ExecutionResult from the execution context.
      */
-    private ExecutionResult buildResult(ExecutionContext ctx, ExecutionPlan plan) {
-        Map<String, Object> mergedData = ctx.getMergedData();
-
-        // Filter artificial fields from the final response: those that are artificial and not requested, for the
-        // object's type (paths are "parent.field" or "parent<Type>.field")
-        Set<String> artificial = plan.allArtificialFieldPaths();
-        Set<String> requested = plan.allRequestedFieldPaths();
-        Map<String, Object> filteredData = artificial.isEmpty() ? mergedData
-            : filterArtificialFields(mergedData, artificial, requested, "");
-
+    private ExecutionResult buildResult(ExecutionContext ctx) {
         ExecutionResultImpl.Builder builder = ExecutionResultImpl.newExecutionResult()
-            .data(filteredData);
-
+            .data(ctx.getMergedData());
         for (GraphQLError error : ctx.getErrors()) {
             builder.addError(error);
         }
-
         return builder.build();
+    }
+
+    /**
+     * Removes the fields the planner added for its own use from a result of {@link #executeWithInternalFields}:
+     * those that are artificial and not requested, for the object's type (paths are "parent.field" or
+     * "parent<Type>.field").
+     */
+    public static ExecutionResult withoutArtificialFields(ExecutionResult result, ExecutionPlan plan) {
+        Set<String> artificial = plan.allArtificialFieldPaths();
+        if (artificial.isEmpty() || !(result.getData() instanceof Map<?, ?> data)) {
+            return result;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mergedData = (Map<String, Object>) data;
+        return ExecutionResultImpl.newExecutionResult()
+            .from(result)
+            .data(filterArtificialFields(mergedData, artificial, plan.allRequestedFieldPaths(), ""))
+            .build();
     }
 
     /**
@@ -512,7 +531,7 @@ public final class Executor {
      * @param currentPath the current path prefix for nested fields
      * @return a new map with artificial fields removed
      */
-    private Map<String, Object> filterArtificialFields(Map<String, Object> data, Set<String> artificial,
+    private static Map<String, Object> filterArtificialFields(Map<String, Object> data, Set<String> artificial,
                                                         Set<String> requested, String currentPath) {
         String typename = data.get(IntrospectionFields.TYPENAME) instanceof String name ? name : null;
         Map<String, Object> result = new LinkedHashMap<>();
@@ -544,7 +563,7 @@ public final class Executor {
      * Filters artificial fields from a list of values.
      * Each item in the list uses the same path prefix for filtering.
      */
-    private List<?> filterArtificialFieldsInList(List<?> list, Set<String> artificial, Set<String> requested,
+    private static List<?> filterArtificialFieldsInList(List<?> list, Set<String> artificial, Set<String> requested,
                                                  String currentPath) {
         return list.stream()
             .map(item -> {

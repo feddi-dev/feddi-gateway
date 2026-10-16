@@ -3,6 +3,7 @@ package dev.feddi.federation.app;
 import dev.feddi.federation.app.OperationPlanCache.PreparedOperation;
 import dev.feddi.federation.engine.compose.Composer.SubgraphInput;
 import dev.feddi.federation.engine.executor.ExecutionListener;
+import dev.feddi.federation.engine.executor.ResponseShape;
 import dev.feddi.federation.engine.planner.ExecutionPlan;
 import dev.feddi.federation.extension.DocumentProvider;
 import dev.feddi.federation.extension.SubgraphClient;
@@ -15,6 +16,7 @@ import graphql.language.AstPrinter;
 import graphql.language.Document;
 import graphql.language.OperationDefinition;
 import graphql.parser.Parser;
+import graphql.schema.idl.SchemaGenerator;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
@@ -205,8 +207,9 @@ class OperationPlanCacheTest {
 
     private static PreparedOperation prepared(String query) {
         Document document = Parser.parse(query);
-        return new PreparedOperation(document, document.getDefinitionsOfType(OperationDefinition.class).get(0),
-            new ExecutionPlan(List.of()));
+        OperationDefinition operation = document.getDefinitionsOfType(OperationDefinition.class).get(0);
+        return new PreparedOperation(document, operation, new ExecutionPlan(List.of()),
+            ResponseShape.compile(SchemaGenerator.createdMockedSchema("type Query { a: Int }"), operation));
     }
 
     private static FeddiFederationGateway gateway(SimpleMeterRegistry registry, DocumentProvider provider) {

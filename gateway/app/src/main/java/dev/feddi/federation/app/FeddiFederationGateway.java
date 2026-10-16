@@ -15,6 +15,8 @@ import dev.feddi.federation.engine.executor.ExecutionListener;
 import dev.feddi.federation.engine.executor.Executor;
 import dev.feddi.federation.engine.executor.NonNullPropagation;
 import dev.feddi.federation.engine.executor.ResponseFieldOrder;
+import dev.feddi.federation.engine.executor.ResponseShape;
+import dev.feddi.federation.engine.executor.ResponseWriter;
 import dev.feddi.federation.engine.graph.Graph;
 import dev.feddi.federation.engine.graph.GraphBuilder;
 import dev.feddi.federation.engine.planner.ExecutionPlan;
@@ -33,6 +35,7 @@ import graphql.language.OperationDefinition;
 import graphql.schema.GraphQLSchema;
 import graphql.schema.idl.SchemaGenerator;
 import graphql.schema.idl.SchemaParser;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
@@ -325,9 +328,50 @@ public final class FeddiFederationGateway {
     }
 
     /**
-     * Result of gateway execution, containing the GraphQL result and the parsed document.
+     * Result of gateway execution: the GraphQL result and the parsed document. The response is written as JSON
+     * straight from the executor's data ({@link #toJson()}); {@link #executionResult()} completes the data as maps
+     * (internal fields removed, nulls propagated, fields in selection order) when asked for.
      */
-    public record GatewayResult(ExecutionResult executionResult, Document document) {}
+    public static final class GatewayResult {
+        private final ExecutionResult rawResult;
+        private final @Nullable Document document;
+        private final @Nullable PreparedOperation prepared;
+        private final GraphQLSchema supergraph;
+        private @Nullable ExecutionResult completed;
+
+        private GatewayResult(ExecutionResult rawResult, @Nullable Document document,
+                              @Nullable PreparedOperation prepared, GraphQLSchema supergraph) {
+            this.rawResult = rawResult;
+            this.document = document;
+            this.prepared = prepared;
+            this.supergraph = supergraph;
+        }
+
+        /** The parsed document, or null if the request failed before it had one. */
+        public @Nullable Document document() {
+            return document;
+        }
+
+        /** The completed result. */
+        public ExecutionResult executionResult() {
+            if (completed == null) {
+                completed = prepared == null ? rawResult : completed(supergraph,
+                    Executor.withoutArtificialFields(rawResult, prepared.plan()), prepared.operation());
+            }
+            return completed;
+        }
+
+        /** The response as JSON, written in one pass. */
+        public ResponseWriter.Output toJson() {
+            if (prepared == null) {
+                // The request failed before execution
+                return ResponseWriter.writeErrors(rawResult.getErrors());
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = rawResult.getData() instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
+            return ResponseWriter.write(prepared.shape(), data, rawResult.getErrors(), rawResult.getExtensions());
+        }
+    }
 
     /**
      * Executes a GraphQL query against the federated schema.
@@ -378,12 +422,12 @@ public final class FeddiFederationGateway {
             Executor executor = new Executor(engineClients,
                     introspectionEnabled ? supergraph : null, executionListener);
             final Document finalDoc = document;
-            return executor.execute(plan, variables != null ? variables : Map.of())
-                .map(result -> new GatewayResult(completed(result, prepared.operation()), finalDoc));
+            return executor.executeWithInternalFields(plan, variables != null ? variables : Map.of())
+                .map(result -> new GatewayResult(result, finalDoc, prepared, supergraph));
         }).onErrorResume(DocumentResolutionException.class, e -> {
             log.debug("Document resolution failed: {}", e.getErrors());
             return Mono.just(new GatewayResult(
-                ExecutionResultImpl.newExecutionResult().addErrors(e.getErrors()).build(), null));
+                ExecutionResultImpl.newExecutionResult().addErrors(e.getErrors()).build(), null, null, supergraph));
         });
     }
 
@@ -445,7 +489,7 @@ public final class FeddiFederationGateway {
                 log.debug("  Step {}: subgraph={}, dependsOn={}",
                     step.id(), step.subgraph(), step.dependsOn());
             }
-            return new PreparedOperation(document, operationDef, plan);
+            return new PreparedOperation(document, operationDef, plan, ResponseShape.compile(supergraph, operationDef));
         } catch (Exception e) {
             log.error("Query planning failed: {}", e.getMessage(), e);
             throw e;
@@ -461,7 +505,8 @@ public final class FeddiFederationGateway {
      * non-null fields propagate to the nearest nullable parent, and the fields are put into the
      * order of the operation's selection set (the merge order otherwise determines it).
      */
-    private ExecutionResult completed(ExecutionResult result, OperationDefinition operation) {
+    private static ExecutionResult completed(GraphQLSchema supergraph, ExecutionResult result,
+                                             OperationDefinition operation) {
         ExecutionResult propagated = NonNullPropagation.apply(supergraph, operation, result);
         if (propagated.getData() == null) {
             return propagated;
