@@ -1,0 +1,215 @@
+package dev.feddi.federation.engine.executor;
+
+import org.jspecify.annotations.Nullable;
+
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.BiConsumer;
+
+/**
+ * An insertion-ordered map of string keys for response objects: keys and values in two arrays, looked up by a scan
+ * that compares references and hash codes before {@code equals}. GraphQL objects have few fields and their keys come
+ * from interned field names, so this is faster and much smaller than a {@code LinkedHashMap}. Null keys are not
+ * supported; null values are.
+ */
+public final class CompactMap extends AbstractMap<String, @Nullable Object> {
+
+    private String[] keys;
+    private @Nullable Object[] values;
+    private int size;
+
+    public CompactMap() {
+        this(8);
+    }
+
+    public CompactMap(int capacity) {
+        keys = new String[Math.max(1, capacity)];
+        values = new Object[keys.length];
+    }
+
+    /** A copy of a map, in its iteration order. */
+    public CompactMap(Map<String, ?> source) {
+        this(source.size());
+        source.forEach(this::put);
+    }
+
+    private int indexOf(@Nullable Object key) {
+        if (!(key instanceof String string)) {
+            return -1;
+        }
+        String[] keys = this.keys;
+        for (int i = 0; i < size; i++) {
+            if (keys[i] == string) {
+                return i;
+            }
+        }
+        int hash = string.hashCode();
+        for (int i = 0; i < size; i++) {
+            String candidate = keys[i];
+            if (candidate.hashCode() == hash && candidate.equals(string)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    @Override
+    public int size() {
+        return size;
+    }
+
+    @Override
+    public boolean containsKey(@Nullable Object key) {
+        return indexOf(key) >= 0;
+    }
+
+    @Override
+    public @Nullable Object get(@Nullable Object key) {
+        int index = indexOf(key);
+        return index < 0 ? null : values[index];
+    }
+
+    @Override
+    public @Nullable Object put(String key, @Nullable Object value) {
+        int index = indexOf(key);
+        if (index >= 0) {
+            Object previous = values[index];
+            values[index] = value;
+            return previous;
+        }
+        Objects.requireNonNull(key, "map keys cannot be null");
+        if (size == keys.length) {
+            keys = Arrays.copyOf(keys, size * 2);
+            values = Arrays.copyOf(values, size * 2);
+        }
+        keys[size] = key;
+        values[size] = value;
+        size++;
+        return null;
+    }
+
+    @Override
+    public @Nullable Object remove(@Nullable Object key) {
+        int index = indexOf(key);
+        if (index < 0) {
+            return null;
+        }
+        Object previous = values[index];
+        removeAt(index);
+        return previous;
+    }
+
+    private void removeAt(int index) {
+        int moved = size - index - 1;
+        System.arraycopy(keys, index + 1, keys, index, moved);
+        System.arraycopy(values, index + 1, values, index, moved);
+        size--;
+        keys[size] = null;
+        values[size] = null;
+    }
+
+    @Override
+    public void clear() {
+        Arrays.fill(keys, 0, size, null);
+        Arrays.fill(values, 0, size, null);
+        size = 0;
+    }
+
+    @Override
+    public void forEach(BiConsumer<? super String, ? super @Nullable Object> action) {
+        for (int i = 0; i < size; i++) {
+            action.accept(keys[i], values[i]);
+        }
+    }
+
+    @Override
+    public Set<Entry<String, @Nullable Object>> entrySet() {
+        return new AbstractSet<>() {
+            @Override
+            public Iterator<Entry<String, @Nullable Object>> iterator() {
+                return new EntryIterator();
+            }
+
+            @Override
+            public int size() {
+                return size;
+            }
+        };
+    }
+
+    private final class EntryIterator implements Iterator<Entry<String, @Nullable Object>> {
+        private int next;
+        private int last = -1;
+
+        @Override
+        public boolean hasNext() {
+            return next < size;
+        }
+
+        @Override
+        public Entry<String, @Nullable Object> next() {
+            if (next >= size) {
+                throw new NoSuchElementException();
+            }
+            last = next++;
+            return new MapEntry(last);
+        }
+
+        @Override
+        public void remove() {
+            if (last < 0) {
+                throw new IllegalStateException();
+            }
+            removeAt(last);
+            next = last;
+            last = -1;
+        }
+    }
+
+    private final class MapEntry implements Entry<String, @Nullable Object> {
+        private final int index;
+
+        MapEntry(int index) {
+            this.index = index;
+        }
+
+        @Override
+        public String getKey() {
+            return keys[index];
+        }
+
+        @Override
+        public @Nullable Object getValue() {
+            return values[index];
+        }
+
+        @Override
+        public @Nullable Object setValue(@Nullable Object value) {
+            Object previous = values[index];
+            values[index] = value;
+            return previous;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Entry<?, ?> entry && getKey().equals(entry.getKey())
+                && Objects.equals(getValue(), entry.getValue());
+        }
+
+        @Override
+        public int hashCode() {
+            return getKey().hashCode() ^ Objects.hashCode(getValue());
+        }
+
+        @Override
+        public String toString() {
+            return getKey() + "=" + getValue();
+        }
+    }
+}

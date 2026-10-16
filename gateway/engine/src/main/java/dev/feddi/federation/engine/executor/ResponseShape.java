@@ -45,7 +45,8 @@ public final class ResponseShape {
         children = new ResponseShape[size];
         for (int i = 0; i < size; i++) {
             Entry entry = entries.get(i);
-            keys[i] = entry.key;
+            // Interned like the field names of parsed responses, so lookups mostly match by reference
+            keys[i] = entry.key.intern();
             keyBytes[i] = keyBytes(entry.key);
             types[i] = entry.definition == null ? null : entry.definition.getType();
             coordinates[i] = entry.definition == null ? entry.key : entry.parentType + "." + entry.definition.getName();

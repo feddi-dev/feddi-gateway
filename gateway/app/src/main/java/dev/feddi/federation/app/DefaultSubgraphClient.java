@@ -1,11 +1,9 @@
 package dev.feddi.federation.app;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
 import dev.feddi.federation.engine.IntrospectionFields;
+import dev.feddi.federation.engine.executor.JsonTreeReader;
 import dev.feddi.federation.engine.executor.OperationTexts;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.SubgraphClient;
@@ -46,9 +44,6 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private static final String JSON_TYPE = "application/json";
     private static final String BATCH_ACCEPT = "application/jsonl, application/json";
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() { };
-    private static final TypeReference<List<Map<String, Object>>> LIST_OF_MAPS = new TypeReference<>() { };
-    private static final ObjectReader MAP_READER = JSON.readerFor(MAP);
     private static final byte[] EMPTY = new byte[0];
     private static final String PROBE_VARIABLE = "probe";
     /**
@@ -117,7 +112,10 @@ public class DefaultSubgraphClient implements SubgraphClient {
                 }
                 Map<String, Object> body;
                 try {
-                    body = MAP_READER.readValue(response.body());
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> object = JsonTreeReader.read(response.body()) instanceof Map<?, ?> map
+                        ? (Map<String, Object>) map : null;
+                    body = object;
                 } catch (IOException e) {
                     if (response.ok()) {
                         return Mono.error(new RuntimeException(
@@ -269,18 +267,22 @@ public class DefaultSubgraphClient implements SubgraphClient {
         List<Map<String, Object>> responses = new ArrayList<>(expected);
         try {
             if (startsWithArray(body)) {
-                responses.addAll(JSON.readValue(body, LIST_OF_MAPS));
+                if (!(JsonTreeReader.read(body) instanceof List<?> array)) {
+                    throw new IllegalArgumentException("not a JSON array");
+                }
+                for (Object item : array) {
+                    responses.add(asObject(item));
+                }
             } else {
+                @SuppressWarnings("unchecked")
                 Map<String, Object>[] ordered = new Map[expected];
-                try (MappingIterator<Map<String, Object>> lines = MAP_READER.readValues(body)) {
-                    while (lines.hasNextValue()) {
-                        Map<String, Object> response = lines.nextValue();
-                        Object index = response.get("variableIndex");
-                        if (!(index instanceof Number number) || number.intValue() < 0 || number.intValue() >= expected) {
-                            throw new IllegalArgumentException("missing or invalid variableIndex: " + index);
-                        }
-                        ordered[number.intValue()] = response;
+                for (Object line : JsonTreeReader.readSequence(body)) {
+                    Map<String, Object> response = asObject(line);
+                    Object index = response.get("variableIndex");
+                    if (!(index instanceof Number number) || number.intValue() < 0 || number.intValue() >= expected) {
+                        throw new IllegalArgumentException("missing or invalid variableIndex: " + index);
                     }
+                    ordered[number.intValue()] = response;
                 }
                 for (Map<String, Object> response : ordered) {
                     if (response == null) {
@@ -298,6 +300,14 @@ public class DefaultSubgraphClient implements SubgraphClient {
             throw new IllegalArgumentException("expected " + expected + " results, got " + responses.size());
         }
         return responses;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> asObject(Object value) {
+        if (!(value instanceof Map<?, ?> map)) {
+            throw new IllegalArgumentException("not a JSON object: " + value);
+        }
+        return (Map<String, Object>) map;
     }
 
     private static boolean startsWithArray(byte[] body) {
