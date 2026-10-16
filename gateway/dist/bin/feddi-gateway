@@ -10,6 +10,7 @@
 #    FEDDI_GATEWAY_JAVA_HOME - Java home for the feddi Gateway (takes priority over JAVA_HOME)
 #    JAVA_HOME               - Standard Java home
 #    JAVA_OPTS               - Additional JVM options (appended after defaults)
+#    FEDDI_GATEWAY_JVM_OPTS  - JVM options that replace the defaults below (e.g. another garbage collector)
 #
 ##############################################################################
 
@@ -94,7 +95,7 @@ fi
 #   JAVA_OPTS="-Xmx2g" ./bin/feddi-gateway
 #
 # --------------------------------------------------------------------------
-DEFAULT_JVM_OPTS="\
+DEFAULT_JVM_OPTS="${FEDDI_GATEWAY_JVM_OPTS:-\
  -XX:+UseZGC \
  -Xms256m \
  -Xmx1g \
@@ -104,7 +105,7 @@ DEFAULT_JVM_OPTS="\
  -XX:+ExitOnOutOfMemoryError \
  -XX:+HeapDumpOnOutOfMemoryError \
  -XX:-OmitStackTraceInFastThrow \
- --enable-native-access=ALL-UNNAMED"
+ --enable-native-access=ALL-UNNAMED}"
 
 # --------------------------------------------------------------------------
 # Launch the feddi Gateway

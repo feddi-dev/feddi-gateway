@@ -7,6 +7,7 @@
 @rem    FEDDI_GATEWAY_JAVA_HOME - Java home for the feddi Gateway (takes priority over JAVA_HOME)
 @rem    JAVA_HOME               - Standard Java home
 @rem    JAVA_OPTS               - Additional JVM options (appended after defaults)
+@rem    FEDDI_GATEWAY_JVM_OPTS  - JVM options that replace the defaults (e.g. another garbage collector)
 @rem
 
 @if "%DEBUG%"=="" @echo off
@@ -85,6 +86,7 @@ if not exist "%APP_HOME%\app.jar" (
 @rem Default JVM options
 @rem --------------------------------------------------------------------------
 set DEFAULT_JVM_OPTS=-XX:+UseZGC -Xms256m -Xmx1g -XX:SoftMaxHeapSize=768m -XX:+UseStringDeduplication -XX:+AlwaysPreTouch -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:-OmitStackTraceInFastThrow --enable-native-access=ALL-UNNAMED
+if defined FEDDI_GATEWAY_JVM_OPTS set DEFAULT_JVM_OPTS=%FEDDI_GATEWAY_JVM_OPTS%
 
 @rem --------------------------------------------------------------------------
 @rem Launch the feddi Gateway
