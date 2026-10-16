@@ -81,7 +81,8 @@ public record ExecutionStep(
     }
 
     public ExecutionStep {
-        entityPath = entityPath == null ? null : List.copyOf(entityPath);
+        // Interned like the field names of parsed responses, so lookups along the path match by reference
+        entityPath = entityPath == null ? null : entityPath.stream().map(String::intern).toList();
         entityTypes = entityTypes == null ? Set.of() : Set.copyOf(entityTypes);
         entityPathTypes = entityPathTypes == null ? Map.of() : Map.copyOf(entityPathTypes);
         possibleTypes = possibleTypes == null ? Map.of() : Map.copyOf(possibleTypes);
