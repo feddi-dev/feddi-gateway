@@ -48,6 +48,10 @@ public final class ResponseWriter {
     private final List<GraphQLError> errors;
     private final List<GraphQLError> added = new ArrayList<>(0);
     private final JsonBuffer data;
+    private static final int STRING_CACHE_SIZE = 256;
+
+    private final String[] cachedStrings = new String[STRING_CACHE_SIZE];
+    private final byte[][] cachedBytes = new byte[STRING_CACHE_SIZE][];
     private Object[] path = new Object[16];
     private int depth;
 
@@ -145,11 +149,8 @@ public final class ResponseWriter {
                     continue;
                 }
             }
-            if (!first) {
-                data.write((byte) ',');
-            }
+            data.write(first ? shape.keyBytes[i] : shape.nextKeyBytes[i]);
             first = false;
-            data.write(shape.keyBytes[i]);
             push(keys[i]);
             GraphQLType type = shape.types[i];
             boolean valid = type == null ? writeAsIs(value) : writeValue(type, shape.children[i], value, shape.coordinates[i]);
@@ -215,8 +216,28 @@ public final class ResponseWriter {
         if (type instanceof GraphQLCompositeType && shape != null && value instanceof Map<?, ?> object) {
             return writeObject(shape, object);
         }
-        data.writeValue(value);
+        if (value instanceof String string) {
+            writeString(string);
+        } else {
+            data.writeValue(value);
+        }
         return true;
+    }
+
+    /**
+     * Writes a string, reusing its encoding if the same instance was written before: an entity that appears at
+     * several positions of the response shares its values (the executor fetches it once).
+     */
+    private void writeString(String string) {
+        int slot = System.identityHashCode(string) & (STRING_CACHE_SIZE - 1);
+        if (cachedStrings[slot] == string) {
+            data.write(cachedBytes[slot]);
+            return;
+        }
+        int start = data.position();
+        data.writeString(string);
+        cachedStrings[slot] = string;
+        cachedBytes[slot] = data.copy(start);
     }
 
     private void push(Object segment) {

@@ -2,9 +2,11 @@ package dev.feddi.federation.engine.executor;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -172,6 +174,36 @@ public final class CompactMap extends AbstractMap<String, @Nullable Object> {
             }
         }
         return true;
+    }
+
+    @Override
+    public Collection<@Nullable Object> values() {
+        return new AbstractCollection<>() {
+            @Override
+            public Iterator<@Nullable Object> iterator() {
+                return new Iterator<>() {
+                    private int next;
+
+                    @Override
+                    public boolean hasNext() {
+                        return next < size;
+                    }
+
+                    @Override
+                    public @Nullable Object next() {
+                        if (next >= size) {
+                            throw new NoSuchElementException();
+                        }
+                        return values[next++];
+                    }
+                };
+            }
+
+            @Override
+            public int size() {
+                return size;
+            }
+        };
     }
 
     @Override

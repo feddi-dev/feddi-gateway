@@ -38,6 +38,11 @@ final class JsonBuffer {
         return Arrays.copyOf(bytes, size);
     }
 
+    /** A copy of the bytes written from a position on. */
+    byte[] copy(int from) {
+        return Arrays.copyOfRange(bytes, from, size);
+    }
+
     /** The internal array; valid up to {@link #position()}. */
     byte[] array() {
         return bytes;

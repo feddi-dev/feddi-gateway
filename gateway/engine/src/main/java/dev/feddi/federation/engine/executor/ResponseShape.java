@@ -32,6 +32,8 @@ public final class ResponseShape {
 
     final String[] keys;
     final byte[][] keyBytes;
+    /** The keys as {@code ,"key":}, for the fields after the first. */
+    final byte[][] nextKeyBytes;
     final @Nullable GraphQLType[] types;
     final String[] coordinates;
     final @Nullable ResponseShape[] children;
@@ -40,6 +42,7 @@ public final class ResponseShape {
         int size = entries.size();
         keys = new String[size];
         keyBytes = new byte[size][];
+        nextKeyBytes = new byte[size][];
         types = new GraphQLType[size];
         coordinates = new String[size];
         children = new ResponseShape[size];
@@ -48,6 +51,9 @@ public final class ResponseShape {
             // Interned like the field names of parsed responses, so lookups mostly match by reference
             keys[i] = entry.key.intern();
             keyBytes[i] = keyBytes(entry.key);
+            nextKeyBytes[i] = new byte[keyBytes[i].length + 1];
+            nextKeyBytes[i][0] = ',';
+            System.arraycopy(keyBytes[i], 0, nextKeyBytes[i], 1, keyBytes[i].length);
             types[i] = entry.definition == null ? null : entry.definition.getType();
             coordinates[i] = entry.definition == null ? entry.key : entry.parentType + "." + entry.definition.getName();
             children[i] = entry.child;
