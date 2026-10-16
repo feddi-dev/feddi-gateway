@@ -57,43 +57,6 @@ final class RequirementReader {
     }
 
     /**
-     * Checks if the requirements' fields are present in the context (whether a null value can be sent is up to
-     * the type of the variable it goes into; see {@code Executor.lacksNonNullVariable}).
-     *
-     * For multi-segment paths (like "data.baz"), we only check if the first
-     * segment exists, since nested fields can be null due to type conditions
-     * (e.g., @require(field: "data.baz") when entity is Qux which has no baz).
-     *
-     * For alternatives, if ANY alternative provides a valid value, we proceed.
-     */
-    boolean hasEssentialKeyFields(Map<String, SelectedValue> requirements, Map<String, Object> context) {
-        for (SelectedValue selectedValue : requirements.values()) {
-            // For each requirement, check if ANY alternative can provide a value
-            boolean hasValidAlternative = false;
-
-            for (Alternative alt : selectedValue.alternatives()) {
-                if (alt instanceof Path path) {
-                    // Only the first segment must exist: nested fields can be null due to type conditions
-                    String firstField = path.segments().get(0).fieldName();
-                    if (context.containsKey(firstField)) {
-                        hasValidAlternative = true;
-                        break;
-                    }
-                } else {
-                    // ObjectSelection or ListSelection - assume valid
-                    hasValidAlternative = true;
-                    break;
-                }
-            }
-
-            if (!hasValidAlternative) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
      * Extracts a value from a SelectedValue, trying alternatives in order.
      * Package-private for testing.
      */

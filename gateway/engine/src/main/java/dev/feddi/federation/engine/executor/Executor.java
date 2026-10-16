@@ -384,13 +384,6 @@ public final class Executor {
         Map<Map<String, Object>, UniqueEntity> uniqueEntities = new LinkedHashMap<>();
         List<EntityResult> skipped = new ArrayList<>();
         for (Map<String, Object> context : parentContexts) {
-            // Skip entities that don't have essential key fields (null key handling)
-            // This happens when an intermediate lookup returned null.
-            // We check if key fields EXIST in context (not if they're null).
-            if (!reader.hasEssentialKeyFields(step.requirements(), context)) {
-                skipped.add(new EntityResult(context, null));
-                continue;
-            }
             // Start with filtered query variables, then overlay requirement variables
             // Requirement variables take precedence since they're entity-specific
             Map<String, Object> stepVariables = new LinkedHashMap<>(operationVariables);
