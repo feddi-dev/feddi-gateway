@@ -14,7 +14,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -146,6 +148,22 @@ class BenchmarkHeavyQueryTest {
             mode, plan.steps().size(), total, callsPerSubgraph);
 
         assertThat(total).isLessThanOrEqualTo(MAX_SUBGRAPH_CALLS.get(mode));
+    }
+
+    @ParameterizedTest
+    @EnumSource(BatchingOptions.Mode.class)
+    void noEntityIsFetchedTwiceWithTheSameOperation(BatchingOptions.Mode mode) {
+        var run = execute(mode, 3);
+
+        // Every lookup's variable set, per subgraph and operation, across all calls of the request
+        Map<String, List<Object>> fetched = new TreeMap<>();
+        run.clients().forEach((name, client) -> client.calls().forEach(call -> {
+            List<Object> variableSets = call.variables().get("variableSets") instanceof List<?> sets
+                ? List.copyOf(sets) : List.of(call.variables());
+            fetched.computeIfAbsent(name + " " + call.operation(), k -> new ArrayList<>()).addAll(variableSets);
+        }));
+        fetched.forEach((operation, variableSets) ->
+            assertThat(variableSets).as(operation).doesNotHaveDuplicates());
     }
 
     private static Object expectedData() {

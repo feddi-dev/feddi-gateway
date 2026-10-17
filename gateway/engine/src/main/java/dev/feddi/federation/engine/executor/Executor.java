@@ -30,6 +30,7 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
+import reactor.core.publisher.Sinks;
 import reactor.util.context.Context;
 
 import java.util.ArrayList;
@@ -540,11 +541,34 @@ public final class Executor {
             return Mono.just(new StepResult());
         }
 
+        // Entities that another step of this execution fetches or fetched with the same operation are reused; the
+        // others are registered, so that later steps can reuse them in turn
+        List<UniqueEntity> toFetch = new ArrayList<>(uniqueEntities.size());
+        List<UniqueEntity> reused = new ArrayList<>(0);
+        List<Mono<ExecutionResult>> reusedResults = new ArrayList<>(0);
+        if (step.operation().getOperation() == OperationDefinition.Operation.QUERY) {
+            String operationText = OperationTexts.compact(step.operation());
+            for (UniqueEntity entity : uniqueEntities.values()) {
+                Sinks.One<ExecutionResult> result = Sinks.one();
+                Sinks.One<ExecutionResult> existing = ctx.entityResults.putIfAbsent(
+                    new EntityKey(step.subgraph(), operationText, entity.variables()), result);
+                if (existing == null) {
+                    entity.shareResultWith(result);
+                    toFetch.add(entity);
+                } else {
+                    reused.add(entity);
+                    reusedResults.add(existing.asMono());
+                }
+            }
+        } else {
+            toFetch.addAll(uniqueEntities.values());
+        }
+
         // Fetch the unique entities: one request each, or batched as configured for the subgraph. Most steps
         // fit into one batch, which needs no Flux.
-        List<List<UniqueEntity>> batches = batches(List.copyOf(uniqueEntities.values()), step.operation(),
-            client.batching());
-        Mono<List<EntityResult>> fetched = batches.size() == 1
+        List<List<UniqueEntity>> batches = batches(toFetch, step.operation(), client.batching());
+        Mono<List<EntityResult>> fetched = batches.isEmpty() ? Mono.just(List.of())
+            : batches.size() == 1
             ? fetchBatchOrFail(step, client, batches.get(0))
             : Flux.fromIterable(batches)
                 .flatMap(batch -> fetchBatchOrFail(step, client, batch))
@@ -554,6 +578,14 @@ public final class Executor {
                     lists.forEach(all::addAll);
                     return all;
                 });
+        if (!reused.isEmpty()) {
+            fetched = Mono.zip(fetched, reuse(reused, reusedResults), (own, others) -> {
+                List<EntityResult> all = new ArrayList<>(own.size() + others.size());
+                all.addAll(own);
+                all.addAll(others);
+                return all;
+            });
+        }
         return fetched.map(entityResults -> {
             StepResult stepResult = new StepResult();
             for (EntityResult entityResult : entityResults) {
@@ -574,6 +606,9 @@ public final class Executor {
                                                              List<UniqueEntity> batch) {
         return fetchBatch(step.operation(), client, batch)
             .onErrorResume(e -> {
+                for (UniqueEntity entity : batch) {
+                    entity.shareError(e);
+                }
                 List<EntityResult> failed = new ArrayList<>();
                 for (UniqueEntity entity : batch) {
                     for (Map<String, Object> context : entity.positions()) {
@@ -1008,15 +1043,38 @@ public final class Executor {
      * An entity to fetch once: the variables of its lookup and every position where it appears.
      */
     private record UniqueEntity(Map<String, Object> variables, List<Map<String, Object>> positions,
-                                List<Integer> steps) {
+                                List<Integer> steps, Sinks.One<ExecutionResult>[] shared) {
+        @SuppressWarnings("unchecked")
         UniqueEntity(Map<String, Object> variables) {
-            this(variables, new ArrayList<>(), new ArrayList<>());
+            this(variables, new ArrayList<>(), new ArrayList<>(), new Sinks.One[1]);
         }
 
         /** Adds a position, of the step with this index in a group of steps that run together. */
         void add(Map<String, Object> context, int step) {
             positions.add(context);
             steps.add(step);
+        }
+
+        /** Hands this entity's result to other steps of the execution that need the same entity. */
+        void shareResultWith(Sinks.One<ExecutionResult> result) {
+            shared[0] = result;
+        }
+
+        /**
+         * Shares the result: a copy, taken before the result is merged into this step's positions (later steps
+         * merge their fields into those).
+         */
+        void shareResult(ExecutionResult result) {
+            if (shared[0] != null) {
+                shared[0].tryEmitValue(ExecutionResultImpl.newExecutionResult()
+                    .data(ResultCopies.deepCopy(result.getData())).build());
+            }
+        }
+
+        void shareError(Throwable error) {
+            if (shared[0] != null) {
+                shared[0].tryEmitError(error);
+            }
         }
     }
 
@@ -1066,6 +1124,7 @@ public final class Executor {
             }
             List<EntityResult> entityResults = new ArrayList<>(positions);
             for (int i = 0; i < batch.size(); i++) {
+                batch.get(i).shareResult(list.get(i));
                 entityResults.addAll(fanOut(batch.get(i), list.get(i)));
             }
             return entityResults;
@@ -1105,6 +1164,41 @@ public final class Executor {
         return results;
     }
 
+    /** An entity looked up by a step of an execution: the operation, its subgraph and the lookup's variables. */
+    private record EntityKey(String subgraph, String operation, Map<String, Object> variables) {
+    }
+
+    /**
+     * The results of entities that other steps of the execution fetch: every position gets a copy, as it lies on
+     * another response path than the fetching step's (subgraph errors were reported by that step). If that fetch
+     * failed, the positions get null fields.
+     */
+    private static Mono<List<EntityResult>> reuse(List<UniqueEntity> entities, List<Mono<ExecutionResult>> results) {
+        return Flux.range(0, entities.size())
+            .flatMap(i -> results.get(i)
+                .map(result -> copies(entities.get(i), result))
+                .onErrorResume(e -> Mono.just(entities.get(i).positions().stream()
+                    .map(context -> new EntityResult(context, null)).toList())))
+            .collectList()
+            .map(lists -> {
+                List<EntityResult> all = new ArrayList<>();
+                lists.forEach(all::addAll);
+                return all;
+            });
+    }
+
+    /** One copy of the result per step that the entity's positions belong to. */
+    private static List<EntityResult> copies(UniqueEntity entity, ExecutionResult result) {
+        List<EntityResult> results = new ArrayList<>(entity.positions().size());
+        Map<Integer, ExecutionResult> copies = new HashMap<>();
+        for (int i = 0; i < entity.positions().size(); i++) {
+            ExecutionResult copy = copies.computeIfAbsent(entity.steps().get(i), step ->
+                ExecutionResultImpl.newExecutionResult().data(ResultCopies.deepCopy(result.getData())).build());
+            results.add(new EntityResult(entity.positions().get(i), copy));
+        }
+        return results;
+    }
+
     /**
      * Result from a single entity execution in a repeated step.
      * @param context the entity context that was used for this execution
@@ -1127,6 +1221,8 @@ public final class Executor {
         // ConcurrentHashMap doesn't allow null values, but we protect access with synchronized merge().
         private final Map<String, Object> mergedData = new CompactMap();
         private final List<GraphQLError> errors = new CopyOnWriteArrayList<>();
+        /** The results of the entities looked up so far (or in flight), for steps that need the same entities. */
+        private final Map<EntityKey, Sinks.One<ExecutionResult>> entityResults = new ConcurrentHashMap<>();
 
         ExecutionContext() {}
 
