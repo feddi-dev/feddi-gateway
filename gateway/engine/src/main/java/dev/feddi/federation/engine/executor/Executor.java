@@ -26,8 +26,11 @@ import graphql.language.VariableDefinition;
 import graphql.schema.GraphQLSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoSink;
+import reactor.util.context.Context;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,6 +42,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Executes a query plan against subgraph clients and merges results.
@@ -127,89 +132,169 @@ public final class Executor {
                 .build());
         }
 
-        // Build reactive dependency graph - each step starts as soon as its dependencies complete
-        Map<Integer, Mono<StepResult>> stepMonos = buildReactiveGraph(plan.steps(), variables);
-
-        // Collect all step results and merge them (steps that run together share their Mono)
-        List<Mono<StepResult>> allSteps = stepMonos.values().stream().distinct().toList();
-
-        // The context write caches the subscriber context for the steps: Reactor reads it per subgraph call and per
-        // cached step, and each read walks up the operator chain to the nearest context write
-        return Mono.zip(allSteps, this::mergeAllStepResults)
-            .map(this::buildResult)
-            .contextWrite(context -> context);
+        // Each step starts as soon as its dependencies are done; the request completes with the last step
+        return Mono.<ExecutionContext>create(sink -> new StepScheduler(plan.steps(), variables, sink).start())
+            .map(this::buildResult);
     }
 
     /**
-     * Builds a reactive dependency graph where each step's Mono waits only for its direct dependencies.
-     * Steps are processed in topological order to ensure dependencies are defined before dependents.
-     * Each step's Mono is cached to ensure it executes exactly once.
+     * Runs the steps of one execution: each step (or group of steps that run together) starts its subgraph call as
+     * soon as the steps it depends on are done, and the execution completes when all are. Replaces a graph of
+     * Reactor operators per step (zip of the dependencies, cache, error recovery), which cost about a twentieth of
+     * the gateway's CPU: the counters of open dependencies are atomic, so a step starts exactly once, from the
+     * callback of its last dependency, on whichever thread delivers it.
+     *
+     * <p>A failed step does not fail the execution: its error goes into the result and the steps depending on it
+     * still run (their entities get null fields). Every call is subscribed with the execution's subscriber
+     * context, and cancelling the execution cancels the running calls.
      */
-    private Map<Integer, Mono<StepResult>> buildReactiveGraph(List<ExecutionStep> steps,
-                                                               Map<String, Object> queryVariables) {
-        // Sort topologically to ensure dependencies are processed first
-        List<ExecutionStep> sorted = topologicalSort(steps);
+    private final class StepScheduler {
 
-        // Thread-safe context for collecting results from completed steps
-        ExecutionContext sharedContext = new ExecutionContext();
+        /** A step, or steps that run together (see {@link StepGroup}). */
+        private final class Node {
+            final List<ExecutionStep> steps = new ArrayList<>();
+            final List<Node> dependents = new ArrayList<>();
+            final AtomicInteger openDependencies = new AtomicInteger();
+            final AtomicBoolean finished = new AtomicBoolean();
+            volatile StepResult result;
+            volatile Disposable call;
 
-        // Per-execution clients that share identical query calls between steps
-        Map<String, SubgraphClient> clients = new HashMap<>();
-        subgraphClients.forEach((name, client) ->
-            clients.put(name, new SharedCallSubgraphClient(new ListeningSubgraphClient(client, name, listener))));
-
-        Map<Integer, Mono<StepResult>> stepMonos = new LinkedHashMap<>();
-        // Lookup steps that send the same operation to the same subgraph once the same steps are done run as one
-        // (entities deduplicated together, one batch): the steps of each group, and the step whose Mono each shares
-        Map<StepGroup, List<ExecutionStep>> groups = new HashMap<>();
-        Map<Integer, Integer> sharedWith = new HashMap<>();
-
-        for (ExecutionStep step : sorted) {
-            Mono<StepResult> stepMono;
-
-            if (!step.isRoot() && isGroupable(step)) {
-                List<Integer> dependencies = step.dependsOn().stream()
-                    .map(id -> sharedWith.getOrDefault(id, id))
-                    .distinct()
-                    .sorted()
-                    .toList();
-                StepGroup group = new StepGroup(step.subgraph(), OperationTexts.compact(step.operation()), dependencies);
-                List<ExecutionStep> members = groups.get(group);
-                if (members != null) {
-                    members.add(step);
-                    sharedWith.put(step.id(), members.get(0).id());
-                    stepMonos.put(step.id(), stepMonos.get(members.get(0).id()));
-                    continue;
-                }
-                List<ExecutionStep> newMembers = new ArrayList<>();
-                newMembers.add(step);
-                groups.put(group, newMembers);
-                // The members are complete when the graph is built, before anything is subscribed
-                stepMono = Mono.zip(dependencies.stream().map(stepMonos::get).toList(), results -> sharedContext)
-                    .flatMap(ctx -> executeStepWithErrorRecovery(step, executeGroup(newMembers, ctx, queryVariables, clients)))
-                    .doOnNext(sharedContext::merge);
-            } else if (step.isRoot()) {
-                // Root step: execute immediately with query variables
-                stepMono = executeStepWithErrorRecovery(step, executeRootStep(step, queryVariables, clients))
-                    .doOnNext(sharedContext::merge);
-            } else {
-                // Dependent step: wait for direct dependencies only, then execute
-                List<Mono<StepResult>> dependencies = step.dependsOn().stream()
-                    .map(stepMonos::get)
-                    .toList();
-
-                // Dependencies complete only after their results have entered the shared
-                // response tree. Absolute entity paths must start at that tree's root.
-                stepMono = Mono.zip(dependencies, results -> sharedContext)
-                    .flatMap(ctx -> executeStepWithErrorRecovery(step, executeStepWithContext(step, ctx, queryVariables, clients)))
-                    .doOnNext(sharedContext::merge);
+            ExecutionStep first() {
+                return steps.get(0);
             }
-
-            // Cache ensures each step executes exactly once, even if multiple steps depend on it
-            stepMonos.put(step.id(), stepMono.cache());
         }
 
-        return stepMonos;
+        private final Map<String, Object> queryVariables;
+        private final MonoSink<ExecutionContext> sink;
+        private final ExecutionContext sharedContext = new ExecutionContext();
+        private final Map<String, SubgraphClient> clients = new HashMap<>();
+        /** The nodes in topological order. */
+        private final List<Node> nodes = new ArrayList<>();
+        private final AtomicInteger openNodes;
+        private volatile boolean cancelled;
+
+        StepScheduler(List<ExecutionStep> steps, Map<String, Object> queryVariables, MonoSink<ExecutionContext> sink) {
+            this.queryVariables = queryVariables;
+            this.sink = sink;
+            // Per-execution clients that share identical query calls between steps
+            subgraphClients.forEach((name, client) ->
+                clients.put(name, new SharedCallSubgraphClient(new ListeningSubgraphClient(client, name, listener))));
+
+            // Lookup steps that send the same operation to the same subgraph once the same steps are done run as one
+            // (entities deduplicated together, one batch)
+            Map<Integer, Node> nodeOfStep = new HashMap<>();
+            Map<StepGroup, Node> groups = new HashMap<>();
+            for (ExecutionStep step : topologicalSort(steps)) {
+                List<Node> dependencies = step.dependsOn().stream().map(nodeOfStep::get).distinct().toList();
+                if (!step.isRoot() && isGroupable(step)) {
+                    StepGroup group = new StepGroup(step.subgraph(), OperationTexts.compact(step.operation()),
+                        dependencies.stream().map(node -> node.first().id()).sorted().toList());
+                    Node existing = groups.get(group);
+                    if (existing != null) {
+                        existing.steps.add(step);
+                        nodeOfStep.put(step.id(), existing);
+                        continue;
+                    }
+                    Node node = addNode(step, dependencies);
+                    groups.put(group, node);
+                    nodeOfStep.put(step.id(), node);
+                } else {
+                    nodeOfStep.put(step.id(), addNode(step, dependencies));
+                }
+            }
+            openNodes = new AtomicInteger(nodes.size());
+            sink.onCancel(this::cancel);
+        }
+
+        private Node addNode(ExecutionStep step, List<Node> dependencies) {
+            Node node = new Node();
+            node.steps.add(step);
+            node.openDependencies.set(dependencies.size());
+            dependencies.forEach(dependency -> dependency.dependents.add(node));
+            nodes.add(node);
+            return node;
+        }
+
+        void start() {
+            // Collected first: a call that completes synchronously starts its dependents right away
+            List<Node> ready = nodes.stream().filter(node -> node.openDependencies.get() == 0).toList();
+            ready.forEach(this::run);
+        }
+
+        private void run(Node node) {
+            if (cancelled) {
+                return;
+            }
+            Mono<StepResult> execution;
+            try {
+                execution = execute(node);
+            } catch (RuntimeException e) {
+                // An invalid plan (e.g. a lookup step without an entity path) fails the execution
+                cancel();
+                sink.error(e);
+                return;
+            }
+            node.call = execution
+                .contextWrite(Context.of(sink.contextView()))
+                .subscribe(
+                    result -> done(node, result),
+                    error -> done(node, failed(node.first(), error)),
+                    () -> done(node, new StepResult()));
+        }
+
+        private Mono<StepResult> execute(Node node) {
+            ExecutionStep step = node.first();
+            if (step.isRoot()) {
+                return executeRootStep(step, queryVariables, clients);
+            }
+            if (node.steps.size() > 1 || isGroupable(step)) {
+                return executeGroup(node.steps, sharedContext, queryVariables, clients);
+            }
+            return executeStepWithContext(step, sharedContext, queryVariables, clients);
+        }
+
+        private void done(Node node, StepResult result) {
+            if (!node.finished.compareAndSet(false, true)) {
+                return;
+            }
+            node.result = result;
+            try {
+                // Dependents read the shared response tree, so a result enters it before they start
+                sharedContext.merge(result);
+            } catch (RuntimeException e) {
+                cancel();
+                sink.error(e);
+                return;
+            }
+            for (Node dependent : node.dependents) {
+                if (dependent.openDependencies.decrementAndGet() == 0) {
+                    run(dependent);
+                }
+            }
+            if (openNodes.decrementAndGet() == 0 && !cancelled) {
+                sink.success(mergeAllStepResults(nodes.stream().map(n -> (Object) n.result).toArray()));
+            }
+        }
+
+        private void cancel() {
+            cancelled = true;
+            for (Node node : nodes) {
+                Disposable call = node.call;
+                if (call != null) {
+                    call.dispose();
+                }
+            }
+        }
+    }
+
+    /**
+     * The result of a step that failed (e.g. a timeout): its error, instead of failing the entire execution.
+     */
+    private StepResult failed(ExecutionStep step, Throwable e) {
+        log.error("Step {} to subgraph '{}' failed: {}", step.id(), step.subgraph(), e.getMessage(), e);
+        StepResult errorResult = new StepResult();
+        errorResult.addError(subgraphError(step.subgraph(), e));
+        return errorResult;
     }
 
     /** Lookup steps that can run together: the same operation to the same subgraph after the same steps. */
@@ -266,20 +351,6 @@ public final class Executor {
             return Mono.just(nullRootFields(step.operation()));
         }
         return executeRootStep(step, stepVariables, clients);
-    }
-
-    /**
-     * Wraps step execution with error recovery for partial failure handling.
-     * When a step fails (e.g., due to timeout), returns a StepResult with the error
-     * instead of failing the entire execution.
-     */
-    private Mono<StepResult> executeStepWithErrorRecovery(ExecutionStep step, Mono<StepResult> execution) {
-        return execution.onErrorResume(e -> {
-            log.error("Step {} to subgraph '{}' failed: {}", step.id(), step.subgraph(), e.getMessage(), e);
-            StepResult errorResult = new StepResult();
-            errorResult.addError(subgraphError(step.subgraph(), e));
-            return Mono.just(errorResult);
-        });
     }
 
     /** The GraphQL error for a failed subgraph request; a timeout is also reported to the listener. */
