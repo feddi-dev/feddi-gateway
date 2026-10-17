@@ -6,13 +6,13 @@ Goal: 2–2.5× the requests per second of `main` at `dfd69b4`.
 
 ## Results
 
-| Mode | `main` (`dfd69b4`) | `perf/rps` (`1e1d88d`) | ChilliCream's Fusion federation gateway |
+| Mode | `main` (`dfd69b4`) | `perf/rps` (`3c75a7d`) | ChilliCream's Fusion federation gateway |
 |:--|--:|--:|--:|
-| constant (50 VUs) | 1,172 | 2,909 (2.48×) | 2,395 |
-| constant-latency (4 ms per subgraph call) | 896 | 1,200 (1.34×) | 1,178 |
-| burst (up to 500 VUs) | 770 | 2,907 (3.78×) | 2,327 |
+| constant (50 VUs) | 1,172 | 3,141 (2.68×) | 2,385 |
+| constant-latency (4 ms per subgraph call) | 896 | 1,561 (1.74×) | 1,178 |
+| burst (up to 500 VUs) | 770 | 3,003 (3.90×) | 2,303 |
 
-Median of 2 measured runs after a warmup; separate runs vary by up to ±7% (constant with 3 runs: 3,206, 2.74×). Latency mode is bound by the query's four
+Median of 3 measured runs after a warmup, CV below 2% everywhere; separate sessions vary by up to ±7%. At ~3,100 req/s the subgraphs (89% of their cores) and k6 (82%) are close to their limits, the gateway is at 88%. Latency mode is bound by the query's four
 sequential subgraph levels (users → reviews → products → inventory), the same for every gateway.
 
 ## What changed
@@ -33,7 +33,11 @@ sequential subgraph levels (users → reviews → products → inventory), the s
    `RawString`s (slices of the JSON text) that the response writer copies as they are; strings are decoded only
    where the executor compares them (`__typename`, error messages and paths). The end of a string is found eight
    bytes at a time (SWAR).
-6. **Per-call and per-entity overhead**: no URL parsing per subgraph call, a named timeout, the subscriber context
+6. **Less subgraph work**: lookup steps with the same operation and dependencies run as one, entities are reused
+   across the steps of a request, lookups of the same entities with different selections are merged (planner),
+   and subgraphs receive the compact operation text.
+7. **Step scheduling** with counters of open dependencies instead of Reactor operators per step.
+8. **Per-call and per-entity overhead**: no URL parsing per subgraph call, a named timeout, the subscriber context
    cached per call and per execution, one variables map per entity, single-batch lookup steps without a `Flux`,
    integers written as digits, encoded strings reused by identity.
 
