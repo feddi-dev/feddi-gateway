@@ -130,8 +130,8 @@ public final class Executor {
         // Build reactive dependency graph - each step starts as soon as its dependencies complete
         Map<Integer, Mono<StepResult>> stepMonos = buildReactiveGraph(plan.steps(), variables);
 
-        // Collect all step results and merge them
-        List<Mono<StepResult>> allSteps = new ArrayList<>(stepMonos.values());
+        // Collect all step results and merge them (steps that run together share their Mono)
+        List<Mono<StepResult>> allSteps = stepMonos.values().stream().distinct().toList();
 
         // The context write caches the subscriber context for the steps: Reactor reads it per subgraph call and per
         // cached step, and each read walks up the operator chain to the nearest context write
@@ -159,11 +159,36 @@ public final class Executor {
             clients.put(name, new SharedCallSubgraphClient(new ListeningSubgraphClient(client, name, listener))));
 
         Map<Integer, Mono<StepResult>> stepMonos = new LinkedHashMap<>();
+        // Lookup steps that send the same operation to the same subgraph once the same steps are done run as one
+        // (entities deduplicated together, one batch): the steps of each group, and the step whose Mono each shares
+        Map<StepGroup, List<ExecutionStep>> groups = new HashMap<>();
+        Map<Integer, Integer> sharedWith = new HashMap<>();
 
         for (ExecutionStep step : sorted) {
             Mono<StepResult> stepMono;
 
-            if (step.isRoot()) {
+            if (!step.isRoot() && isGroupable(step)) {
+                List<Integer> dependencies = step.dependsOn().stream()
+                    .map(id -> sharedWith.getOrDefault(id, id))
+                    .distinct()
+                    .sorted()
+                    .toList();
+                StepGroup group = new StepGroup(step.subgraph(), OperationTexts.compact(step.operation()), dependencies);
+                List<ExecutionStep> members = groups.get(group);
+                if (members != null) {
+                    members.add(step);
+                    sharedWith.put(step.id(), members.get(0).id());
+                    stepMonos.put(step.id(), stepMonos.get(members.get(0).id()));
+                    continue;
+                }
+                List<ExecutionStep> newMembers = new ArrayList<>();
+                newMembers.add(step);
+                groups.put(group, newMembers);
+                // The members are complete when the graph is built, before anything is subscribed
+                stepMono = Mono.zip(dependencies.stream().map(stepMonos::get).toList(), results -> sharedContext)
+                    .flatMap(ctx -> executeStepWithErrorRecovery(step, executeGroup(newMembers, ctx, queryVariables, clients)))
+                    .doOnNext(sharedContext::merge);
+            } else if (step.isRoot()) {
                 // Root step: execute immediately with query variables
                 stepMono = executeStepWithErrorRecovery(step, executeRootStep(step, queryVariables, clients))
                     .doOnNext(sharedContext::merge);
@@ -185,6 +210,25 @@ public final class Executor {
         }
 
         return stepMonos;
+    }
+
+    /** Lookup steps that can run together: the same operation to the same subgraph after the same steps. */
+    private record StepGroup(String subgraph, String operation, List<Integer> dependencies) {
+    }
+
+    private static boolean isGroupable(ExecutionStep step) {
+        return step.repeatedExecution() && step.entityPath() != null
+            && step.operation().getOperation() == OperationDefinition.Operation.QUERY
+            && !INTROSPECTION_SUBGRAPH.equals(step.subgraph());
+    }
+
+    private Mono<StepResult> executeGroup(List<ExecutionStep> steps, ExecutionContext ctx,
+                                          Map<String, Object> queryVariables, Map<String, SubgraphClient> clients) {
+        SubgraphClient client = clients.get(steps.get(0).subgraph());
+        if (client == null) {
+            return Mono.error(new ExecutionException("No client for subgraph: " + steps.get(0).subgraph()));
+        }
+        return executeRepeatedSteps(steps, client, ctx, queryVariables);
     }
 
     /**
@@ -384,34 +428,45 @@ public final class Executor {
      */
     private Mono<StepResult> executeRepeatedStep(ExecutionStep step, SubgraphClient client,
                                                  ExecutionContext ctx, Map<String, Object> queryVariables) {
-        List<Map<String, Object>> parentContexts = selectParentContexts(step, ctx);
+        return executeRepeatedSteps(List.of(step), client, ctx, queryVariables);
+    }
 
-        if (parentContexts == null || parentContexts.isEmpty()) {
-            return Mono.just(new StepResult());
-        }
-
-        // Get field names that should be set to null for skipped entities
+    /**
+     * Executes lookup steps that send the same operation to the same subgraph and wait for the same steps (a
+     * {@link StepGroup}) as one: their entities are deduplicated together and fetched in the same batches.
+     */
+    private Mono<StepResult> executeRepeatedSteps(List<ExecutionStep> steps, SubgraphClient client,
+                                                  ExecutionContext ctx, Map<String, Object> queryVariables) {
+        // The steps share the operation, so its properties are the first step's
+        ExecutionStep step = steps.get(0);
         final Set<String> nullFieldNames = getFirstLevelFieldNames(step.operation());
         final List<String> wrapperPath = lookupWrapperPath(step.operation());
         final Map<String, Object> operationVariables = filterVariablesForOperation(step.operation(), queryVariables);
-        final RequirementReader reader = new RequirementReader(step.possibleTypes());
         final String[] requiredVariables = requiredVariables(step.operation());
 
         // Group entities by the variables their lookup needs: the same entity often appears
         // at many positions (e.g. one product under many reviews), but is fetched only once.
         Map<Map<String, Object>, UniqueEntity> uniqueEntities = new LinkedHashMap<>();
         List<EntityResult> skipped = new ArrayList<>();
-        for (Map<String, Object> context : parentContexts) {
-            // Start with filtered query variables, then overlay requirement variables
-            // Requirement variables take precedence since they're entity-specific
-            Map<String, Object> stepVariables = new CompactMap(operationVariables.size() + step.requirements().size());
-            stepVariables.putAll(operationVariables);
-            reader.putVariables(step.requirements(), context, stepVariables);
-            if (lacksAny(requiredVariables, stepVariables)) {
-                skipped.add(new EntityResult(context, null));
-                continue;
+        for (int memberIndex = 0; memberIndex < steps.size(); memberIndex++) {
+            ExecutionStep member = steps.get(memberIndex);
+            List<Map<String, Object>> parentContexts = selectParentContexts(member, ctx);
+            RequirementReader reader = new RequirementReader(member.possibleTypes());
+            for (Map<String, Object> context : parentContexts) {
+                // Start with filtered query variables, then overlay requirement variables
+                // Requirement variables take precedence since they're entity-specific
+                Map<String, Object> stepVariables = new CompactMap(operationVariables.size() + member.requirements().size());
+                stepVariables.putAll(operationVariables);
+                reader.putVariables(member.requirements(), context, stepVariables);
+                if (lacksAny(requiredVariables, stepVariables)) {
+                    skipped.add(new EntityResult(context, null));
+                    continue;
+                }
+                uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).add(context, memberIndex);
             }
-            uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).positions().add(context);
+        }
+        if (uniqueEntities.isEmpty() && skipped.isEmpty()) {
+            return Mono.just(new StepResult());
         }
 
         // Fetch the unique entities: one request each, or batched as configured for the subgraph. Most steps
@@ -881,9 +936,16 @@ public final class Executor {
     /**
      * An entity to fetch once: the variables of its lookup and every position where it appears.
      */
-    private record UniqueEntity(Map<String, Object> variables, List<Map<String, Object>> positions) {
+    private record UniqueEntity(Map<String, Object> variables, List<Map<String, Object>> positions,
+                                List<Integer> steps) {
         UniqueEntity(Map<String, Object> variables) {
-            this(variables, new ArrayList<>());
+            this(variables, new ArrayList<>(), new ArrayList<>());
+        }
+
+        /** Adds a position, of the step with this index in a group of steps that run together. */
+        void add(Map<String, Object> context, int step) {
+            positions.add(context);
+            steps.add(step);
         }
     }
 
@@ -933,7 +995,7 @@ public final class Executor {
             }
             List<EntityResult> entityResults = new ArrayList<>(positions);
             for (int i = 0; i < batch.size(); i++) {
-                entityResults.addAll(fanOut(batch.get(i).positions(), list.get(i)));
+                entityResults.addAll(fanOut(batch.get(i), list.get(i)));
             }
             return entityResults;
         });
@@ -943,17 +1005,30 @@ public final class Executor {
      * Distributes one subgraph result to every position of a deduplicated entity. Errors are
      * reported once, with the first position.
      *
-     * <p>The positions share the result's data: all positions of a repeated step lie on the
-     * step's entity path, so every later step merges the same fields into all of them. (Sharing
-     * across different paths is not safe; see {@link SharedCallSubgraphClient}, which copies.)
+     * <p>The positions of one step share the result's data: they all lie on the step's entity path, so every
+     * later step merges the same fields into all of them. Positions of other steps that ran together with it lie
+     * on other paths, where later steps may merge other fields: each of those steps gets its own copy. (See also
+     * {@link SharedCallSubgraphClient}, which copies for the same reason.)
      */
-    private static List<EntityResult> fanOut(List<Map<String, Object>> contexts, ExecutionResult result) {
+    private static List<EntityResult> fanOut(UniqueEntity entity, ExecutionResult result) {
+        List<Map<String, Object>> contexts = entity.positions();
         List<EntityResult> results = new ArrayList<>(contexts.size());
         results.add(new EntityResult(contexts.get(0), result));
         if (contexts.size() > 1) {
+            int firstStep = entity.steps().get(0);
             ExecutionResult withoutErrors = ExecutionResultImpl.newExecutionResult().data(result.getData()).build();
+            Map<Integer, ExecutionResult> copies = null;
             for (int i = 1; i < contexts.size(); i++) {
-                results.add(new EntityResult(contexts.get(i), withoutErrors));
+                int step = entity.steps().get(i);
+                ExecutionResult shared = withoutErrors;
+                if (step != firstStep) {
+                    if (copies == null) {
+                        copies = new HashMap<>();
+                    }
+                    shared = copies.computeIfAbsent(step, s -> ExecutionResultImpl.newExecutionResult()
+                        .data(ResultCopies.deepCopy(result.getData())).build());
+                }
+                results.add(new EntityResult(contexts.get(i), shared));
             }
         }
         return results;

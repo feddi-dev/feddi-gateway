@@ -1,5 +1,6 @@
 package dev.feddi.federation.engine.benchmark;
 
+import dev.feddi.federation.engine.executor.BatchingOptions;
 import dev.feddi.federation.engine.executor.Executor;
 import dev.feddi.federation.engine.executor.SubgraphClient;
 import dev.feddi.federation.engine.planner.OperationPlanner;
@@ -82,6 +83,25 @@ class EntityDedupTest {
     }
 
     @Test
+    void lookupStepsWithTheSameOperationAndDependenciesShareOneBatch() {
+        // The reviews lookups below "a" and "b" are two steps with the same operation, both waiting for the root
+        // step: they run as one, with the products of both deduplicated into one variable batch
+        String query = """
+            {
+              a: topProducts(first: 2) { upc reviews { id } }
+              b: topProducts(first: 3) { upc reviews { id } }
+            }
+            """;
+
+        var run = execute(query, UnaryOperator.identity(),
+            new BatchingOptions(BatchingOptions.Mode.VARIABLES, BatchingOptions.DEFAULT_MAX_BATCH_SIZE));
+
+        assertMatchesMonolith(query, run.result());
+        assertThat(run.clients().get(BenchmarkSubgraphs.REVIEWS).calls()).singleElement()
+            .satisfies(call -> assertThat((List<?>) call.variables().get("variableSets")).hasSize(3));
+    }
+
+    @Test
     void failedCallIsReportedOnceAndNullsEveryPosition() {
         String query = "{ users { id reviews { id product { upc name } } } }";
 
@@ -113,11 +133,15 @@ class EntityDedupTest {
      * Executes with simulated subgraphs; {@code productsClient} may replace the products client.
      */
     private static Run execute(String query, UnaryOperator<SubgraphClient> productsClient) {
+        return execute(query, productsClient, BatchingOptions.NONE);
+    }
+
+    private static Run execute(String query, UnaryOperator<SubgraphClient> productsClient, BatchingOptions batching) {
         var plan = new OperationPlanner(schema.graph()).plan(Operation.parse(query, normalizer));
         Map<String, SimulatedSubgraphClient> simulated = new LinkedHashMap<>();
         Map<String, SubgraphClient> clients = new LinkedHashMap<>();
         for (String name : BenchmarkSubgraphs.NAMES) {
-            var client = new SimulatedSubgraphClient(BenchmarkSubgraphs.subgraph(name), 0);
+            var client = new SimulatedSubgraphClient(BenchmarkSubgraphs.subgraph(name), 0, batching);
             simulated.put(name, client);
             clients.put(name, name.equals(BenchmarkSubgraphs.PRODUCTS) ? productsClient.apply(client) : client);
         }
