@@ -55,7 +55,7 @@ class OperationTextsTest {
     }
 
     @Test
-    void requestBodyHasThePrettyQueryAndTheVariables() throws Exception {
+    void requestBodyHasTheCompactQueryAndTheVariables() throws Exception {
         OperationDefinition operation = (OperationDefinition) Parser.parse(
             "query ($id: ID!) { product(id: $id) { name } }").getDefinitions().get(0);
 
@@ -63,7 +63,7 @@ class OperationTextsTest {
         Map<String, Object> batch = parse(
             OperationTexts.requestBody(operation, List.of(Map.of("id", "1"), Map.of("id", "2"))));
 
-        assertThat(single).containsEntry("query", AstPrinter.printAst(operation))
+        assertThat(single).containsEntry("query", AstPrinter.printAstCompact(operation))
             .containsEntry("variables", Map.of("id", "1"));
         assertThat(batch.get("variables")).isEqualTo(List.of(Map.of("id", "1"), Map.of("id", "2")));
     }

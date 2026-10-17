@@ -55,8 +55,9 @@ public final class OperationTexts {
     }
 
     /**
-     * A GraphQL-over-HTTP request body for the operation ({@link #pretty} text) and its variables: a list of variable
-     * sets for a variable batch. Written straight to JSON bytes, with the query part cached.
+     * A GraphQL-over-HTTP request body for the operation ({@link #compact} text: less for the subgraph to read and
+     * hash than the indented form) and its variables: a list of variable sets for a variable batch. Written straight
+     * to JSON bytes, with the query part cached.
      */
     public static byte[] requestBody(OperationDefinition operation, Object variables) {
         byte[] prefix = lookup(REQUEST_PREFIX, operation, op -> {
@@ -64,7 +65,7 @@ public final class OperationTexts {
             buffer.write((byte) '{');
             buffer.writeString("query");
             buffer.write((byte) ':');
-            buffer.writeString(pretty(op));
+            buffer.writeString(compact(op));
             return buffer.toByteArray();
         });
         JsonBuffer body = new JsonBuffer(prefix.length + 256);
