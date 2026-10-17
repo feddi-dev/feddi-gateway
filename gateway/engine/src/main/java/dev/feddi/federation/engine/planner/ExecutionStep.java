@@ -116,6 +116,12 @@ public record ExecutionStep(
             artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, possibleTypes);
     }
 
+    /** This step with another operation and artificial field paths (for merged lookups). */
+    public ExecutionStep withOperation(OperationDefinition operation, Set<String> artificialFieldPaths) {
+        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, possibleTypes);
+    }
+
     /** This step, for entities along its entity path of other types. */
     public ExecutionStep withEntityPathTypes(Map<Integer, Set<String>> entityPathTypes) {
         return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,

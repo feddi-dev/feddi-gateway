@@ -1,0 +1,53 @@
+name: "A merged lookup fetches each product once and keeps each branch's fields"
+description: |
+  shelves.product needs the name, carts.product the price of the same products: both lookups send
+  productById with name and price, each product is fetched once, and each branch gets only its
+  requested field.
+
+query: |
+  {
+    shelves {
+      product {
+        name
+      }
+    }
+    carts {
+      product {
+        price
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: store
+    operation: '{ shelves { product { id } } carts { product { id } } }'
+    variables: {}
+    response: {
+      data: {
+        shelves: [{ product: { id: "p1" } }],
+        carts: [{ product: { id: "p1" } }, { product: { id: "p2" } }]
+      }
+    }
+
+  - subgraph: catalog
+    operation: 'query ($id: ID!) { productById(id: $id) { name price } }'
+    variables: { id: "p1" }
+    response: {
+      data: { productById: { name: "Table", price: 100 } }
+    }
+
+  - subgraph: catalog
+    operation: 'query ($id: ID!) { productById(id: $id) { name price } }'
+    variables: { id: "p2" }
+    response: {
+      data: { productById: { name: "Chair", price: 50 } }
+    }
+
+expectedResponse: {
+  data: {
+    shelves: [{ product: { name: "Table" } }],
+    carts: [{ product: { price: 100 } }, { product: { price: 50 } }]
+  }
+}

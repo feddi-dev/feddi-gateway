@@ -91,8 +91,8 @@ public final class OperationPlanner {
             }
         }
 
-        // Build the execution plan from the planning context
-        return context.buildPlan();
+        // Build the execution plan from the planning context; lookups of the same entities get one operation
+        return LookupStepMerger.merge(context.buildPlan());
     }
     
     /**
