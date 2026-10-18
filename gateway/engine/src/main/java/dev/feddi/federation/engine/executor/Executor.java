@@ -167,7 +167,7 @@ public final class Executor {
 
         private final Map<String, Object> queryVariables;
         private final MonoSink<ExecutionContext> sink;
-        private final ExecutionContext sharedContext = new ExecutionContext();
+        private final ExecutionContext sharedContext;
         private final Map<String, SubgraphClient> clients = new HashMap<>();
         /** The nodes in topological order. */
         private final List<Node> nodes = new ArrayList<>();
@@ -177,9 +177,16 @@ public final class Executor {
         StepScheduler(List<ExecutionStep> steps, Map<String, Object> queryVariables, MonoSink<ExecutionContext> sink) {
             this.queryVariables = queryVariables;
             this.sink = sink;
+            // In a mutation, the lookups after one top-level field must see what it changed: nothing fetched before
+            // it is reused, neither calls nor entities
+            boolean mutation = steps.stream()
+                .anyMatch(step -> step.operation().getOperation() == OperationDefinition.Operation.MUTATION);
+            this.sharedContext = new ExecutionContext(!mutation);
             // Per-execution clients that share identical query calls between steps
-            subgraphClients.forEach((name, client) ->
-                clients.put(name, new SharedCallSubgraphClient(new ListeningSubgraphClient(client, name, listener))));
+            subgraphClients.forEach((name, client) -> {
+                SubgraphClient listening = new ListeningSubgraphClient(client, name, listener);
+                clients.put(name, mutation ? listening : new SharedCallSubgraphClient(listening));
+            });
 
             // Lookup steps that send the same operation to the same subgraph once the same steps are done run as one
             // (entities deduplicated together, one batch)
@@ -535,7 +542,7 @@ public final class Executor {
         List<UniqueEntity> toFetch = new ArrayList<>(uniqueEntities.size());
         List<UniqueEntity> reused = new ArrayList<>(0);
         List<Mono<ExecutionResult>> reusedResults = new ArrayList<>(0);
-        if (step.operation().getOperation() == OperationDefinition.Operation.QUERY) {
+        if (ctx.reuseEntities && step.operation().getOperation() == OperationDefinition.Operation.QUERY) {
             String operationText = OperationTexts.compact(step.operation());
             for (UniqueEntity entity : uniqueEntities.values()) {
                 Sinks.One<ExecutionResult> result = Sinks.one();
@@ -1213,7 +1220,16 @@ public final class Executor {
         /** The results of the entities looked up so far (or in flight), for steps that need the same entities. */
         private final Map<EntityKey, Sinks.One<ExecutionResult>> entityResults = new ConcurrentHashMap<>();
 
-        ExecutionContext() {}
+        /** Whether steps reuse the entities other steps fetch (not in mutations). */
+        final boolean reuseEntities;
+
+        ExecutionContext() {
+            this(true);
+        }
+
+        ExecutionContext(boolean reuseEntities) {
+            this.reuseEntities = reuseEntities;
+        }
 
         synchronized void merge(StepResult result) {
             if (result.getRootData() != null) {
