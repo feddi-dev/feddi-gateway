@@ -51,6 +51,10 @@ less CPU used).
   uses ParallelGC too and still sizes the heap to the container's memory limit.
 - **New launcher variable `FEDDI_GATEWAY_JVM_OPTS`**: replaces the default JVM options (`JAVA_OPTS` is still
   appended).
+- **Subgraph responses nested deeper than 1000 levels, or with numbers longer than 1000 characters,** fail the
+  subgraph call like other invalid JSON (Jackson's default limits).
+- **Mutation requests share no calls or entities between steps**: a lookup after a top-level field always sees
+  what it changed.
 - **Invalid entries in a subgraph's `errors`** (not an object with a `message` string) become an error
   `Subgraph <name> returned an invalid error: <entry>` instead of failing the request (or, for an object without
   a message, the error `Unknown error`).
