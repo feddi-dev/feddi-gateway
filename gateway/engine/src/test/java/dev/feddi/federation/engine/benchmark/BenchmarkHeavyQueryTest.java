@@ -10,9 +10,11 @@ import dev.feddi.federation.engine.query.OperationNormalizer;
 import dev.feddi.federation.engine.testcase.SchemaDefinition;
 import dev.feddi.federation.engine.testcase.TestCaseLoader;
 import graphql.ExecutionResult;
+import graphql.language.OperationDefinition;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -164,6 +166,37 @@ class BenchmarkHeavyQueryTest {
         }));
         fetched.forEach((operation, variableSets) ->
             assertThat(variableSets).as(operation).doesNotHaveDuplicates());
+    }
+
+    @ParameterizedTest
+    @EnumSource(BatchingOptions.Mode.class)
+    void failedLookupsGiveErrorsAlsoWhereTheirEntitiesAreReused(BatchingOptions.Mode mode) {
+        var batching = new BatchingOptions(mode, BatchingOptions.DEFAULT_MAX_BATCH_SIZE);
+        for (String failing : BenchmarkSubgraphs.NAMES) {
+            Map<String, SubgraphClient> clients = new LinkedHashMap<>();
+            for (String name : BenchmarkSubgraphs.NAMES) {
+                var simulated = new SimulatedSubgraphClient(BenchmarkSubgraphs.subgraph(name), 0, batching);
+                // Root fields have no variables; the lookups of one subgraph fail
+                clients.put(name, !name.equals(failing) ? simulated : new SubgraphClient() {
+                    @Override
+                    public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables) {
+                        return variables.isEmpty() ? simulated.execute(operation, variables)
+                            : Mono.error(new IllegalStateException("lookup failed"));
+                    }
+
+                    @Override
+                    public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
+                                                                    List<Map<String, Object>> variableSets) {
+                        return Mono.error(new IllegalStateException("lookup failed"));
+                    }
+                });
+            }
+
+            ExecutionResult result = new Executor(clients).execute(plan, Map.of()).block();
+
+            assertThat(result.getErrors()).as(failing)
+                .allSatisfy(error -> assertThat(error.getMessage()).contains("lookup failed"));
+        }
     }
 
     private static Object expectedData() {

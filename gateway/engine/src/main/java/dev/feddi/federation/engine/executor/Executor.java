@@ -248,7 +248,7 @@ public final class Executor {
             if (step.isRoot()) {
                 return executeRootStep(step, queryVariables, clients);
             }
-            if (node.steps.size() > 1 || isGroupable(step)) {
+            if (node.steps.size() > 1 || step.repeatedExecution()) {
                 return executeGroup(node.steps, sharedContext, queryVariables, clients);
             }
             return executeStepWithContext(step, sharedContext, queryVariables, clients);
@@ -333,12 +333,9 @@ public final class Executor {
             return Mono.error(new ExecutionException("No client for subgraph: " + step.subgraph()));
         }
 
-        // Dependent steps are entity lookups, which run once per entity, or root steps that wait for others: a
-        // root field with @require arguments, which reads them from the response root, or a group of a mutation's
-        // top-level fields, which runs after the group before it
-        if (step.repeatedExecution()) {
-            return executeRepeatedStep(step, client, ctx, queryVariables);
-        }
+        // Entity lookups, which run once per entity, are executed as groups. Other dependent steps are root steps
+        // that wait for others: a root field with @require arguments, which reads them from the response root, or a
+        // group of a mutation's top-level fields, which runs after the group before it
         if (step.entityPath() != null) {
             throw new ExecutionException("Lookup step " + step.id() + " has no requirements to run per entity; "
                 + "execution plans must be created by the OperationPlanner");
@@ -493,14 +490,6 @@ public final class Executor {
                 }
                 return stepResult;
             });
-    }
-
-    /**
-     * Executes a repeated step for each parent entity in parallel.
-     */
-    private Mono<StepResult> executeRepeatedStep(ExecutionStep step, SubgraphClient client,
-                                                 ExecutionContext ctx, Map<String, Object> queryVariables) {
-        return executeRepeatedSteps(List.of(step), client, ctx, queryVariables);
     }
 
     /**

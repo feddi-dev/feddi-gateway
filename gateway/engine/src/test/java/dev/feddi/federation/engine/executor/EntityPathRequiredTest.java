@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -23,6 +24,20 @@ class EntityPathRequiredTest {
 
     @Test
     void repeatedStepWithoutEntityPathIsAnError() throws Exception {
+        assertPlanFails(step -> new ExecutionStep(step.id(), step.subgraph(), step.operation(), step.dependsOn(),
+            step.parallelWith(), step.requirements(), step.repeatedExecution(), step.artificialFieldPaths(),
+            step.requestedFieldPaths()), "has no entity path");
+    }
+
+    @Test
+    void lookupStepThatIsNotRepeatedIsAnError() throws Exception {
+        assertPlanFails(step -> step.repeatedExecution() ? new ExecutionStep(step.id(), step.subgraph(),
+            step.operation(), step.dependsOn(), step.parallelWith(), step.requirements(), false,
+            step.artificialFieldPaths(), step.requestedFieldPaths(), step.entityPath()) : step,
+            "has no requirements to run per entity");
+    }
+
+    private void assertPlanFails(UnaryOperator<ExecutionStep> change, String message) throws Exception {
         var loader = new TestCaseLoader();
         var schema = loader.loadSchemaFromClasspath("schemas/products_reviews/schema.yaml");
         try (var input = getClass().getResourceAsStream("/schemas/products_reviews/executions/basic_lookup.yaml")) {
@@ -30,11 +45,8 @@ class EntityPathRequiredTest {
             var normalizer = OperationNormalizer.builder(schema.supergraphSchema())
                 .inlineFragments(true).deduplicateFields(true).sortSelections(false).build();
             var planned = new OperationPlanner(schema.graph()).plan(Operation.parse(fixture.query(), normalizer));
-            var withoutPaths = ExecutionPlan.of(planned.steps().stream().map(step -> new ExecutionStep(
-                step.id(), step.subgraph(), step.operation(), step.dependsOn(), step.parallelWith(),
-                step.requirements(), step.repeatedExecution(), step.artificialFieldPaths(),
-                step.requestedFieldPaths())).toList());
-            assertThat(withoutPaths.steps()).anySatisfy(step -> assertThat(step.repeatedExecution()).isTrue());
+            assertThat(planned.steps()).anySatisfy(step -> assertThat(step.repeatedExecution()).isTrue());
+            var changed = ExecutionPlan.of(planned.steps().stream().map(change).toList());
 
             Map<String, ExecutingMockSubgraphClient> mocks = new LinkedHashMap<>();
             Map<String, SubgraphClient> clients = new LinkedHashMap<>();
@@ -46,9 +58,9 @@ class EntityPathRequiredTest {
             }
 
             // A plan the planner cannot produce is a programming error: fail the execution loudly.
-            assertThatThrownBy(() -> new Executor(clients).execute(withoutPaths, fixture.variables()).block())
+            assertThatThrownBy(() -> new Executor(clients).execute(changed, fixture.variables()).block())
                 .isInstanceOf(Executor.ExecutionException.class)
-                .hasMessageContaining("has no entity path");
+                .hasMessageContaining(message);
             // Only root steps ran; no lookup was sent.
             int rootSteps = (int) planned.steps().stream().filter(ExecutionStep::isRoot).count();
             int calls = mocks.values().stream().mapToInt(m -> m.getRecordedCalls().size()).sum();
