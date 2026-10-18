@@ -51,6 +51,9 @@ less CPU used).
   uses ParallelGC too and still sizes the heap to the container's memory limit.
 - **New launcher variable `FEDDI_GATEWAY_JVM_OPTS`**: replaces the default JVM options (`JAVA_OPTS` is still
   appended).
+- **Invalid entries in a subgraph's `errors`** (not an object with a `message` string) become an error
+  `Subgraph <name> returned an invalid error: <entry>` instead of failing the request (or, for an object without
+  a message, the error `Unknown error`).
 - **Subgraph responses are no longer limited to 256 KB** (WebClient's default in-memory buffer, which made large
   variable batches fail).
 - **`DefaultSubgraphClient` and `DefaultSubgraphClientFactory` take a Reactor Netty `HttpClient`** instead of a
