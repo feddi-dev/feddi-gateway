@@ -1,5 +1,6 @@
 package dev.feddi.federation.engine.executor;
 
+import dev.feddi.federation.engine.IntrospectionFields;
 import graphql.GraphQLError;
 import graphql.GraphqlErrorBuilder;
 import graphql.schema.GraphQLCompositeType;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Writes a GraphQL response as UTF-8 JSON in one walk over the data the executor assembled, guided by the
@@ -133,8 +135,30 @@ public final class ResponseWriter {
         boolean first = true;
         String[] keys = shape.keys;
         CompactMap compact = object instanceof CompactMap map ? map : null;
+        // Fields selected for some object types only need the object's type (unknown: written if present)
+        String typename = shape.typeDependent ? typename(object) : null;
         int hint = 0;
         for (int i = 0; i < keys.length; i++) {
+            GraphQLType type = shape.types[i];
+            ResponseShape child = shape.children[i];
+            String coordinate = shape.coordinates[i];
+            if (typename != null) {
+                Set<String> onlyFor = shape.onlyFor[i];
+                if (onlyFor != null && !onlyFor.contains(typename)) {
+                    continue;
+                }
+                ResponseShape.Variant[] variants = shape.variants[i];
+                if (variants != null) {
+                    for (ResponseShape.Variant variant : variants) {
+                        if (variant.objectTypes().contains(typename)) {
+                            type = variant.type();
+                            child = variant.child();
+                            coordinate = variant.coordinate();
+                            break;
+                        }
+                    }
+                }
+            }
             Object value;
             if (compact != null) {
                 int index = compact.indexOf(keys[i], hint);
@@ -152,8 +176,7 @@ public final class ResponseWriter {
             data.write(first ? shape.firstKeyBytes[i] : shape.nextKeyBytes[i]);
             first = false;
             push(keys[i]);
-            GraphQLType type = shape.types[i];
-            boolean valid = type == null ? writeAsIs(value) : writeValue(type, shape.children[i], value, shape.coordinates[i]);
+            boolean valid = type == null ? writeAsIs(value) : writeValue(type, child, value, coordinate);
             depth--;
             if (!valid) {
                 return false;
@@ -165,6 +188,12 @@ public final class ResponseWriter {
             data.write((byte) '}');
         }
         return true;
+    }
+
+    /** The object's {@code __typename}, or null if it has none. */
+    private static @Nullable String typename(Map<?, ?> object) {
+        Object typename = object.get(IntrospectionFields.TYPENAME);
+        return typename == null ? null : typename.toString();
     }
 
     /** Writes a value of a field without definition (an introspection field) as it is. */
