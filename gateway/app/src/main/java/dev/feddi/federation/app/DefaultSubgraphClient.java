@@ -19,6 +19,8 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.http.support.Netty4HeadersAdapter;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
@@ -59,9 +61,18 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private final String path;
     private final String subgraphName;
     private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
+    /** Experiment: calls through Spring's WebClient instead of the HttpClient, if set. */
+    private final @Nullable WebClient webClient;
 
     public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
                                   @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
+        this(httpClient, url, subgraphName, headerCustomizer, null);
+    }
+
+    public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
+                                  @Nullable SubgraphRequestHeaderCustomizer headerCustomizer,
+                                  @Nullable WebClient webClient) {
+        this.webClient = webClient;
         // Configured once: with an absolute URL, Reactor Netty parses it with a regular expression on every request
         URI uri = URI.create(url);
         if (uri.getHost() == null || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))) {
@@ -91,6 +102,22 @@ public class DefaultSubgraphClient implements SubgraphClient {
      * @param batch whether it is a variable batch, which accepts JSON lines
      */
     private Mono<HttpResponse> post(byte[] body, boolean batch, FeddiGatewayRequestContext context) {
+        if (webClient != null) {
+            return webClient.post()
+                .headers(headers -> {
+                    headers.setContentType(MediaType.APPLICATION_JSON);
+                    headers.set(HttpHeaders.ACCEPT, batch ? BATCH_ACCEPT : JSON_TYPE);
+                    context.requestHeader("authorization").ifPresent(v -> headers.set(HttpHeaders.AUTHORIZATION, v));
+                    context.requestHeader("user-agent").ifPresent(v -> headers.set(HttpHeaders.USER_AGENT, v));
+                    if (headerCustomizer != null) {
+                        headerCustomizer.customize(headers, subgraphName, context);
+                    }
+                })
+                .bodyValue(body)
+                .exchangeToMono(response -> response.bodyToMono(byte[].class)
+                    .defaultIfEmpty(EMPTY)
+                    .map(bytes -> new HttpResponse(response.statusCode().value(), bytes)));
+        }
         return httpClient.post()
             .uri(path)
             .send((request, out) -> {
