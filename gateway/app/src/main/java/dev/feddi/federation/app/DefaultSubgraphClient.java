@@ -19,11 +19,11 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.http.support.Netty4HeadersAdapter;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
+import reactor.netty.http.client.HttpClientRequest;
 import reactor.util.context.Context;
 
 import java.io.IOException;
@@ -108,14 +108,14 @@ public class DefaultSubgraphClient implements SubgraphClient {
         if (webClient != null) {
             return webClient.post()
                 .uri(uri)
-                .headers(headers -> {
-                    headers.setContentType(MediaType.APPLICATION_JSON);
-                    headers.set(HttpHeaders.ACCEPT, batch ? BATCH_ACCEPT : JSON_TYPE);
-                    context.requestHeader("authorization").ifPresent(v -> headers.set(HttpHeaders.AUTHORIZATION, v));
-                    context.requestHeader("user-agent").ifPresent(v -> headers.set(HttpHeaders.USER_AGENT, v));
-                    if (headerCustomizer != null) {
-                        headerCustomizer.customize(headers, subgraphName, context);
-                    }
+                // Set on Netty's request directly: Spring's case-insensitive headers lower-case every name, and are
+                // then copied into Netty's (WebClientCustomizers' default headers still apply)
+                .httpRequest(request -> {
+                    HttpClientRequest nativeRequest = request.getNativeRequest();
+                    nativeRequest.requestHeaders()
+                        .set(HttpHeaderNames.CONTENT_TYPE, JSON_TYPE)
+                        .set(HttpHeaderNames.ACCEPT, batch ? BATCH_ACCEPT : JSON_TYPE);
+                    applyHeaders(nativeRequest.requestHeaders(), context);
                 })
                 .bodyValue(body)
                 .exchangeToMono(response -> response.bodyToMono(byte[].class)
