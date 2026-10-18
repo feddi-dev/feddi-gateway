@@ -52,9 +52,27 @@ class DefaultSubgraphClientTest {
         ExecutionResult result = execute(Map.of("id", "1"));
 
         assertThat(RawString.decodeAll(result.<Object>getData())).isEqualTo(Collections.singletonMap("user", null));
-        assertThat(result.getErrors()).extracting(GraphQLError::getMessage).containsExactly("not found", "Unknown error");
+        assertThat(result.getErrors()).extracting(GraphQLError::getMessage)
+            .containsExactly("not found", "Subgraph accounts returned an invalid error: {}");
         assertThat(result.getErrors().get(0).getPath()).containsExactly("user");
         assertThat(result.getErrors().get(0).getExtensions()).containsEntry("code", "NF");
+    }
+
+    @Test
+    void entriesThatAreNoErrorsAreInvalidErrorsOfTheSubgraph() {
+        start(200, """
+            {"data":{"user":null},"errors":["text",{"message":1,"path":["user"]},{"message":"m","path":"user","extensions":[]}]}
+            """);
+
+        ExecutionResult result = execute(Map.of());
+
+        assertThat(result.getErrors()).extracting(GraphQLError::getMessage).containsExactly(
+            "Subgraph accounts returned an invalid error: \"text\"",
+            "Subgraph accounts returned an invalid error: {\"message\":1,\"path\":[\"user\"]}",
+            "m");
+        assertThat(result.getErrors().get(1).getPath()).containsExactly("user");
+        assertThat(result.getErrors().get(2).getPath()).isNull();
+        assertThat(result.getErrors().get(2).getExtensions()).isNull();
     }
 
     @Test

@@ -343,23 +343,29 @@ public class DefaultSubgraphClient implements SubgraphClient {
         }
 
         if (errors instanceof List) {
-            @SuppressWarnings("unchecked")
             // Errors are compared and logged as strings
-            List<Map<String, Object>> errorList = (List<Map<String, Object>>) RawString.decodeAll(errors);
-            for (Map<String, Object> error : errorList) {
-                String message = error.get("message") != null ? error.get("message").toString() : "Unknown error";
-
-                @SuppressWarnings("unchecked")
-                List<Object> path = (List<Object>) error.get("path");
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> extensions = (Map<String, Object>) error.get("extensions");
-
-                builder.addError(new SubgraphError(message, path, extensions));
+            for (Object error : (List<?>) RawString.decodeAll(errors)) {
+                builder.addError(subgraphError(error));
             }
         }
 
         return builder.build();
+    }
+
+    /**
+     * A subgraph's error as a GraphQL error. An entry that is no error (not an object with a message string) is
+     * reported as an invalid error of the subgraph, with its path if it has a valid one.
+     */
+    @SuppressWarnings("unchecked")
+    private SubgraphError subgraphError(Object error) {
+        Map<?, ?> map = error instanceof Map<?, ?> m ? m : Map.of();
+        List<Object> path = map.get("path") instanceof List<?> list ? (List<Object>) list : null;
+        if (!(map.get("message") instanceof String message)) {
+            return new SubgraphError("Subgraph " + subgraphName + " returned an invalid error: "
+                + JSON.valueToTree(error), path, null);
+        }
+        Map<String, Object> extensions = map.get("extensions") instanceof Map<?, ?> ext ? (Map<String, Object>) ext : null;
+        return new SubgraphError(message, path, extensions);
     }
 
     private String extractErrorMessage(Map<?, ?> body) {
