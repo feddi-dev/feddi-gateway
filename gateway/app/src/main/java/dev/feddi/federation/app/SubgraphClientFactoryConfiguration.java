@@ -38,7 +38,7 @@ public class SubgraphClientFactoryConfiguration {
         HttpClient httpClient = HttpClient.create();
         WebClient.Builder builder = switch (mode) {
             case "plain" -> WebClient.builder().clientConnector(new ReactorClientHttpConnector(httpClient));
-            case "boot" -> webClientBuilder.getObject();
+            case "boot", "tuned" -> webClientBuilder.getObject();
             default -> null;
         };
         LoggerFactory.getLogger(SubgraphClientFactoryConfiguration.class)

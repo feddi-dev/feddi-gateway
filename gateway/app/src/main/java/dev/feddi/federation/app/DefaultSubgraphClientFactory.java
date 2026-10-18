@@ -39,8 +39,8 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
     @Override
     public SubgraphClient create(String subgraphName, SubgraphSettings settings) {
         String url = settings.config().get("url").toString();
+        // No base URL: the client passes the URI it created once, instead of expanding a template per call
         WebClient webClient = webClientBuilder == null ? null : webClientBuilder.clone()
-            .baseUrl(url)
             .codecs(codecs -> codecs.defaultCodecs().maxInMemorySize(64 * 1024 * 1024))
             .build();
         return new DefaultSubgraphClient(httpClient, url, subgraphName, headerCustomizer, webClient);

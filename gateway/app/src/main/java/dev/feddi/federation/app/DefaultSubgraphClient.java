@@ -63,6 +63,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
     /** Experiment: calls through Spring's WebClient instead of the HttpClient, if set. */
     private final @Nullable WebClient webClient;
+    /** The subgraph URL, created once, for the WebClient. */
+    private final URI uri;
 
     public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
                                   @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
@@ -73,6 +75,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
                                   @Nullable SubgraphRequestHeaderCustomizer headerCustomizer,
                                   @Nullable WebClient webClient) {
         this.webClient = webClient;
+        this.uri = URI.create(url);
         // Configured once: with an absolute URL, Reactor Netty parses it with a regular expression on every request
         URI uri = URI.create(url);
         if (uri.getHost() == null || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))) {
@@ -104,6 +107,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private Mono<HttpResponse> post(byte[] body, boolean batch, FeddiGatewayRequestContext context) {
         if (webClient != null) {
             return webClient.post()
+                .uri(uri)
                 .headers(headers -> {
                     headers.setContentType(MediaType.APPLICATION_JSON);
                     headers.set(HttpHeaders.ACCEPT, batch ? BATCH_ACCEPT : JSON_TYPE);
