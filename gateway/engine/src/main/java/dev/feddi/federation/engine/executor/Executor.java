@@ -516,21 +516,26 @@ public final class Executor {
         // at many positions (e.g. one product under many reviews), but is fetched only once.
         Map<Map<String, Object>, UniqueEntity> uniqueEntities = new LinkedHashMap<>();
         List<EntityResult> skipped = new ArrayList<>();
-        for (int memberIndex = 0; memberIndex < steps.size(); memberIndex++) {
-            ExecutionStep member = steps.get(memberIndex);
-            List<Map<String, Object>> parentContexts = selectParentContexts(member, ctx);
-            RequirementReader reader = new RequirementReader(member.possibleTypes());
-            for (Map<String, Object> context : parentContexts) {
-                // Start with filtered query variables, then overlay requirement variables
-                // Requirement variables take precedence since they're entity-specific
-                Map<String, Object> stepVariables = new CompactMap(operationVariables.size() + member.requirements().size());
-                stepVariables.putAll(operationVariables);
-                reader.putVariables(member.requirements(), context, stepVariables);
-                if (lacksAny(requiredVariables, stepVariables)) {
-                    skipped.add(new EntityResult(context, null));
-                    continue;
+        // The entities' objects are read under the lock of the merges: steps running in parallel merge their
+        // results into the same objects
+        synchronized (ctx) {
+            for (int memberIndex = 0; memberIndex < steps.size(); memberIndex++) {
+                ExecutionStep member = steps.get(memberIndex);
+                List<Map<String, Object>> parentContexts = selectParentContexts(member, ctx);
+                RequirementReader reader = new RequirementReader(member.possibleTypes());
+                for (Map<String, Object> context : parentContexts) {
+                    // Start with filtered query variables, then overlay requirement variables
+                    // Requirement variables take precedence since they're entity-specific
+                    Map<String, Object> stepVariables =
+                        new CompactMap(operationVariables.size() + member.requirements().size());
+                    stepVariables.putAll(operationVariables);
+                    reader.putVariables(member.requirements(), context, stepVariables);
+                    if (lacksAny(requiredVariables, stepVariables)) {
+                        skipped.add(new EntityResult(context, null));
+                        continue;
+                    }
+                    uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).add(context, memberIndex);
                 }
-                uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).add(context, memberIndex);
             }
         }
         if (uniqueEntities.isEmpty() && skipped.isEmpty()) {
@@ -854,15 +859,17 @@ public final class Executor {
                 pathTypes[depth] = types;
             }
         });
+        // Read under the lock of the merges, which write into these objects
         synchronized (ctx) {
             collectEntityTargets(ctx.getMergedData(), step.entityPath(), pathTypes, 0, targets);
+            if (!step.entityTypes().isEmpty()) {
+                // A lookup for one concrete type (e.g. below "... on Book") skips entities of other types.
+                targets.removeIf(target -> target.get(IntrospectionFields.TYPENAME) instanceof String typename
+                    && !step.entityTypes().contains(typename));
+            }
+            return new RequirementReader(step.possibleTypes())
+                .filterContextsForRequirements(targets, step.requirements());
         }
-        if (!step.entityTypes().isEmpty()) {
-            // A lookup for one concrete type (e.g. below "... on Book") skips entities of other types.
-            targets.removeIf(target -> target.get(IntrospectionFields.TYPENAME) instanceof String typename
-                && !step.entityTypes().contains(typename));
-        }
-        return new RequirementReader(step.possibleTypes()).filterContextsForRequirements(targets, step.requirements());
     }
 
     /**
