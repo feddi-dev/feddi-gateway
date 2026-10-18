@@ -21,6 +21,10 @@ import java.util.List;
  */
 public final class JsonTreeReader {
 
+    /** The deepest nesting of objects and arrays read (Jackson's default limit). */
+    static final int MAX_DEPTH = 1000;
+    /** The longest number read, in characters (Jackson's default limit). */
+    static final int MAX_NUMBER_LENGTH = 1000;
     private static final int SYMBOLS = 4096;
     /** Interned field names by the hash of their bytes (racy, but entries are immutable). */
     private static final Symbol[] SYMBOL_TABLE = new Symbol[SYMBOLS];
@@ -32,6 +36,7 @@ public final class JsonTreeReader {
     private int pos;
     private Object[] stack = new Object[64];
     private int stackSize;
+    private int depth;
 
     private JsonTreeReader(byte[] in) {
         this.in = in;
@@ -84,10 +89,16 @@ public final class JsonTreeReader {
         byte b = in[pos];
         switch (b) {
             case '{' -> {
-                return readObject();
+                enter();
+                CompactMap object = readObject();
+                depth--;
+                return object;
             }
             case '[' -> {
-                return readArray();
+                enter();
+                List<Object> array = readArray();
+                depth--;
+                return array;
             }
             case '"' -> {
                 int start = pos;
@@ -114,6 +125,13 @@ public final class JsonTreeReader {
                 }
                 throw new IOException("Unexpected character '" + (char) b + "' at " + pos);
             }
+        }
+    }
+
+    /** Goes one level deeper, failing beyond {@link #MAX_DEPTH} (instead of overflowing the stack). */
+    private void enter() throws IOException {
+        if (++depth > MAX_DEPTH) {
+            throw new IOException("JSON nested deeper than " + MAX_DEPTH + " levels at " + pos);
         }
     }
 
@@ -281,11 +299,17 @@ public final class JsonTreeReader {
         if (digits == 0) {
             throw new IOException("Invalid number at " + start);
         }
+        if (digits > MAX_NUMBER_LENGTH) {
+            throw new IOException("Number longer than " + MAX_NUMBER_LENGTH + " characters at " + start);
+        }
         if (pos < in.length && (in[pos] == '.' || in[pos] == 'e' || in[pos] == 'E')) {
             pos++;
             while (pos < in.length && (in[pos] >= '0' && in[pos] <= '9' || in[pos] == 'e' || in[pos] == 'E'
                 || in[pos] == '+' || in[pos] == '-')) {
                 pos++;
+            }
+            if (pos - start > MAX_NUMBER_LENGTH) {
+                throw new IOException("Number longer than " + MAX_NUMBER_LENGTH + " characters at " + start);
             }
             try {
                 return Double.parseDouble(new String(in, start, pos - start, StandardCharsets.ISO_8859_1));

@@ -80,6 +80,36 @@ class JsonTreeReaderTest {
     }
 
     @Test
+    void readsUpToTheNestingLimit() throws Exception {
+        int limit = JsonTreeReader.MAX_DEPTH;
+        String nested = "[".repeat(limit / 2) + "{\"a\":".repeat(limit / 2) + "1" + "}".repeat(limit / 2)
+            + "]".repeat(limit / 2);
+        assertThat(JsonTreeReader.read(nested.getBytes(StandardCharsets.UTF_8))).isInstanceOf(List.class);
+
+        String deeper = "[".repeat(limit + 1) + "]".repeat(limit + 1);
+        assertThatThrownBy(() -> JsonTreeReader.read(deeper.getBytes(StandardCharsets.UTF_8)))
+            .isInstanceOf(java.io.IOException.class)
+            .hasMessageContaining("nested deeper than " + limit);
+        // Far deeper than the stack would allow
+        String deepest = "{\"a\":".repeat(100_000);
+        assertThatThrownBy(() -> JsonTreeReader.read(deepest.getBytes(StandardCharsets.UTF_8)))
+            .isInstanceOf(java.io.IOException.class);
+    }
+
+    @Test
+    void readsNumbersUpToTheLengthLimit() throws Exception {
+        int limit = JsonTreeReader.MAX_NUMBER_LENGTH;
+        assertThat(JsonTreeReader.read(("1".repeat(limit)).getBytes(StandardCharsets.UTF_8)))
+            .isEqualTo(new java.math.BigInteger("1".repeat(limit)));
+
+        for (String number : List.of("1".repeat(limit + 1), "1." + "1".repeat(limit))) {
+            assertThatThrownBy(() -> JsonTreeReader.read(number.getBytes(StandardCharsets.UTF_8)))
+                .isInstanceOf(java.io.IOException.class)
+                .hasMessageContaining("longer than " + limit);
+        }
+    }
+
+    @Test
     void rejectsInvalidJson() {
         assertThatThrownBy(() -> JsonTreeReader.read("{\"a\":".getBytes(StandardCharsets.UTF_8)))
             .isInstanceOf(java.io.IOException.class);
