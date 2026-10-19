@@ -22,9 +22,9 @@ It works best overall when used together with the feddi Platform. For full docum
 ### Test Results
 | Suite | Tests | Passed | Failed | Errors | Skipped |
 |:------|------:|-------:|-------:|-------:|--------:|
-| Gateway engine | 1775 | 1774 | - | - | 1 |
-| Gateway app unit | 71 | 71 | - | - | - |
-| Gateway app integration | 348 | 348 | - | - | - |
+| Gateway engine | 1814 | 1813 | - | - | 1 |
+| Gateway app unit | 92 | 92 | - | - | - |
+| Gateway app integration | 352 | 352 | - | - | - |
 | E2E tests | 35 | 35 | - | - | - |
 
 ### Test Categories
@@ -33,15 +33,15 @@ It works best overall when used together with the feddi Platform. For full docum
 | Composition success | 43 |
 | Composition errors | 85 |
 | Planning | 157 |
-| Execution | 212 |
-| Engine other | 1278 |
+| Execution | 214 |
+| Engine other | 1315 |
 
 ### Code Coverage
 | Metric | Coverage | Covered / Total |
 |:-------|---------:|----------------:|
-| Line | 87.5% | 8351/9548 |
-| Branch | 79.2% | 4268/5388 |
-| Method | 85.4% | 1559/1825 |
+| Line | 88.3% | 9499/10763 |
+| Branch | 80.3% | 4943/6155 |
+| Method | 86.4% | 1743/2017 |
 <!-- test-results-end -->
 
 ## Requirements
