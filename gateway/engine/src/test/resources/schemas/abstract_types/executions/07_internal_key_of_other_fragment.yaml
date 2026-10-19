@@ -1,0 +1,37 @@
+name: "Key field selected for one type only"
+description: |
+  The planner fetches id for every product (the key of the Book lookup), while the query selects id only
+  below "... on Magazine": the response has id for the magazine, not for the books.
+
+query: |
+  {
+    products {
+      ... on Book {
+        reviewsCount
+      }
+      ... on Magazine {
+        id
+      }
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: products
+    operation: '{ products { __typename id ... on Magazine { id } } }'
+    variables: {}
+    response: { data: { products: [
+      { __typename: "Book", id: "b1" },
+      { __typename: "Magazine", id: "m1" }
+    ] } }
+
+  - subgraph: reviews
+    operation: 'query ($id: ID!) { bookById(id: $id) { reviewsCount } }'
+    variables: { id: "b1" }
+    response: { data: { bookById: { reviewsCount: 10 } } }
+
+expectedResponse: { data: { products: [
+  { reviewsCount: 10 },
+  { id: "m1" }
+] } }

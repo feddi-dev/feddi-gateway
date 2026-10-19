@@ -9,6 +9,8 @@ import dev.feddi.federation.engine.parser.FieldSelectionMap.Path;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.PathSegment;
 import dev.feddi.federation.engine.parser.FieldSelectionMap.SelectedValue;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,8 +42,16 @@ final class RequirementReader {
      * the variable is set to null.
      */
     Map<String, Object> extractVariables(Map<String, SelectedValue> requirements, Map<String, Object> context) {
-        Map<String, Object> variables = new LinkedHashMap<>();
+        Map<String, Object> variables = new CompactMap(requirements.size());
+        putVariables(requirements, context, variables);
+        return variables;
+    }
 
+    /**
+     * Puts the variables of {@link #extractVariables} into a map.
+     */
+    void putVariables(Map<String, SelectedValue> requirements, Map<String, Object> context,
+                      Map<String, Object> variables) {
         for (Map.Entry<String, SelectedValue> entry : requirements.entrySet()) {
             String varName = entry.getKey();
             SelectedValue selectedValue = entry.getValue();
@@ -52,8 +62,6 @@ final class RequirementReader {
             // the concrete type is Qux which doesn't have a baz field)
             variables.put(varName, value);
         }
-
-        return variables;
     }
 
     /**
@@ -61,8 +69,9 @@ final class RequirementReader {
      * Package-private for testing.
      */
     Object extractFromSelectedValue(Map<String, Object> context, SelectedValue selectedValue) {
-        for (Alternative alt : selectedValue.alternatives()) {
-            Object value = extractFromAlternative(context, alt);
+        List<Alternative> alternatives = selectedValue.alternatives();
+        for (int i = 0; i < alternatives.size(); i++) {
+            Object value = extractFromAlternative(context, alternatives.get(i));
             if (value != null) {
                 return value;
             }
@@ -250,13 +259,40 @@ final class RequirementReader {
             return contexts;
         }
 
-        List<Map<String, Object>> result = new ArrayList<>();
+        List<Map<String, Object>> result = new ArrayList<>(contexts.size());
+        String[] sources = plainPathSources(requirements);
         for (Map<String, Object> context : contexts) {
-            if (contextCanProvideRequirements(context, requirements)) {
+            if (sources != null ? containsAll(context, sources) : contextCanProvideRequirements(context, requirements)) {
                 result.add(context);
             }
         }
         return result;
+    }
+
+    /**
+     * The first field of each requirement if every requirement is one path without type conditions (keys, mostly):
+     * a context can provide them if it has these fields. Null otherwise.
+     */
+    private static String @Nullable [] plainPathSources(Map<String, SelectedValue> requirements) {
+        String[] sources = new String[requirements.size()];
+        int i = 0;
+        for (SelectedValue value : requirements.values()) {
+            if (value.alternatives().size() != 1 || !(value.alternatives().get(0) instanceof Path path)
+                || path.hasInitialTypeCondition() || path.segments().isEmpty()) {
+                return null;
+            }
+            sources[i++] = path.segments().get(0).fieldName();
+        }
+        return sources;
+    }
+
+    private static boolean containsAll(Map<String, Object> context, String[] fields) {
+        for (String field : fields) {
+            if (!context.containsKey(field)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -275,8 +311,9 @@ final class RequirementReader {
     }
 
     private boolean contextCanProvideSelectedValue(Map<String, Object> context, SelectedValue selectedValue) {
-        for (Alternative alt : selectedValue.alternatives()) {
-            if (contextCanProvideAlternative(context, alt)) {
+        List<Alternative> alternatives = selectedValue.alternatives();
+        for (int i = 0; i < alternatives.size(); i++) {
+            if (contextCanProvideAlternative(context, alternatives.get(i))) {
                 return true;
             }
         }

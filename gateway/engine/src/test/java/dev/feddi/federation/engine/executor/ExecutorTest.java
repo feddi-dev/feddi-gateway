@@ -12,6 +12,7 @@ import dev.feddi.federation.engine.testcase.ExecutionTest;
 import dev.feddi.federation.engine.testcase.SchemaDefinition;
 import dev.feddi.federation.engine.testcase.SubgraphCall;
 import dev.feddi.federation.engine.testcase.TestCaseLoader;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.ExecutionResult;
 import graphql.GraphQLError;
 import org.junit.jupiter.api.Assumptions;
@@ -26,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -52,6 +54,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ExecutorTest {
 
     private static final Logger log = LoggerFactory.getLogger(ExecutorTest.class);
+    private static final ObjectMapper JSON = new ObjectMapper();
     private static TestCaseLoader loader;
 
     @BeforeAll
@@ -180,9 +183,15 @@ class ExecutorTest {
 
         // Execute the plan
         Executor executor = new Executor(clients);
-        // Like the gateway: nulls in non-null fields propagate to the nearest nullable parent
+        ExecutionResult raw = executor.executeWithInternalFields(plan, executionTest.variables()).block();
+        // The gateway writes the response in one pass, before the maps are completed (which changes them in place)
+        @SuppressWarnings("unchecked")
+        ResponseWriter.Output written = ResponseWriter.write(ResponseShape.compile(schema.supergraphSchema(), operation),
+            (Map<String, Object>) raw.getData(), raw.getErrors(), null);
+        // Nulls in non-null fields propagate to the nearest nullable parent
         ExecutionResult result = NonNullPropagation.apply(schema.supergraphSchema(), operation,
-            executor.execute(plan, executionTest.variables()).block());
+            Executor.withoutArtificialFields(raw, plan));
+        assertWrittenLikeCompleted(written, result, operation);
 
         // Every expected subgraph call must have been made (a skipped call would otherwise go unnoticed)
         assertThat(mocks.stream().flatMap(mock -> mock.uncalledExpectations().stream())
@@ -248,6 +257,31 @@ class ExecutorTest {
         }
 
         log.debug("  PASSED");
+    }
+
+    /**
+     * The written response has the completed result's data, with fields in selection order, and its errors.
+     */
+    private static void assertWrittenLikeCompleted(ResponseWriter.Output written, ExecutionResult completed,
+                                                   OperationDefinition operation) {
+        Map<String, Object> expected = new LinkedHashMap<>();
+        if (!completed.getErrors().isEmpty()) {
+            expected.put("errors", completed.getErrors().stream().map(GraphQLError::toSpecification).toList());
+        }
+        expected.put("data", completed.getData() == null ? null
+            : ResponseFieldOrder.reorder(operation.getSelectionSet(), completed.getData()));
+        assertThat(new String(written.json(), StandardCharsets.UTF_8))
+            .as("Written response")
+            .isEqualTo(toJson(expected));
+        assertThat(written.errorCount()).isEqualTo(completed.getErrors().size());
+    }
+
+    private static String toJson(Object value) {
+        try {
+            return JSON.writeValueAsString(value);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /**

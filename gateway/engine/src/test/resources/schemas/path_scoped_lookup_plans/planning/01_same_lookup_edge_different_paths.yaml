@@ -1,8 +1,10 @@
 name: "Same lookup edge at different response paths"
 description: |
   The same Product lookup from store to catalog appears below shelves.product
-  and carts.product. The planner must keep those lookup plans separate so each
-  branch receives only its requested fields.
+  and carts.product. The planner keeps a lookup step per branch (its own entity
+  path), but both send one merged lookup, so that each product is fetched once;
+  the other branch's fields are internal at each path, so each branch's
+  response has only its requested fields (see executions/01).
 
 query: |
   {
@@ -28,7 +30,7 @@ expectedPlan:
 
     - id: 2
       subgraph: catalog
-      operation: "query($id: ID!) { productById(id: $id) { name } }"
+      operation: "query($id: ID!) { productById(id: $id) { name price } }"
       dependsOn: [1]
       requirements:
         id: "id"
@@ -36,7 +38,7 @@ expectedPlan:
 
     - id: 3
       subgraph: catalog
-      operation: "query($id: ID!) { productById(id: $id) { price } }"
+      operation: "query($id: ID!) { productById(id: $id) { name price } }"
       dependsOn: [1]
       requirements:
         id: "id"

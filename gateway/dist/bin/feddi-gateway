@@ -10,6 +10,7 @@
 #    FEDDI_GATEWAY_JAVA_HOME - Java home for the feddi Gateway (takes priority over JAVA_HOME)
 #    JAVA_HOME               - Standard Java home
 #    JAVA_OPTS               - Additional JVM options (appended after defaults)
+#    FEDDI_GATEWAY_JVM_OPTS  - JVM options that replace the defaults below (e.g. another garbage collector)
 #
 ##############################################################################
 
@@ -81,30 +82,28 @@ fi
 # --------------------------------------------------------------------------
 # Default JVM options — tuned for the feddi Gateway
 #
-# ZGC:                Sub-millisecond GC pauses for low tail latency
-# Heap:               256MB initial, 1GB max, 768MB soft target
-# SoftMaxHeapSize:    ZGC tries to stay at 768MB but can burst to 1GB
-# StringDeduplication: Reduces memory for repeated GraphQL field/type names
+# ParallelGC:         Highest throughput and, under load, also the lowest latencies of the collectors measured
+#                     (a gateway allocates short-lived objects per request; young collections are short)
+# Heap:               2GB fixed, 1GB of it young generation
 # AlwaysPreTouch:     Pre-fault heap pages at startup for predictable runtime
 # ExitOnOutOfMemory:  Die cleanly on OOM (important for container restarts)
 # HeapDump:           Write heap dump on OOM for post-mortem analysis
 # OmitStackTrace:     Always include full stack traces (JVM optimization disabled)
 #
-# Override any of these with JAVA_OPTS, e.g.:
-#   JAVA_OPTS="-Xmx2g" ./bin/feddi-gateway
+# Add options with JAVA_OPTS, or replace all of these with FEDDI_GATEWAY_JVM_OPTS, e.g.:
+#   FEDDI_GATEWAY_JVM_OPTS="-XX:+UseZGC -Xmx1g" ./bin/feddi-gateway
 #
 # --------------------------------------------------------------------------
-DEFAULT_JVM_OPTS="\
- -XX:+UseZGC \
- -Xms256m \
- -Xmx1g \
- -XX:SoftMaxHeapSize=768m \
- -XX:+UseStringDeduplication \
+DEFAULT_JVM_OPTS="${FEDDI_GATEWAY_JVM_OPTS:-\
+ -XX:+UseParallelGC \
+ -Xms2g \
+ -Xmx2g \
+ -Xmn1g \
  -XX:+AlwaysPreTouch \
  -XX:+ExitOnOutOfMemoryError \
  -XX:+HeapDumpOnOutOfMemoryError \
  -XX:-OmitStackTraceInFastThrow \
- --enable-native-access=ALL-UNNAMED"
+ --enable-native-access=ALL-UNNAMED}"
 
 # --------------------------------------------------------------------------
 # Launch the feddi Gateway

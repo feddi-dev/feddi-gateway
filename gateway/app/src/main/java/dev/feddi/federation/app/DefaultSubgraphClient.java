@@ -1,12 +1,11 @@
 package dev.feddi.federation.app;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
 import dev.feddi.federation.engine.IntrospectionFields;
+import dev.feddi.federation.engine.executor.JsonTreeReader;
 import dev.feddi.federation.engine.executor.OperationTexts;
+import dev.feddi.federation.engine.executor.RawString;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
@@ -14,22 +13,28 @@ import graphql.Directives;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
 import graphql.language.OperationDefinition;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.http.support.Netty4HeadersAdapter;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
+import reactor.util.context.Context;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
- * Default SubgraphClient implementation using Spring WebClient.
+ * Default SubgraphClient implementation: GraphQL over HTTP with Reactor Netty's {@link HttpClient}, request bodies
+ * written as JSON bytes and responses read from bytes.
  * Forwards Authorization and User-Agent headers from the gateway request context, then
  * gives an optional {@link SubgraphRequestHeaderCustomizer} bean a chance to add or
  * override headers.
@@ -38,77 +43,128 @@ public class DefaultSubgraphClient implements SubgraphClient {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultSubgraphClient.class);
 
-    private static final MediaType JSONL = MediaType.parseMediaType("application/jsonl");
+    private static final String JSON_TYPE = "application/json";
+    private static final String BATCH_ACCEPT = "application/jsonl, application/json";
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() { };
-    private static final TypeReference<List<Map<String, Object>>> LIST_OF_MAPS = new TypeReference<>() { };
-    private static final ObjectReader MAP_READER = JSON.readerFor(MAP);
     private static final byte[] EMPTY = new byte[0];
     private static final String PROBE_VARIABLE = "probe";
+    /**
+     * Caches the subscriber context at the end of a subgraph call. Reactor Netty reads the context several times per
+     * request, and each read walks up the whole chain of the gateway's operators otherwise.
+     */
+    private static final Function<Context, Context> CACHE_CONTEXT = context -> context;
 
-    private final WebClient webClient;
+    private final HttpClient httpClient;
+    /** The path (and query) of the subgraph URL; the client is configured with its scheme, host and port. */
+    private final String path;
     private final String subgraphName;
     private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
 
-    public DefaultSubgraphClient(WebClient webClient, String subgraphName,
+    public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
                                   @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
-        this.webClient = webClient;
+        // Configured once: with an absolute URL, Reactor Netty parses it with a regular expression on every request
+        URI uri = URI.create(url);
+        if (uri.getHost() == null || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))) {
+            throw new IllegalArgumentException("Subgraph " + subgraphName + " has no valid http(s) URL: " + url);
+        }
+        boolean secure = "https".equals(uri.getScheme());
+        String host = uri.getHost().startsWith("[") ? uri.getHost().substring(1, uri.getHost().length() - 1)
+            : uri.getHost();
+        HttpClient configured = httpClient.host(host).port(uri.getPort() >= 0 ? uri.getPort() : secure ? 443 : 80);
+        this.httpClient = secure ? configured.secure() : configured;
+        String rawPath = uri.getRawPath() == null || uri.getRawPath().isEmpty() ? "/" : uri.getRawPath();
+        this.path = uri.getRawQuery() == null ? rawPath : rawPath + "?" + uri.getRawQuery();
         this.subgraphName = subgraphName;
         this.headerCustomizer = headerCustomizer;
     }
 
+    /** A subgraph's HTTP response: its status and body (empty if it had none). */
+    private record HttpResponse(int status, byte[] body) {
+        boolean ok() {
+            return status >= 200 && status < 300;
+        }
+    }
+
+    /**
+     * Posts a JSON body to the subgraph.
+     *
+     * @param batch whether it is a variable batch, which accepts JSON lines
+     */
+    private Mono<HttpResponse> post(byte[] body, boolean batch, FeddiGatewayRequestContext context) {
+        return httpClient.post()
+            .uri(path)
+            .send((request, out) -> {
+                request.requestHeaders()
+                    .set(HttpHeaderNames.CONTENT_TYPE, JSON_TYPE)
+                    .set(HttpHeaderNames.ACCEPT, batch ? BATCH_ACCEPT : JSON_TYPE);
+                applyHeaders(request.requestHeaders(), context);
+                return out.send(Mono.just(Unpooled.wrappedBuffer(body)));
+            })
+            .responseSingle((response, content) -> content.asByteArray()
+                .defaultIfEmpty(EMPTY)
+                .map(bytes -> new HttpResponse(response.status().code(), bytes)));
+    }
+
     @Override
     public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, FeddiGatewayRequestContext context) {
-        String query = OperationTexts.pretty(operation);
-
-        log.debug("[{}] Executing subgraph query: {}", subgraphName, query);
-        if (variables != null && !variables.isEmpty()) {
-            log.debug("[{}] Query variables: {}", subgraphName, variables);
+        if (log.isDebugEnabled()) {
+            log.debug("[{}] Executing subgraph query: {}", subgraphName, OperationTexts.pretty(operation));
+            if (variables != null && !variables.isEmpty()) {
+                log.debug("[{}] Query variables: {}", subgraphName, variables);
+            }
         }
 
-        Map<String, Object> requestBody = Map.of(
-            "query", query,
-            "variables", variables != null ? variables : Map.of()
-        );
-
-        return webClient.post()
-            .contentType(MediaType.APPLICATION_JSON)
-            .headers(headers -> applyHeaders(headers, context))
-            .bodyValue(requestBody)
-            .exchangeToMono(response -> {
-                if (response.statusCode().is2xxSuccessful()) {
-                    return response.bodyToMono(Map.class)
-                        .doOnNext(body -> {
-                            @SuppressWarnings("unchecked")
-                            List<Map<String, Object>> errors = (List<Map<String, Object>>) body.get("errors");
-                            if (errors != null && !errors.isEmpty()) {
-                                log.info("[{}] Subgraph returned {} GraphQL error(s)", subgraphName, errors.size());
-                                for (Map<String, Object> error : errors) {
-                                    log.info("[{}] Subgraph error: {}", subgraphName, error.get("message"));
-                                }
-                            } else {
-                                log.debug("[{}] Subgraph call successful", subgraphName);
-                            }
-                        })
-                        .map(body -> buildExecutionResult(body))
-                        .defaultIfEmpty(emptyResult());
-                } else {
-                    log.warn("[{}] Subgraph returned HTTP error: {}", subgraphName, response.statusCode());
-                    return response.bodyToMono(Map.class)
-                        .doOnNext(body -> log.warn("[{}] Error response body: {}", subgraphName, body))
-                        .<ExecutionResult>flatMap(body -> {
-                            String errorMsg = extractErrorMessage(body);
-                            log.error("[{}] Subgraph call failed: {}", subgraphName, errorMsg);
-                            return Mono.error(new RuntimeException("Subgraph call failed: " + errorMsg));
-                        })
-                        .switchIfEmpty(Mono.defer(() -> {
-                            log.error("[{}] Subgraph call failed with empty body: {}", subgraphName, response.statusCode());
-                            return Mono.error(new RuntimeException(
-                                "Subgraph call failed: " + response.statusCode()));
-                        }));
+        return post(OperationTexts.requestBody(operation, variables != null ? variables : Map.of()), false, context)
+            .flatMap(response -> {
+                if (response.body().length == 0) {
+                    if (response.ok()) {
+                        return Mono.just(emptyResult());
+                    }
+                    log.error("[{}] Subgraph call failed with empty body: {}", subgraphName, response.status());
+                    return Mono.error(new RuntimeException("Subgraph call failed: " + response.status()));
                 }
+                Map<String, Object> body;
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> object = JsonTreeReader.read(response.body()) instanceof Map<?, ?> map
+                        ? (Map<String, Object>) map : null;
+                    body = object;
+                } catch (IOException e) {
+                    if (response.ok()) {
+                        return Mono.error(new RuntimeException(
+                            "Subgraph " + subgraphName + " returned invalid JSON: " + e.getMessage(), e));
+                    }
+                    log.error("[{}] Subgraph call failed: {}", subgraphName, response.status());
+                    return Mono.error(new RuntimeException("Subgraph call failed: " + response.status()));
+                }
+                if (body == null) {
+                    return Mono.error(new RuntimeException(
+                        "Subgraph " + subgraphName + " returned no JSON object: " + response.status()));
+                }
+                if (!response.ok()) {
+                    log.warn("[{}] Subgraph returned HTTP error: {}", subgraphName, response.status());
+                    log.warn("[{}] Error response body: {}", subgraphName, body);
+                    String errorMsg = extractErrorMessage(body);
+                    log.error("[{}] Subgraph call failed: {}", subgraphName, errorMsg);
+                    return Mono.error(new RuntimeException("Subgraph call failed: " + errorMsg));
+                }
+                logErrors(body);
+                return Mono.just(buildExecutionResult(body));
             })
-            .doOnError(e -> log.error("[{}] Subgraph call exception: {}", subgraphName, e.getMessage(), e));
+            .doOnError(e -> log.error("[{}] Subgraph call exception: {}", subgraphName, e.getMessage(), e))
+            .contextWrite(CACHE_CONTEXT);
+    }
+
+    private void logErrors(Map<String, Object> body) {
+        if (body.get("errors") instanceof List<?> errors && !errors.isEmpty()) {
+            log.info("[{}] Subgraph returned {} GraphQL error(s)", subgraphName, errors.size());
+            for (Object error : errors) {
+                log.info("[{}] Subgraph error: {}", subgraphName,
+                    error instanceof Map<?, ?> map ? map.get("message") : error);
+            }
+        } else {
+            log.debug("[{}] Subgraph call successful", subgraphName);
+        }
     }
 
     /**
@@ -120,35 +176,30 @@ public class DefaultSubgraphClient implements SubgraphClient {
     public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
                                                     List<Map<String, Object>> variableSets,
                                                     FeddiGatewayRequestContext context) {
-        String query = OperationTexts.pretty(operation);
-        log.debug("[{}] Executing variable batch of {}: {}", subgraphName, variableSets.size(), query);
+        if (log.isDebugEnabled()) {
+            log.debug("[{}] Executing variable batch of {}: {}", subgraphName, variableSets.size(),
+                OperationTexts.pretty(operation));
+        }
 
-        Map<String, Object> requestBody = Map.of("query", query, "variables", variableSets);
-
-        return webClient.post()
-            .contentType(MediaType.APPLICATION_JSON)
-            .accept(JSONL, MediaType.APPLICATION_JSON)
-            .headers(headers -> applyHeaders(headers, context))
-            .bodyValue(requestBody)
-            .exchangeToMono(response -> response.bodyToMono(byte[].class)
-                .defaultIfEmpty(EMPTY)
-                .flatMap(body -> {
-                    if (!response.statusCode().is2xxSuccessful()) {
-                        log.warn("[{}] Variable batch returned HTTP {}: {}", subgraphName, response.statusCode(),
-                            new String(body, StandardCharsets.UTF_8));
-                        return Mono.error(new RuntimeException(
-                            "Subgraph variable batch failed: " + response.statusCode()));
-                    }
-                    try {
-                        return Mono.just(parseBatchResponse(body, variableSets.size()).stream()
-                            .map(this::buildExecutionResult)
-                            .toList());
-                    } catch (IllegalArgumentException e) {
-                        return Mono.error(new RuntimeException(
-                            "Subgraph " + subgraphName + " returned an invalid variable batch response: " + e.getMessage(), e));
-                    }
-                }))
-            .doOnError(e -> log.error("[{}] Variable batch exception: {}", subgraphName, e.getMessage(), e));
+        return post(OperationTexts.requestBody(operation, variableSets), true, context)
+            .flatMap(response -> {
+                if (!response.ok()) {
+                    log.warn("[{}] Variable batch returned HTTP {}: {}", subgraphName, response.status(),
+                        new String(response.body(), StandardCharsets.UTF_8));
+                    return Mono.error(new RuntimeException(
+                        "Subgraph variable batch failed: " + response.status()));
+                }
+                try {
+                    return Mono.just(parseBatchResponse(response.body(), variableSets.size()).stream()
+                        .map(this::buildExecutionResult)
+                        .toList());
+                } catch (IllegalArgumentException e) {
+                    return Mono.error(new RuntimeException(
+                        "Subgraph " + subgraphName + " returned an invalid variable batch response: " + e.getMessage(), e));
+                }
+            })
+            .doOnError(e -> log.error("[{}] Variable batch exception: {}", subgraphName, e.getMessage(), e))
+            .contextWrite(CACHE_CONTEXT);
     }
 
     /**
@@ -168,28 +219,29 @@ public class DefaultSubgraphClient implements SubgraphClient {
             "query", "query ($" + PROBE_VARIABLE + ": Boolean!) { " + IntrospectionFields.TYPENAME
                 + " @" + Directives.IncludeDirective.getName() + "(if: $" + PROBE_VARIABLE + ") }",
             "variables", List.of(Map.of(PROBE_VARIABLE, true), Map.of(PROBE_VARIABLE, true)));
-        return webClient.post()
-            .contentType(MediaType.APPLICATION_JSON)
-            .accept(JSONL, MediaType.APPLICATION_JSON)
-            // Not a client request: only the customizer's headers (e.g. internal auth) apply.
-            .headers(headers -> applyHeaders(headers, FeddiGatewayRequestContext.empty()))
-            .bodyValue(requestBody)
-            .exchangeToMono(response -> response.bodyToMono(byte[].class)
-                .defaultIfEmpty(EMPTY)
-                .flatMap(body -> {
-                    int status = response.statusCode().value();
-                    if (isInconclusiveProbeStatus(status)) {
-                        return Mono.error(new IllegalStateException("probe returned HTTP " + status));
-                    }
-                    if (!response.statusCode().is2xxSuccessful()) {
-                        return Mono.just(false);
-                    }
-                    try {
-                        return Mono.just(parseBatchResponse(body, 2).stream().allMatch(r -> r.get("data") != null));
-                    } catch (IllegalArgumentException e) {
-                        return Mono.just(false);
-                    }
-                }));
+        byte[] body;
+        try {
+            body = JSON.writeValueAsBytes(requestBody);
+        } catch (JsonProcessingException e) {
+            return Mono.error(e);
+        }
+        // Not a client request: only the customizer's headers (e.g. internal auth) apply.
+        return post(body, true, FeddiGatewayRequestContext.empty())
+            .flatMap(response -> {
+                int status = response.status();
+                if (isInconclusiveProbeStatus(status)) {
+                    return Mono.error(new IllegalStateException("probe returned HTTP " + status));
+                }
+                if (!response.ok()) {
+                    return Mono.just(false);
+                }
+                try {
+                    return Mono.just(parseBatchResponse(response.body(), 2).stream()
+                        .allMatch(r -> r.get("data") != null));
+                } catch (IllegalArgumentException e) {
+                    return Mono.just(false);
+                }
+            });
     }
 
     private static boolean isInconclusiveProbeStatus(int status) {
@@ -200,11 +252,11 @@ public class DefaultSubgraphClient implements SubgraphClient {
      * Forwards Authorization and User-Agent from the gateway request, then lets the optional
      * {@link SubgraphRequestHeaderCustomizer} add or override headers.
      */
-    private void applyHeaders(HttpHeaders headers, FeddiGatewayRequestContext context) {
-        context.requestHeader("authorization").ifPresent(v -> headers.set("Authorization", v));
-        context.requestHeader("user-agent").ifPresent(v -> headers.set("User-Agent", v));
+    private void applyHeaders(io.netty.handler.codec.http.HttpHeaders headers, FeddiGatewayRequestContext context) {
+        context.requestHeader("authorization").ifPresent(v -> headers.set(HttpHeaderNames.AUTHORIZATION, v));
+        context.requestHeader("user-agent").ifPresent(v -> headers.set(HttpHeaderNames.USER_AGENT, v));
         if (headerCustomizer != null) {
-            headerCustomizer.customize(headers, subgraphName, context);
+            headerCustomizer.customize(new HttpHeaders(new Netty4HeadersAdapter(headers)), subgraphName, context);
         }
     }
 
@@ -228,18 +280,22 @@ public class DefaultSubgraphClient implements SubgraphClient {
         List<Map<String, Object>> responses = new ArrayList<>(expected);
         try {
             if (startsWithArray(body)) {
-                responses.addAll(JSON.readValue(body, LIST_OF_MAPS));
+                if (!(JsonTreeReader.read(body) instanceof List<?> array)) {
+                    throw new IllegalArgumentException("not a JSON array");
+                }
+                for (Object item : array) {
+                    responses.add(asObject(item));
+                }
             } else {
+                @SuppressWarnings("unchecked")
                 Map<String, Object>[] ordered = new Map[expected];
-                try (MappingIterator<Map<String, Object>> lines = MAP_READER.readValues(body)) {
-                    while (lines.hasNextValue()) {
-                        Map<String, Object> response = lines.nextValue();
-                        Object index = response.get("variableIndex");
-                        if (!(index instanceof Number number) || number.intValue() < 0 || number.intValue() >= expected) {
-                            throw new IllegalArgumentException("missing or invalid variableIndex: " + index);
-                        }
-                        ordered[number.intValue()] = response;
+                for (Object line : JsonTreeReader.readSequence(body)) {
+                    Map<String, Object> response = asObject(line);
+                    Object index = response.get("variableIndex");
+                    if (!(index instanceof Number number) || number.intValue() < 0 || number.intValue() >= expected) {
+                        throw new IllegalArgumentException("missing or invalid variableIndex: " + index);
                     }
+                    ordered[number.intValue()] = response;
                 }
                 for (Map<String, Object> response : ordered) {
                     if (response == null) {
@@ -257,6 +313,14 @@ public class DefaultSubgraphClient implements SubgraphClient {
             throw new IllegalArgumentException("expected " + expected + " results, got " + responses.size());
         }
         return responses;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> asObject(Object value) {
+        if (!(value instanceof Map<?, ?> map)) {
+            throw new IllegalArgumentException("not a JSON object: " + value);
+        }
+        return (Map<String, Object>) map;
     }
 
     private static boolean startsWithArray(byte[] body) {
@@ -279,22 +343,29 @@ public class DefaultSubgraphClient implements SubgraphClient {
         }
 
         if (errors instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> errorList = (List<Map<String, Object>>) errors;
-            for (Map<String, Object> error : errorList) {
-                String message = error.get("message") != null ? error.get("message").toString() : "Unknown error";
-
-                @SuppressWarnings("unchecked")
-                List<Object> path = (List<Object>) error.get("path");
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> extensions = (Map<String, Object>) error.get("extensions");
-
-                builder.addError(new SubgraphError(message, path, extensions));
+            // Errors are compared and logged as strings
+            for (Object error : (List<?>) RawString.decodeAll(errors)) {
+                builder.addError(subgraphError(error));
             }
         }
 
         return builder.build();
+    }
+
+    /**
+     * A subgraph's error as a GraphQL error. An entry that is no error (not an object with a message string) is
+     * reported as an invalid error of the subgraph, with its path if it has a valid one.
+     */
+    @SuppressWarnings("unchecked")
+    private SubgraphError subgraphError(Object error) {
+        Map<?, ?> map = error instanceof Map<?, ?> m ? m : Map.of();
+        List<Object> path = map.get("path") instanceof List<?> list ? (List<Object>) list : null;
+        if (!(map.get("message") instanceof String message)) {
+            return new SubgraphError("Subgraph " + subgraphName + " returned an invalid error: "
+                + JSON.valueToTree(error), path, null);
+        }
+        Map<String, Object> extensions = map.get("extensions") instanceof Map<?, ?> ext ? (Map<String, Object>) ext : null;
+        return new SubgraphError(message, path, extensions);
     }
 
     private String extractErrorMessage(Map<?, ?> body) {

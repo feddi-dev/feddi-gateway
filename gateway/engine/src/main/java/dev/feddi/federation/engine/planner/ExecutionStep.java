@@ -81,7 +81,8 @@ public record ExecutionStep(
     }
 
     public ExecutionStep {
-        entityPath = entityPath == null ? null : List.copyOf(entityPath);
+        // Interned like the field names of parsed responses, so lookups along the path match by reference
+        entityPath = entityPath == null ? null : entityPath.stream().map(String::intern).toList();
         entityTypes = entityTypes == null ? Set.of() : Set.copyOf(entityTypes);
         entityPathTypes = entityPathTypes == null ? Map.of() : Map.copyOf(entityPathTypes);
         possibleTypes = possibleTypes == null ? Map.of() : Map.copyOf(possibleTypes);
@@ -96,7 +97,9 @@ public record ExecutionStep(
         }
         dependsOn = dependsOn == null ? List.of() : List.copyOf(dependsOn);
         parallelWith = parallelWith == null ? List.of() : List.copyOf(parallelWith);
-        requirements = requirements == null ? Map.of() : Map.copyOf(requirements);
+        // Variable names interned like the parsed names they are looked up with
+        requirements = requirements == null ? Map.of() : requirements.entrySet().stream()
+            .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().intern(), Map.Entry::getValue));
         artificialFieldPaths = artificialFieldPaths == null ? Set.of() : Set.copyOf(artificialFieldPaths);
         requestedFieldPaths = requestedFieldPaths == null ? Set.of() : Set.copyOf(requestedFieldPaths);
     }
@@ -109,6 +112,12 @@ public record ExecutionStep(
 
     /** This step, running in parallel with other steps. */
     public ExecutionStep withParallelWith(List<Integer> parallelWith) {
+        return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
+            artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, possibleTypes);
+    }
+
+    /** This step with another operation and artificial field paths (for merged lookups). */
+    public ExecutionStep withOperation(OperationDefinition operation, Set<String> artificialFieldPaths) {
         return new ExecutionStep(id, subgraph, operation, dependsOn, parallelWith, requirements, repeatedExecution,
             artificialFieldPaths, requestedFieldPaths, entityPath, entityTypes, entityPathTypes, possibleTypes);
     }

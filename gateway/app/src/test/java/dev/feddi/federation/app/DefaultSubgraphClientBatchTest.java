@@ -3,6 +3,7 @@ package dev.feddi.federation.app;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.feddi.federation.engine.executor.BatchingOptions;
 import dev.feddi.federation.engine.executor.BatchingOptions.Mode;
+import dev.feddi.federation.engine.executor.RawString;
 import dev.feddi.federation.extension.FeddiGatewayDefinition;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.FeddiGatewaySettings;
@@ -18,7 +19,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
@@ -60,7 +61,7 @@ class DefaultSubgraphClientBatchTest {
         List<ExecutionResult> results = client().executeBatch(LOOKUP,
             List.of(Map.of("id", "1"), Map.of("id", "2")), FeddiGatewayRequestContext.empty()).block();
 
-        assertThat(results).extracting(r -> (Object) r.getData()).containsExactly(
+        assertThat(results).extracting(r -> RawString.decodeAll(r.getData())).containsExactly(
             Map.of("user", Map.of("name", "Ann")), Map.of("user", Map.of("name", "Bob")));
         assertThat(requests).singleElement()
             .satisfies(r -> assertThat(r.get("variables")).isEqualTo(List.of(Map.of("id", "1"), Map.of("id", "2"))));
@@ -257,7 +258,7 @@ class DefaultSubgraphClientBatchTest {
     }
 
     private static FeddiGatewayReloadService reloadService(FeddiGatewayHolder holder) {
-        return new FeddiGatewayReloadService(holder, new DefaultSubgraphClientFactory(WebClient.builder(), null),
+        return new FeddiGatewayReloadService(holder, new DefaultSubgraphClientFactory(HttpClient.create(), null),
             new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
     }
 
@@ -308,6 +309,6 @@ class DefaultSubgraphClientBatchTest {
     }
 
     private DefaultSubgraphClient client(SubgraphRequestHeaderCustomizer customizer) {
-        return new DefaultSubgraphClient(WebClient.builder().baseUrl(url()).build(), "accounts", customizer);
+        return new DefaultSubgraphClient(HttpClient.create(), url(), "accounts", customizer);
     }
 }

@@ -246,6 +246,7 @@ The distribution launcher script supports these environment variables:
 | `FEDDI_GATEWAY_JAVA_HOME` | Java installation to use for the feddi Gateway; takes precedence over `JAVA_HOME` |
 | `JAVA_HOME`               | Fallback Java installation if `FEDDI_GATEWAY_JAVA_HOME` is not set                 |
 | `JAVA_OPTS`               | Extra JVM options appended to the launch command                                   |
+| `FEDDI_GATEWAY_JVM_OPTS`  | JVM options that replace the launcher's defaults (e.g. another garbage collector)  |
 
 The launcher requires Java 25 or later.
 

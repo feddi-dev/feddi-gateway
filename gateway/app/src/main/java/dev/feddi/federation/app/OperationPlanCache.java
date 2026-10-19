@@ -1,5 +1,6 @@
 package dev.feddi.federation.app;
 
+import dev.feddi.federation.engine.executor.ResponseShape;
 import dev.feddi.federation.engine.planner.ExecutionPlan;
 import graphql.language.Document;
 import graphql.language.OperationDefinition;
@@ -38,13 +39,15 @@ final class OperationPlanCache {
 
     /**
      * A prepared operation: the normalized document (passed on to usage reporting), the operation
-     * in it (its selection set orders the response fields) and its plan.
+     * in it, its plan and the shape of its response (field order and types, for writing the response).
      */
-    record PreparedOperation(Document document, OperationDefinition operation, ExecutionPlan plan) {
+    record PreparedOperation(Document document, OperationDefinition operation, ExecutionPlan plan,
+                             ResponseShape shape) {
         PreparedOperation {
             Objects.requireNonNull(document, "document");
             Objects.requireNonNull(operation, "operation");
             Objects.requireNonNull(plan, "plan");
+            Objects.requireNonNull(shape, "shape");
         }
     }
 

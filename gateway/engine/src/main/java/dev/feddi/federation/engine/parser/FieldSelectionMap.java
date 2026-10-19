@@ -195,6 +195,8 @@ public final class FieldSelectionMap {
      */
     public record PathSegment(String fieldName, String typeCondition, List<Argument> arguments) {
         public PathSegment {
+            // Interned like the field names of parsed responses, so the executor's lookups match by reference
+            fieldName = fieldName.intern();
             arguments = arguments == null ? List.of() : List.copyOf(arguments);
         }
 

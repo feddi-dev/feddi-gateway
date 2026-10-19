@@ -1,5 +1,6 @@
 package dev.feddi.federation.engine.executor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.language.AstPrinter;
 import graphql.language.OperationDefinition;
 import graphql.parser.Parser;
@@ -51,5 +52,24 @@ class OperationTextsTest {
         assertThat(second.operation()).isSameAs(first.operation());
         assertThat(second.variables()).containsEntry("id_b0", "3").containsEntry("id_b1", "4");
         assertThat(larger.operation()).isNotSameAs(first.operation());
+    }
+
+    @Test
+    void requestBodyHasTheCompactQueryAndTheVariables() throws Exception {
+        OperationDefinition operation = (OperationDefinition) Parser.parse(
+            "query ($id: ID!) { product(id: $id) { name } }").getDefinitions().get(0);
+
+        Map<String, Object> single = parse(OperationTexts.requestBody(operation, Map.of("id", "1")));
+        Map<String, Object> batch = parse(
+            OperationTexts.requestBody(operation, List.of(Map.of("id", "1"), Map.of("id", "2"))));
+
+        assertThat(single).containsEntry("query", AstPrinter.printAstCompact(operation))
+            .containsEntry("variables", Map.of("id", "1"));
+        assertThat(batch.get("variables")).isEqualTo(List.of(Map.of("id", "1"), Map.of("id", "2")));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> parse(byte[] json) throws Exception {
+        return new ObjectMapper().readValue(json, Map.class);
     }
 }

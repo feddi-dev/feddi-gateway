@@ -4,7 +4,6 @@ import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,8 +34,8 @@ final class ResultCopies {
     @SuppressWarnings("unchecked")
     static <T> T deepCopy(T value) {
         if (value instanceof Map<?, ?> map) {
-            Map<Object, Object> copy = new LinkedHashMap<>(Math.max(4, map.size() * 2));
-            map.forEach((k, v) -> copy.put(k, deepCopy(v)));
+            CompactMap copy = new CompactMap(map.size());
+            map.forEach((k, v) -> copy.append((String) k, deepCopy(v)));
             return (T) copy;
         }
         if (value instanceof List<?> list) {

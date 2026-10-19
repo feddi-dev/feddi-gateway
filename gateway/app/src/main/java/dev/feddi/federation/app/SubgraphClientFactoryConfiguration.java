@@ -6,7 +6,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 
 /**
  * Configuration for SubgraphClientFactory beans.
@@ -26,8 +26,7 @@ public class SubgraphClientFactoryConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean(SubgraphClientFactory.class)
-    public SubgraphClientFactory subgraphClientFactory(WebClient.Builder webClientBuilder,
-                                                         @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
-        return new DefaultSubgraphClientFactory(webClientBuilder, headerCustomizer);
+    public SubgraphClientFactory subgraphClientFactory(@Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
+        return new DefaultSubgraphClientFactory(HttpClient.create(), headerCustomizer);
     }
 }

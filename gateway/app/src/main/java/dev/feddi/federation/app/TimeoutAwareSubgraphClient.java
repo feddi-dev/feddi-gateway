@@ -32,6 +32,8 @@ public class TimeoutAwareSubgraphClient implements SubgraphClient {
     @Override
     public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables, FeddiGatewayRequestContext context) {
         return delegate.execute(operation, variables, context)
+            // Named so that timeout() does not derive a description from the operator chain on every call
+            .name(subgraphName)
             .timeout(timeout)
             .onErrorMap(TimeoutException.class,
                 e -> new SubgraphTimeoutException(subgraphName, timeout, e));
@@ -42,6 +44,8 @@ public class TimeoutAwareSubgraphClient implements SubgraphClient {
                                                     List<Map<String, Object>> variableSets,
                                                     FeddiGatewayRequestContext context) {
         return delegate.executeBatch(operation, variableSets, context)
+            // Named so that timeout() does not derive a description from the operator chain on every call
+            .name(subgraphName)
             .timeout(timeout)
             .onErrorMap(TimeoutException.class,
                 e -> new SubgraphTimeoutException(subgraphName, timeout, e));
