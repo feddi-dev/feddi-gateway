@@ -7,12 +7,14 @@ import dev.feddi.federation.engine.executor.JsonTreeReader;
 import dev.feddi.federation.engine.executor.OperationTexts;
 import dev.feddi.federation.engine.executor.RawString;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
+import dev.feddi.federation.extension.FeddiGatewaySettings;
 import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
 import graphql.Directives;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
 import graphql.language.OperationDefinition;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import org.jspecify.annotations.Nullable;
@@ -20,7 +22,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.support.Netty4HeadersAdapter;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.netty.ByteBufFlux;
 import reactor.netty.http.client.HttpClient;
 import reactor.util.context.Context;
 
@@ -59,9 +63,23 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private final String path;
     private final String subgraphName;
     private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
+    /** The largest response body read, in bytes. */
+    private final long maxResponseBytes;
 
     public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
                                   @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
+        this(httpClient, url, subgraphName, headerCustomizer, FeddiGatewaySettings.DEFAULT_MAX_RESPONSE_BYTES);
+    }
+
+    /**
+     * @param maxResponseBytes the largest response body read, in bytes: a larger response fails the call
+     */
+    public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
+                                  @Nullable SubgraphRequestHeaderCustomizer headerCustomizer, long maxResponseBytes) {
+        if (maxResponseBytes <= 0) {
+            throw new IllegalArgumentException("maxResponseBytes must be positive: " + maxResponseBytes);
+        }
+        this.maxResponseBytes = maxResponseBytes;
         // Configured once: with an absolute URL, Reactor Netty parses it with a regular expression on every request
         URI uri = URI.create(url);
         if (uri.getHost() == null || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))) {
@@ -100,9 +118,49 @@ public class DefaultSubgraphClient implements SubgraphClient {
                 applyHeaders(request.requestHeaders(), context);
                 return out.send(Mono.just(Unpooled.wrappedBuffer(body)));
             })
-            .responseSingle((response, content) -> content.asByteArray()
-                .defaultIfEmpty(EMPTY)
-                .map(bytes -> new HttpResponse(response.status().code(), bytes)));
+            .response((response, content) -> {
+                // A declared length is checked up front (Netty reads no more than it); a body without one is
+                // counted while it arrives
+                long declared = response.responseHeaders().getInt(HttpHeaderNames.CONTENT_LENGTH, -1);
+                if (declared > maxResponseBytes) {
+                    return Mono.error(tooLarge());
+                }
+                ByteBufFlux received = declared >= 0 ? content : ByteBufFlux.fromInbound(limited(content));
+                return received.aggregate().asByteArray()
+                    .defaultIfEmpty(EMPTY)
+                    .map(bytes -> new HttpResponse(response.status().code(), bytes));
+            })
+            .single();
+    }
+
+    /** A body that fails once more than {@link #maxResponseBytes} have arrived. */
+    private Flux<ByteBuf> limited(ByteBufFlux content) {
+        long[] received = {0};
+        return content.handle((buffer, sink) -> {
+            received[0] += buffer.readableBytes();
+            if (received[0] > maxResponseBytes) {
+                sink.error(tooLarge());
+            } else {
+                sink.next(buffer);
+            }
+        });
+    }
+
+    private SubgraphResponseTooLargeException tooLarge() {
+        return new SubgraphResponseTooLargeException(subgraphName, maxResponseBytes);
+    }
+
+    /** A subgraph response larger than the configured {@code maxResponseBytes}. */
+    static final class SubgraphResponseTooLargeException extends RuntimeException {
+        SubgraphResponseTooLargeException(String subgraph, long maxResponseBytes) {
+            super("Subgraph " + subgraph + " returned more than " + size(maxResponseBytes)
+                + " (maxResponseBytes)");
+        }
+
+        private static String size(long bytes) {
+            long mib = 1024 * 1024;
+            return bytes % mib == 0 ? bytes / mib + " MB" : bytes + " bytes";
+        }
     }
 
     @Override

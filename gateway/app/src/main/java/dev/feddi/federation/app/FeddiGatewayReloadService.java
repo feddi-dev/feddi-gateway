@@ -18,6 +18,7 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +27,9 @@ import java.util.Map;
  */
 @Service
 public class FeddiGatewayReloadService {
+
+    /** The subgraph config key for the largest response body read, in bytes. */
+    static final String MAX_RESPONSE_BYTES = "maxResponseBytes";
 
     private final FeddiGatewayHolder gatewayHolder;
     private static final Logger log = LoggerFactory.getLogger(FeddiGatewayReloadService.class);
@@ -99,6 +103,11 @@ public class FeddiGatewayReloadService {
         Map<String, BatchingOptions> batching = new HashMap<>();
         Map<String, DefaultSubgraphClient> variableBatchingClients = new HashMap<>();
         Duration timeout = gatewayDefinition.gatewaySettings().timeout();
+        long responseLimit = gatewayDefinition.gatewaySettings().responseLimit();
+        if (responseLimit <= 0) {
+            throw new FeddiGatewayDefinitionException(
+                "Invalid maxResponseBytes: " + responseLimit + " (expected a positive number of bytes)");
+        }
 
         for (Map.Entry<String, SubgraphDefinition> entry : gatewayDefinition.subgraphs().entrySet()) {
             String name = entry.getKey();
@@ -116,7 +125,7 @@ public class FeddiGatewayReloadService {
                     "Invalid batching config for subgraph " + name + ": " + e.getMessage(), e);
             }
 
-            SubgraphClient baseClient = clientFactory.create(name, settings);
+            SubgraphClient baseClient = clientFactory.create(name, withResponseLimit(name, settings, responseLimit));
             if (batching.get(name).mode() == BatchingOptions.Mode.VARIABLES) {
                 if (baseClient instanceof DefaultSubgraphClient defaultClient) {
                     variableBatchingClients.put(name, defaultClient);
@@ -164,6 +173,26 @@ public class FeddiGatewayReloadService {
                 .map(unsupported -> entry.getKey()))
             .sort()
             .collectList();
+    }
+
+    /**
+     * The subgraph's settings with its effective {@code maxResponseBytes}: its own if it has one, the gateway's
+     * otherwise, so that client factories find it in the subgraph's config.
+     */
+    private static SubgraphSettings withResponseLimit(String name, SubgraphSettings settings, long gatewayLimit) {
+        Object value = settings.config().get(MAX_RESPONSE_BYTES);
+        long limit = gatewayLimit;
+        if (value != null) {
+            if (!(value instanceof Number number) || number.longValue() <= 0
+                || number.doubleValue() != number.longValue()) {
+                throw new FeddiGatewayDefinitionException("Invalid maxResponseBytes for subgraph " + name + ": "
+                    + value + " (expected a positive number of bytes)");
+            }
+            limit = number.longValue();
+        }
+        Map<String, Object> config = new LinkedHashMap<>(settings.config());
+        config.put(MAX_RESPONSE_BYTES, limit);
+        return new SubgraphSettings(config);
     }
 
     private void validateSubgraph(String name, SubgraphDefinition subgraphDefinition) {

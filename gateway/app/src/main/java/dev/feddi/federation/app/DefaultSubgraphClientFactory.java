@@ -1,6 +1,7 @@
 package dev.feddi.federation.app;
 
 import dev.feddi.federation.extension.SubgraphClient;
+import dev.feddi.federation.extension.FeddiGatewaySettings;
 import dev.feddi.federation.extension.SubgraphClientFactory;
 import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
 import dev.feddi.federation.extension.SubgraphSettings;
@@ -29,6 +30,8 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
     @Override
     public SubgraphClient create(String subgraphName, SubgraphSettings settings) {
         String url = settings.config().get("url").toString();
-        return new DefaultSubgraphClient(httpClient, url, subgraphName, headerCustomizer);
+        long maxResponseBytes = settings.config().get(FeddiGatewayReloadService.MAX_RESPONSE_BYTES) instanceof Number limit
+            ? limit.longValue() : FeddiGatewaySettings.DEFAULT_MAX_RESPONSE_BYTES;
+        return new DefaultSubgraphClient(httpClient, url, subgraphName, headerCustomizer, maxResponseBytes);
     }
 }

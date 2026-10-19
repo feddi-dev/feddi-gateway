@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.client.HttpClient;
@@ -145,6 +146,42 @@ class DefaultSubgraphClientTest {
     }
 
     @Test
+    void readsResponsesUpToTheLimit() {
+        String body = "{\"data\":{\"user\":{\"name\":\"" + "a".repeat(100) + "\"}}}";
+        for (boolean chunked : new boolean[] {false, true}) {
+            start(200, body, chunked);
+            assertThat(client(url(), body.length()).execute(QUERY, Map.of(), FeddiGatewayRequestContext.empty())
+                .block().getErrors()).as("chunked: %s", chunked).isEmpty();
+            server.disposeNow();
+        }
+    }
+
+    @Test
+    void failsResponsesOverTheLimit() {
+        String body = "{\"data\":{\"user\":{\"name\":\"" + "a".repeat(100) + "\"}}}";
+        for (boolean chunked : new boolean[] {false, true}) {
+            start(200, body, chunked);
+            assertThatThrownBy(() -> client(url(), body.length() - 1)
+                .execute(QUERY, Map.of(), FeddiGatewayRequestContext.empty()).block())
+                .as("chunked: %s", chunked)
+                .hasMessage("Subgraph accounts returned more than " + (body.length() - 1)
+                    + " bytes (maxResponseBytes)");
+            server.disposeNow();
+        }
+        start(200, "x".repeat(2 * 1024 * 1024 + 1), true);
+        assertThatThrownBy(() -> client(url(), 2L * 1024 * 1024)
+            .execute(QUERY, Map.of(), FeddiGatewayRequestContext.empty()).block())
+            .hasMessage("Subgraph accounts returned more than 2 MB (maxResponseBytes)");
+    }
+
+    @Test
+    void rejectsLimitsThatAreNotPositive() {
+        assertThatThrownBy(() -> client("http://localhost/graphql", 0))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("maxResponseBytes");
+    }
+
+    @Test
     void sendsThePathAndQueryOfTheUrl() {
         start(200, "{\"data\":{}}");
 
@@ -176,13 +213,20 @@ class DefaultSubgraphClientTest {
     }
 
     private void start(int status, String body) {
+        start(status, body, false);
+    }
+
+    /** A server answering with the body, in two chunks without a length if chunked. */
+    private void start(int status, String body, boolean chunked) {
         server = HttpServer.create().port(0)
             .handle((request, response) -> {
                 requestUris.add(request.uri());
                 return request.receive().aggregate().asString().defaultIfEmpty("")
                     .flatMap(received -> response.status(HttpResponseStatus.valueOf(status))
                         .header("Content-Type", "application/json")
-                        .sendString(body.isEmpty() ? Mono.empty() : Mono.just(body))
+                        .sendString(body.isEmpty() ? Mono.empty() : chunked
+                            ? Flux.just(body.substring(0, body.length() / 2), body.substring(body.length() / 2))
+                            : Mono.just(body))
                         .then());
             })
             .bindNow();
@@ -194,5 +238,9 @@ class DefaultSubgraphClientTest {
 
     private static DefaultSubgraphClient client(String url) {
         return new DefaultSubgraphClient(HttpClient.create(), url, "accounts", null);
+    }
+
+    private static DefaultSubgraphClient client(String url, long maxResponseBytes) {
+        return new DefaultSubgraphClient(HttpClient.create(), url, "accounts", null, maxResponseBytes);
     }
 }
