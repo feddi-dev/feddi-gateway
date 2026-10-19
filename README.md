@@ -221,21 +221,33 @@ feddi Gateway-level ZIP config keys in the optional root `config.yaml` or `confi
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `timeoutMs` | long | `30000` | Per-subgraph request timeout in milliseconds |
+| `maxResponseBytes` | long | `8388608` (8 MB) | Largest subgraph response body read, in bytes; a larger response fails that subgraph call |
 
 Per-subgraph keys in each required `config.yaml` or `config.yml`:
 
 | Key | Type | Default | Required | Meaning |
 | --- | --- | --- | --- | --- |
 | `url` | string | none | yes | GraphQL HTTP endpoint used by the default subgraph client |
+| `batching` | string | `none` | no | How entity lookups are batched: `none`, `alias` or `variables` |
+| `batch-max-size` | int | `64` | no | Most entities per batch |
+| `maxResponseBytes` | long | the root `config.yaml`'s | no | Overrides the gateway's `maxResponseBytes` for this subgraph |
+| `sslBundle` | string | none | no | Name of a Spring Boot SSL bundle (`spring.ssl.bundle.*`) for this subgraph's TLS connections (`https` URL) |
 
 Each subgraph entry must contain:
 
 - `schema.graphqls`
 - `config.yaml` or `config.yml`
 
-For the built-in subgraph client, `url` is the only consumed subgraph config key. Extension-provided `SubgraphClientFactory` implementations can read additional keys from the same per-subgraph config map.
+Extension-provided `SubgraphClientFactory` implementations can read additional keys from the same per-subgraph config map; it also holds each subgraph's effective `maxResponseBytes`.
 
-If a `SubgraphRequestHeaderCustomizer` bean is registered, `DefaultSubgraphClient` calls it after forwarding the built-in `Authorization`/`User-Agent` headers, so it can add new headers or override forwarded ones.
+### Subgraph HTTP Calls
+
+The built-in subgraph client calls subgraphs with Reactor Netty's `HttpClient` (not Spring's `WebClient`, whose per-call overhead costs throughput), so `WebClientCustomizer` beans do not apply. What can be customized:
+
+- **Headers**: if a `SubgraphRequestHeaderCustomizer` bean is registered, `DefaultSubgraphClient` calls it after forwarding the built-in `Authorization`/`User-Agent` headers, so it can add new headers or override forwarded ones.
+- **TLS** (mTLS, a private certificate authority, protocols, ciphers): define a Spring Boot SSL bundle, e.g. `spring.ssl.bundle.pem.subgraphs.truststore.certificate=classpath:ca.pem`, and name it in the subgraph's `sslBundle`. An unknown or unusable bundle rejects the definition.
+- **Response size**: `maxResponseBytes` (see above). The error names the subgraph, the limit and the setting.
+- **Anything else** (a proxy, retries, another HTTP client): register your own `SubgraphClientFactory` bean; it replaces the built-in one.
 
 ### Launcher Environment Variables
 
