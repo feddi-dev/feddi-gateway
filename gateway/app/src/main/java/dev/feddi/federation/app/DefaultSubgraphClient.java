@@ -40,7 +40,7 @@ import java.util.function.Function;
 /**
  * Default SubgraphClient implementation: GraphQL over HTTP with Reactor Netty's {@link HttpClient}, request bodies
  * written as JSON bytes and responses read from bytes.
- * Forwards Authorization and User-Agent headers from the gateway request context, then
+ * Forwards Authorization, User-Agent and the W3C Trace Context headers from the gateway request context, then
  * gives an optional {@link SubgraphRequestHeaderCustomizer} bean a chance to add or
  * override headers.
  */
@@ -53,6 +53,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final byte[] EMPTY = new byte[0];
     private static final String PROBE_VARIABLE = "probe";
+    private static final String TRACEPARENT = "traceparent";
+    private static final String TRACESTATE = "tracestate";
     /**
      * Caches the subscriber context at the end of a subgraph call. Reactor Netty reads the context several times per
      * request, and each read walks up the whole chain of the gateway's operators otherwise.
@@ -323,12 +325,16 @@ public class DefaultSubgraphClient implements SubgraphClient {
     }
 
     /**
-     * Forwards Authorization and User-Agent from the gateway request, then lets the optional
+     * Forwards Authorization, User-Agent and the W3C Trace Context headers (traceparent, tracestate) from the
+     * gateway request, then lets the optional
      * {@link SubgraphRequestHeaderCustomizer} add or override headers.
      */
     private void applyHeaders(io.netty.handler.codec.http.HttpHeaders headers, FeddiGatewayRequestContext context) {
         context.requestHeader("authorization").ifPresent(v -> headers.set(HttpHeaderNames.AUTHORIZATION, v));
         context.requestHeader("user-agent").ifPresent(v -> headers.set(HttpHeaderNames.USER_AGENT, v));
+        // W3C Trace Context: the subgraphs' spans join the client's trace
+        context.requestHeader(TRACEPARENT).ifPresent(v -> headers.set(TRACEPARENT, v));
+        context.requestHeader(TRACESTATE).ifPresent(v -> headers.set(TRACESTATE, v));
         if (headerCustomizer != null) {
             headerCustomizer.customize(new HttpHeaders(new Netty4HeadersAdapter(headers)), subgraphName, context);
         }

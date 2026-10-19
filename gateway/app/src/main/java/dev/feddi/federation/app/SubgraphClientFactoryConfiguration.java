@@ -8,7 +8,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.ssl.SslBundles;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import reactor.netty.http.client.HttpClient;
 
 /**
  * Configuration for SubgraphClientFactory beans.
@@ -30,6 +29,6 @@ public class SubgraphClientFactoryConfiguration {
     @ConditionalOnMissingBean(SubgraphClientFactory.class)
     public SubgraphClientFactory subgraphClientFactory(@Nullable SubgraphRequestHeaderCustomizer headerCustomizer,
                                                          ObjectProvider<SslBundles> sslBundles) {
-        return new DefaultSubgraphClientFactory(HttpClient.create(), headerCustomizer, sslBundles.getIfAvailable());
+        return new DefaultSubgraphClientFactory(headerCustomizer, sslBundles.getIfAvailable());
     }
 }

@@ -6,6 +6,7 @@ import dev.feddi.federation.extension.SubgraphClientFactory;
 import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
 import dev.feddi.federation.extension.SubgraphSettings;
 import io.netty.buffer.UnpooledByteBufAllocator;
+import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.util.ReferenceCountUtil;
@@ -15,9 +16,13 @@ import org.springframework.boot.ssl.SslBundle;
 import org.springframework.boot.ssl.SslBundles;
 import org.springframework.boot.ssl.SslOptions;
 import reactor.netty.http.client.HttpClient;
+import reactor.netty.resources.ConnectionProvider;
 
 import javax.net.ssl.SSLException;
+import java.time.Duration;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Default factory for creating DefaultSubgraphClient instances.
@@ -32,32 +37,60 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
     /** The subgraph config key naming a Spring Boot SSL bundle for the subgraph's TLS connections. */
     static final String SSL_BUNDLE = "sslBundle";
 
-    private final HttpClient httpClient;
     private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
 
     /** Spring Boot's SSL bundles ({@code spring.ssl.bundle.*}), for subgraphs with an {@code sslBundle}. */
     private final @Nullable SslBundles sslBundles;
 
-    public DefaultSubgraphClientFactory(HttpClient httpClient,
-                                         @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
-        this(httpClient, headerCustomizer, null);
+    /** Connection pool settings. */
+    private record PoolSettings(int maxConnections, long maxIdleTimeMs) {
     }
 
-    public DefaultSubgraphClientFactory(HttpClient httpClient,
-                                         @Nullable SubgraphRequestHeaderCustomizer headerCustomizer,
+    /**
+     * Clients by their pool settings, shared by the subgraphs (one pool per subgraph address in each). A definition
+     * with other settings gets new pools; the few earlier ones stay, their idle connections closed after their
+     * maximum idle time.
+     */
+    private final Map<PoolSettings, HttpClient> clients = new ConcurrentHashMap<>();
+
+    public DefaultSubgraphClientFactory(@Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
+        this(headerCustomizer, null);
+    }
+
+    public DefaultSubgraphClientFactory(@Nullable SubgraphRequestHeaderCustomizer headerCustomizer,
                                          @Nullable SslBundles sslBundles) {
-        this.httpClient = httpClient;
         this.headerCustomizer = headerCustomizer;
         this.sslBundles = sslBundles;
     }
 
     @Override
     public SubgraphClient create(String subgraphName, SubgraphSettings settings) {
-        String url = settings.config().get("url").toString();
-        long maxResponseBytes = settings.config().get(FeddiGatewayReloadService.MAX_RESPONSE_BYTES) instanceof Number limit
-            ? limit.longValue() : FeddiGatewaySettings.DEFAULT_MAX_RESPONSE_BYTES;
+        Map<String, Object> config = settings.config();
+        String url = config.get("url").toString();
+        long maxResponseBytes = number(config, FeddiGatewayReloadService.MAX_RESPONSE_BYTES,
+            FeddiGatewaySettings.DEFAULT_MAX_RESPONSE_BYTES);
+        long connectTimeoutMs = number(config, FeddiGatewayReloadService.CONNECT_TIMEOUT_MS,
+            FeddiGatewaySettings.DEFAULT_CONNECT_TIMEOUT_MS);
+        PoolSettings pool = new PoolSettings(
+            (int) number(config, FeddiGatewayReloadService.MAX_CONNECTIONS, ConnectionProvider.DEFAULT_POOL_MAX_CONNECTIONS),
+            number(config, FeddiGatewayReloadService.MAX_IDLE_TIME_MS, FeddiGatewaySettings.DEFAULT_MAX_IDLE_TIME_MS));
+        HttpClient httpClient = clients.computeIfAbsent(pool, DefaultSubgraphClientFactory::client)
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) Math.min(connectTimeoutMs, Integer.MAX_VALUE));
         return new DefaultSubgraphClient(httpClient, url, subgraphName, headerCustomizer, maxResponseBytes,
-            sslContext(subgraphName, settings.config().get(SSL_BUNDLE)));
+            sslContext(subgraphName, config.get(SSL_BUNDLE)));
+    }
+
+    private static HttpClient client(PoolSettings settings) {
+        Duration maxIdleTime = Duration.ofMillis(settings.maxIdleTimeMs());
+        return HttpClient.create(ConnectionProvider.builder("feddi-subgraphs")
+            .maxConnections(settings.maxConnections())
+            .maxIdleTime(maxIdleTime)
+            .evictInBackground(maxIdleTime)
+            .build());
+    }
+
+    private static long number(Map<String, Object> config, String key, long defaultValue) {
+        return config.get(key) instanceof Number number ? number.longValue() : defaultValue;
     }
 
     /**

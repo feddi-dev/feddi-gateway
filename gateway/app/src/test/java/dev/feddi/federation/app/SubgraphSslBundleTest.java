@@ -21,7 +21,6 @@ import org.springframework.boot.ssl.SslOptions;
 import org.springframework.boot.ssl.SslStoreBundle;
 import reactor.core.publisher.Mono;
 import reactor.netty.DisposableServer;
-import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -79,7 +78,7 @@ class SubgraphSslBundleTest {
     void connectsWithTheBundlesTrustMaterial() throws Exception {
         startHttpsServer();
         var bundles = new DefaultSslBundleRegistry("subgraphs", SslBundle.of(SslStoreBundle.of(null, null, trusted)));
-        var factory = new DefaultSubgraphClientFactory(HttpClient.create(), null, bundles);
+        var factory = new DefaultSubgraphClientFactory(null, bundles);
 
         SubgraphClient client = factory.create("accounts", settings(Map.of("sslBundle", "subgraphs")));
 
@@ -90,7 +89,7 @@ class SubgraphSslBundleTest {
     @Test
     void withoutTheBundleTheCertificateIsNotTrusted() throws Exception {
         startHttpsServer();
-        var factory = new DefaultSubgraphClientFactory(HttpClient.create(), null, new DefaultSslBundleRegistry());
+        var factory = new DefaultSubgraphClientFactory(null, new DefaultSslBundleRegistry());
 
         SubgraphClient client = factory.create("accounts", settings(Map.of()));
 
@@ -104,14 +103,14 @@ class SubgraphSslBundleTest {
         var options = SslOptions.of(new String[] {"TLS_AES_128_GCM_SHA256"}, new String[] {"TLSv1.3"});
         var bundles = new DefaultSslBundleRegistry("subgraphs",
             SslBundle.of(SslStoreBundle.of(null, null, trusted), null, options));
-        SubgraphClient client = new DefaultSubgraphClientFactory(HttpClient.create(), null, bundles)
+        SubgraphClient client = new DefaultSubgraphClientFactory(null, bundles)
             .create("accounts", settings(Map.of("sslBundle", "subgraphs")));
         assertThat(client.execute(QUERY, Map.of(), FeddiGatewayRequestContext.empty()).block().<Object>getData())
             .isNotNull();
 
         var unusable = new DefaultSslBundleRegistry("subgraphs", SslBundle.of(SslStoreBundle.of(null, null, trusted),
             null, SslOptions.of(null, new String[] {"TLSv9"})));
-        assertThatThrownBy(() -> new DefaultSubgraphClientFactory(HttpClient.create(), null, unusable)
+        assertThatThrownBy(() -> new DefaultSubgraphClientFactory(null, unusable)
             .create("accounts", settings(Map.of("sslBundle", "subgraphs"))))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("cannot use sslBundle subgraphs");
@@ -119,7 +118,7 @@ class SubgraphSslBundleTest {
 
     @Test
     void anUnknownBundleRejectsTheUpload() {
-        var factory = new DefaultSubgraphClientFactory(HttpClient.create(), null, new DefaultSslBundleRegistry());
+        var factory = new DefaultSubgraphClientFactory(null, new DefaultSslBundleRegistry());
         var service = new FeddiGatewayReloadService(new FeddiGatewayHolder(), factory,
             new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
 
@@ -133,15 +132,15 @@ class SubgraphSslBundleTest {
     @Test
     void rejectsUnknownOrUnusableBundles() {
         var bundles = new DefaultSslBundleRegistry("subgraphs", SslBundle.of(SslStoreBundle.of(null, null, trusted)));
-        assertThatThrownBy(() -> new DefaultSubgraphClientFactory(HttpClient.create(), null, bundles)
+        assertThatThrownBy(() -> new DefaultSubgraphClientFactory(null, bundles)
             .create("accounts", settings(Map.of("sslBundle", "other"))))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("unknown sslBundle: other");
-        assertThatThrownBy(() -> new DefaultSubgraphClientFactory(HttpClient.create(), null, null)
+        assertThatThrownBy(() -> new DefaultSubgraphClientFactory(null, null)
             .create("accounts", settings(Map.of("sslBundle", "subgraphs"))))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("no SSL bundles are configured");
-        assertThatThrownBy(() -> new DefaultSubgraphClientFactory(HttpClient.create(), null, bundles)
+        assertThatThrownBy(() -> new DefaultSubgraphClientFactory(null, bundles)
             .create("accounts", new SubgraphSettings(Map.of("url", "http://localhost/graphql", "sslBundle", "subgraphs"))))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("no https URL");

@@ -222,6 +222,9 @@ feddi Gateway-level ZIP config keys in the optional root `config.yaml` or `confi
 | --- | --- | --- | --- |
 | `timeoutMs` | long | `30000` | Per-subgraph request timeout in milliseconds |
 | `maxResponseBytes` | long | `8388608` (8 MB) | Largest subgraph response body read, in bytes; a larger response fails that subgraph call |
+| `connectTimeoutMs` | long | `5000` | How long to wait for a connection to a subgraph, in milliseconds |
+| `maxIdleTimeMs` | long | `4000` | How long a connection to a subgraph may stay unused before the gateway closes it, in milliseconds. Keep it below the subgraphs' (or their load balancers') idle timeout, e.g. Node.js closes idle connections after 5 seconds, an AWS ALB after 60 |
+| `maxConnections` | int | Reactor Netty's (`2 × max(cores, 8)`) | Most connections to one subgraph address |
 
 Per-subgraph keys in each required `config.yaml` or `config.yml`:
 
@@ -244,7 +247,8 @@ Extension-provided `SubgraphClientFactory` implementations can read additional k
 
 The built-in subgraph client calls subgraphs with Reactor Netty's `HttpClient` (not Spring's `WebClient`, whose per-call overhead costs throughput), so `WebClientCustomizer` beans do not apply. What can be customized:
 
-- **Headers**: if a `SubgraphRequestHeaderCustomizer` bean is registered, `DefaultSubgraphClient` calls it after forwarding the built-in `Authorization`/`User-Agent` headers, so it can add new headers or override forwarded ones.
+- **Headers**: `DefaultSubgraphClient` forwards `Authorization`, `User-Agent` and the W3C Trace Context headers (`traceparent`, `tracestate`, so that subgraph spans join the client's trace; not `baggage`). If a `SubgraphRequestHeaderCustomizer` bean is registered, it is called after that, so it can add new headers or override forwarded ones.
+- **Connections**: `connectTimeoutMs`, `maxIdleTimeMs` and `maxConnections` (see above).
 - **TLS** (mTLS, a private certificate authority, protocols, ciphers): define a Spring Boot SSL bundle, e.g. `spring.ssl.bundle.pem.subgraphs.truststore.certificate=classpath:ca.pem`, and name it in the subgraph's `sslBundle`. An unknown or unusable bundle rejects the definition.
 - **Response size**: `maxResponseBytes` (see above). The error names the subgraph, the limit and the setting.
 - **Anything else** (a proxy, retries, another HTTP client): register your own `SubgraphClientFactory` bean; it replaces the built-in one.

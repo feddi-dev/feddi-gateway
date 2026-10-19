@@ -142,6 +142,21 @@ class DefaultSubgraphClientBatchTest {
     }
 
     @Test
+    void forwardsTheTraceContextButNotBaggage() {
+        start(body -> response(200, "application/jsonl", "{\"data\":{\"user\":null},\"variableIndex\":0}"));
+        String traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        var context = FeddiGatewayRequestContext.builder(Map.of("traceparent", traceparent,
+            "TraceState", "congo=t61rcWkgMzE", "baggage", "userId=alice")).build();
+
+        client().executeBatch(LOOKUP, List.of(Map.of("id", "1")), context).block();
+
+        assertThat(requestHeaders).singleElement().satisfies(h -> assertThat(h)
+            .containsEntry("traceparent", traceparent)
+            .containsEntry("tracestate", "congo=t61rcWkgMzE")
+            .doesNotContainKey("baggage"));
+    }
+
+    @Test
     void headerCustomizerAppliesToBatchesAndProbe() {
         start(body -> response(200, "application/jsonl", """
             {"data":{"user":null},"variableIndex":0}
@@ -258,7 +273,7 @@ class DefaultSubgraphClientBatchTest {
     }
 
     private static FeddiGatewayReloadService reloadService(FeddiGatewayHolder holder) {
-        return new FeddiGatewayReloadService(holder, new DefaultSubgraphClientFactory(HttpClient.create(), null),
+        return new FeddiGatewayReloadService(holder, new DefaultSubgraphClientFactory(null),
             new FeddiGatewayMetrics(new SimpleMeterRegistry()), null, new FeddiGatewayConfigFile());
     }
 
