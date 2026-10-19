@@ -125,7 +125,13 @@ public class FeddiGatewayReloadService {
                     "Invalid batching config for subgraph " + name + ": " + e.getMessage(), e);
             }
 
-            SubgraphClient baseClient = clientFactory.create(name, withResponseLimit(name, settings, responseLimit));
+            SubgraphClient baseClient;
+            try {
+                baseClient = clientFactory.create(name, withResponseLimit(name, settings, responseLimit));
+            } catch (IllegalArgumentException e) {
+                // E.g. an invalid URL or sslBundle
+                throw new FeddiGatewayDefinitionException(e.getMessage(), e);
+            }
             if (batching.get(name).mode() == BatchingOptions.Mode.VARIABLES) {
                 if (baseClient instanceof DefaultSubgraphClient defaultClient) {
                     variableBatchingClients.put(name, defaultClient);

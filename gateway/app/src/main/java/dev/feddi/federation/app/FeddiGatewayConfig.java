@@ -7,7 +7,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.http.codec.CodecCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.client.WebClient;
 
 /**
  * Spring configuration for the gateway.
@@ -16,11 +15,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class FeddiGatewayConfig {
 
     private static final Logger log = LoggerFactory.getLogger(FeddiGatewayConfig.class);
-
-    @Bean
-    public WebClient.Builder webClientBuilder() {
-        return WebClient.builder();
-    }
 
     /**
      * Configures the max in-memory buffer size for request body reading.

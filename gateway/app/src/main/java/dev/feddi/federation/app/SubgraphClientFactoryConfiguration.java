@@ -3,7 +3,9 @@ package dev.feddi.federation.app;
 import dev.feddi.federation.extension.SubgraphClientFactory;
 import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.ssl.SslBundles;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.netty.http.client.HttpClient;
@@ -26,7 +28,8 @@ public class SubgraphClientFactoryConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean(SubgraphClientFactory.class)
-    public SubgraphClientFactory subgraphClientFactory(@Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
-        return new DefaultSubgraphClientFactory(HttpClient.create(), headerCustomizer);
+    public SubgraphClientFactory subgraphClientFactory(@Nullable SubgraphRequestHeaderCustomizer headerCustomizer,
+                                                         ObjectProvider<SslBundles> sslBundles) {
+        return new DefaultSubgraphClientFactory(HttpClient.create(), headerCustomizer, sslBundles.getIfAvailable());
     }
 }

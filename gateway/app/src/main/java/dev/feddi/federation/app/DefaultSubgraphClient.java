@@ -17,6 +17,7 @@ import graphql.language.OperationDefinition;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.ssl.SslContext;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,6 +77,16 @@ public class DefaultSubgraphClient implements SubgraphClient {
      */
     public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
                                   @Nullable SubgraphRequestHeaderCustomizer headerCustomizer, long maxResponseBytes) {
+        this(httpClient, url, subgraphName, headerCustomizer, maxResponseBytes, null);
+    }
+
+    /**
+     * @param maxResponseBytes the largest response body read, in bytes: a larger response fails the call
+     * @param sslContext the TLS context for an https URL (e.g. from an SSL bundle), or null for the JDK's defaults
+     */
+    public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
+                                  @Nullable SubgraphRequestHeaderCustomizer headerCustomizer, long maxResponseBytes,
+                                  @Nullable SslContext sslContext) {
         if (maxResponseBytes <= 0) {
             throw new IllegalArgumentException("maxResponseBytes must be positive: " + maxResponseBytes);
         }
@@ -89,7 +100,12 @@ public class DefaultSubgraphClient implements SubgraphClient {
         String host = uri.getHost().startsWith("[") ? uri.getHost().substring(1, uri.getHost().length() - 1)
             : uri.getHost();
         HttpClient configured = httpClient.host(host).port(uri.getPort() >= 0 ? uri.getPort() : secure ? 443 : 80);
-        this.httpClient = secure ? configured.secure() : configured;
+        if (sslContext != null && !secure) {
+            throw new IllegalArgumentException("Subgraph " + subgraphName + " has TLS settings (sslBundle) but no https URL: "
+                + url);
+        }
+        this.httpClient = !secure ? configured
+            : sslContext == null ? configured.secure() : configured.secure(spec -> spec.sslContext(sslContext));
         String rawPath = uri.getRawPath() == null || uri.getRawPath().isEmpty() ? "/" : uri.getRawPath();
         this.path = uri.getRawQuery() == null ? rawPath : rawPath + "?" + uri.getRawQuery();
         this.subgraphName = subgraphName;
