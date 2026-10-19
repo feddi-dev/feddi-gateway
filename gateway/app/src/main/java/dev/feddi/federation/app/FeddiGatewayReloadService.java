@@ -2,6 +2,7 @@ package dev.feddi.federation.app;
 
 import dev.feddi.federation.extension.DocumentProvider;
 import dev.feddi.federation.extension.FeddiGatewayDefinition;
+import dev.feddi.federation.extension.FeddiGatewaySettings;
 import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.extension.SubgraphClientFactory;
 import dev.feddi.federation.extension.SubgraphDefinition;
@@ -18,6 +19,7 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +28,13 @@ import java.util.Map;
  */
 @Service
 public class FeddiGatewayReloadService {
+
+    /** The subgraph config key for the largest response body read, in bytes. */
+    static final String MAX_RESPONSE_BYTES = "maxResponseBytes";
+    /** The gateway config keys of the connections to subgraphs, also in each subgraph's config for the factory. */
+    static final String CONNECT_TIMEOUT_MS = "connectTimeoutMs";
+    static final String MAX_IDLE_TIME_MS = "maxIdleTimeMs";
+    static final String MAX_CONNECTIONS = "maxConnections";
 
     private final FeddiGatewayHolder gatewayHolder;
     private static final Logger log = LoggerFactory.getLogger(FeddiGatewayReloadService.class);
@@ -99,6 +108,16 @@ public class FeddiGatewayReloadService {
         Map<String, BatchingOptions> batching = new HashMap<>();
         Map<String, DefaultSubgraphClient> variableBatchingClients = new HashMap<>();
         Duration timeout = gatewayDefinition.gatewaySettings().timeout();
+        FeddiGatewaySettings gatewaySettings = gatewayDefinition.gatewaySettings();
+        long responseLimit = positive("maxResponseBytes", gatewaySettings.responseLimit());
+        // The connection settings of the definition, which client factories find in every subgraph's config
+        Map<String, Object> connectionSettings = new LinkedHashMap<>();
+        connectionSettings.put(CONNECT_TIMEOUT_MS,
+            positive(CONNECT_TIMEOUT_MS, gatewaySettings.connectTimeout().toMillis()));
+        connectionSettings.put(MAX_IDLE_TIME_MS, positive(MAX_IDLE_TIME_MS, gatewaySettings.maxIdleTime().toMillis()));
+        if (gatewaySettings.maxConnections() != null) {
+            connectionSettings.put(MAX_CONNECTIONS, positive(MAX_CONNECTIONS, gatewaySettings.maxConnections()));
+        }
 
         for (Map.Entry<String, SubgraphDefinition> entry : gatewayDefinition.subgraphs().entrySet()) {
             String name = entry.getKey();
@@ -116,7 +135,14 @@ public class FeddiGatewayReloadService {
                     "Invalid batching config for subgraph " + name + ": " + e.getMessage(), e);
             }
 
-            SubgraphClient baseClient = clientFactory.create(name, settings);
+            SubgraphClient baseClient;
+            try {
+                baseClient = clientFactory.create(name,
+                    withClientSettings(name, settings, responseLimit, connectionSettings));
+            } catch (IllegalArgumentException e) {
+                // E.g. an invalid URL or sslBundle
+                throw new FeddiGatewayDefinitionException(e.getMessage(), e);
+            }
             if (batching.get(name).mode() == BatchingOptions.Mode.VARIABLES) {
                 if (baseClient instanceof DefaultSubgraphClient defaultClient) {
                     variableBatchingClients.put(name, defaultClient);
@@ -164,6 +190,36 @@ public class FeddiGatewayReloadService {
                 .map(unsupported -> entry.getKey()))
             .sort()
             .collectList();
+    }
+
+    private static long positive(String setting, long value) {
+        if (value <= 0) {
+            throw new FeddiGatewayDefinitionException(
+                "Invalid " + setting + ": " + value + " (expected a positive number)");
+        }
+        return value;
+    }
+
+    /**
+     * The subgraph's settings with its effective {@code maxResponseBytes} (its own if it has one, the gateway's
+     * otherwise) and the gateway's connection settings, so that client factories find them in the subgraph's config.
+     */
+    private static SubgraphSettings withClientSettings(String name, SubgraphSettings settings, long gatewayLimit,
+                                                       Map<String, Object> connectionSettings) {
+        Object value = settings.config().get(MAX_RESPONSE_BYTES);
+        long limit = gatewayLimit;
+        if (value != null) {
+            if (!(value instanceof Number number) || number.longValue() <= 0
+                || number.doubleValue() != number.longValue()) {
+                throw new FeddiGatewayDefinitionException("Invalid maxResponseBytes for subgraph " + name + ": "
+                    + value + " (expected a positive number of bytes)");
+            }
+            limit = number.longValue();
+        }
+        Map<String, Object> config = new LinkedHashMap<>(settings.config());
+        config.put(MAX_RESPONSE_BYTES, limit);
+        config.putAll(connectionSettings);
+        return new SubgraphSettings(config);
     }
 
     private void validateSubgraph(String name, SubgraphDefinition subgraphDefinition) {

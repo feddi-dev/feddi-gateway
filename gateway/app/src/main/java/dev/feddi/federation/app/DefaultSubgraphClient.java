@@ -7,20 +7,25 @@ import dev.feddi.federation.engine.executor.JsonTreeReader;
 import dev.feddi.federation.engine.executor.OperationTexts;
 import dev.feddi.federation.engine.executor.RawString;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
+import dev.feddi.federation.extension.FeddiGatewaySettings;
 import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
 import graphql.Directives;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
 import graphql.language.OperationDefinition;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.ssl.SslContext;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.support.Netty4HeadersAdapter;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.netty.ByteBufFlux;
 import reactor.netty.http.client.HttpClient;
 import reactor.util.context.Context;
 
@@ -35,7 +40,7 @@ import java.util.function.Function;
 /**
  * Default SubgraphClient implementation: GraphQL over HTTP with Reactor Netty's {@link HttpClient}, request bodies
  * written as JSON bytes and responses read from bytes.
- * Forwards Authorization and User-Agent headers from the gateway request context, then
+ * Forwards Authorization, User-Agent and the W3C Trace Context headers from the gateway request context, then
  * gives an optional {@link SubgraphRequestHeaderCustomizer} bean a chance to add or
  * override headers.
  */
@@ -48,6 +53,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final byte[] EMPTY = new byte[0];
     private static final String PROBE_VARIABLE = "probe";
+    private static final String TRACEPARENT = "traceparent";
+    private static final String TRACESTATE = "tracestate";
     /**
      * Caches the subscriber context at the end of a subgraph call. Reactor Netty reads the context several times per
      * request, and each read walks up the whole chain of the gateway's operators otherwise.
@@ -59,9 +66,33 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private final String path;
     private final String subgraphName;
     private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
+    /** The largest response body read, in bytes. */
+    private final long maxResponseBytes;
 
     public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
                                   @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
+        this(httpClient, url, subgraphName, headerCustomizer, FeddiGatewaySettings.DEFAULT_MAX_RESPONSE_BYTES);
+    }
+
+    /**
+     * @param maxResponseBytes the largest response body read, in bytes: a larger response fails the call
+     */
+    public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
+                                  @Nullable SubgraphRequestHeaderCustomizer headerCustomizer, long maxResponseBytes) {
+        this(httpClient, url, subgraphName, headerCustomizer, maxResponseBytes, null);
+    }
+
+    /**
+     * @param maxResponseBytes the largest response body read, in bytes: a larger response fails the call
+     * @param sslContext the TLS context for an https URL (e.g. from an SSL bundle), or null for the JDK's defaults
+     */
+    public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
+                                  @Nullable SubgraphRequestHeaderCustomizer headerCustomizer, long maxResponseBytes,
+                                  @Nullable SslContext sslContext) {
+        if (maxResponseBytes <= 0) {
+            throw new IllegalArgumentException("maxResponseBytes must be positive: " + maxResponseBytes);
+        }
+        this.maxResponseBytes = maxResponseBytes;
         // Configured once: with an absolute URL, Reactor Netty parses it with a regular expression on every request
         URI uri = URI.create(url);
         if (uri.getHost() == null || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))) {
@@ -71,7 +102,12 @@ public class DefaultSubgraphClient implements SubgraphClient {
         String host = uri.getHost().startsWith("[") ? uri.getHost().substring(1, uri.getHost().length() - 1)
             : uri.getHost();
         HttpClient configured = httpClient.host(host).port(uri.getPort() >= 0 ? uri.getPort() : secure ? 443 : 80);
-        this.httpClient = secure ? configured.secure() : configured;
+        if (sslContext != null && !secure) {
+            throw new IllegalArgumentException("Subgraph " + subgraphName + " has TLS settings (sslBundle) but no https URL: "
+                + url);
+        }
+        this.httpClient = !secure ? configured
+            : sslContext == null ? configured.secure() : configured.secure(spec -> spec.sslContext(sslContext));
         String rawPath = uri.getRawPath() == null || uri.getRawPath().isEmpty() ? "/" : uri.getRawPath();
         this.path = uri.getRawQuery() == null ? rawPath : rawPath + "?" + uri.getRawQuery();
         this.subgraphName = subgraphName;
@@ -100,9 +136,49 @@ public class DefaultSubgraphClient implements SubgraphClient {
                 applyHeaders(request.requestHeaders(), context);
                 return out.send(Mono.just(Unpooled.wrappedBuffer(body)));
             })
-            .responseSingle((response, content) -> content.asByteArray()
-                .defaultIfEmpty(EMPTY)
-                .map(bytes -> new HttpResponse(response.status().code(), bytes)));
+            .response((response, content) -> {
+                // A declared length is checked up front (Netty reads no more than it); a body without one is
+                // counted while it arrives
+                long declared = response.responseHeaders().getInt(HttpHeaderNames.CONTENT_LENGTH, -1);
+                if (declared > maxResponseBytes) {
+                    return Mono.error(tooLarge());
+                }
+                ByteBufFlux received = declared >= 0 ? content : ByteBufFlux.fromInbound(limited(content));
+                return received.aggregate().asByteArray()
+                    .defaultIfEmpty(EMPTY)
+                    .map(bytes -> new HttpResponse(response.status().code(), bytes));
+            })
+            .single();
+    }
+
+    /** A body that fails once more than {@link #maxResponseBytes} have arrived. */
+    private Flux<ByteBuf> limited(ByteBufFlux content) {
+        long[] received = {0};
+        return content.handle((buffer, sink) -> {
+            received[0] += buffer.readableBytes();
+            if (received[0] > maxResponseBytes) {
+                sink.error(tooLarge());
+            } else {
+                sink.next(buffer);
+            }
+        });
+    }
+
+    private SubgraphResponseTooLargeException tooLarge() {
+        return new SubgraphResponseTooLargeException(subgraphName, maxResponseBytes);
+    }
+
+    /** A subgraph response larger than the configured {@code maxResponseBytes}. */
+    static final class SubgraphResponseTooLargeException extends RuntimeException {
+        SubgraphResponseTooLargeException(String subgraph, long maxResponseBytes) {
+            super("Subgraph " + subgraph + " returned more than " + size(maxResponseBytes)
+                + " (maxResponseBytes)");
+        }
+
+        private static String size(long bytes) {
+            long mib = 1024 * 1024;
+            return bytes % mib == 0 ? bytes / mib + " MB" : bytes + " bytes";
+        }
     }
 
     @Override
@@ -249,12 +325,16 @@ public class DefaultSubgraphClient implements SubgraphClient {
     }
 
     /**
-     * Forwards Authorization and User-Agent from the gateway request, then lets the optional
+     * Forwards Authorization, User-Agent and the W3C Trace Context headers (traceparent, tracestate) from the
+     * gateway request, then lets the optional
      * {@link SubgraphRequestHeaderCustomizer} add or override headers.
      */
     private void applyHeaders(io.netty.handler.codec.http.HttpHeaders headers, FeddiGatewayRequestContext context) {
         context.requestHeader("authorization").ifPresent(v -> headers.set(HttpHeaderNames.AUTHORIZATION, v));
         context.requestHeader("user-agent").ifPresent(v -> headers.set(HttpHeaderNames.USER_AGENT, v));
+        // W3C Trace Context: the subgraphs' spans join the client's trace
+        context.requestHeader(TRACEPARENT).ifPresent(v -> headers.set(TRACEPARENT, v));
+        context.requestHeader(TRACESTATE).ifPresent(v -> headers.set(TRACESTATE, v));
         if (headerCustomizer != null) {
             headerCustomizer.customize(new HttpHeaders(new Netty4HeadersAdapter(headers)), subgraphName, context);
         }
