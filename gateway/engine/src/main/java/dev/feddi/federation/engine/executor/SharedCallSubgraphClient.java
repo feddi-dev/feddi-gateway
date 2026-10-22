@@ -6,6 +6,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -18,6 +19,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * and later steps write into them, so a consumer that subscribes later must not see another
  * consumer's changes.
  *
+ * <p>Only operations that several steps send are shared: a call of any other operation has no one to share it
+ * with, and goes to the subgraph without a cache or copies.
+ *
  * <p>Instances are per request: create one per {@link Executor#execute} call.
  */
 final class SharedCallSubgraphClient implements SubgraphClient {
@@ -26,10 +30,13 @@ final class SharedCallSubgraphClient implements SubgraphClient {
     }
 
     private final SubgraphClient delegate;
+    /** The operations (compact text) that several steps send. */
+    private final Set<String> sharedOperations;
     private final Map<CallKey, Mono<ExecutionResult>> calls = new ConcurrentHashMap<>();
 
-    SharedCallSubgraphClient(SubgraphClient delegate) {
+    SharedCallSubgraphClient(SubgraphClient delegate, Set<String> sharedOperations) {
         this.delegate = delegate;
+        this.sharedOperations = sharedOperations;
     }
 
     @Override
@@ -38,6 +45,9 @@ final class SharedCallSubgraphClient implements SubgraphClient {
             return delegate.execute(operation, variables);
         }
         String text = OperationTexts.compact(operation);
+        if (!sharedOperations.contains(text)) {
+            return delegate.execute(operation, variables);
+        }
         CallKey key = new CallKey(text, variables == null ? Map.of() : variables);
         return calls.computeIfAbsent(key, k -> delegate.execute(operation, variables).cache())
             .map(ResultCopies::copy);

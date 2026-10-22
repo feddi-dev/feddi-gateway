@@ -68,7 +68,8 @@ public final class Executor {
     public static final String INTROSPECTION_SUBGRAPH = "$introspection";
 
     private final Map<String, SubgraphClient> subgraphClients;
-    private final GraphQL introspectionGraphQL;
+    /** The supergraph schema for introspection, or null without introspection support. */
+    private final GraphQLSchema supergraphSchema;
     private final ExecutionListener listener;
 
     /**
@@ -99,9 +100,8 @@ public final class Executor {
     public Executor(Map<String, SubgraphClient> subgraphClients, GraphQLSchema supergraphSchema,
                     ExecutionListener listener) {
         this.subgraphClients = new LinkedHashMap<>(subgraphClients);
-        this.introspectionGraphQL = supergraphSchema != null
-            ? GraphQL.newGraphQL(supergraphSchema).build()
-            : null;
+        // The GraphQL instance for introspection is built when a step needs it: executors are created per request
+        this.supergraphSchema = supergraphSchema;
         this.listener = listener != null ? listener : ExecutionListener.NOOP;
     }
 
@@ -181,12 +181,6 @@ public final class Executor {
             // it is reused, neither calls nor entities
             boolean mutation = steps.stream()
                 .anyMatch(step -> step.operation().getOperation() == OperationDefinition.Operation.MUTATION);
-            this.sharedContext = new ExecutionContext(!mutation);
-            // Per-execution clients that share identical query calls between steps
-            subgraphClients.forEach((name, client) -> {
-                SubgraphClient listening = new ListeningSubgraphClient(client, name, listener);
-                clients.put(name, mutation ? listening : new SharedCallSubgraphClient(listening));
-            });
 
             // Lookup steps that send the same operation to the same subgraph once the same steps are done run as one
             // (entities deduplicated together, one batch)
@@ -211,7 +205,31 @@ public final class Executor {
                 }
             }
             openNodes = new AtomicInteger(nodes.size());
+
+            // Calls and entities can only be shared between nodes that send the same operation to the same subgraph
+            Map<String, Set<String>> repeated = mutation ? Map.of() : repeatedOperations();
+            this.sharedContext = new ExecutionContext(!mutation, repeated);
+            // Per-execution clients that share identical query calls between steps
+            subgraphClients.forEach((name, client) -> {
+                SubgraphClient listening = new ListeningSubgraphClient(client, name, listener);
+                Set<String> operations = repeated.getOrDefault(name, Set.of());
+                clients.put(name, operations.isEmpty() ? listening : new SharedCallSubgraphClient(listening, operations));
+            });
             sink.onCancel(this::cancel);
+        }
+
+        /** The operations (compact text, by subgraph) that more than one node sends. */
+        private Map<String, Set<String>> repeatedOperations() {
+            Map<String, Set<String>> seen = new HashMap<>();
+            Map<String, Set<String>> repeated = new HashMap<>();
+            for (Node node : nodes) {
+                ExecutionStep step = node.first();
+                String text = OperationTexts.compact(step.operation());
+                if (!seen.computeIfAbsent(step.subgraph(), s -> new HashSet<>()).add(text)) {
+                    repeated.computeIfAbsent(step.subgraph(), s -> new HashSet<>()).add(text);
+                }
+            }
+            return repeated;
         }
 
         private Node addNode(ExecutionStep step, List<Node> dependencies) {
@@ -470,7 +488,7 @@ public final class Executor {
      * Executes an introspection step against the supergraph schema.
      */
     private Mono<StepResult> executeIntrospectionStep(ExecutionStep step, Map<String, Object> variables) {
-        if (introspectionGraphQL == null) {
+        if (supergraphSchema == null) {
             return Mono.error(new ExecutionException(
                 "Introspection not supported: no supergraph schema provided to executor"));
         }
@@ -487,7 +505,7 @@ public final class Executor {
             .variables(variables != null ? variables : Map.of())
             .build();
 
-        return Mono.fromFuture(introspectionGraphQL.executeAsync(input))
+        return Mono.fromFuture(GraphQL.newGraphQL(supergraphSchema).build().executeAsync(input))
             .map(result -> {
                 StepResult stepResult = new StepResult();
                 if (result.getData() != null) {
@@ -547,8 +565,9 @@ public final class Executor {
         List<UniqueEntity> toFetch = new ArrayList<>(uniqueEntities.size());
         List<UniqueEntity> reused = new ArrayList<>(0);
         List<Mono<ExecutionResult>> reusedResults = new ArrayList<>(0);
-        if (ctx.reuseEntities && step.operation().getOperation() == OperationDefinition.Operation.QUERY) {
-            String operationText = OperationTexts.compact(step.operation());
+        String operationText = OperationTexts.compact(step.operation());
+        if (ctx.reuseEntities && step.operation().getOperation() == OperationDefinition.Operation.QUERY
+            && ctx.isRepeated(step.subgraph(), operationText)) {
             for (UniqueEntity entity : uniqueEntities.values()) {
                 Sinks.One<ExecutionResult> result = Sinks.one();
                 Sinks.One<ExecutionResult> existing = ctx.entityResults.putIfAbsent(
@@ -1065,12 +1084,12 @@ public final class Executor {
 
         /**
          * Shares the result: a copy, taken before the result is merged into this step's positions (later steps
-         * merge their fields into those).
+         * merge their fields into those), unless merging leaves it as it is ({@link ResultCopies#forMerge}).
          */
         void shareResult(ExecutionResult result) {
             if (shared[0] != null) {
                 shared[0].tryEmitValue(ExecutionResultImpl.newExecutionResult()
-                    .data(ResultCopies.deepCopy(result.getData())).build());
+                    .data(ResultCopies.forMerge(result.getData())).build());
             }
         }
 
@@ -1159,7 +1178,7 @@ public final class Executor {
                         copies = new HashMap<>();
                     }
                     shared = copies.computeIfAbsent(step, s -> ExecutionResultImpl.newExecutionResult()
-                        .data(ResultCopies.deepCopy(result.getData())).build());
+                        .data(ResultCopies.forMerge(result.getData())).build());
                 }
                 results.add(new EntityResult(contexts.get(i), shared));
             }
@@ -1196,7 +1215,7 @@ public final class Executor {
         Map<Integer, ExecutionResult> copies = new HashMap<>();
         for (int i = 0; i < entity.positions().size(); i++) {
             ExecutionResult copy = copies.computeIfAbsent(entity.steps().get(i), step ->
-                ExecutionResultImpl.newExecutionResult().data(ResultCopies.deepCopy(result.getData())).build());
+                ExecutionResultImpl.newExecutionResult().data(ResultCopies.forMerge(result.getData())).build());
             results.add(new EntityResult(entity.positions().get(i), copy));
         }
         return results;
@@ -1229,13 +1248,22 @@ public final class Executor {
 
         /** Whether steps reuse the entities other steps fetch (not in mutations). */
         final boolean reuseEntities;
+        /** The operations (compact text, by subgraph) that several steps send: only their entities can be reused. */
+        private final Map<String, Set<String>> repeatedOperations;
 
         ExecutionContext() {
-            this(true);
+            this(true, Map.of());
         }
 
-        ExecutionContext(boolean reuseEntities) {
+        ExecutionContext(boolean reuseEntities, Map<String, Set<String>> repeatedOperations) {
             this.reuseEntities = reuseEntities;
+            this.repeatedOperations = repeatedOperations;
+        }
+
+        /** Whether other steps send this operation (compact text) to the subgraph too. */
+        boolean isRepeated(String subgraph, String operationText) {
+            Set<String> operations = repeatedOperations.get(subgraph);
+            return operations != null && operations.contains(operationText);
         }
 
         synchronized void merge(StepResult result) {
