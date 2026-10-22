@@ -3,17 +3,20 @@ package dev.feddi.federation.app;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.SubgraphClient;
 import dev.feddi.federation.extension.SubgraphSettings;
+import graphql.ExecutionResult;
 import graphql.language.OperationDefinition;
 import graphql.parser.Parser;
 import io.netty.channel.ConnectTimeoutException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -65,6 +68,23 @@ class SubgraphConnectionPoolTest {
     }
 
     @Test
+    void requestsWaitForAConnectionWhenAllAreInUse() {
+        // Many more requests than connections: they queue for one (as with Reactor Netty's default pool), instead of
+        // failing once more than twice the connections wait
+        start(Duration.ofMillis(50));
+        SubgraphClient client = new DefaultSubgraphClientFactory(null)
+            .create("accounts", settings(Map.of("maxConnections", 1)));
+
+        List<ExecutionResult> results = Flux.range(0, 10)
+            .flatMap(i -> client.execute(QUERY, Map.of(), FeddiGatewayRequestContext.empty()))
+            .collectList()
+            .block(Duration.ofSeconds(10));
+
+        assertThat(results).hasSize(10).allSatisfy(result -> assertThat(result.<Object>getData()).isNotNull());
+        assertThat(connections).hasValue(1);
+    }
+
+    @Test
     void givesUpConnectingAfterTheConnectTimeout() {
         // A non-routable address: connecting hangs until the timeout
         SubgraphClient client = new DefaultSubgraphClientFactory(null).create("accounts",
@@ -87,10 +107,14 @@ class SubgraphConnectionPoolTest {
     }
 
     private void start() {
+        start(Duration.ZERO);
+    }
+
+    private void start(Duration delay) {
         server = HttpServer.create().port(0)
             // Once per channel (doOnConnection is once per request)
             .doOnChannelInit((observer, channel, address) -> connections.incrementAndGet())
-            .handle((request, response) -> request.receive().then(response.status(HttpResponseStatus.OK)
+            .handle((request, response) -> request.receive().then(Mono.delay(delay)).then(response.status(HttpResponseStatus.OK)
                 .header("Content-Type", "application/json")
                 .sendString(Mono.just("{\"data\":{\"hello\":\"world\"}}")).then()))
             .bindNow();

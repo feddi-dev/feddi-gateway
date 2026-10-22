@@ -84,6 +84,9 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
         Duration maxIdleTime = Duration.ofMillis(settings.maxIdleTimeMs());
         return HttpClient.create(ConnectionProvider.builder("feddi-subgraphs")
             .maxConnections(settings.maxConnections())
+            // Requests wait for a connection (up to the acquire timeout), as in Reactor Netty's default pool; a
+            // built pool fails them once more than twice its connections wait, which load reaches easily
+            .pendingAcquireMaxCount(-1)
             .maxIdleTime(maxIdleTime)
             .evictInBackground(maxIdleTime)
             .build());
