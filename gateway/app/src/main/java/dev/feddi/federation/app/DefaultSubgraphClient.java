@@ -28,9 +28,11 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.SynchronousSink;
 import reactor.netty.ByteBufFlux;
 import reactor.netty.http.client.HttpClient;
+import reactor.netty.transport.AddressUtils;
 import reactor.util.context.Context;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -103,7 +105,10 @@ public class DefaultSubgraphClient implements SubgraphClient {
         boolean secure = "https".equals(uri.getScheme());
         String host = uri.getHost().startsWith("[") ? uri.getHost().substring(1, uri.getHost().length() - 1)
             : uri.getHost();
-        HttpClient configured = httpClient.host(host).port(uri.getPort() >= 0 ? uri.getPort() : secure ? 443 : 80);
+        // The address is created once: configured with host() and port(), Reactor Netty creates it (and tries to parse
+        // the host as an IP address) on every request. Unresolved for a host name, as then: resolved per connection.
+        SocketAddress address = AddressUtils.createUnresolved(host, uri.getPort() >= 0 ? uri.getPort() : secure ? 443 : 80);
+        HttpClient configured = httpClient.remoteAddress(() -> address);
         if (sslContext != null && !secure) {
             throw new IllegalArgumentException("Subgraph " + subgraphName + " has TLS settings (sslBundle) but no https URL: "
                 + url);
