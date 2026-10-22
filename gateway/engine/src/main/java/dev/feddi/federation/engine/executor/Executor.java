@@ -467,7 +467,9 @@ public final class Executor {
                 if (result.getData() != null) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> data = (Map<String, Object>) result.getData();
-                    stepResult.setRootData(data);
+                    // The response is completed in place (null propagation): data of a client that returns other
+                    // maps than the parsed compact ones (which may be immutable) is copied
+                    stepResult.setRootData(data instanceof CompactMap ? data : ResultCopies.deepCopy(data));
                     log.debug("Step {} received data from subgraph '{}'", step.id(), step.subgraph());
                 }
                 // Capture any GraphQL errors from the subgraph response
@@ -511,7 +513,9 @@ public final class Executor {
                 if (result.getData() != null) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> data = (Map<String, Object>) result.getData();
-                    stepResult.setRootData(data);
+                    // The response is completed in place (null propagation): data of a client that returns other
+                    // maps than the parsed compact ones (which may be immutable) is copied
+                    stepResult.setRootData(data instanceof CompactMap ? data : ResultCopies.deepCopy(data));
                 }
                 return stepResult;
             });
