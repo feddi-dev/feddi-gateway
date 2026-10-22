@@ -10,9 +10,9 @@ import graphql.language.OperationDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -48,7 +48,8 @@ public class GraphQLController {
             @RequestBody GraphQLRequest request,
             @RequestHeader(value = "graphql-client-name", required = false) String clientName,
             @RequestHeader(value = "graphql-client-version", required = false) String clientVersion,
-            org.springframework.http.server.reactive.ServerHttpRequest httpRequest) {
+            org.springframework.http.server.reactive.ServerHttpRequest httpRequest,
+            ServerHttpResponse httpResponse) {
 
         FeddiFederationGateway gateway = gatewayHolder.get();
         if (gateway == null) {
@@ -121,7 +122,7 @@ public class GraphQLController {
                 } else {
                     log.debug("GraphQL execution completed successfully");
                 }
-                return wrap(response);
+                return wrap(response, httpResponse);
             })
             .onErrorResume(e -> {
                 gatewayMetrics.recordRequestDuration(metricsSample, "QUERY");
@@ -132,13 +133,16 @@ public class GraphQLController {
                 log.error("GraphQL execution failed with exception", e);
                 return Mono.just(wrap(ResponseWriter.writeErrors(List.of(GraphqlErrorBuilder.newError()
                     .message("Internal server error")
-                    .build()))));
+                    .build())), httpResponse));
             });
     }
 
-    /** The written response as a buffer, without copying it. */
-    private static DataBuffer wrap(ResponseWriter.Output response) {
-        return DefaultDataBufferFactory.sharedInstance.wrap(ByteBuffer.wrap(response.bytes(), 0, response.length()));
+    /**
+     * The written response as a buffer of the server's own type, without copying it (the server copies a buffer of
+     * another type into one of its own).
+     */
+    private static DataBuffer wrap(ResponseWriter.Output response, ServerHttpResponse httpResponse) {
+        return httpResponse.bufferFactory().wrap(ByteBuffer.wrap(response.bytes(), 0, response.length()));
     }
 
     /**

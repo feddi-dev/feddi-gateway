@@ -53,6 +53,12 @@ public final class ResponseShape {
     final Variant @Nullable [][] variants;
     /** Whether a field depends on the object's type ({@link #onlyFor} or {@link #variants}). */
     final boolean typeDependent;
+    /**
+     * About the size of the responses written for this shape so far, in bytes: the initial size of the next one's
+     * buffer, which otherwise grows (and is copied) several times for a large response. Read and written without
+     * synchronization, as it is only a hint.
+     */
+    int sizeHint;
 
     /** A field's type, shape and coordinate for some object types. */
     record Variant(Set<String> objectTypes, @Nullable GraphQLType type, @Nullable ResponseShape child,
