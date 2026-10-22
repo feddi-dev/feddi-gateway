@@ -25,6 +25,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.support.Netty4HeadersAdapter;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.SynchronousSink;
 import reactor.netty.ByteBufFlux;
 import reactor.netty.http.client.HttpClient;
 import reactor.util.context.Context;
@@ -35,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
@@ -125,8 +127,11 @@ public class DefaultSubgraphClient implements SubgraphClient {
      * Posts a JSON body to the subgraph.
      *
      * @param batch whether it is a variable batch, which accepts JSON lines
+     * @param handler reads the response (in the operator that receives the body: one operator less per call than a
+     *                flatMap after it)
      */
-    private Mono<HttpResponse> post(byte[] body, boolean batch, FeddiGatewayRequestContext context) {
+    private <T> Mono<T> post(byte[] body, boolean batch, FeddiGatewayRequestContext context,
+                             BiConsumer<HttpResponse, SynchronousSink<T>> handler) {
         return httpClient.post()
             .uri(path)
             .send((request, out) -> {
@@ -144,9 +149,10 @@ public class DefaultSubgraphClient implements SubgraphClient {
                     return Mono.error(tooLarge());
                 }
                 ByteBufFlux received = declared >= 0 ? content : ByteBufFlux.fromInbound(limited(content));
+                int status = response.status().code();
                 return received.aggregate().asByteArray()
                     .defaultIfEmpty(EMPTY)
-                    .map(bytes -> new HttpResponse(response.status().code(), bytes));
+                    .<T>handle((bytes, sink) -> handler.accept(new HttpResponse(status, bytes), sink));
             })
             .single();
     }
@@ -190,45 +196,54 @@ public class DefaultSubgraphClient implements SubgraphClient {
             }
         }
 
-        return post(OperationTexts.requestBody(operation, variables != null ? variables : Map.of()), false, context)
-            .flatMap(response -> {
-                if (response.body().length == 0) {
-                    if (response.ok()) {
-                        return Mono.just(emptyResult());
-                    }
-                    log.error("[{}] Subgraph call failed with empty body: {}", subgraphName, response.status());
-                    return Mono.error(new RuntimeException("Subgraph call failed: " + response.status()));
-                }
-                Map<String, Object> body;
-                try {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> object = JsonTreeReader.read(response.body()) instanceof Map<?, ?> map
-                        ? (Map<String, Object>) map : null;
-                    body = object;
-                } catch (IOException e) {
-                    if (response.ok()) {
-                        return Mono.error(new RuntimeException(
-                            "Subgraph " + subgraphName + " returned invalid JSON: " + e.getMessage(), e));
-                    }
-                    log.error("[{}] Subgraph call failed: {}", subgraphName, response.status());
-                    return Mono.error(new RuntimeException("Subgraph call failed: " + response.status()));
-                }
-                if (body == null) {
-                    return Mono.error(new RuntimeException(
-                        "Subgraph " + subgraphName + " returned no JSON object: " + response.status()));
-                }
-                if (!response.ok()) {
-                    log.warn("[{}] Subgraph returned HTTP error: {}", subgraphName, response.status());
-                    log.warn("[{}] Error response body: {}", subgraphName, body);
-                    String errorMsg = extractErrorMessage(body);
-                    log.error("[{}] Subgraph call failed: {}", subgraphName, errorMsg);
-                    return Mono.error(new RuntimeException("Subgraph call failed: " + errorMsg));
-                }
-                logErrors(body);
-                return Mono.just(buildExecutionResult(body));
-            })
+        return post(OperationTexts.requestBody(operation, variables != null ? variables : Map.of()), false, context,
+            this::readResult)
             .doOnError(e -> log.error("[{}] Subgraph call exception: {}", subgraphName, e.getMessage(), e))
             .contextWrite(CACHE_CONTEXT);
+    }
+
+    /** Reads a subgraph's response to a request: its result, or an error for a failed request. */
+    private void readResult(HttpResponse response, SynchronousSink<ExecutionResult> sink) {
+        if (response.body().length == 0) {
+            if (response.ok()) {
+                sink.next(emptyResult());
+                return;
+            }
+            log.error("[{}] Subgraph call failed with empty body: {}", subgraphName, response.status());
+            sink.error(new RuntimeException("Subgraph call failed: " + response.status()));
+            return;
+        }
+        Map<String, Object> body;
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> object = JsonTreeReader.read(response.body()) instanceof Map<?, ?> map
+                ? (Map<String, Object>) map : null;
+            body = object;
+        } catch (IOException e) {
+            if (response.ok()) {
+                sink.error(new RuntimeException(
+                    "Subgraph " + subgraphName + " returned invalid JSON: " + e.getMessage(), e));
+                return;
+            }
+            log.error("[{}] Subgraph call failed: {}", subgraphName, response.status());
+            sink.error(new RuntimeException("Subgraph call failed: " + response.status()));
+            return;
+        }
+        if (body == null) {
+            sink.error(new RuntimeException(
+                "Subgraph " + subgraphName + " returned no JSON object: " + response.status()));
+            return;
+        }
+        if (!response.ok()) {
+            log.warn("[{}] Subgraph returned HTTP error: {}", subgraphName, response.status());
+            log.warn("[{}] Error response body: {}", subgraphName, body);
+            String errorMsg = extractErrorMessage(body);
+            log.error("[{}] Subgraph call failed: {}", subgraphName, errorMsg);
+            sink.error(new RuntimeException("Subgraph call failed: " + errorMsg));
+            return;
+        }
+        logErrors(body);
+        sink.next(buildExecutionResult(body));
     }
 
     private void logErrors(Map<String, Object> body) {
@@ -257,20 +272,20 @@ public class DefaultSubgraphClient implements SubgraphClient {
                 OperationTexts.pretty(operation));
         }
 
-        return post(OperationTexts.requestBody(operation, variableSets), true, context)
-            .flatMap(response -> {
+        return post(OperationTexts.requestBody(operation, variableSets), true, context,
+            (HttpResponse response, SynchronousSink<List<ExecutionResult>> sink) -> {
                 if (!response.ok()) {
                     log.warn("[{}] Variable batch returned HTTP {}: {}", subgraphName, response.status(),
                         new String(response.body(), StandardCharsets.UTF_8));
-                    return Mono.error(new RuntimeException(
-                        "Subgraph variable batch failed: " + response.status()));
+                    sink.error(new RuntimeException("Subgraph variable batch failed: " + response.status()));
+                    return;
                 }
                 try {
-                    return Mono.just(parseBatchResponse(response.body(), variableSets.size()).stream()
+                    sink.next(parseBatchResponse(response.body(), variableSets.size()).stream()
                         .map(this::buildExecutionResult)
                         .toList());
                 } catch (IllegalArgumentException e) {
-                    return Mono.error(new RuntimeException(
+                    sink.error(new RuntimeException(
                         "Subgraph " + subgraphName + " returned an invalid variable batch response: " + e.getMessage(), e));
                 }
             })
@@ -302,20 +317,21 @@ public class DefaultSubgraphClient implements SubgraphClient {
             return Mono.error(e);
         }
         // Not a client request: only the customizer's headers (e.g. internal auth) apply.
-        return post(body, true, FeddiGatewayRequestContext.empty())
-            .flatMap(response -> {
+        return post(body, true, FeddiGatewayRequestContext.empty(),
+            (HttpResponse response, SynchronousSink<Boolean> sink) -> {
                 int status = response.status();
                 if (isInconclusiveProbeStatus(status)) {
-                    return Mono.error(new IllegalStateException("probe returned HTTP " + status));
-                }
-                if (!response.ok()) {
-                    return Mono.just(false);
-                }
-                try {
-                    return Mono.just(parseBatchResponse(response.body(), 2).stream()
-                        .allMatch(r -> r.get("data") != null));
-                } catch (IllegalArgumentException e) {
-                    return Mono.just(false);
+                    sink.error(new IllegalStateException("probe returned HTTP " + status));
+                } else if (!response.ok()) {
+                    sink.next(false);
+                } else {
+                    boolean supported;
+                    try {
+                        supported = parseBatchResponse(response.body(), 2).stream().allMatch(r -> r.get("data") != null);
+                    } catch (IllegalArgumentException e) {
+                        supported = false;
+                    }
+                    sink.next(supported);
                 }
             });
     }
