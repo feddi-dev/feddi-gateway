@@ -29,6 +29,33 @@ final class ResultCopies {
     }
 
     /**
+     * The data of a lookup result for positions of another step: a deep copy, or the data itself when merging never
+     * writes into it. A merge copies the fields of the lookup's object into the position and links only the objects
+     * and lists among them into the response, where later steps write into them: a lookup object with nothing but
+     * leaf values (e.g. {@code {product: {name: "Table", price: 899}}}) stays as it is and can be shared.
+     */
+    static <T> T forMerge(T data) {
+        if (data instanceof Map<?, ?> map) {
+            for (Object value : map.values()) {
+                if (value instanceof List<?> || value instanceof Map<?, ?> object && !leavesOnly(object)) {
+                    return deepCopy(data);
+                }
+            }
+            return data;
+        }
+        return deepCopy(data);
+    }
+
+    private static boolean leavesOnly(Map<?, ?> object) {
+        for (Object value : object.values()) {
+            if (value instanceof Map<?, ?> || value instanceof List<?>) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Deep-copies maps and lists; other values are immutable and shared.
      */
     @SuppressWarnings("unchecked")

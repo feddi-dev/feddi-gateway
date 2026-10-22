@@ -11,11 +11,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SharedCallSubgraphClientTest {
+
+    private static final Set<String> SHARED = Set.of(
+        OperationTexts.compact(operation("query ($upc: ID!) { product(upc: $upc) { name } }")),
+        OperationTexts.compact(operation("mutation ($upc: ID!) { product(upc: $upc) { name } }")));
 
     private final AtomicInteger calls = new AtomicInteger();
 
@@ -29,7 +34,7 @@ class SharedCallSubgraphClientTest {
 
     @Test
     void identicalQueriesShareOneCall() {
-        var client = new SharedCallSubgraphClient(delegate);
+        var client = new SharedCallSubgraphClient(delegate, SHARED);
         // Two separately parsed but identical operations, as two plan steps would have.
         var first = client.execute(operation("query ($upc: ID!) { product(upc: $upc) { name } }"), Map.of("upc", "1"));
         var second = client.execute(operation("query ($upc: ID!) { product(upc: $upc) { name } }"), Map.of("upc", "1"));
@@ -42,7 +47,7 @@ class SharedCallSubgraphClientTest {
 
     @Test
     void differentVariablesAreNotShared() {
-        var client = new SharedCallSubgraphClient(delegate);
+        var client = new SharedCallSubgraphClient(delegate, SHARED);
         var op = operation("query ($upc: ID!) { product(upc: $upc) { name } }");
 
         client.execute(op, Map.of("upc", "1")).block();
@@ -53,7 +58,7 @@ class SharedCallSubgraphClientTest {
 
     @Test
     void mutationsAreNeverShared() {
-        var client = new SharedCallSubgraphClient(delegate);
+        var client = new SharedCallSubgraphClient(delegate, SHARED);
         var op = operation("mutation ($upc: ID!) { product(upc: $upc) { name } }");
 
         client.execute(op, Map.of("upc", "1")).block();
@@ -64,7 +69,7 @@ class SharedCallSubgraphClientTest {
 
     @Test
     void everyConsumerGetsIndependentData() {
-        var client = new SharedCallSubgraphClient(delegate);
+        var client = new SharedCallSubgraphClient(delegate, SHARED);
         var op = operation("query ($upc: ID!) { product(upc: $upc) { name } }");
 
         List<ExecutionResult> results = new ArrayList<>();
@@ -82,7 +87,7 @@ class SharedCallSubgraphClientTest {
     void laterConsumerDoesNotSeeChangesOfEarlierConsumer() {
         // The first consumer's data is merged into the response and later steps write into it
         // before another step requests the same call.
-        var client = new SharedCallSubgraphClient(delegate);
+        var client = new SharedCallSubgraphClient(delegate, SHARED);
         var op = operation("query ($upc: ID!) { product(upc: $upc) { name } }");
 
         product(client.execute(op, Map.of("upc", "1")).block()).put("leaked", true);
@@ -90,6 +95,18 @@ class SharedCallSubgraphClientTest {
 
         assertThat(product(later)).doesNotContainKey("leaked");
         assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    void operationsOnlyOneStepSendsAreNotShared() {
+        var client = new SharedCallSubgraphClient(delegate, SHARED);
+        var op = operation("query ($upc: ID!) { product(upc: $upc) { name price } }");
+
+        Map<String, Object> first = product(client.execute(op, Map.of("upc", "1")).block());
+        client.execute(op, Map.of("upc", "1")).block();
+
+        assertThat(calls).hasValue(2);
+        assertThat(first).containsEntry("upc", "1");
     }
 
     private static OperationDefinition operation(String query) {
