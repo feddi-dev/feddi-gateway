@@ -26,23 +26,20 @@ final class ListeningSubgraphClient implements SubgraphClient {
 
     @Override
     public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables) {
-        return Mono.defer(() -> {
-            long start = System.nanoTime();
-            return delegate.execute(operation, variables)
-                .doOnNext(result -> listener.onSubgraphFetchComplete(subgraphName, System.nanoTime() - start, true))
-                .doOnError(e -> listener.onSubgraphFetchComplete(subgraphName, System.nanoTime() - start, false));
-        });
+        // Timed from now: the executor subscribes to a call right after creating it
+        long start = System.nanoTime();
+        return delegate.execute(operation, variables)
+            .doOnNext(result -> listener.onSubgraphFetchComplete(subgraphName, System.nanoTime() - start, true))
+            .doOnError(e -> listener.onSubgraphFetchComplete(subgraphName, System.nanoTime() - start, false));
     }
 
     @Override
     public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
                                                     List<Map<String, Object>> variableSets) {
-        return Mono.defer(() -> {
-            long start = System.nanoTime();
-            return delegate.executeBatch(operation, variableSets)
-                .doOnNext(results -> listener.onSubgraphFetchComplete(subgraphName, System.nanoTime() - start, true))
-                .doOnError(e -> listener.onSubgraphFetchComplete(subgraphName, System.nanoTime() - start, false));
-        });
+        long start = System.nanoTime();
+        return delegate.executeBatch(operation, variableSets)
+            .doOnNext(results -> listener.onSubgraphFetchComplete(subgraphName, System.nanoTime() - start, true))
+            .doOnError(e -> listener.onSubgraphFetchComplete(subgraphName, System.nanoTime() - start, false));
     }
 
     @Override

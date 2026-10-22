@@ -27,6 +27,7 @@ import graphql.schema.GraphQLSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
+import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
@@ -177,11 +178,14 @@ public final class Executor {
         /** The nodes in topological order. */
         private final List<Node> nodes;
         private final AtomicInteger openNodes;
+        /** The execution's subscriber context, for every call. */
+        private final Context context;
         private volatile boolean cancelled;
 
         StepScheduler(ExecutionPlan plan, Map<String, Object> queryVariables, MonoSink<ExecutionContext> sink) {
             this.queryVariables = queryVariables;
             this.sink = sink;
+            this.context = Context.of(sink.contextView());
             Schedule schedule = SCHEDULES.get(plan);
             nodes = new ArrayList<>(schedule.nodes().size());
             for (int i = 0; i < schedule.nodes().size(); i++) {
@@ -224,12 +228,41 @@ public final class Executor {
                 sink.error(e);
                 return;
             }
-            node.call = execution
-                .contextWrite(Context.of(sink.contextView()))
-                .subscribe(
-                    result -> done(node, result),
-                    error -> done(node, failed(node.first(), error)),
-                    () -> done(node, new StepResult()));
+            StepCall call = new StepCall(node);
+            node.call = call;
+            execution.subscribe(call);
+        }
+
+        /**
+         * Receives a node's result, with the execution's subscriber context (without a context operator per call,
+         * and read from the sink once per execution).
+         */
+        private final class StepCall extends BaseSubscriber<StepResult> {
+            private final Node node;
+
+            StepCall(Node node) {
+                this.node = node;
+            }
+
+            @Override
+            protected void hookOnNext(StepResult result) {
+                done(node, result);
+            }
+
+            @Override
+            protected void hookOnError(Throwable error) {
+                done(node, failed(node.first(), error));
+            }
+
+            @Override
+            protected void hookOnComplete() {
+                done(node, new StepResult());
+            }
+
+            @Override
+            public Context currentContext() {
+                return context;
+            }
         }
 
         private Mono<StepResult> execute(Node node) {
