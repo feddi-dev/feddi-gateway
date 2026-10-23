@@ -72,7 +72,7 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
         long connectTimeoutMs = number(config, FeddiGatewayReloadService.CONNECT_TIMEOUT_MS,
             FeddiGatewaySettings.DEFAULT_CONNECT_TIMEOUT_MS);
         PoolSettings pool = new PoolSettings(
-            (int) number(config, FeddiGatewayReloadService.MAX_CONNECTIONS, ConnectionProvider.DEFAULT_POOL_MAX_CONNECTIONS),
+            (int) number(config, FeddiGatewayReloadService.MAX_CONNECTIONS, FeddiGatewaySettings.DEFAULT_MAX_CONNECTIONS),
             number(config, FeddiGatewayReloadService.MAX_IDLE_TIME_MS, FeddiGatewaySettings.DEFAULT_MAX_IDLE_TIME_MS));
         HttpClient httpClient = clients.computeIfAbsent(pool, DefaultSubgraphClientFactory::client)
             .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) Math.min(connectTimeoutMs, Integer.MAX_VALUE));
@@ -84,6 +84,9 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
         Duration maxIdleTime = Duration.ofMillis(settings.maxIdleTimeMs());
         return HttpClient.create(ConnectionProvider.builder("feddi-subgraphs")
             .maxConnections(settings.maxConnections())
+            // Requests wait for a connection (up to the acquire timeout), as in Reactor Netty's default pool; a
+            // built pool fails them once more than twice its connections wait, which load reaches easily
+            .pendingAcquireMaxCount(-1)
             .maxIdleTime(maxIdleTime)
             .evictInBackground(maxIdleTime)
             .build());
