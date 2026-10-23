@@ -25,7 +25,7 @@ public record FeddiGatewaySettings(Long timeoutMs, Long maxResponseBytes, Long c
      * Enough for a query's concurrent lookups under load: a call holds its connection until the subgraph answers,
      * and Reactor Netty's default (twice the cores, at least 16) makes requests queue for a connection.
      */
-    public static final int DEFAULT_MAX_CONNECTIONS = 500;
+    public static final int DEFAULT_MAX_CONNECTIONS = 256;
 
     /**
      * Creates settings with a timeout and defaults for everything else.
