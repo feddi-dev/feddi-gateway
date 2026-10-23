@@ -55,6 +55,10 @@ dependencies {
 	// Prometheus metrics
 	runtimeOnly libs.micrometer.registry.prometheus
 
+	// io_uring transport on Linux (Reactor Netty prefers it to epoll when the kernel supports it)
+	runtimeOnly 'io.netty:netty-transport-native-io_uring::linux-x86_64'
+	runtimeOnly 'io.netty:netty-transport-native-io_uring::linux-aarch_64'
+
 	// Testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation libs.reactor.test
