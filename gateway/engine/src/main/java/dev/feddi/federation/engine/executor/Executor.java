@@ -200,6 +200,7 @@ public final class Executor {
 
             Map<String, Set<String>> repeated = schedule.repeatedOperations();
             this.sharedContext = new ExecutionContext(!schedule.mutation(), repeated);
+            sharedContext.reuseSources = plan.reuseSources();
             // Per-execution clients that share identical query calls between steps
             subgraphClients.forEach((name, client) -> {
                 SubgraphClient listening = new ListeningSubgraphClient(client, name, listener);
@@ -284,6 +285,7 @@ public final class Executor {
             try {
                 // Dependents read the shared response tree, so a result enters it before they start
                 sharedContext.merge(result);
+                node.steps.forEach(step -> sharedContext.finishedSteps.add(step.id()));
             } catch (RuntimeException e) {
                 cancel();
                 sink.error(e);
@@ -627,6 +629,9 @@ public final class Executor {
                     uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).add(context, memberIndex);
                 }
             }
+            if (RESULT_REUSE && ctx.reuseEntities && !uniqueEntities.isEmpty()) {
+                reuseFetchedObjects(step, ctx, operationVariables, wrapperPath, uniqueEntities, skipped);
+            }
         }
         if (uniqueEntities.isEmpty() && skipped.isEmpty()) {
             return Mono.just(new StepResult());
@@ -688,6 +693,79 @@ public final class Executor {
             }
             return stepResult;
         });
+    }
+
+    /** Experiment: lookups take entities from the objects other steps fetched from the same subgraph. */
+    private static final boolean RESULT_REUSE =
+        Boolean.parseBoolean(System.getProperty("feddi.experimental.resultReuse", "true"));
+
+    /**
+     * Takes the entities that steps which are already done fetched from the same subgraph with every field of this
+     * lookup ({@link ExecutionPlan#reuseSources()}) out of the entities to fetch: an object there whose key
+     * variables (read with this step's requirements) are an entity's, and whose fields are all set, is the entity's
+     * lookup result. Called under the lock of the merges.
+     */
+    private void reuseFetchedObjects(ExecutionStep step, ExecutionContext ctx, Map<String, Object> operationVariables,
+                                     List<String> wrapperPath, Map<Map<String, Object>, UniqueEntity> uniqueEntities,
+                                     List<EntityResult> results) {
+        List<ExecutionPlan.ReuseSource> sources = ctx.reuseSources.get(step.id());
+        if (sources == null) {
+            return;
+        }
+        String lookupKey = lookupFieldResponseKey(step.operation(), wrapperPath.size());
+        RequirementReader reader = new RequirementReader(step.possibleTypes());
+        for (ExecutionPlan.ReuseSource source : sources) {
+            if (!ctx.finishedSteps.contains(source.step())) {
+                continue;
+            }
+            List<Map<String, Object>> objects = new ArrayList<>();
+            @SuppressWarnings("unchecked")
+            Set<String>[] noTypes = new Set[source.path().size() + 1];
+            collectEntityTargets(ctx.getMergedData(), source.path(), noTypes, 0, objects);
+            for (Map<String, Object> object : objects) {
+                Map<String, Object> variables = new CompactMap(operationVariables.size() + step.requirements().size());
+                variables.putAll(operationVariables);
+                reader.putVariables(step.requirements(), object, variables);
+                UniqueEntity entity = uniqueEntities.get(variables);
+                if (entity == null) {
+                    continue;
+                }
+                CompactMap found = new CompactMap(source.fields().size());
+                for (Map.Entry<String, String> field : source.fields().entrySet()) {
+                    Object value = object.get(field.getValue());
+                    if (value == null) {
+                        // Null, maybe for an error the other step reported: looked up
+                        found = null;
+                        break;
+                    }
+                    found.append(field.getKey(), value);
+                }
+                if (found == null) {
+                    continue;
+                }
+                uniqueEntities.remove(variables);
+                Map<String, Object> data = new CompactMap(1);
+                data.put(lookupKey, found);
+                for (int i = wrapperPath.size() - 1; i >= 0; i--) {
+                    Map<String, Object> wrapper = new CompactMap(1);
+                    wrapper.put(wrapperPath.get(i), data);
+                    data = wrapper;
+                }
+                results.addAll(fanOut(entity, ExecutionResultImpl.newExecutionResult().data(data).build()));
+                if (uniqueEntities.isEmpty()) {
+                    return;
+                }
+            }
+        }
+    }
+
+    /** The response key of a lookup operation's lookup field, below its wrapper fields. */
+    private static String lookupFieldResponseKey(OperationDefinition operation, int wrappers) {
+        SelectionSet level = operation.getSelectionSet();
+        for (int i = 0; i < wrappers; i++) {
+            level = ((Field) level.getSelections().get(0)).getSelectionSet();
+        }
+        return ((Field) level.getSelections().get(0)).getResultKey();
     }
 
     /**
@@ -1342,6 +1420,10 @@ public final class Executor {
         final boolean reuseEntities;
         /** The operations (compact text, by subgraph) that several steps send: only their entities can be reused. */
         private final Map<String, Set<String>> repeatedOperations;
+        /** Where lookups find entities other steps fetched ({@link ExecutionPlan#reuseSources()}). */
+        Map<Integer, List<ExecutionPlan.ReuseSource>> reuseSources = Map.of();
+        /** The steps whose results are merged. */
+        final Set<Integer> finishedSteps = ConcurrentHashMap.newKeySet();
 
         ExecutionContext() {
             this(true, Map.of());
