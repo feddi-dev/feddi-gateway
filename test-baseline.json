@@ -8,8 +8,8 @@
       "skipped": 1
     },
     "gateway-app-unit": {
-      "total": 110,
-      "passed": 110,
+      "total": 112,
+      "passed": 112,
       "failed": 0,
       "errors": 0,
       "skipped": 0
@@ -53,7 +53,7 @@
         "missed": 1211
       },
       "line": {
-        "covered": 9603,
+        "covered": 9604,
         "missed": 1262
       },
       "method": {
@@ -1513,7 +1513,7 @@
       },
       "dev.feddi.federation.app.DefaultSubgraphClientFactory": {
         "line": {
-          "covered": 46,
+          "covered": 47,
           "missed": 0
         },
         "branch": {
@@ -1588,7 +1588,7 @@
             "line": 84,
             "counters": {
               "line": {
-                "covered": 6,
+                "covered": 7,
                 "missed": 0
               },
               "branch": {
@@ -1604,7 +1604,7 @@
           {
             "name": "number",
             "desc": "(Ljava/util/Map;Ljava/lang/String;J)J",
-            "line": 93,
+            "line": 96,
             "counters": {
               "line": {
                 "covered": 1,
@@ -1623,7 +1623,7 @@
           {
             "name": "sslContext",
             "desc": "(Ljava/lang/String;Ljava/lang/Object;)Lio/netty/handler/ssl/SslContext;",
-            "line": 103,
+            "line": 106,
             "counters": {
               "line": {
                 "covered": 21,
@@ -12667,7 +12667,7 @@
           {
             "name": "&lt;init&gt;",
             "desc": "(Ljava/lang/Long;)V",
-            "line": 29,
+            "line": 34,
             "counters": {
               "line": {
                 "covered": 2,
@@ -12705,7 +12705,7 @@
           {
             "name": "defaults",
             "desc": "()Ldev/feddi/federation/extension/FeddiGatewaySettings;",
-            "line": 36,
+            "line": 41,
             "counters": {
               "line": {
                 "covered": 2,
@@ -12724,7 +12724,7 @@
           {
             "name": "timeout",
             "desc": "()Ljava/time/Duration;",
-            "line": 44,
+            "line": 49,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12743,7 +12743,7 @@
           {
             "name": "responseLimit",
             "desc": "()J",
-            "line": 51,
+            "line": 56,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12762,7 +12762,7 @@
           {
             "name": "connectTimeout",
             "desc": "()Ljava/time/Duration;",
-            "line": 58,
+            "line": 63,
             "counters": {
               "line": {
                 "covered": 1,
@@ -12781,7 +12781,7 @@
           {
             "name": "maxIdleTime",
             "desc": "()Ljava/time/Duration;",
-            "line": 65,
+            "line": 70,
             "counters": {
               "line": {
                 "covered": 1,
