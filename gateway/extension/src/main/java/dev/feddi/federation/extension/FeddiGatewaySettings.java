@@ -12,7 +12,7 @@ import java.time.Duration;
  * @param maxIdleTimeMs how long a connection to a subgraph may stay unused before it is closed, in milliseconds;
  *                      below the subgraph's (or its load balancer's) idle timeout, so that the gateway closes it
  *                      first (null = use default)
- * @param maxConnections the most connections to one subgraph address (null = Reactor Netty's default)
+ * @param maxConnections the most connections to one subgraph address (null = use default)
  */
 public record FeddiGatewaySettings(Long timeoutMs, Long maxResponseBytes, Long connectTimeoutMs,
                                    Long maxIdleTimeMs, Integer maxConnections) {
@@ -21,6 +21,11 @@ public record FeddiGatewaySettings(Long timeoutMs, Long maxResponseBytes, Long c
     public static final long DEFAULT_CONNECT_TIMEOUT_MS = 5000;
     /** Below the shortest common idle timeouts (Node.js closes idle connections after 5 seconds). */
     public static final long DEFAULT_MAX_IDLE_TIME_MS = 4000;
+    /**
+     * Enough for a query's concurrent lookups under load: a call holds its connection until the subgraph answers,
+     * and Reactor Netty's default (twice the cores, at least 16) makes requests queue for a connection.
+     */
+    public static final int DEFAULT_MAX_CONNECTIONS = 500;
 
     /**
      * Creates settings with a timeout and defaults for everything else.

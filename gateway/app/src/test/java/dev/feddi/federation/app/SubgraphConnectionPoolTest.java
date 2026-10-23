@@ -85,6 +85,19 @@ class SubgraphConnectionPoolTest {
     }
 
     @Test
+    void opensAConnectionPerConcurrentCallByDefault() {
+        // Reactor Netty's default pool (twice the cores, at least 16) would make most of these wait for a connection
+        start(Duration.ofMillis(200));
+        SubgraphClient client = new DefaultSubgraphClientFactory(null).create("accounts", settings(Map.of()));
+
+        Flux.range(0, 40)
+            .flatMap(i -> client.execute(QUERY, Map.of(), FeddiGatewayRequestContext.empty()))
+            .blockLast(Duration.ofSeconds(10));
+
+        assertThat(connections).hasValue(40);
+    }
+
+    @Test
     void givesUpConnectingAfterTheConnectTimeout() {
         // A non-routable address: connecting hangs until the timeout
         SubgraphClient client = new DefaultSubgraphClientFactory(null).create("accounts",
