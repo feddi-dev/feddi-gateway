@@ -72,7 +72,7 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
         long connectTimeoutMs = number(config, FeddiGatewayReloadService.CONNECT_TIMEOUT_MS,
             FeddiGatewaySettings.DEFAULT_CONNECT_TIMEOUT_MS);
         PoolSettings pool = new PoolSettings(
-            (int) number(config, FeddiGatewayReloadService.MAX_CONNECTIONS, ConnectionProvider.DEFAULT_POOL_MAX_CONNECTIONS),
+            (int) number(config, FeddiGatewayReloadService.MAX_CONNECTIONS, FeddiGatewaySettings.DEFAULT_MAX_CONNECTIONS),
             number(config, FeddiGatewayReloadService.MAX_IDLE_TIME_MS, FeddiGatewaySettings.DEFAULT_MAX_IDLE_TIME_MS));
         HttpClient httpClient = clients.computeIfAbsent(pool, DefaultSubgraphClientFactory::client)
             .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) Math.min(connectTimeoutMs, Integer.MAX_VALUE));

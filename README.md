@@ -224,7 +224,7 @@ feddi Gateway-level ZIP config keys in the optional root `config.yaml` or `confi
 | `maxResponseBytes` | long | `8388608` (8 MB) | Largest subgraph response body read, in bytes; a larger response fails that subgraph call |
 | `connectTimeoutMs` | long | `5000` | How long to wait for a connection to a subgraph, in milliseconds |
 | `maxIdleTimeMs` | long | `4000` | How long a connection to a subgraph may stay unused before the gateway closes it, in milliseconds. Keep it below the subgraphs' (or their load balancers') idle timeout, e.g. Node.js closes idle connections after 5 seconds, an AWS ALB after 60 |
-| `maxConnections` | int | Reactor Netty's (`2 × max(cores, 8)`) | Most connections to one subgraph address |
+| `maxConnections` | int | 256 | Most connections to one subgraph address |
 
 Per-subgraph keys in each required `config.yaml` or `config.yml`:
 
