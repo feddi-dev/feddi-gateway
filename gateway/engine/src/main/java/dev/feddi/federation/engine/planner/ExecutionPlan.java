@@ -25,8 +25,10 @@ public record ExecutionPlan(List<ExecutionStep> steps, Map<Integer, List<ReuseSo
      */
     public record ReuseSource(int step, List<String> path, Map<String, String> fields) {
         public ReuseSource {
-            path = List.copyOf(path);
-            fields = Map.copyOf(fields);
+            // Interned like the field names of parsed responses, so that lookups by them match by reference
+            path = path.stream().map(String::intern).toList();
+            fields = fields.entrySet().stream()
+                .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().intern(), entry -> entry.getValue().intern()));
         }
     }
 
