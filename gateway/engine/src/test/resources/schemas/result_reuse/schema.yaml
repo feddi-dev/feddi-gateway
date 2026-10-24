@@ -1,0 +1,50 @@
+name: "Result Reuse"
+description: |
+  A lookup of the catalog, below an internal wrapper field, can be answered by the products the catalog's root
+  field returned in the same request.
+
+subgraphs:
+  catalog: |
+    type Query {
+      products: [Product]
+      lookups: Lookups! @internal
+    }
+
+    type Lookups @internal {
+      productById(id: ID!): Product @lookup
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+      name: String
+    }
+
+  reviews: |
+    type Query {
+      reviews: [Review]
+    }
+
+    type Review {
+      id: ID!
+      product: Product
+    }
+
+    type Product @key(fields: "id") {
+      id: ID!
+    }
+
+supergraph: |
+  type Query {
+    products: [Product]
+    reviews: [Review]
+  }
+
+  type Review {
+    id: ID!
+    product: Product
+  }
+
+  type Product {
+    id: ID!
+    name: String
+  }

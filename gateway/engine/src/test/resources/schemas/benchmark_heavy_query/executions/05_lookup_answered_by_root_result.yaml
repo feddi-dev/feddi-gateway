@@ -1,0 +1,72 @@
+name: "Lookup answered by the objects of a root field"
+description: |
+  topProducts fetches name, price and weight of p1 from the products subgraph; the product lookup for the review's
+  p1 takes them from there. p2 is not among the top products and is looked up.
+
+query: |
+  fragment ProductFields on Product {
+    name
+    price
+    upc
+    weight
+  }
+
+  {
+    users {
+      id
+      reviews {
+        id
+        product {
+          ...ProductFields
+        }
+      }
+    }
+    topProducts(first: 1) {
+      ...ProductFields
+    }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: accounts
+    operation: '{users{id}}'
+    delayMs: 30
+    variables: {}
+    response: { data: { users: [{ id: "u1" }] } }
+
+  - subgraph: products
+    operation: '{topProducts(first:1){name price upc weight}}'
+    delayMs: 1
+    variables: {}
+    response: { data: { topProducts: [{ name: "Table", price: 899, upc: "p1", weight: 100 }] } }
+
+  - subgraph: reviews
+    operation: 'query ($id:ID!){user(id:$id){reviews{id product{upc}}}}'
+    variables: { id: "u1" }
+    response: { data: { user: { reviews: [
+      { id: "r1", product: { upc: "p1" } },
+      { id: "r2", product: { upc: "p2" } }
+    ] } } }
+
+  - subgraph: products
+    operation: 'query ($upc:ID!){product(upc:$upc){name price weight}}'
+    variables: { upc: "p2" }
+    response: { data: { product: { name: "Chair", price: 54, weight: 8 } } }
+
+expectedResponse: {
+  data: {
+    users: [
+      {
+        id: "u1",
+        reviews: [
+          { id: "r1", product: { name: "Table", price: 899, upc: "p1", weight: 100 } },
+          { id: "r2", product: { name: "Chair", price: 54, upc: "p2", weight: 8 } }
+        ]
+      }
+    ],
+    topProducts: [
+      { name: "Table", price: 899, upc: "p1", weight: 100 }
+    ]
+  }
+}

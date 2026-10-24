@@ -106,7 +106,7 @@ final class LookupStepMerger {
     }
 
     /** The lookup field: the first field with arguments, below fields without arguments that select one field. */
-    private static @Nullable Field lookupField(OperationDefinition operation) {
+    static @Nullable Field lookupField(OperationDefinition operation) {
         SelectionSet level = operation.getSelectionSet();
         while (level != null && level.getSelections().size() == 1 && level.getSelections().get(0) instanceof Field field) {
             if (!field.getArguments().isEmpty()) {

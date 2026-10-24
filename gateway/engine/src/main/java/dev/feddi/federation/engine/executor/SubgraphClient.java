@@ -49,4 +49,14 @@ public interface SubgraphClient {
     default BatchingOptions batching() {
         return BatchingOptions.NONE;
     }
+
+    /**
+     * Whether lookups to this subgraph may take entities from objects that other steps of the same request fetched
+     * from it with every field the lookup selects ({@link dev.feddi.federation.engine.planner.ExecutionPlan#reuseSources()}),
+     * instead of sending the lookup. Assumes that the subgraph resolves a field of an entity to the same value,
+     * whichever field led to the entity.
+     */
+    default boolean reusesResults() {
+        return true;
+    }
 }

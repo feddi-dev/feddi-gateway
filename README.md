@@ -234,6 +234,7 @@ Per-subgraph keys in each required `config.yaml` or `config.yml`:
 | `batching` | string | `none` | no | How entity lookups are batched: `none`, `alias` or `variables` |
 | `batch-max-size` | int | `64` | no | Most entities per batch |
 | `maxResponseBytes` | long | the root `config.yaml`'s | no | Overrides the gateway's `maxResponseBytes` for this subgraph |
+| `reuseResults` | boolean | `true` | no | Whether a lookup to this subgraph may take an entity from an object a root field of the same request fetched from it with every field the lookup selects (e.g. `product(upc)` from `topProducts`), instead of sending the lookup. Set `false` if the subgraph can resolve a field of the same entity to different values depending on the field that led to it |
 | `sslBundle` | string | none | no | Name of a Spring Boot SSL bundle (`spring.ssl.bundle.*`) for this subgraph's TLS connections (`https` URL) |
 
 Each subgraph entry must contain:

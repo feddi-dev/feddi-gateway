@@ -1,0 +1,39 @@
+name: "Lookup below a wrapper field answered by the root field's objects"
+description: |
+  products returns p1 with its name: the review's p1 is not looked up, p2 is.
+
+query: |
+  {
+    products { id name }
+    reviews { id product { id name } }
+  }
+
+variables: {}
+
+subgraphCalls:
+  - subgraph: catalog
+    operation: '{products{id name}}'
+    delayMs: 1
+    variables: {}
+    response: { data: { products: [{ id: "p1", name: "Table" }, { id: "p3", name: "Lamp" }] } }
+
+  - subgraph: reviews
+    operation: '{reviews{id product{id}}}'
+    delayMs: 50
+    variables: {}
+    response: { data: { reviews: [{ id: "r1", product: { id: "p1" } }, { id: "r2", product: { id: "p2" } }] } }
+
+  - subgraph: catalog
+    operation: 'query ($id:ID!){lookups{productById(id:$id){name}}}'
+    variables: { id: "p2" }
+    response: { data: { lookups: { productById: { name: "Chair" } } } }
+
+expectedResponse: {
+  data: {
+    products: [{ id: "p1", name: "Table" }, { id: "p3", name: "Lamp" }],
+    reviews: [
+      { id: "r1", product: { id: "p1", name: "Table" } },
+      { id: "r2", product: { id: "p2", name: "Chair" } }
+    ]
+  }
+}

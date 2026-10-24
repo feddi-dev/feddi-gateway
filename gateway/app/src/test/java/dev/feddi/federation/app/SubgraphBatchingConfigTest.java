@@ -71,6 +71,34 @@ class SubgraphBatchingConfigTest {
     }
 
     @Test
+    void reloadAppliesResultReuseFromSubgraphSettings() {
+        assertThat(reload(Map.of("url", "http://catalog.local/graphql")).get().reusesResults("catalog")).isTrue();
+        assertThat(reload(Map.of("url", "http://catalog.local/graphql", "reuseResults", false)).get()
+            .reusesResults("catalog")).isFalse();
+        assertThat(reload(Map.of("url", "http://catalog.local/graphql", "reuseResults", "false")).get()
+            .reusesResults("catalog")).isFalse();
+        assertThat(reload(Map.of("url", "http://catalog.local/graphql", "reuseResults", "true")).get()
+            .reusesResults("catalog")).isTrue();
+    }
+
+    @Test
+    void invalidResultReuseSettingIsRejected() {
+        assertThatThrownBy(() -> reload(Map.of("url", "http://catalog.local/graphql", "reuseResults", "sometimes")))
+            .isInstanceOf(FeddiGatewayDefinitionException.class)
+            .hasMessageContaining("catalog")
+            .hasMessageContaining("expected true or false");
+    }
+
+    @Test
+    void adapterReportsWhetherResultsAreReused() {
+        PerEntitySubgraphClient client = (operation, variables, context) -> Mono.empty();
+        var context = FeddiGatewayRequestContext.empty();
+
+        assertThat(new SubgraphClientAdapter(client, context, BatchingOptions.NONE).reusesResults()).isTrue();
+        assertThat(new SubgraphClientAdapter(client, context, BatchingOptions.NONE, false).reusesResults()).isFalse();
+    }
+
+    @Test
     void adapterPassesBatchesAndContextToTheExtensionClient() {
         List<FeddiGatewayRequestContext> contexts = new ArrayList<>();
         SubgraphClient client = new PerEntitySubgraphClient() {

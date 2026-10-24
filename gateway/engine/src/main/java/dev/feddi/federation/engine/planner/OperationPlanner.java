@@ -92,7 +92,8 @@ public final class OperationPlanner {
         }
 
         // Build the execution plan from the planning context; lookups of the same entities get one operation
-        return LookupStepMerger.merge(context.buildPlan());
+        ExecutionPlan plan = LookupStepMerger.merge(context.buildPlan());
+        return ResultReuse.withReuseSources(plan, context.lookupTargetTypes(), graph);
     }
     
     /**

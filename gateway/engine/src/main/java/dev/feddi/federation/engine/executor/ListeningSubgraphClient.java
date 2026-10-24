@@ -46,4 +46,9 @@ final class ListeningSubgraphClient implements SubgraphClient {
     public BatchingOptions batching() {
         return delegate.batching();
     }
+
+    @Override
+    public boolean reusesResults() {
+        return delegate.reusesResults();
+    }
 }

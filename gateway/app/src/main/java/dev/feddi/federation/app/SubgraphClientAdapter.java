@@ -22,12 +22,22 @@ public class SubgraphClientAdapter implements dev.feddi.federation.engine.execut
     private final SubgraphClient delegate;
     private final FeddiGatewayRequestContext context;
     private final BatchingOptions batching;
+    private final boolean reusesResults;
 
     public SubgraphClientAdapter(SubgraphClient delegate, FeddiGatewayRequestContext context,
                                  BatchingOptions batching) {
+        this(delegate, context, batching, true);
+    }
+
+    /**
+     * @param reusesResults whether lookups may take entities from other steps' results of this subgraph
+     */
+    public SubgraphClientAdapter(SubgraphClient delegate, FeddiGatewayRequestContext context,
+                                 BatchingOptions batching, boolean reusesResults) {
         this.delegate = delegate;
         this.context = context;
         this.batching = batching;
+        this.reusesResults = reusesResults;
     }
 
     @Override
@@ -44,5 +54,10 @@ public class SubgraphClientAdapter implements dev.feddi.federation.engine.execut
     @Override
     public BatchingOptions batching() {
         return batching;
+    }
+
+    @Override
+    public boolean reusesResults() {
+        return reusesResults;
     }
 }

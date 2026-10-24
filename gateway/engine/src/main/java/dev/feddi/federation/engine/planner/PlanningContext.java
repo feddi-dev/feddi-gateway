@@ -117,6 +117,17 @@ final class PlanningContext {
     }
 
     /** The execution plan of the plans built so far. */
+    /** The type each lookup plan looks up, by plan (and step) id. */
+    Map<Integer, String> lookupTargetTypes() {
+        Map<Integer, String> types = new HashMap<>();
+        for (SubgraphPlan plan : subgraphPlans.values()) {
+            if (plan.lookupTargetType() != null) {
+                types.put(plan.id, plan.lookupTargetType());
+            }
+        }
+        return types;
+    }
+
     ExecutionPlan buildPlan() {
         // A mutation's groups of top-level fields execute in order: each group's root plans wait for every plan
         // of the group before
