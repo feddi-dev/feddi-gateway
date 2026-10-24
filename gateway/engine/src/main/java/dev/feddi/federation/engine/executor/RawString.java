@@ -20,6 +20,8 @@ public final class RawString implements CharSequence {
     private final int start;
     private final int end;
     private @Nullable String decoded;
+    /** The hash code once computed (0 before): values are hashed again and again as parts of lookup keys. */
+    private int hash;
 
     /**
      * @param bytes the JSON text
@@ -82,18 +84,27 @@ public final class RawString implements CharSequence {
      */
     @Override
     public int hashCode() {
+        int h = hash;
+        if (h == 0) {
+            h = computeHash();
+            hash = h;
+        }
+        return h;
+    }
+
+    private int computeHash() {
         if (decoded != null) {
             return decoded.hashCode();
         }
-        int hash = 0;
+        int h = 0;
         for (int i = start + 1; i < end - 1; i++) {
             byte b = bytes[i];
             if (b < 0 || b == '\\') {
                 return toString().hashCode();
             }
-            hash = 31 * hash + b;
+            h = 31 * h + b;
         }
-        return hash;
+        return h;
     }
 
     /**

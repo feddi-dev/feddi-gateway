@@ -74,7 +74,7 @@ public final class ResponseWriter {
     public static Output write(ResponseShape shape, @Nullable Map<String, Object> data, List<GraphQLError> errors,
                                @Nullable Map<Object, Object> extensions) {
         // Written as {"data":...} into one buffer; errors, if any, go first, which needs a second buffer
-        JsonBuffer buffer = new JsonBuffer(8192);
+        JsonBuffer buffer = new JsonBuffer(Math.max(8192, shape.sizeHint));
         buffer.write((byte) '{');
         buffer.write(DATA_KEY);
         int dataStart = buffer.position();
@@ -83,6 +83,8 @@ public final class ResponseWriter {
             buffer.reset(dataStart);
             buffer.writeNull();
         }
+        // With some room for responses that are a little larger
+        shape.sizeHint = buffer.position() + (buffer.position() >> 3);
         List<GraphQLError> allErrors = errors;
         if (!writer.added.isEmpty()) {
             allErrors = new ArrayList<>(errors);

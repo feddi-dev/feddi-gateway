@@ -27,6 +27,7 @@ import graphql.schema.GraphQLSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
+import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
@@ -68,7 +69,8 @@ public final class Executor {
     public static final String INTROSPECTION_SUBGRAPH = "$introspection";
 
     private final Map<String, SubgraphClient> subgraphClients;
-    private final GraphQL introspectionGraphQL;
+    /** The supergraph schema for introspection, or null without introspection support. */
+    private final GraphQLSchema supergraphSchema;
     private final ExecutionListener listener;
 
     /**
@@ -99,9 +101,8 @@ public final class Executor {
     public Executor(Map<String, SubgraphClient> subgraphClients, GraphQLSchema supergraphSchema,
                     ExecutionListener listener) {
         this.subgraphClients = new LinkedHashMap<>(subgraphClients);
-        this.introspectionGraphQL = supergraphSchema != null
-            ? GraphQL.newGraphQL(supergraphSchema).build()
-            : null;
+        // The GraphQL instance for introspection is built when a step needs it: executors are created per request
+        this.supergraphSchema = supergraphSchema;
         this.listener = listener != null ? listener : ExecutionListener.NOOP;
     }
 
@@ -134,7 +135,7 @@ public final class Executor {
         }
 
         // Each step starts as soon as its dependencies are done; the request completes with the last step
-        return Mono.<ExecutionContext>create(sink -> new StepScheduler(plan.steps(), variables, sink).start())
+        return Mono.<ExecutionContext>create(sink -> new StepScheduler(plan, variables, sink).start())
             .map(this::buildResult);
     }
 
@@ -153,12 +154,17 @@ public final class Executor {
 
         /** A step, or steps that run together (see {@link StepGroup}). */
         private final class Node {
-            final List<ExecutionStep> steps = new ArrayList<>();
-            final List<Node> dependents = new ArrayList<>();
-            final AtomicInteger openDependencies = new AtomicInteger();
+            final List<ExecutionStep> steps;
+            final List<Node> dependents = new ArrayList<>(2);
+            final AtomicInteger openDependencies;
             final AtomicBoolean finished = new AtomicBoolean();
             volatile StepResult result;
             volatile Disposable call;
+
+            Node(List<ExecutionStep> steps, int dependencies) {
+                this.steps = steps;
+                this.openDependencies = new AtomicInteger(dependencies);
+            }
 
             ExecutionStep first() {
                 return steps.get(0);
@@ -170,57 +176,37 @@ public final class Executor {
         private final ExecutionContext sharedContext;
         private final Map<String, SubgraphClient> clients = new HashMap<>();
         /** The nodes in topological order. */
-        private final List<Node> nodes = new ArrayList<>();
+        private final List<Node> nodes;
         private final AtomicInteger openNodes;
+        /** The execution's subscriber context, for every call. */
+        private final Context context;
         private volatile boolean cancelled;
 
-        StepScheduler(List<ExecutionStep> steps, Map<String, Object> queryVariables, MonoSink<ExecutionContext> sink) {
+        StepScheduler(ExecutionPlan plan, Map<String, Object> queryVariables, MonoSink<ExecutionContext> sink) {
             this.queryVariables = queryVariables;
             this.sink = sink;
-            // In a mutation, the lookups after one top-level field must see what it changed: nothing fetched before
-            // it is reused, neither calls nor entities
-            boolean mutation = steps.stream()
-                .anyMatch(step -> step.operation().getOperation() == OperationDefinition.Operation.MUTATION);
-            this.sharedContext = new ExecutionContext(!mutation);
-            // Per-execution clients that share identical query calls between steps
-            subgraphClients.forEach((name, client) -> {
-                SubgraphClient listening = new ListeningSubgraphClient(client, name, listener);
-                clients.put(name, mutation ? listening : new SharedCallSubgraphClient(listening));
-            });
-
-            // Lookup steps that send the same operation to the same subgraph once the same steps are done run as one
-            // (entities deduplicated together, one batch)
-            Map<Integer, Node> nodeOfStep = new HashMap<>();
-            Map<StepGroup, Node> groups = new HashMap<>();
-            for (ExecutionStep step : topologicalSort(steps)) {
-                List<Node> dependencies = step.dependsOn().stream().map(nodeOfStep::get).distinct().toList();
-                if (!step.isRoot() && isGroupable(step)) {
-                    StepGroup group = new StepGroup(step.subgraph(), OperationTexts.compact(step.operation()),
-                        dependencies.stream().map(node -> node.first().id()).sorted().toList());
-                    Node existing = groups.get(group);
-                    if (existing != null) {
-                        existing.steps.add(step);
-                        nodeOfStep.put(step.id(), existing);
-                        continue;
-                    }
-                    Node node = addNode(step, dependencies);
-                    groups.put(group, node);
-                    nodeOfStep.put(step.id(), node);
-                } else {
-                    nodeOfStep.put(step.id(), addNode(step, dependencies));
+            this.context = Context.of(sink.contextView());
+            Schedule schedule = SCHEDULES.get(plan);
+            nodes = new ArrayList<>(schedule.nodes().size());
+            for (int i = 0; i < schedule.nodes().size(); i++) {
+                nodes.add(new Node(schedule.nodes().get(i), schedule.dependencyCounts()[i]));
+            }
+            for (int i = 0; i < nodes.size(); i++) {
+                for (int dependent : schedule.dependents()[i]) {
+                    nodes.get(i).dependents.add(nodes.get(dependent));
                 }
             }
             openNodes = new AtomicInteger(nodes.size());
-            sink.onCancel(this::cancel);
-        }
 
-        private Node addNode(ExecutionStep step, List<Node> dependencies) {
-            Node node = new Node();
-            node.steps.add(step);
-            node.openDependencies.set(dependencies.size());
-            dependencies.forEach(dependency -> dependency.dependents.add(node));
-            nodes.add(node);
-            return node;
+            Map<String, Set<String>> repeated = schedule.repeatedOperations();
+            this.sharedContext = new ExecutionContext(!schedule.mutation(), repeated);
+            // Per-execution clients that share identical query calls between steps
+            subgraphClients.forEach((name, client) -> {
+                SubgraphClient listening = new ListeningSubgraphClient(client, name, listener);
+                Set<String> operations = repeated.getOrDefault(name, Set.of());
+                clients.put(name, operations.isEmpty() ? listening : new SharedCallSubgraphClient(listening, operations));
+            });
+            sink.onCancel(this::cancel);
         }
 
         void start() {
@@ -242,12 +228,41 @@ public final class Executor {
                 sink.error(e);
                 return;
             }
-            node.call = execution
-                .contextWrite(Context.of(sink.contextView()))
-                .subscribe(
-                    result -> done(node, result),
-                    error -> done(node, failed(node.first(), error)),
-                    () -> done(node, new StepResult()));
+            StepCall call = new StepCall(node);
+            node.call = call;
+            execution.subscribe(call);
+        }
+
+        /**
+         * Receives a node's result, with the execution's subscriber context (without a context operator per call,
+         * and read from the sink once per execution).
+         */
+        private final class StepCall extends BaseSubscriber<StepResult> {
+            private final Node node;
+
+            StepCall(Node node) {
+                this.node = node;
+            }
+
+            @Override
+            protected void hookOnNext(StepResult result) {
+                done(node, result);
+            }
+
+            @Override
+            protected void hookOnError(Throwable error) {
+                done(node, failed(node.first(), error));
+            }
+
+            @Override
+            protected void hookOnComplete() {
+                done(node, new StepResult());
+            }
+
+            @Override
+            public Context currentContext() {
+                return context;
+            }
         }
 
         private Mono<StepResult> execute(Node node) {
@@ -303,6 +318,79 @@ public final class Executor {
         StepResult errorResult = new StepResult();
         errorResult.addError(subgraphError(step.subgraph(), e));
         return errorResult;
+    }
+
+    private static final IdentityCache<ExecutionPlan, Schedule> SCHEDULES = new IdentityCache<>(Schedule::of);
+
+    /**
+     * How a plan's steps run, worked out once per plan: the nodes (steps, or groups of steps that run together) in
+     * topological order, how many nodes each waits for and which wait for it, and the operations that several nodes
+     * send, whose calls and entities can be shared.
+     *
+     * @param mutation whether the plan has mutation steps: the lookups after one top-level field must see what it
+     *                 changed, so nothing fetched before it is reused, neither calls nor entities
+     */
+    private record Schedule(List<List<ExecutionStep>> nodes, int[] dependencyCounts, int[][] dependents,
+                            boolean mutation, Map<String, Set<String>> repeatedOperations) {
+
+        static Schedule of(ExecutionPlan plan) {
+            boolean mutation = plan.steps().stream()
+                .anyMatch(step -> step.operation().getOperation() == OperationDefinition.Operation.MUTATION);
+            // Lookup steps that send the same operation to the same subgraph once the same steps are done run as one
+            // (entities deduplicated together, one batch)
+            List<List<ExecutionStep>> nodes = new ArrayList<>();
+            List<List<Integer>> dependencies = new ArrayList<>();
+            Map<Integer, Integer> nodeOfStep = new HashMap<>();
+            Map<StepGroup, Integer> groups = new HashMap<>();
+            for (ExecutionStep step : topologicalSort(plan.steps())) {
+                List<Integer> stepDependencies = step.dependsOn().stream().map(nodeOfStep::get).distinct().toList();
+                Integer node = null;
+                StepGroup group = null;
+                if (!step.isRoot() && isGroupable(step)) {
+                    group = new StepGroup(step.subgraph(), OperationTexts.compact(step.operation()),
+                        stepDependencies.stream().map(index -> nodes.get(index).get(0).id()).sorted().toList());
+                    node = groups.get(group);
+                }
+                if (node == null) {
+                    node = nodes.size();
+                    nodes.add(new ArrayList<>(List.of(step)));
+                    dependencies.add(stepDependencies);
+                    if (group != null) {
+                        groups.put(group, node);
+                    }
+                } else {
+                    nodes.get(node).add(step);
+                }
+                nodeOfStep.put(step.id(), node);
+            }
+
+            int[] dependencyCounts = new int[nodes.size()];
+            List<List<Integer>> dependents = new ArrayList<>();
+            nodes.forEach(node -> dependents.add(new ArrayList<>()));
+            for (int node = 0; node < nodes.size(); node++) {
+                dependencyCounts[node] = dependencies.get(node).size();
+                for (int dependency : dependencies.get(node)) {
+                    dependents.get(dependency).add(node);
+                }
+            }
+
+            // Calls and entities can only be shared between nodes that send the same operation to the same subgraph
+            Map<String, Set<String>> seen = new HashMap<>();
+            Map<String, Set<String>> repeated = new HashMap<>();
+            if (!mutation) {
+                for (List<ExecutionStep> node : nodes) {
+                    ExecutionStep step = node.get(0);
+                    String text = OperationTexts.compact(step.operation());
+                    if (!seen.computeIfAbsent(step.subgraph(), s -> new HashSet<>()).add(text)) {
+                        repeated.computeIfAbsent(step.subgraph(), s -> new HashSet<>()).add(text);
+                    }
+                }
+            }
+            return new Schedule(nodes.stream().map(List::copyOf).toList(), dependencyCounts,
+                dependents.stream().map(list -> list.stream().mapToInt(Integer::intValue).toArray())
+                    .toArray(int[][]::new),
+                mutation, repeated);
+        }
     }
 
     /** Lookup steps that can run together: the same operation to the same subgraph after the same steps. */
@@ -384,7 +472,7 @@ public final class Executor {
      * Sorts steps topologically based on dependencies.
      * Steps with no dependencies come first.
      */
-    private List<ExecutionStep> topologicalSort(List<ExecutionStep> steps) {
+    private static List<ExecutionStep> topologicalSort(List<ExecutionStep> steps) {
         Map<Integer, ExecutionStep> stepMap = new HashMap<>();
         for (ExecutionStep step : steps) {
             stepMap.put(step.id(), step);
@@ -449,7 +537,9 @@ public final class Executor {
                 if (result.getData() != null) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> data = (Map<String, Object>) result.getData();
-                    stepResult.setRootData(data);
+                    // The response is completed in place (null propagation): data of a client that returns other
+                    // maps than the parsed compact ones (which may be immutable) is copied
+                    stepResult.setRootData(data instanceof CompactMap ? data : ResultCopies.deepCopy(data));
                     log.debug("Step {} received data from subgraph '{}'", step.id(), step.subgraph());
                 }
                 // Capture any GraphQL errors from the subgraph response
@@ -470,7 +560,7 @@ public final class Executor {
      * Executes an introspection step against the supergraph schema.
      */
     private Mono<StepResult> executeIntrospectionStep(ExecutionStep step, Map<String, Object> variables) {
-        if (introspectionGraphQL == null) {
+        if (supergraphSchema == null) {
             return Mono.error(new ExecutionException(
                 "Introspection not supported: no supergraph schema provided to executor"));
         }
@@ -487,7 +577,7 @@ public final class Executor {
             .variables(variables != null ? variables : Map.of())
             .build();
 
-        return Mono.fromFuture(introspectionGraphQL.executeAsync(input))
+        return Mono.fromFuture(GraphQL.newGraphQL(supergraphSchema).build().executeAsync(input))
             .map(result -> {
                 StepResult stepResult = new StepResult();
                 if (result.getData() != null) {
@@ -547,8 +637,9 @@ public final class Executor {
         List<UniqueEntity> toFetch = new ArrayList<>(uniqueEntities.size());
         List<UniqueEntity> reused = new ArrayList<>(0);
         List<Mono<ExecutionResult>> reusedResults = new ArrayList<>(0);
-        if (ctx.reuseEntities && step.operation().getOperation() == OperationDefinition.Operation.QUERY) {
-            String operationText = OperationTexts.compact(step.operation());
+        String operationText = OperationTexts.compact(step.operation());
+        if (ctx.reuseEntities && step.operation().getOperation() == OperationDefinition.Operation.QUERY
+            && ctx.isRepeated(step.subgraph(), operationText)) {
             for (UniqueEntity entity : uniqueEntities.values()) {
                 Sinks.One<ExecutionResult> result = Sinks.one();
                 Sinks.One<ExecutionResult> existing = ctx.entityResults.putIfAbsent(
@@ -669,6 +760,18 @@ public final class Executor {
 
     /** The variables an operation declares non-null without a default value (interned, as map keys are). */
     private static String[] requiredVariables(OperationDefinition operation) {
+        return REQUIRED_VARIABLES.get(operation);
+    }
+
+    // What the executor reads from a step's operation, worked out once per operation instance
+    private static final IdentityCache<OperationDefinition, String[]> REQUIRED_VARIABLES =
+        new IdentityCache<>(Executor::computeRequiredVariables);
+    private static final IdentityCache<OperationDefinition, List<String>> WRAPPER_PATHS =
+        new IdentityCache<>(operation -> List.copyOf(computeLookupWrapperPath(operation)));
+    private static final IdentityCache<OperationDefinition, Set<String>> FIRST_LEVEL_FIELD_NAMES =
+        new IdentityCache<>(operation -> Set.copyOf(computeFirstLevelFieldNames(operation)));
+
+    private static String[] computeRequiredVariables(OperationDefinition operation) {
         return operation.getVariableDefinitions().stream()
             .filter(definition -> definition.getType() instanceof NonNullType && definition.getDefaultValue() == null)
             .map(definition -> definition.getName().intern())
@@ -970,6 +1073,10 @@ public final class Executor {
      * below Query ({@code lookups { brandById(id: $id) { ... } }} gives ["lookups"]); empty for a lookup on Query.
      */
     static List<String> lookupWrapperPath(OperationDefinition operation) {
+        return WRAPPER_PATHS.get(operation);
+    }
+
+    private static List<String> computeLookupWrapperPath(OperationDefinition operation) {
         List<String> path = new ArrayList<>();
         SelectionSet level = operation.getSelectionSet();
         while (level != null && level.getSelections().size() == 1 && level.getSelections().get(0) instanceof Field field
@@ -1004,7 +1111,11 @@ public final class Executor {
      * this returns ["author"] - the fields directly under the lookup root.
      * These are the fields that should be set to null when a lookup is skipped.
      */
-    private Set<String> getFirstLevelFieldNames(OperationDefinition operation) {
+    private static Set<String> getFirstLevelFieldNames(OperationDefinition operation) {
+        return FIRST_LEVEL_FIELD_NAMES.get(operation);
+    }
+
+    private static Set<String> computeFirstLevelFieldNames(OperationDefinition operation) {
         Set<String> fieldNames = new HashSet<>();
         if (operation.getSelectionSet() == null) {
             return fieldNames;
@@ -1065,12 +1176,12 @@ public final class Executor {
 
         /**
          * Shares the result: a copy, taken before the result is merged into this step's positions (later steps
-         * merge their fields into those).
+         * merge their fields into those), unless merging leaves it as it is ({@link ResultCopies#forMerge}).
          */
         void shareResult(ExecutionResult result) {
             if (shared[0] != null) {
                 shared[0].tryEmitValue(ExecutionResultImpl.newExecutionResult()
-                    .data(ResultCopies.deepCopy(result.getData())).build());
+                    .data(ResultCopies.forMerge(result.getData())).build());
             }
         }
 
@@ -1159,7 +1270,7 @@ public final class Executor {
                         copies = new HashMap<>();
                     }
                     shared = copies.computeIfAbsent(step, s -> ExecutionResultImpl.newExecutionResult()
-                        .data(ResultCopies.deepCopy(result.getData())).build());
+                        .data(ResultCopies.forMerge(result.getData())).build());
                 }
                 results.add(new EntityResult(contexts.get(i), shared));
             }
@@ -1196,7 +1307,7 @@ public final class Executor {
         Map<Integer, ExecutionResult> copies = new HashMap<>();
         for (int i = 0; i < entity.positions().size(); i++) {
             ExecutionResult copy = copies.computeIfAbsent(entity.steps().get(i), step ->
-                ExecutionResultImpl.newExecutionResult().data(ResultCopies.deepCopy(result.getData())).build());
+                ExecutionResultImpl.newExecutionResult().data(ResultCopies.forMerge(result.getData())).build());
             results.add(new EntityResult(entity.positions().get(i), copy));
         }
         return results;
@@ -1229,13 +1340,22 @@ public final class Executor {
 
         /** Whether steps reuse the entities other steps fetch (not in mutations). */
         final boolean reuseEntities;
+        /** The operations (compact text, by subgraph) that several steps send: only their entities can be reused. */
+        private final Map<String, Set<String>> repeatedOperations;
 
         ExecutionContext() {
-            this(true);
+            this(true, Map.of());
         }
 
-        ExecutionContext(boolean reuseEntities) {
+        ExecutionContext(boolean reuseEntities, Map<String, Set<String>> repeatedOperations) {
             this.reuseEntities = reuseEntities;
+            this.repeatedOperations = repeatedOperations;
+        }
+
+        /** Whether other steps send this operation (compact text) to the subgraph too. */
+        boolean isRepeated(String subgraph, String operationText) {
+            Set<String> operations = repeatedOperations.get(subgraph);
+            return operations != null && operations.contains(operationText);
         }
 
         synchronized void merge(StepResult result) {

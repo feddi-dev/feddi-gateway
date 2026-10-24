@@ -6,6 +6,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -19,6 +21,9 @@ public class FeddiGatewayMetrics implements ExecutionListener {
     private final Timer requestDuration;
     private final Counter requestErrors;
     private final Timer planningDuration;
+    // Timers by tag value: registering a meter on every record builds its configuration and looks it up
+    private final Map<String, Timer> requestDurations = new ConcurrentHashMap<>();
+    private final Map<String, Timer> subgraphDurations = new ConcurrentHashMap<>();
 
     public FeddiGatewayMetrics(MeterRegistry registry) {
         this.registry = registry;
@@ -43,10 +48,11 @@ public class FeddiGatewayMetrics implements ExecutionListener {
     }
 
     public void recordRequestDuration(Timer.Sample sample, String operationType) {
-        sample.stop(Timer.builder("feddi.gateway.request.duration")
-                .tag("operation.type", operationType)
+        sample.stop(requestDurations.computeIfAbsent(operationType, type ->
+            Timer.builder("feddi.gateway.request.duration")
+                .tag("operation.type", type)
                 .publishPercentileHistogram()
-                .register(registry));
+                .register(registry)));
     }
 
     public void recordRequestError() {
@@ -59,11 +65,12 @@ public class FeddiGatewayMetrics implements ExecutionListener {
 
     @Override
     public void onSubgraphFetchComplete(String subgraphName, long durationNanos, boolean success) {
-        Timer.builder("feddi.gateway.subgraph.duration")
-                .tag("subgraph.name", subgraphName)
+        subgraphDurations.computeIfAbsent(subgraphName, name ->
+            Timer.builder("feddi.gateway.subgraph.duration")
+                .tag("subgraph.name", name)
                 .publishPercentileHistogram()
-                .register(registry)
-                .record(durationNanos, TimeUnit.NANOSECONDS);
+                .register(registry))
+            .record(durationNanos, TimeUnit.NANOSECONDS);
 
         if (!success) {
             Counter.builder("feddi.gateway.subgraph.errors")

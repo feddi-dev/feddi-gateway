@@ -60,6 +60,17 @@ class JsonTreeReaderTest {
     }
 
     @Test
+    void rawStringHashesAreTheDecodedStringsAlsoAfterDecoding() throws Exception {
+        for (String value : List.of("upc-1", "a\\\"b", "ä")) {
+            String json = new ObjectMapper().writeValueAsString(List.of(value));
+            Object raw = ((List<?>) JsonTreeReader.read(json.getBytes(StandardCharsets.UTF_8))).get(0);
+            // Decoded before the hash is computed, then hashed again from the cache
+            assertThat(raw).hasToString(value);
+            assertThat(raw.hashCode()).as(value).isEqualTo(value.hashCode()).isEqualTo(raw.hashCode());
+        }
+    }
+
+    @Test
     void readsLongStringsWithEscapesAtEveryOffset() throws Exception {
         ObjectMapper jackson = new ObjectMapper();
         for (int offset = 0; offset < 20; offset++) {
