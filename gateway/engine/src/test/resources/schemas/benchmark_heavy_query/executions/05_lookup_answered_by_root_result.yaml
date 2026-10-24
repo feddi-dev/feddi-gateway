@@ -31,11 +31,13 @@ variables: {}
 subgraphCalls:
   - subgraph: accounts
     operation: '{users{id}}'
+    delayMs: 30
     variables: {}
     response: { data: { users: [{ id: "u1" }] } }
 
   - subgraph: products
     operation: '{topProducts(first:1){name price upc weight}}'
+    delayMs: 1
     variables: {}
     response: { data: { topProducts: [{ name: "Table", price: 899, upc: "p1", weight: 100 }] } }
 
