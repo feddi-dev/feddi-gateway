@@ -32,4 +32,12 @@ class ResultCopiesTest {
             assertThat(copy).isNotSameAs(data).isEqualTo(data);
         }
     }
+
+    @Test
+    void copiesDataThatIsNoObject() {
+        List<Object> list = List.of(Map.of("name", "Table"));
+
+        assertThat(ResultCopies.forMerge(list)).isNotSameAs(list).isEqualTo(list);
+        assertThat(ResultCopies.<Object>forMerge(null)).isNull();
+    }
 }
