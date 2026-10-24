@@ -19,8 +19,11 @@ JVM GraphQL composite-schema federation gateway (Java 25, graphql-java, Reactor)
 ./scripts/run-all-tests.sh        # everything (engine, app unit + integration, e2e); -c allows cached results
                                   # run with JDK 25: JAVA_HOME=$(/usr/libexec/java_home -v 25) (Gradle build scripts fail on JDK 26)
 cd gateway && ./gradlew :engine:test   # fast loop for planner/executor work
-scripts/local-benchmark.sh <graphql-gateway-benchmarks checkout>   # relative RPS (Docker + k6)
 ```
+
+Performance is measured on AWS only, with the benchmark's own harness (`k6/benchmark.sh` of
+ChilliCream/graphql-federation-benchmarks): `scripts/bench.sh` in feddi-repo
+`load-testing/feddi-gateway-benchmark-infra` (`--feddi-ref`, `--modes`, `--runs`, `--profile`).
 
 Checkstyle runs with the build and fails on any violation. Project rules include: use `FederationDirectives`
 constants instead of directive string literals, no introspection field literals (`__typename`, …), no reflection

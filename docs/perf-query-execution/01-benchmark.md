@@ -107,20 +107,21 @@ accounts (`The field 'topProducts' does not exist on the type 'User'`). Commit `
 targeting", 2026-09-13) changed this area, but no test yet confirms the full query is correct (see
 [02-feddi-current.md](02-feddi-current.md)).
 
-## Running it locally
+## Running it
 
-**Use `scripts/local-benchmark.sh <benchmarks-checkout> [seconds] [vus] [delay-ms]`** in this repo: it runs the
-Rust subgraphs in Docker, builds feddi from the current checkout, and runs k6. It never calls the benchmark's
-`build.sh`/`install.sh` (the Rust `build.sh` installs rustup if cargo is missing). Requirements: docker, k6, JDK 25+.
+Performance is measured on AWS only: `scripts/bench.sh` in feddi-repo `load-testing/feddi-gateway-benchmark-infra`
+starts the benchmark instance, runs the benchmark's own harness against a feddi commit (`--feddi-ref`) and copies
+the results back (`--modes`, `--runs`, `--profile` for a JFR profile). The local script (Rust subgraphs in Docker)
+is gone: the benchmark has .NET subgraphs only, and local numbers were not comparable (no CPU pinning, short runs).
 
 The benchmark's own harness, for reference:
 
 ```bash
-./k6/benchmark.sh composite-schema/gateways/feddi subgraphs-net constant
+./k6/benchmark.sh composite-schema/gateways/feddi-gateway subgraphs-net constant
 ```
 
-- Requirements: k6, jq, python3, curl, bash, and the .NET 10 SDK (for .NET subgraphs) or Rust (for Rust
-  subgraphs). `taskset` CPU pinning is Linux-only.
+- Requirements: k6, jq, python3, curl, bash, and the .NET 10 SDK (for the subgraphs). `taskset` CPU pinning is
+  Linux-only.
 - For quicker iteration: `MEASURE_SECONDS=20 BENCH_RUNS=3`.
 - To benchmark a local checkout, replace the pinned clone in `install.sh` with a copy of the local build.
 - On a laptop, only compare results against each other (before/after, or feddi vs fusion on the same machine).
