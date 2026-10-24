@@ -629,7 +629,7 @@ public final class Executor {
                     uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).add(context, memberIndex);
                 }
             }
-            if (RESULT_REUSE && ctx.reuseEntities && !uniqueEntities.isEmpty()) {
+            if (ctx.reuseEntities && client.reusesResults() && !uniqueEntities.isEmpty()) {
                 reuseFetchedObjects(step, ctx, operationVariables, wrapperPath, uniqueEntities, skipped);
             }
         }
@@ -694,10 +694,6 @@ public final class Executor {
             return stepResult;
         });
     }
-
-    /** Experiment: lookups take entities from the objects other steps fetched from the same subgraph. */
-    private static final boolean RESULT_REUSE =
-        Boolean.parseBoolean(System.getProperty("feddi.experimental.resultReuse", "true"));
 
     /**
      * Takes the entities that steps which are already done fetched from the same subgraph with every field of this

@@ -19,9 +19,11 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Rebuilds the feddi Gateway from a logical gateway definition.
@@ -35,6 +37,7 @@ public class FeddiGatewayReloadService {
     static final String CONNECT_TIMEOUT_MS = "connectTimeoutMs";
     static final String MAX_IDLE_TIME_MS = "maxIdleTimeMs";
     static final String MAX_CONNECTIONS = "maxConnections";
+    static final String REUSE_RESULTS = "reuseResults";
 
     private final FeddiGatewayHolder gatewayHolder;
     private static final Logger log = LoggerFactory.getLogger(FeddiGatewayReloadService.class);
@@ -107,6 +110,7 @@ public class FeddiGatewayReloadService {
         Map<String, SubgraphClient> clients = new HashMap<>();
         Map<String, BatchingOptions> batching = new HashMap<>();
         Map<String, DefaultSubgraphClient> variableBatchingClients = new HashMap<>();
+        Set<String> withoutResultReuse = new HashSet<>();
         Duration timeout = gatewayDefinition.gatewaySettings().timeout();
         FeddiGatewaySettings gatewaySettings = gatewayDefinition.gatewaySettings();
         long responseLimit = positive("maxResponseBytes", gatewaySettings.responseLimit());
@@ -133,6 +137,9 @@ public class FeddiGatewayReloadService {
             } catch (IllegalArgumentException e) {
                 throw new FeddiGatewayDefinitionException(
                     "Invalid batching config for subgraph " + name + ": " + e.getMessage(), e);
+            }
+            if (!reusesResults(name, settings.config().get(REUSE_RESULTS))) {
+                withoutResultReuse.add(name);
             }
 
             SubgraphClient baseClient;
@@ -168,7 +175,24 @@ public class FeddiGatewayReloadService {
             gateway = FeddiFederationGateway.create(inputs, clients, gatewayMetrics,
                     gatewayMetrics, documentProvider, introspectionEnabled);
         }
-        return new BuiltGateway(gateway.withSubgraphBatching(batching), batching, variableBatchingClients);
+        return new BuiltGateway(gateway.withSubgraphBatching(batching).withoutResultReuse(withoutResultReuse), batching,
+            variableBatchingClients);
+    }
+
+    /** A subgraph's {@code reuseResults} setting: true (the default) or false. */
+    private static boolean reusesResults(String subgraph, Object value) {
+        if (value == null) {
+            return true;
+        }
+        if (value instanceof Boolean flag) {
+            return flag;
+        }
+        String text = value.toString().trim();
+        if (text.equalsIgnoreCase("true") || text.equalsIgnoreCase("false")) {
+            return Boolean.parseBoolean(text);
+        }
+        throw new FeddiGatewayDefinitionException("Invalid " + REUSE_RESULTS + " for subgraph " + subgraph + ": '"
+            + value + "' (expected true or false)");
     }
 
     /**

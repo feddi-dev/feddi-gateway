@@ -43,6 +43,7 @@ import reactor.core.publisher.Mono;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Federation Gateway that composes subgraph schemas and executes queries.
@@ -64,6 +65,8 @@ public final class FeddiFederationGateway {
     private final DocumentProvider documentProvider;
     private final OperationPlanCache planCache;
     private final Map<String, BatchingOptions> batching;
+    /** The subgraphs configured with {@code reuseResults: false}. */
+    private final Set<String> withoutResultReuse;
 
     private FeddiFederationGateway(Graph graph, GraphQLSchema supergraph,
                                    Map<String, SubgraphClient> subgraphClients,
@@ -102,10 +105,12 @@ public final class FeddiFederationGateway {
         this.documentProvider = documentProvider;
         this.planCache = new OperationPlanCache();
         this.batching = Map.of();
+        this.withoutResultReuse = Set.of();
     }
 
-    // Copy constructor for withSubgraphBatching: must copy every field of the gateway.
-    private FeddiFederationGateway(FeddiFederationGateway source, Map<String, BatchingOptions> batching) {
+    // Copy constructor for withSubgraphBatching and withoutResultReuse: must copy every field of the gateway.
+    private FeddiFederationGateway(FeddiFederationGateway source, Map<String, BatchingOptions> batching,
+                                   Set<String> withoutResultReuse) {
         this.graph = source.graph;
         this.supergraph = source.supergraph;
         this.introspectionEnabled = source.introspectionEnabled;
@@ -117,6 +122,7 @@ public final class FeddiFederationGateway {
         this.documentProvider = source.documentProvider;
         this.planCache = source.planCache;
         this.batching = Map.copyOf(batching);
+        this.withoutResultReuse = Set.copyOf(withoutResultReuse);
     }
 
     /**
@@ -127,7 +133,17 @@ public final class FeddiFederationGateway {
      * @return a new gateway sharing everything else with this one
      */
     public FeddiFederationGateway withSubgraphBatching(Map<String, BatchingOptions> batching) {
-        return new FeddiFederationGateway(this, batching);
+        return new FeddiFederationGateway(this, batching, withoutResultReuse);
+    }
+
+    /**
+     * Returns a gateway whose lookups to these subgraphs never take entities from other steps' results.
+     *
+     * @param subgraphNames the subgraphs configured with {@code reuseResults: false}
+     * @return a new gateway sharing everything else with this one
+     */
+    public FeddiFederationGateway withoutResultReuse(Set<String> subgraphNames) {
+        return new FeddiFederationGateway(this, batching, subgraphNames);
     }
 
     /**
@@ -135,6 +151,13 @@ public final class FeddiFederationGateway {
      */
     public BatchingOptions batching(String subgraphName) {
         return batching.getOrDefault(subgraphName, BatchingOptions.NONE);
+    }
+
+    /**
+     * Whether lookups to a subgraph may take entities from other steps' results of it ({@code reuseResults}).
+     */
+    public boolean reusesResults(String subgraphName) {
+        return !withoutResultReuse.contains(subgraphName);
     }
     
     /**
@@ -415,7 +438,8 @@ public final class FeddiFederationGateway {
             var engineClients = new LinkedHashMap<String, dev.feddi.federation.engine.executor.SubgraphClient>();
             for (var entry : extensionClients.entrySet()) {
                 engineClients.put(entry.getKey(),
-                    new SubgraphClientAdapter(entry.getValue(), requestContext, batching(entry.getKey())));
+                    new SubgraphClientAdapter(entry.getValue(), requestContext, batching(entry.getKey()),
+                        reusesResults(entry.getKey())));
             }
 
             // Execute the plan (pass supergraph schema only if introspection is enabled)
