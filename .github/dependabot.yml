@@ -71,3 +71,25 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
+
+  - package-ecosystem: "npm"
+    directory: "/tools/planner-compare"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+
+  - package-ecosystem: "nuget"
+    directory: "/tools/planner-compare/fusion-gateway"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: "docker"
+    directory: "/tools/planner-compare/fusion-gateway"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
