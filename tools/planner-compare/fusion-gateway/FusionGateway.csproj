@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <!-- Keep in sync with @chillicream/nitro in ../package.json, which composes the archive. -->
-    <PackageReference Include="HotChocolate.AspNetCore.Pipeline" Version="16.6.7" />
+    <PackageReference Include="HotChocolate.AspNetCore.Pipeline" Version="16.6.9" />
     <PackageReference Include="HotChocolate.Fusion.AspNetCore" Version="16.6.7" />
   </ItemGroup>
 
