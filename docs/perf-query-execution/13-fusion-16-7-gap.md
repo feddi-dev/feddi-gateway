@@ -172,6 +172,7 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
 | Spring server observations off (`-Dmanagement.observations.enable.http.server.requests=false`) | `120351` | 4,345 (CV 4.4%) | 1,699 | 4,085 (0.9%) | +1% burst |
 | 512 MB heap (`-Xms512m -Xmx512m -Xmn384m`) | `155143` | 2,512 | 1,561 | 2,450 (0.3%) | −39% burst, keep 2 GB |
 | **combined** (`perf/exp-combined`: fixes 1+2, path indices, requirement arrays, loop pools) | `112454` | **4,589** (CV 0.3%) | 1,713 | **4,154** (0.1%) | **0.97 / 0.84 / 0.95 of Fusion** |
+| combined + compact object headers + server observations off | `163445` | **4,658** (CV 0.2%) | 1,703 | **4,265** (0.3%) | +1.5% constant, +2.7% burst; **0.99 / 0.84 / 0.97 of Fusion** |
 
 - **Why constant mode swung:** within each baseline run, throughput followed the gateway's CPU use (3,760 at 76%,
   4,430 at 94%), and so did the subgraphs' and k6's: the gateway was waiting, not saturated. A subgraph response is
