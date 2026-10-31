@@ -12,7 +12,7 @@ import java.time.Duration;
  * @param maxIdleTimeMs how long a connection to a subgraph may stay unused before it is closed, in milliseconds;
  *                      below the subgraph's (or its load balancer's) idle timeout, so that the gateway closes it
  *                      first (null = use default)
- * @param maxConnections the most connections to one subgraph address (null = use default)
+ * @param maxConnections the most connections to one subgraph address per event loop (null = use default)
  */
 public record FeddiGatewaySettings(Long timeoutMs, Long maxResponseBytes, Long connectTimeoutMs,
                                    Long maxIdleTimeMs, Integer maxConnections) {

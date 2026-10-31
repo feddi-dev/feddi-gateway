@@ -154,6 +154,38 @@ Baseline `20261031-040947` (feddi `main` `0e736fd`, Fusion as the published `fus
 - Constant-latency is much lower than in the published run for both gateways (1,696 / 2,034 against 3,283 / 3,428),
   and the gap is larger there.
 
+### Experiments of 2026-10-31
+
+Each change on its own branch from `main` (or as JVM options on `main`), 3 runs, feddi only, against the baseline
+above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: run `20261031-071502`.
+
+| Experiment | Run | constant | constant-latency | burst (CV) | Result |
+|:--|:--|--:|--:|--:|:--|
+| baseline `main` (5 runs) | `040947` | 3,902 | 1,696 | 4,043 (1.6%) | |
+| fixes 1+2 (5 runs) | `053442` | 3,943 | 1,696 | 4,128 (2.1%) | +2% burst |
+| `-XX:+UseCompactObjectHeaders` | `072914` | 3,950 | 1,693 | 4,102 (0.1%) | +1.5% burst |
+| unboxed path indices in `ResponseWriter` (`perf/exp-writer-path`) | `080922` | 4,117 | 1,693 | 4,086 (0.8%) | +1% burst |
+| 8 event loops (`-Dreactor.netty.ioWorkerCount=8`) | `084835` | 4,236 (CV 0.5%) | 1,722 | 3,936 (1.5%) | constant stable, burst −2.6% |
+| requirements as arrays (`perf/exp-requirement-arrays`) | `092741` | 4,070 | 1,695 | 4,068 (0.5%) | noise |
+| **per-event-loop subgraph pools** (`perf/exp-loop-pools`) | `100643` | **4,547** (CV 0.2%) | 1,685 | 4,062 (0.2%) | **constant +16.5%** |
+| exact-size objects with shared key arrays (`perf/exp-shared-keys`) | `104546` | 3,651 | 1,680 | 3,965 (1.0%) | worse, dropped |
+| **combined** (`perf/exp-combined`: fixes 1+2, path indices, requirement arrays, loop pools) | `112454` | **4,589** (CV 0.3%) | 1,713 | **4,154** (0.1%) | **0.97 / 0.84 / 0.95 of Fusion** |
+
+- **Why constant mode swung:** within each baseline run, throughput followed the gateway's CPU use (3,760 at 76%,
+  4,430 at 94%), and so did the subgraphs' and k6's: the gateway was waiting, not saturated. A subgraph response is
+  read on the event loop that owns its connection, and the shared pool hands out connections of any loop, so the
+  loops that happened to own most connections did most of the work. Eight loops on four CPUs smooth this out (at
+  a cost in burst); a pool per event loop removes it: the response is read on the loop of the request, and server
+  connections are spread round-robin. The gateway then uses 95–96% of its cores in every run.
+- **Release note (loop pools):** `maxConnections` applies per event loop (up to loops × `maxConnections`
+  connections per subgraph).
+- **Shared key arrays** made parsing allocate less but cost more later: parsed objects get further fields when
+  results are merged into them, so exact-size arrays grow and shared keys are copied after all.
+- **Constant-latency** (subgraphs answer after 4 ms): both gateways have the same minimum (12 ms), feddi's median
+  is 4.4 ms higher (28.8 against 23.6 ms) at 0.75 ms of gateway CPU per request. The plan has two branches of four
+  subgraph rounds each, steps start when their own dependencies are done, and Fusion's plan is not deeper. Open:
+  trace the call times of one request to see where the time goes.
+
 ## Order
 
 1. Timeout without `Schedulers.parallel` (topic 1): small change, removes cross-thread hops on every call.
