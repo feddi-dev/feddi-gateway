@@ -38,6 +38,7 @@ import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -201,13 +202,43 @@ public class DefaultSubgraphClient implements SubgraphClient {
                 if (declared > maxResponseBytes) {
                     return Mono.error(tooLarge());
                 }
-                ByteBufFlux received = declared >= 0 ? content : ByteBufFlux.fromInbound(limited(content));
                 int status = response.status().code();
-                return received.aggregate().asByteArray()
-                    .defaultIfEmpty(EMPTY)
-                    .<T>handle((bytes, sink) -> handler.accept(new HttpResponse(status, bytes), sink));
+                Mono<byte[]> received = declared >= 0 ? read(content, (int) declared)
+                    : ByteBufFlux.fromInbound(limited(content)).aggregate().asByteArray().defaultIfEmpty(EMPTY);
+                return received.<T>handle((bytes, sink) -> handler.accept(new HttpResponse(status, bytes), sink));
             })
             .single();
+    }
+
+    /**
+     * A body of a declared length, copied into an array of that length as it arrives (instead of collecting the
+     * buffers and copying them into an array at the end). Netty reads no more than the declared length; a body that
+     * ends early is an error of the connection.
+     */
+    private static Mono<byte[]> read(ByteBufFlux content, int length) {
+        // collect consumes the buffers (Netty releases them after each one): an operator that drops them, like
+        // then(), would release them a second time
+        return content.collect(() -> new Body(length), Body::append).map(Body::bytes);
+    }
+
+    /** An array filled with the parts of a body as they arrive. */
+    private static final class Body {
+        private final byte[] bytes;
+        private int filled;
+
+        Body(int length) {
+            bytes = length == 0 ? EMPTY : new byte[length];
+        }
+
+        void append(ByteBuf buffer) {
+            int count = Math.min(buffer.readableBytes(), bytes.length - filled);
+            buffer.readBytes(bytes, filled, count);
+            filled += count;
+        }
+
+        byte[] bytes() {
+            return filled == bytes.length ? bytes : Arrays.copyOf(bytes, filled);
+        }
     }
 
     /** A body that fails once more than {@link #maxResponseBytes} have arrived. */

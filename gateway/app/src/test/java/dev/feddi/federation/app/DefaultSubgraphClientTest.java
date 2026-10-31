@@ -157,6 +157,23 @@ class DefaultSubgraphClientTest {
     }
 
     @Test
+    void readsLargeResponsesThatArriveInManyParts() {
+        StringBuilder name = new StringBuilder();
+        for (int i = 0; name.length() < 1024 * 1024; i++) {
+            name.append(i).append(' ');
+        }
+        String body = "{\"data\":{\"user\":{\"name\":\"" + name + "\"}}}";
+        for (boolean chunked : new boolean[] {false, true}) {
+            start(200, body, chunked);
+            Map<String, Object> data = client(url()).execute(QUERY, Map.of(), FeddiGatewayRequestContext.empty())
+                .block().getData();
+            assertThat(String.valueOf(((Map<?, ?>) data.get("user")).get("name"))).as("chunked: %s", chunked)
+                .isEqualTo(name.toString());
+            server.disposeNow();
+        }
+    }
+
+    @Test
     void failsResponsesOverTheLimit() {
         String body = "{\"data\":{\"user\":{\"name\":\"" + "a".repeat(100) + "\"}}}";
         for (boolean chunked : new boolean[] {false, true}) {
