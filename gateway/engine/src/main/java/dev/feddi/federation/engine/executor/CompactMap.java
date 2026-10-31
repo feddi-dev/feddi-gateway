@@ -25,6 +25,8 @@ public final class CompactMap extends AbstractMap<String, @Nullable Object> {
     private String[] keys;
     private @Nullable Object[] values;
     private int size;
+    /** Whether {@link #keys} is shared with other maps (of parsed objects of the same shape): copied before a write. */
+    private boolean sharedKeys;
 
     public CompactMap() {
         this(8);
@@ -33,6 +35,17 @@ public final class CompactMap extends AbstractMap<String, @Nullable Object> {
     public CompactMap(int capacity) {
         keys = new String[Math.max(1, capacity)];
         values = new Object[keys.length];
+    }
+
+    /**
+     * A full map with a key array that other maps share and nobody changes: this map copies it before changing a
+     * key.
+     */
+    CompactMap(String[] sharedKeys, @Nullable Object[] values) {
+        keys = sharedKeys;
+        this.values = values;
+        size = values.length;
+        this.sharedKeys = true;
     }
 
     /** A copy of a map, in its iteration order. */
@@ -83,12 +96,23 @@ public final class CompactMap extends AbstractMap<String, @Nullable Object> {
      */
     void append(String key, @Nullable Object value) {
         if (size == keys.length) {
-            keys = Arrays.copyOf(keys, size * 2);
-            values = Arrays.copyOf(values, size * 2);
+            keys = Arrays.copyOf(keys, Math.max(1, size * 2));
+            values = Arrays.copyOf(values, Math.max(1, size * 2));
+            sharedKeys = false;
+        } else {
+            ownKeys();
         }
         keys[size] = key;
         values[size] = value;
         size++;
+    }
+
+    /** Makes the key array this map's own before a write. */
+    private void ownKeys() {
+        if (sharedKeys) {
+            keys = keys.clone();
+            sharedKeys = false;
+        }
     }
 
     @Override
@@ -132,6 +156,7 @@ public final class CompactMap extends AbstractMap<String, @Nullable Object> {
     }
 
     private void removeAt(int index) {
+        ownKeys();
         int moved = size - index - 1;
         System.arraycopy(keys, index + 1, keys, index, moved);
         System.arraycopy(values, index + 1, values, index, moved);
@@ -142,6 +167,7 @@ public final class CompactMap extends AbstractMap<String, @Nullable Object> {
 
     @Override
     public void clear() {
+        ownKeys();
         Arrays.fill(keys, 0, size, null);
         Arrays.fill(values, 0, size, null);
         size = 0;

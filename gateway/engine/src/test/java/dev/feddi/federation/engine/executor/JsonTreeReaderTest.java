@@ -127,4 +127,21 @@ class JsonTreeReaderTest {
         assertThatThrownBy(() -> JsonTreeReader.read("{} {}".getBytes(StandardCharsets.UTF_8)))
             .isInstanceOf(java.io.IOException.class);
     }
+
+    @Test
+    void objectsOfTheSameShapeChangeIndependently() throws Exception {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) JsonTreeReader.read(
+            "[{\"a\":1,\"b\":2},{\"a\":3,\"b\":4},{\"a\":5,\"b\":6},{\"a\":7,\"b\":8}]"
+                .getBytes(StandardCharsets.UTF_8));
+
+        items.get(0).put("c", 9);
+        items.get(1).remove("a");
+        items.get(2).clear();
+        items.get(3).entrySet().iterator().next();
+
+        assertThat(items).containsExactly(Map.of("a", 1, "b", 2, "c", 9), Map.of("b", 4), Map.of(),
+            Map.of("a", 7, "b", 8));
+        assertThat(items.get(3).keySet()).containsExactly("a", "b");
+    }
 }

@@ -32,6 +32,13 @@ public final class JsonTreeReader {
     private record Symbol(byte[] bytes, String name) {
     }
 
+    private static final int SHAPES = 1024;
+    /**
+     * Key arrays of parsed objects by the hash of their field names (racy, but arrays are never changed: maps copy
+     * them before a write).
+     */
+    private static final String[][] SHAPE_TABLE = new String[SHAPES][];
+
     private final byte[] in;
     private int pos;
     private Object[] stack = new Object[64];
@@ -135,14 +142,18 @@ public final class JsonTreeReader {
         }
     }
 
+    /**
+     * Reads an object. Its fields are collected on the stack and copied into arrays of the right size; the key array
+     * is shared with earlier objects of the same shape ({@link #keysOf}).
+     */
     private CompactMap readObject() throws IOException {
         pos++;
-        CompactMap object = new CompactMap();
         skipWhitespace();
         if (in[pos] == '}') {
             pos++;
-            return object;
+            return new CompactMap();
         }
+        int base = stackSize;
         while (true) {
             if (in[pos] != '"') {
                 throw new IOException("Expected a field name at " + pos);
@@ -155,17 +166,62 @@ public final class JsonTreeReader {
             skipWhitespace();
             // Field names of one object are distinct in practice (duplicates, which JSON leaves undefined, keep
             // both entries and lookups find the first)
-            object.append(name, readValue(name));
+            Object value = readValue(name);
+            if (stackSize + 2 > stack.length) {
+                stack = Arrays.copyOf(stack, stack.length * 2);
+            }
+            stack[stackSize++] = name;
+            stack[stackSize++] = value;
             skipWhitespace();
             byte next = in[pos++];
             if (next == '}') {
-                return object;
+                int fields = (stackSize - base) / 2;
+                Object[] values = new Object[fields];
+                for (int i = 0; i < fields; i++) {
+                    values[i] = stack[base + 2 * i + 1];
+                }
+                String[] keys = keysOf(base, fields);
+                Arrays.fill(stack, base, stackSize, null);
+                stackSize = base;
+                return new CompactMap(keys, values);
             }
             if (next != ',') {
                 throw new IOException("Expected ',' or '}' at " + (pos - 1));
             }
             skipWhitespace();
         }
+    }
+
+    /**
+     * The field names on the stack from {@code base} as an array shared by all objects of this shape: a response
+     * holds many objects with the same fields in the same order. Names are interned, so a shape compares by
+     * reference.
+     */
+    private String[] keysOf(int base, int fields) {
+        int hash = fields;
+        for (int i = 0; i < fields; i++) {
+            hash = 31 * hash + stack[base + 2 * i].hashCode();
+        }
+        int slot = (hash ^ (hash >>> 16)) & (SHAPES - 1);
+        String[] shape = SHAPE_TABLE[slot];
+        if (shape != null && shape.length == fields && sameNames(shape, base)) {
+            return shape;
+        }
+        String[] keys = new String[fields];
+        for (int i = 0; i < fields; i++) {
+            keys[i] = (String) stack[base + 2 * i];
+        }
+        SHAPE_TABLE[slot] = keys;
+        return keys;
+    }
+
+    private boolean sameNames(String[] shape, int base) {
+        for (int i = 0; i < shape.length; i++) {
+            if (shape[i] != stack[base + 2 * i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
