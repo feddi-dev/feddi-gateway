@@ -176,6 +176,7 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
 | + functional `/graphql` endpoint (`perf/exp-functional-endpoint`) | `175754` | **4,757** (CV 0.3%) | 1,729 | **4,358** (0.3%) | +2.1% constant, +2.2% burst; **1.01 / 0.85 / 1.00 of Fusion** |
 | + `batching: alias` for every subgraph (`perf/exp-alias`, `-Dfeddi.experiment.batching=alias`) | `201800` | 4,000 (CV 2.3%) | 1,685 | 3,962 (1.0%) | **worse**: −16% constant, −9% burst |
 | `batching: alias` with exact copies (no padding, `-Dfeddi.experiment.exactAliasCopies=true`, 2 runs) | `214540` | 4,771 (CV 0.0%) | **1,796** | 4,342 (0.2%) | level in constant and burst, **+3.9% constant-latency** |
+| exact-size subgraph response arrays (`perf/exp-content-length`) | `221547` | 4,765 (CV 0.3%) | 1,741 | 4,333 (0.3%) | noise (+0.2% / +0.7% / −0.6%), not merged |
 
 - **Why constant mode swung:** within each baseline run, throughput followed the gateway's CPU use (3,760 at 76%,
   4,430 at 94%), and so did the subgraphs' and k6's: the gateway was waiting, not saturated. A subgraph response is
