@@ -173,6 +173,7 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
 | 512 MB heap (`-Xms512m -Xmx512m -Xmn384m`) | `155143` | 2,512 | 1,561 | 2,450 (0.3%) | −39% burst, keep 2 GB |
 | **combined** (`perf/exp-combined`: fixes 1+2, path indices, requirement arrays, loop pools) | `112454` | **4,589** (CV 0.3%) | 1,713 | **4,154** (0.1%) | **0.97 / 0.84 / 0.95 of Fusion** |
 | combined + compact object headers + server observations off | `163445` | **4,658** (CV 0.2%) | 1,703 | **4,265** (0.3%) | +1.5% constant, +2.7% burst; **0.99 / 0.84 / 0.97 of Fusion** |
+| + functional `/graphql` endpoint (`perf/exp-functional-endpoint`) | `175754` | **4,757** (CV 0.3%) | 1,729 | **4,358** (0.3%) | +2.1% constant, +2.2% burst; **1.01 / 0.85 / 1.00 of Fusion** |
 
 - **Why constant mode swung:** within each baseline run, throughput followed the gateway's CPU use (3,760 at 76%,
   4,430 at 94%), and so did the subgraphs' and k6's: the gateway was waiting, not saturated. A subgraph response is
@@ -182,6 +183,10 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   connections are spread round-robin. The gateway then uses 95–96% of its cores in every run.
 - **Launcher default:** `-XX:+UseCompactObjectHeaders` is now one of the launcher's JVM options (release
   note); server request observations stay on in feddi and are switched off only in the benchmark's `start.sh`.
+- **Functional endpoint:** WebFlux stays (server settings, filters, TLS, HTTP/2); the annotated controller's
+  argument resolution and Spring's Jackson decoder (about 3.5% of CPU in the profile of `main`) are gone. The
+  body is read through the server's codecs (same size limit) and parsed with Jackson. `Accept` is no longer
+  checked (no 406).
 - **Release note (loop pools):** `maxConnections` applies per event loop (up to loops × `maxConnections`
   connections per subgraph).
 - **Shared key arrays** made parsing allocate less but cost more later: parsed objects get further fields when
