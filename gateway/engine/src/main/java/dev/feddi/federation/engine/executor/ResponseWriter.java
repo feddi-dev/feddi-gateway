@@ -90,7 +90,10 @@ public final class ResponseWriter {
 
     private final String[] cachedStrings = new String[STRING_CACHE_SIZE];
     private final byte[][] cachedBytes = new byte[STRING_CACHE_SIZE][];
-    private Object[] path = new Object[16];
+    /** The path to the value being written: field names, or null for a list index (in {@link #indices}). */
+    private String[] path = new String[16];
+    /** List indices of the path, not boxed: the path is only needed for an error. */
+    private int[] indices = new int[16];
     private int depth;
 
     private ResponseWriter(List<GraphQLError> errors, JsonBuffer data) {
@@ -319,7 +322,7 @@ public final class ResponseWriter {
                 if (i > 0) {
                     data.write((byte) ',');
                 }
-                push(i);
+                pushIndex(i);
                 boolean valid = writeValue(itemType, shape, items.get(i), coordinate);
                 depth--;
                 if (!valid) {
@@ -358,15 +361,32 @@ public final class ResponseWriter {
         cachedBytes[slot] = data.copy(start);
     }
 
-    private void push(Object segment) {
+    private void push(String field) {
         if (depth == path.length) {
-            path = Arrays.copyOf(path, depth * 2);
+            grow();
         }
-        path[depth++] = segment;
+        path[depth++] = field;
+    }
+
+    private void pushIndex(int index) {
+        if (depth == path.length) {
+            grow();
+        }
+        indices[depth] = index;
+        path[depth++] = null;
+    }
+
+    private void grow() {
+        path = Arrays.copyOf(path, depth * 2);
+        indices = Arrays.copyOf(indices, depth * 2);
     }
 
     private void reportNull(String coordinate) {
-        List<Object> current = List.of(Arrays.copyOf(path, depth));
+        Object[] segments = new Object[depth];
+        for (int i = 0; i < depth; i++) {
+            segments[i] = path[i] != null ? path[i] : (Object) indices[i];
+        }
+        List<Object> current = List.of(segments);
         if (hasErrorAtOrBelow(errors, current) || hasErrorAtOrBelow(added, current)) {
             return;
         }
