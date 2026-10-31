@@ -137,6 +137,23 @@ like the published `fusion-net-11` row (.NET 11 JIT, stable packages).
 3. Profile: `--profile` with the current `main` (the profile above is from before the last merges).
 4. After each change: A/B against the baseline with `--feddi-ref`.
 
+## Results on AWS
+
+Baseline `20261031-040947` (feddi `main` `0e736fd`, Fusion as the published `fusion-net-11`), 5 runs, median req/s:
+
+| Mode | feddi `main` | fixes 1+2 (`a953dfd`) | Fusion | feddi / Fusion after |
+|:--|--:|--:|--:|--:|
+| constant | 3,902 | 3,943 | 4,720 | 0.84 |
+| constant-latency | 1,696 | 1,696 | 2,034 | 0.83 |
+| burst | 4,043 | 4,128 | 4,379 | 0.94 |
+
+- Fixes 1 and 2 together: +1% constant, +2% burst, no change with latency (there the subgraphs' 4 ms set the pace).
+- feddi's constant mode swings between two levels from run to run (3,700–3,900 and 4,200–4,400, CV 7.6% in both
+  runs); Fusion's runs vary by 0.3%. Its median moves with how many runs land on each level, so constant-mode
+  differences under ~5% are not measurable this way. Burst is the cleaner signal.
+- Constant-latency is much lower than in the published run for both gateways (1,696 / 2,034 against 3,283 / 3,428),
+  and the gap is larger there.
+
 ## Order
 
 1. Timeout without `Schedulers.parallel` (topic 1): small change, removes cross-thread hops on every call.
