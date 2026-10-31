@@ -195,6 +195,26 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   is 4.4 ms higher (28.8 against 23.6 ms) at 0.75 ms of gateway CPU per request. The plan has two branches of four
   subgraph rounds each, steps start when their own dependencies are done, and Fusion's plan is not deeper. Open:
   trace the call times of one request to see where the time goes.
+- **Constant-latency trace** (`perf/exp-trace`, runs `20261031-191737` and `-192915`, every 50th request): of
+  25.9 ms inside the gateway (first web filter to response written), 25.7 ms are subgraph calls; the gateway's own
+  work is under 0.3 ms (handler 0.03, connection acquire and response read ~0.01–0.1 per call, no gap between a call
+  and the calls depending on it). k6 measures ~2 ms more (before the first filter or on the network). Round 1
+  (accounts, products) takes ~9 ms, round 2 ~15 ms (the two reviews calls). Epoll is used (`reactor-http-epoll-*`).
+- **Subgraph traffic, Fusion against feddi** (3 s tcpdump on the subgraph ports in the measured run, `194212` and
+  `194953`):
+
+  | | Fusion | feddi |
+  |:--|:--|:--|
+  | requests per query | 4: one per subgraph | 5: reviews twice (by user ×6, by product ×5) |
+  | lookups | one operation per subgraph with aliased fields and own variables per entity, reviews' two lookups merged | `batching: variables`, JSONL responses |
+  | connections per subgraph | 50 | 50 (reviews 100) |
+  | accounts / products, same query, median to first response byte | 6.4 / 6.5 ms | 8.5 / 8.4 ms |
+  | inventory median | 9.3 ms | 10.1 ms (p90 24.3 against 13.1) |
+
+  The same simple queries are answered ~2 ms slower for feddi, so the subgraphs are busier: HotChocolate executes
+  a variable batch as one operation per variable set (11 for reviews per query) against one aliased operation.
+  Next: measure `batching: alias`, then merging the lookups of one subgraph in the same round into one request.
+  (Reviews' wire latency is not measured: the parser mispairs its large chunked responses.)
 
 ## Order
 
