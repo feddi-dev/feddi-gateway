@@ -48,6 +48,17 @@ final class AliasBatch {
     private record Template(OperationDefinition operation, List<String> rootKeys, List<String> variableNames) {
     }
 
+    /** A lookup of a combined batch: its operation and one variables map per entity. */
+    record Part(OperationDefinition operation, List<Map<String, Object>> variableSets) {
+    }
+
+    /** Where a part's entities are in the combined operation: its root keys and the index of its first copy. */
+    private record Layout(List<String> rootKeys, int size, int offset) {
+    }
+
+    private record CombinedKey(List<TemplateKey> parts) {
+    }
+
     private record TemplateKey(OperationDefinition operation, int copies) {
         @Override
         public boolean equals(Object other) {
@@ -61,17 +72,20 @@ final class AliasBatch {
     }
 
     private static final Map<TemplateKey, Template> TEMPLATES = new ConcurrentHashMap<>();
+    private static final Map<CombinedKey, OperationDefinition> COMBINED = new ConcurrentHashMap<>();
 
     private final OperationDefinition operation;
     private final Map<String, Object> variables;
-    private final List<String> rootKeys;
-    private final int size;
+    private final List<Layout> layouts;
+    /** The number of copies in the operation, one per entity. */
+    private final int copies;
 
-    private AliasBatch(OperationDefinition operation, Map<String, Object> variables, List<String> rootKeys, int size) {
+    private AliasBatch(OperationDefinition operation, Map<String, Object> variables, List<Layout> layouts,
+                       int copies) {
         this.operation = operation;
         this.variables = variables;
-        this.rootKeys = rootKeys;
-        this.size = size;
+        this.layouts = layouts;
+        this.copies = copies;
     }
 
     /**
@@ -92,8 +106,47 @@ final class AliasBatch {
         Template template = template(operation, size);
 
         Map<String, Object> variables = new LinkedHashMap<>();
-        for (int i = 0; i < size; i++) {
-            String suffix = "_b" + i;
+        putVariables(template, variableSets, 0, variables);
+        return new AliasBatch(template.operation(), variables, List.of(new Layout(template.rootKeys(), size, 0)),
+            size);
+    }
+
+    /**
+     * Builds one operation for the lookups of several parts (different lookups to the same subgraph): the copies
+     * of each part follow those of the parts before it, one copy per entity.
+     */
+    static AliasBatch combine(List<Part> parts) {
+        List<TemplateKey> keys = new ArrayList<>(parts.size());
+        List<Template> templates = new ArrayList<>(parts.size());
+        for (Part part : parts) {
+            keys.add(new TemplateKey(part.operation(), part.variableSets().size()));
+            templates.add(template(part.operation(), part.variableSets().size()));
+        }
+        Map<String, Object> variables = new LinkedHashMap<>();
+        List<Layout> layouts = new ArrayList<>(parts.size());
+        int offset = 0;
+        for (int p = 0; p < parts.size(); p++) {
+            List<Map<String, Object>> sets = parts.get(p).variableSets();
+            putVariables(templates.get(p), sets, offset, variables);
+            layouts.add(new Layout(templates.get(p).rootKeys(), sets.size(), offset));
+            offset += sets.size();
+        }
+        CombinedKey key = new CombinedKey(keys);
+        OperationDefinition operation = COMBINED.get(key);
+        if (operation == null) {
+            operation = buildCombined(parts);
+            if (COMBINED.size() >= MAX_TEMPLATES) {
+                COMBINED.clear();
+            }
+            COMBINED.put(key, operation);
+        }
+        return new AliasBatch(operation, variables, layouts, offset);
+    }
+
+    private static void putVariables(Template template, List<Map<String, Object>> variableSets, int offset,
+                                     Map<String, Object> variables) {
+        for (int i = 0; i < variableSets.size(); i++) {
+            String suffix = "_b" + (offset + i);
             Map<String, Object> set = variableSets.get(i);
             for (String name : template.variableNames()) {
                 if (set.containsKey(name)) {
@@ -101,7 +154,6 @@ final class AliasBatch {
                 }
             }
         }
-        return new AliasBatch(template.operation(), variables, template.rootKeys(), size);
     }
 
     /**
@@ -123,20 +175,41 @@ final class AliasBatch {
     }
 
     private static Template buildTemplate(OperationDefinition operation, int copies) {
-        List<Field> rootFields = new ArrayList<>();
-        for (Selection<?> selection : operation.getSelectionSet().getSelections()) {
-            rootFields.add((Field) selection);
-        }
-        List<String> rootKeys = rootFields.stream().map(Field::getResultKey).toList();
+        List<String> rootKeys = operation.getSelectionSet().getSelections().stream()
+            .map(selection -> ((Field) selection).getResultKey()).toList();
         List<String> variableNames = operation.getVariableDefinitions().stream()
             .map(VariableDefinition::getName).toList();
 
         List<Selection> selections = new ArrayList<>();
         List<VariableDefinition> definitions = new ArrayList<>();
-        for (int i = 0; i < copies; i++) {
+        addCopies(operation, copies, 0, selections, definitions);
+        OperationDefinition batched = operation.transform(b -> b
+            .variableDefinitions(definitions)
+            .selectionSet(SelectionSet.newSelectionSet().selections(selections).build()));
+        return new Template(batched, rootKeys, variableNames);
+    }
+
+    private static OperationDefinition buildCombined(List<Part> parts) {
+        List<Selection> selections = new ArrayList<>();
+        List<VariableDefinition> definitions = new ArrayList<>();
+        int offset = 0;
+        for (Part part : parts) {
+            addCopies(part.operation(), part.variableSets().size(), offset, selections, definitions);
+            offset += part.variableSets().size();
+        }
+        return parts.get(0).operation().transform(b -> b
+            .variableDefinitions(definitions)
+            .selectionSet(SelectionSet.newSelectionSet().selections(selections).build()));
+    }
+
+    /** Adds the aliased copies {@code offset .. offset + copies - 1} of an operation's root fields. */
+    private static void addCopies(OperationDefinition operation, int copies, int offset, List<Selection> selections,
+                                  List<VariableDefinition> definitions) {
+        for (int i = offset; i < offset + copies; i++) {
             String suffix = "_b" + i;
             String aliasPrefix = PREFIX + i + "_";
-            for (Field field : rootFields) {
+            for (Selection<?> selection : operation.getSelectionSet().getSelections()) {
+                Field field = (Field) selection;
                 Field renamed = renameVariables(field, suffix);
                 selections.add(renamed.transform(b -> b.alias(aliasPrefix + field.getResultKey())));
             }
@@ -144,10 +217,6 @@ final class AliasBatch {
                 definitions.add(definition.transform(b -> b.name(definition.getName() + suffix)));
             }
         }
-        OperationDefinition batched = operation.transform(b -> b
-            .variableDefinitions(definitions)
-            .selectionSet(SelectionSet.newSelectionSet().selections(selections).build()));
-        return new Template(batched, rootKeys, variableNames);
     }
 
     OperationDefinition operation() {
@@ -164,29 +233,38 @@ final class AliasBatch {
      * field name; all other errors go to the first entity.
      */
     List<ExecutionResult> split(ExecutionResult result) {
+        return splitParts(result).get(0);
+    }
+
+    /** Splits the result of a {@linkplain #combine combined} batch: one list of entity results per part. */
+    List<List<ExecutionResult>> splitParts(ExecutionResult result) {
         Map<String, Object> data = result.getData();
-        List<List<GraphQLError>> errorsByEntity = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            errorsByEntity.add(new ArrayList<>());
+        List<List<GraphQLError>> errorsByCopy = new ArrayList<>(copies);
+        for (int i = 0; i < copies; i++) {
+            errorsByCopy.add(new ArrayList<>());
         }
         for (GraphQLError error : result.getErrors()) {
-            assignError(error, errorsByEntity);
+            assignError(error, errorsByCopy);
         }
 
-        List<ExecutionResult> results = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            ExecutionResultImpl.Builder builder = ExecutionResultImpl.newExecutionResult();
-            if (data != null) {
-                Map<String, Object> entityData = new LinkedHashMap<>();
-                for (String key : rootKeys) {
-                    entityData.put(key, data.get(PREFIX + i + "_" + key));
+        List<List<ExecutionResult>> parts = new ArrayList<>(layouts.size());
+        for (Layout layout : layouts) {
+            List<ExecutionResult> results = new ArrayList<>(layout.size());
+            for (int i = layout.offset(); i < layout.offset() + layout.size(); i++) {
+                ExecutionResultImpl.Builder builder = ExecutionResultImpl.newExecutionResult();
+                if (data != null) {
+                    Map<String, Object> entityData = new LinkedHashMap<>();
+                    for (String key : layout.rootKeys()) {
+                        entityData.put(key, data.get(PREFIX + i + "_" + key));
+                    }
+                    builder.data(entityData);
                 }
-                builder.data(entityData);
+                builder.errors(errorsByCopy.get(i));
+                results.add(builder.build());
             }
-            builder.errors(errorsByEntity.get(i));
-            results.add(builder.build());
+            parts.add(results);
         }
-        return results;
+        return parts;
     }
 
     private void assignError(GraphQLError error, List<List<GraphQLError>> errorsByEntity) {
