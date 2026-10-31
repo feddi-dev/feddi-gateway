@@ -169,6 +169,8 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
 | requirements as arrays (`perf/exp-requirement-arrays`) | `092741` | 4,070 | 1,695 | 4,068 (0.5%) | noise |
 | **per-event-loop subgraph pools** (`perf/exp-loop-pools`) | `100643` | **4,547** (CV 0.2%) | 1,685 | 4,062 (0.2%) | **constant +16.5%** |
 | exact-size objects with shared key arrays (`perf/exp-shared-keys`) | `104546` | 3,651 | 1,680 | 3,965 (1.0%) | worse, dropped |
+| Spring server observations off (`-Dmanagement.observations.enable.http.server.requests=false`) | `120351` | 4,345 (CV 4.4%) | 1,699 | 4,085 (0.9%) | +1% burst |
+| 512 MB heap (`-Xms512m -Xmx512m -Xmn384m`) | `155143` | 2,512 | 1,561 | 2,450 (0.3%) | −39% burst, keep 2 GB |
 | **combined** (`perf/exp-combined`: fixes 1+2, path indices, requirement arrays, loop pools) | `112454` | **4,589** (CV 0.3%) | 1,713 | **4,154** (0.1%) | **0.97 / 0.84 / 0.95 of Fusion** |
 
 - **Why constant mode swung:** within each baseline run, throughput followed the gateway's CPU use (3,760 at 76%,
