@@ -4,33 +4,41 @@ import dev.feddi.federation.engine.executor.ResponseWriter;
 import dev.feddi.federation.extension.ExecutionOutcome;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.UsageReporter;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.ExecutionInput;
 import graphql.GraphqlErrorBuilder;
 import graphql.language.OperationDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.server.reactive.ServerHttpResponse;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.server.ServerRequest;
+import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.server.ServerWebInputException;
+import org.springframework.web.server.UnsupportedMediaTypeStatusException;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 /**
- * HTTP controller for handling GraphQL requests.
+ * HTTP handler for GraphQL requests, as a functional endpoint: the body is read as bytes and parsed directly,
+ * without the argument resolution and message decoding of an annotated controller.
  * Collects usage data and reports it via {@link UsageReporter}.
  */
-@RestController
+@Component
 public class GraphQLController {
 
     private static final Logger log = LoggerFactory.getLogger(GraphQLController.class);
+    private static final ObjectMapper JSON = new ObjectMapper()
+        .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     private final FeddiGatewayHolder gatewayHolder;
     private final UsageReporter usageReporter;
@@ -42,13 +50,32 @@ public class GraphQLController {
         this.gatewayMetrics = gatewayMetrics;
     }
 
-    @PostMapping(value = "/graphql", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<DataBuffer> executeQuery(
-            @RequestBody GraphQLRequest request,
-            @RequestHeader(value = "graphql-client-name", required = false) String clientName,
-            @RequestHeader(value = "graphql-client-version", required = false) String clientVersion,
-            org.springframework.http.server.reactive.ServerHttpRequest httpRequest,
-            ServerHttpResponse httpResponse) {
+    /** Handles {@code POST /graphql} (routed in {@link FeddiGatewayConfig}). */
+    public Mono<ServerResponse> handle(ServerRequest httpRequest) {
+        if (!httpRequest.headers().contentType().map(MediaType.APPLICATION_JSON::isCompatibleWith).orElse(false)) {
+            return Mono.error(new UnsupportedMediaTypeStatusException(httpRequest.headers().contentType().orElse(null),
+                List.of(MediaType.APPLICATION_JSON)));
+        }
+        DataBufferFactory buffers = httpRequest.exchange().getResponse().bufferFactory();
+        Mono<DataBuffer> body = httpRequest.bodyToMono(byte[].class)
+            .switchIfEmpty(Mono.error(() -> new ServerWebInputException("Request body is missing")))
+            .map(GraphQLController::readRequest)
+            .flatMap(request -> executeQuery(request, httpRequest, buffers));
+        return ServerResponse.ok().contentType(MediaType.APPLICATION_JSON)
+            .body(BodyInserters.fromDataBuffers(body));
+    }
+
+    private static GraphQLRequest readRequest(byte[] bytes) {
+        try {
+            return JSON.readValue(bytes, GraphQLRequest.class);
+        } catch (IOException e) {
+            throw new ServerWebInputException("Invalid GraphQL request body", null, e);
+        }
+    }
+
+    private Mono<DataBuffer> executeQuery(GraphQLRequest request, ServerRequest httpRequest, DataBufferFactory buffers) {
+        String clientName = httpRequest.headers().firstHeader("graphql-client-name");
+        String clientVersion = httpRequest.headers().firstHeader("graphql-client-version");
 
         FeddiFederationGateway gateway = gatewayHolder.get();
         if (gateway == null) {
@@ -70,7 +97,7 @@ public class GraphQLController {
 
         // Build immutable request context
         var headerMap = new java.util.LinkedHashMap<String, String>();
-        httpRequest.getHeaders().forEach((name, values) -> {
+        httpRequest.headers().asHttpHeaders().forEach((name, values) -> {
             if (!values.isEmpty()) {
                 headerMap.put(name, values.getFirst());
             }
@@ -88,7 +115,7 @@ public class GraphQLController {
         return gateway.execute(executionInput, requestContext)
             .map(gatewayResult -> {
                 Response response = gatewayResult.toJson((bytes, length, errors) ->
-                    new Response(copy(bytes, length, httpResponse), errors));
+                    new Response(copy(bytes, length, buffers), errors));
                 long durationNanos = System.nanoTime() - startNanos;
                 int errorCount = response.errorCount();
 
@@ -133,7 +160,7 @@ public class GraphQLController {
                 log.error("GraphQL execution failed with exception", e);
                 return Mono.just(ResponseWriter.writeErrors(List.of(GraphqlErrorBuilder.newError()
                     .message("Internal server error")
-                    .build()), (bytes, length, errors) -> copy(bytes, length, httpResponse)));
+                    .build()), (bytes, length, errors) -> copy(bytes, length, buffers)));
             });
     }
 
@@ -142,8 +169,8 @@ public class GraphQLController {
      * releases once it is sent. The writer's bytes are reused for the next response, and a heap buffer would be
      * copied into a direct one before the socket write anyway.
      */
-    private static DataBuffer copy(byte[] bytes, int length, ServerHttpResponse httpResponse) {
-        return httpResponse.bufferFactory().allocateBuffer(length).write(bytes, 0, length);
+    private static DataBuffer copy(byte[] bytes, int length, DataBufferFactory buffers) {
+        return buffers.allocateBuffer(length).write(bytes, 0, length);
     }
 
     /** The response body and the number of its errors. */
