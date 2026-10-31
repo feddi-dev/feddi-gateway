@@ -72,6 +72,37 @@ class BatchingExecutionTest {
     }
 
     @Test
+    void lookupsToOneSubgraphInTheSameRoundAreOneRequestInAliasMode() {
+        var run = execute(BenchmarkHeavyQueryTest.HEAVY_QUERY, new BatchingOptions(Mode.ALIAS, 64),
+            UnaryOperator.identity());
+
+        assertMatchesMonolith(BenchmarkHeavyQueryTest.HEAVY_QUERY, run.result());
+        // The reviews of users and of products: one aliased operation instead of two requests
+        assertThat(run.clients().get(BenchmarkSubgraphs.REVIEWS).calls()).singleElement()
+            .satisfies(call -> assertThat(call.operation()).contains("user(").contains("product("));
+    }
+
+    @Test
+    void variableBatchesKeepOneRequestPerLookup() {
+        var run = execute(BenchmarkHeavyQueryTest.HEAVY_QUERY, new BatchingOptions(Mode.VARIABLES, 64),
+            UnaryOperator.identity());
+
+        assertMatchesMonolith(BenchmarkHeavyQueryTest.HEAVY_QUERY, run.result());
+        assertThat(run.clients().get(BenchmarkSubgraphs.REVIEWS).calls()).hasSize(2);
+    }
+
+    @Test
+    void failedMergedRequestIsReportedOncePerLookup() {
+        var run = execute(BenchmarkHeavyQueryTest.HEAVY_QUERY, new BatchingOptions(Mode.ALIAS, 64),
+            client -> new FailingClient(client.batching()));
+
+        assertThat(run.result().getErrors()).hasSize(2)
+            .allSatisfy(error -> assertThat(error.getMessage()).contains("reviews unavailable"));
+        List<Map<String, Object>> users = list(((Map<String, Object>) run.result().getData()).get("users"));
+        assertThat(users).isNotEmpty().allSatisfy(user -> assertThat(user).containsEntry("reviews", null));
+    }
+
+    @Test
     void singleEntityIsNotBatched() {
         String query = "{ topProducts(first: 1) { upc reviews { id } } }";
 
