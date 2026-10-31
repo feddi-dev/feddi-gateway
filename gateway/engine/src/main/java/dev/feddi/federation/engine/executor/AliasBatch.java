@@ -45,6 +45,7 @@ final class AliasBatch {
 
     private static final String PREFIX = "_b";
     private static final int MAX_TEMPLATES = 10_000;
+    private static final boolean EXACT_COPIES = Boolean.getBoolean("feddi.experiment.exactAliasCopies");
 
     private record Template(OperationDefinition operation, List<String> rootKeys, List<String> variableNames) {
     }
@@ -91,7 +92,8 @@ final class AliasBatch {
      */
     static AliasBatch create(OperationDefinition operation, List<Map<String, Object>> variableSets, int maxBatchSize) {
         int size = variableSets.size();
-        int copies = Math.max(size, Math.min(bucket(size), maxBatchSize));
+        // Experiment: -Dfeddi.experiment.exactAliasCopies=true sends one copy per entity (no padding)
+        int copies = EXACT_COPIES ? size : Math.max(size, Math.min(bucket(size), maxBatchSize));
         Template template = template(operation, copies);
 
         Map<String, Object> variables = new LinkedHashMap<>();
