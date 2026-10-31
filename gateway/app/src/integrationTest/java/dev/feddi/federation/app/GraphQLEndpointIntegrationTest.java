@@ -1,8 +1,13 @@
 package dev.feddi.federation.app;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
@@ -12,6 +17,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -62,8 +68,20 @@ class GraphQLEndpointIntegrationTest {
 
     @Test
     void rejectsABodyOverTheSizeLimit() {
-        String query = "{\"query\":\"" + "a".repeat(3 * 1024 * 1024) + "\"}";
-        assertEquals(HttpStatus.CONTENT_TOO_LARGE.value(), post(MediaType.APPLICATION_JSON, query));
+        // Netty logs a buffer released twice (and closes the connection) when the body fails while the response
+        // is being written
+        Logger netty = (Logger) LoggerFactory.getLogger("reactor.netty");
+        ListAppender<ILoggingEvent> events = new ListAppender<>();
+        events.start();
+        netty.addAppender(events);
+        try {
+            String query = "{\"query\":\"" + "a".repeat(3 * 1024 * 1024) + "\"}";
+            assertEquals(HttpStatus.CONTENT_TOO_LARGE.value(), post(MediaType.APPLICATION_JSON, query));
+        } finally {
+            netty.detachAppender(events);
+        }
+        assertEquals(List.of(), events.list.stream().filter(event -> event.getLevel() == Level.ERROR)
+            .map(ILoggingEvent::getFormattedMessage).toList());
     }
 
     private int post(MediaType contentType, String body) {

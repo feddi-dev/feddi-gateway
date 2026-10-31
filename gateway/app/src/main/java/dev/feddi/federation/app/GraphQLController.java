@@ -57,12 +57,13 @@ public class GraphQLController {
                 List.of(MediaType.APPLICATION_JSON)));
         }
         DataBufferFactory buffers = httpRequest.exchange().getResponse().bufferFactory();
-        Mono<DataBuffer> body = httpRequest.bodyToMono(byte[].class)
+        // The body is read before the response is created: a failure while reading (a body above the size limit)
+        // must not happen while the response is being written, or Netty releases the request's buffers twice
+        return httpRequest.bodyToMono(byte[].class)
             .switchIfEmpty(Mono.error(() -> new ServerWebInputException("Request body is missing")))
             .map(GraphQLController::readRequest)
-            .flatMap(request -> executeQuery(request, httpRequest, buffers));
-        return ServerResponse.ok().contentType(MediaType.APPLICATION_JSON)
-            .body(BodyInserters.fromDataBuffers(body));
+            .flatMap(request -> ServerResponse.ok().contentType(MediaType.APPLICATION_JSON)
+                .body(BodyInserters.fromDataBuffers(executeQuery(request, httpRequest, buffers))));
     }
 
     private static GraphQLRequest readRequest(byte[] bytes) {
