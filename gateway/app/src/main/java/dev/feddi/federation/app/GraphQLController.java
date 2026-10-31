@@ -111,6 +111,7 @@ public class GraphQLController {
             .build();
 
         long startNanos = System.nanoTime();
+        RequestTrace.start(requestContext);
 
         return gateway.execute(executionInput, requestContext)
             .map(gatewayResult -> {
@@ -142,6 +143,7 @@ public class GraphQLController {
                     log.debug("Usage reporting failed: {}", e.getMessage());
                 }
 
+                RequestTrace.finish(requestContext);
                 gatewayMetrics.recordRequestDuration(metricsSample, opType);
                 if (errorCount > 0) {
                     gatewayMetrics.recordRequestError();

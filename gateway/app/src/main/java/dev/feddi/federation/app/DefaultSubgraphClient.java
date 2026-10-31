@@ -13,6 +13,7 @@ import dev.feddi.federation.extension.SubgraphRequestHeaderCustomizer;
 import graphql.Directives;
 import graphql.ExecutionResult;
 import graphql.ExecutionResultImpl;
+import graphql.language.Field;
 import graphql.language.OperationDefinition;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -185,6 +186,25 @@ public class DefaultSubgraphClient implements SubgraphClient {
      */
     private <T> Mono<T> post(byte[] body, boolean batch, FeddiGatewayRequestContext context,
                              BiConsumer<HttpResponse, SynchronousSink<T>> handler) {
+        return post(body, batch, context, handler, "probe");
+    }
+
+    private <T> Mono<T> post(byte[] body, boolean batch, FeddiGatewayRequestContext context,
+                             BiConsumer<HttpResponse, SynchronousSink<T>> handler, String label) {
+        RequestTrace trace = RequestTrace.of(context);
+        if (trace == null) {
+            return post(body, batch, context, handler, (long[]) null);
+        }
+        long[] times = new long[3];
+        return Mono.defer(() -> {
+            times[0] = System.nanoTime();
+            return post(body, batch, context, handler, times);
+        }).doOnSuccess(result -> trace.call(subgraphName, label, times[0], times[1], times[2], System.nanoTime(),
+            Thread.currentThread().getName()));
+    }
+
+    private <T> Mono<T> post(byte[] body, boolean batch, FeddiGatewayRequestContext context,
+                             BiConsumer<HttpResponse, SynchronousSink<T>> handler, long @Nullable [] times) {
         return client().post()
             .uri(path)
             .send((request, out) -> {
@@ -192,9 +212,15 @@ public class DefaultSubgraphClient implements SubgraphClient {
                     .set(HttpHeaderNames.CONTENT_TYPE, JSON_TYPE)
                     .set(HttpHeaderNames.ACCEPT, batch ? BATCH_ACCEPT : JSON_TYPE);
                 applyHeaders(request.requestHeaders(), context);
+                if (times != null) {
+                    times[1] = System.nanoTime();
+                }
                 return out.send(Mono.just(Unpooled.wrappedBuffer(body)));
             })
             .response((response, content) -> {
+                if (times != null) {
+                    times[2] = System.nanoTime();
+                }
                 // A declared length is checked up front (Netty reads no more than it); a body without one is
                 // counted while it arrives
                 long declared = response.responseHeaders().getInt(HttpHeaderNames.CONTENT_LENGTH, -1);
@@ -208,6 +234,12 @@ public class DefaultSubgraphClient implements SubgraphClient {
                     .<T>handle((bytes, sink) -> handler.accept(new HttpResponse(status, bytes), sink));
             })
             .single();
+    }
+
+    /** The first root field and the number of variable sets, for {@link RequestTrace}. */
+    private static String label(OperationDefinition operation, int sets) {
+        return (operation.getSelectionSet().getSelections().getFirst() instanceof Field field ? field.getName() : "?")
+            + "x" + sets;
     }
 
     /** A body that fails once more than {@link #maxResponseBytes} have arrived. */
@@ -250,7 +282,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
         }
 
         return post(OperationTexts.requestBody(operation, variables != null ? variables : Map.of()), false, context,
-            this::readResult)
+            this::readResult, label(operation, 1))
             .doOnError(e -> log.error("[{}] Subgraph call exception: {}", subgraphName, e.getMessage(), e))
             .contextWrite(CACHE_CONTEXT);
     }
@@ -341,7 +373,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
                     sink.error(new RuntimeException(
                         "Subgraph " + subgraphName + " returned an invalid variable batch response: " + e.getMessage(), e));
                 }
-            })
+            }, label(operation, variableSets.size()))
             .doOnError(e -> log.error("[{}] Variable batch exception: {}", subgraphName, e.getMessage(), e))
             .contextWrite(CACHE_CONTEXT);
     }
