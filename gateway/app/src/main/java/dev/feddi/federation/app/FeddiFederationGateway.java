@@ -151,7 +151,11 @@ public final class FeddiFederationGateway {
      * Returns the batching options for a subgraph.
      */
     public BatchingOptions batching(String subgraphName) {
-        return batching.getOrDefault(subgraphName, BatchingOptions.NONE);
+        BatchingOptions options = batching.getOrDefault(subgraphName, BatchingOptions.NONE);
+        // Experiment: -Dfeddi.experiment.batching=alias overrides every subgraph's batching mode
+        String override = System.getProperty("feddi.experiment.batching");
+        return override == null ? options : new BatchingOptions(
+            BatchingOptions.Mode.valueOf(override.toUpperCase(java.util.Locale.ROOT)), options.maxBatchSize());
     }
 
     /**
