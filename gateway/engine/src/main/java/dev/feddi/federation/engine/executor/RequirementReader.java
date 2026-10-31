@@ -65,6 +65,35 @@ final class RequirementReader {
     }
 
     /**
+     * Requirements as arrays, for reading them at many positions: iterating an immutable map's entries allocates an
+     * entry per requirement and position.
+     */
+    record Requirements(String[] names, SelectedValue[] values) {
+
+        static Requirements of(Map<String, SelectedValue> requirements) {
+            String[] names = new String[requirements.size()];
+            SelectedValue[] values = new SelectedValue[requirements.size()];
+            int i = 0;
+            for (Map.Entry<String, SelectedValue> entry : requirements.entrySet()) {
+                names[i] = entry.getKey();
+                values[i++] = entry.getValue();
+            }
+            return new Requirements(names, values);
+        }
+    }
+
+    /**
+     * Puts the variables of {@link #extractVariables} into a map, for requirements as arrays.
+     */
+    void putVariables(Requirements requirements, Map<String, Object> context, Map<String, Object> variables) {
+        String[] names = requirements.names();
+        SelectedValue[] values = requirements.values();
+        for (int i = 0; i < names.length; i++) {
+            variables.put(names[i], extractFromSelectedValue(context, values[i]));
+        }
+    }
+
+    /**
      * Extracts a value from a SelectedValue, trying alternatives in order.
      * Package-private for testing.
      */
