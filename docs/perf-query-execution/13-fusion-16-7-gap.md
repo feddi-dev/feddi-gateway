@@ -175,6 +175,7 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
 | combined + compact object headers + server observations off | `163445` | **4,658** (CV 0.2%) | 1,703 | **4,265** (0.3%) | +1.5% constant, +2.7% burst; **0.99 / 0.84 / 0.97 of Fusion** |
 | + functional `/graphql` endpoint (`perf/exp-functional-endpoint`) | `175754` | **4,757** (CV 0.3%) | 1,729 | **4,358** (0.3%) | +2.1% constant, +2.2% burst; **1.01 / 0.85 / 1.00 of Fusion** |
 | + `batching: alias` for every subgraph (`perf/exp-alias`, `-Dfeddi.experiment.batching=alias`) | `201800` | 4,000 (CV 2.3%) | 1,685 | 3,962 (1.0%) | **worse**: −16% constant, −9% burst |
+| `batching: alias` with exact copies (no padding, `-Dfeddi.experiment.exactAliasCopies=true`, 2 runs) | `214540` | 4,771 (CV 0.0%) | **1,796** | 4,342 (0.2%) | level in constant and burst, **+3.9% constant-latency** |
 
 - **Why constant mode swung:** within each baseline run, throughput followed the gateway's CPU use (3,760 at 76%,
   4,430 at 94%), and so did the subgraphs' and k6's: the gateway was waiting, not saturated. A subgraph response is
@@ -219,6 +220,9 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   −2.5% constant-latency against `variables`. Likely cause, not yet verified: feddi rounds the aliased copies up to
   a power of two by repeating the last entity (5 → 8, 6 → 8), so inventory and reviews resolve 8 copies instead of
   5 and 6, and the gateway parses the larger responses; Fusion sends exactly one copy per entity.
+- **Without the padding** (`214540`) alias is level with `variables` in constant and burst and 3.9% faster in
+  constant-latency (1,796 against 1,729): the padding cost the loss, and one aliased operation is answered faster
+  than a variable batch. Next: merge the lookups to one subgraph in the same round into one request, like Fusion.
   (Reviews' wire latency is not measured: the parser mispairs its large chunked responses.)
 
 ## Order
