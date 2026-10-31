@@ -111,7 +111,7 @@ public class GraphQLController {
             .build();
 
         long startNanos = System.nanoTime();
-        RequestTrace.start(requestContext);
+        RequestTrace.start(requestContext, httpRequest.exchange());
 
         return gateway.execute(executionInput, requestContext)
             .map(gatewayResult -> {
