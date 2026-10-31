@@ -30,6 +30,7 @@ All work stays on this branch until it is finished. Andi then reviews it before 
 | [10-review-notes.md](10-review-notes.md) | Self-review: sabotage checks of the tests, fixes, open questions for Andi |
 | [11-planner-v2.md](11-planner-v2.md) | Planner v2: Fusion parity, spec readings and composition changes, release notes, performance, review and open questions |
 | [12-rps.md](12-rps.md) | Request throughput on `perf/rps`: results against ChilliCream's Fusion federation gateway, changes, release notes |
+| [13-fusion-16-7-gap.md](13-fusion-16-7-gap.md) | Fusion 16.7 leads again: what it changed, where feddi's CPU and memory go, plan for the five topics |
 
 ## Summary
 
