@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 
@@ -88,7 +87,8 @@ public class GraphQLController {
 
         return gateway.execute(executionInput, requestContext)
             .map(gatewayResult -> {
-                ResponseWriter.Output response = gatewayResult.toJson();
+                Response response = gatewayResult.toJson((bytes, length, errors) ->
+                    new Response(copy(bytes, length, httpResponse), errors));
                 long durationNanos = System.nanoTime() - startNanos;
                 int errorCount = response.errorCount();
 
@@ -122,7 +122,7 @@ public class GraphQLController {
                 } else {
                     log.debug("GraphQL execution completed successfully");
                 }
-                return wrap(response, httpResponse);
+                return response.body();
             })
             .onErrorResume(e -> {
                 gatewayMetrics.recordRequestDuration(metricsSample, "QUERY");
@@ -131,18 +131,23 @@ public class GraphQLController {
                 // the server log to avoid leaking stack-frame hints, JDBC strings,
                 // file paths, or other internal state to clients.
                 log.error("GraphQL execution failed with exception", e);
-                return Mono.just(wrap(ResponseWriter.writeErrors(List.of(GraphqlErrorBuilder.newError()
+                return Mono.just(ResponseWriter.writeErrors(List.of(GraphqlErrorBuilder.newError()
                     .message("Internal server error")
-                    .build())), httpResponse));
+                    .build()), (bytes, length, errors) -> copy(bytes, length, httpResponse)));
             });
     }
 
     /**
-     * The written response as a buffer of the server's own type, without copying it (the server copies a buffer of
-     * another type into one of its own).
+     * The written response copied into a buffer of the server (pooled and direct with Netty), which the server
+     * releases once it is sent. The writer's bytes are reused for the next response, and a heap buffer would be
+     * copied into a direct one before the socket write anyway.
      */
-    private static DataBuffer wrap(ResponseWriter.Output response, ServerHttpResponse httpResponse) {
-        return httpResponse.bufferFactory().wrap(ByteBuffer.wrap(response.bytes(), 0, response.length()));
+    private static DataBuffer copy(byte[] bytes, int length, ServerHttpResponse httpResponse) {
+        return httpResponse.bufferFactory().allocateBuffer(length).write(bytes, 0, length);
+    }
+
+    /** The response body and the number of its errors. */
+    private record Response(DataBuffer body, int errorCount) {
     }
 
     /**

@@ -81,6 +81,12 @@ gateway pinned to 4 cores), and server and client share them.
 of a new `JsonBuffer` byte array of about 100 KB per request: 19% of all allocation. `JsonBuffer`'s undo
 (`reset(position)`) maps onto the writer index.
 
+**Done:** `ResponseWriter` writes into one scratch buffer per platform thread (kept up to 1 MB) and hands the
+bytes to a `Sink`; the controller copies them into a buffer from the response's buffer factory (pooled and direct
+with Netty), which Netty releases after the write. Same number of copies as before (Netty copied the wrapped heap
+array into a direct buffer), no per-request array. Writing straight into the Netty buffer would also save that
+copy, but needs `JsonBuffer` on top of `ByteBuf`; left for later.
+
 ### 3. Subgraph response parsing
 
 **State:** 12.7% CPU plus 3% aggregation. `asByteArray` copies each body into a new byte array (16% of

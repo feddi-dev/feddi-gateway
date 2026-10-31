@@ -12,6 +12,7 @@ All work stays on this branch until it is finished. Andi then reviews it before 
 |---|---|
 | Branch | `perf/query-execution` (from `main` @ `912aeb5`) |
 | Current step | 7 CPU (done: 5 Spring e2e, 0 tests, 1 plan cache, 2 entity dedup, 3a shared calls, 4 batching, 7.1 JSONL parsing; 8 calls). Step 6 (planner v2) is done on `perf/planner-v2`, waiting for review: all Fusion planner tests green, spec check of composition, refactoring ([11-planner-v2.md](11-planner-v2.md)) |
+| Fusion 16.7 gap (`perf/fusion-gap`) | done: 1 subgraph timeout on the event loop, 2 response in a pooled server buffer; next: 3 subgraph body arrays and parsing. AWS A/B pending ([13-fusion-16-7-gap.md](13-fusion-16-7-gap.md)) |
 | Benchmark result (published, commit `5ff8b61`) | Rust subgraphs: wrong results · .NET subgraphs: ~19 RPS (leaders ~2,400–2,900) · Burst: not run |
 
 ## Files
