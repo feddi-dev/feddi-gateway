@@ -18,6 +18,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.ssl.SslContext;
+import io.netty.util.concurrent.EventExecutor;
+import io.netty.util.internal.ThreadExecutorMap;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -66,6 +69,13 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private static final Function<Context, Context> CACHE_CONTEXT = context -> context;
 
     private final HttpClient httpClient;
+    /** Clients with a connection pool of their own per event loop, or null to use {@link #httpClient} everywhere. */
+    private final @Nullable Function<EventExecutor, HttpClient> loopClients;
+    /** The clients of {@link #loopClients}, configured for this subgraph, by event loop. */
+    private final Map<EventExecutor, HttpClient> configuredLoopClients = new ConcurrentHashMap<>();
+    private final SocketAddress address;
+    private final boolean secure;
+    private final @Nullable SslContext sslContext;
     /** The path (and query) of the subgraph URL; the client is configured with its scheme, host and port. */
     private final String path;
     private final String subgraphName;
@@ -93,6 +103,22 @@ public class DefaultSubgraphClient implements SubgraphClient {
     public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
                                   @Nullable SubgraphRequestHeaderCustomizer headerCustomizer, long maxResponseBytes,
                                   @Nullable SslContext sslContext) {
+        this(httpClient, null, url, subgraphName, headerCustomizer, maxResponseBytes, sslContext);
+    }
+
+    /**
+     * @param httpClient the client for calls made off an event loop
+     * @param loopClients a client per event loop, each with a connection pool of its own, for calls made on an event
+     *                    loop: a subgraph's response is then read on the loop of the request that called it (a
+     *                    shared pool hands out connections of any loop, and the loops that own most of them do most
+     *                    of the work); null to use {@code httpClient} everywhere
+     * @param maxResponseBytes the largest response body read, in bytes: a larger response fails the call
+     * @param sslContext the TLS context for an https URL (e.g. from an SSL bundle), or null for the JDK's defaults
+     */
+    public DefaultSubgraphClient(HttpClient httpClient, @Nullable Function<EventExecutor, HttpClient> loopClients,
+                                  String url, String subgraphName,
+                                  @Nullable SubgraphRequestHeaderCustomizer headerCustomizer, long maxResponseBytes,
+                                  @Nullable SslContext sslContext) {
         if (maxResponseBytes <= 0) {
             throw new IllegalArgumentException("maxResponseBytes must be positive: " + maxResponseBytes);
         }
@@ -107,18 +133,40 @@ public class DefaultSubgraphClient implements SubgraphClient {
             : uri.getHost();
         // The address is created once: configured with host() and port(), Reactor Netty creates it (and tries to parse
         // the host as an IP address) on every request. Unresolved for a host name, as then: resolved per connection.
-        SocketAddress address = AddressUtils.createUnresolved(host, uri.getPort() >= 0 ? uri.getPort() : secure ? 443 : 80);
-        HttpClient configured = httpClient.remoteAddress(() -> address);
+        this.address = AddressUtils.createUnresolved(host, uri.getPort() >= 0 ? uri.getPort() : secure ? 443 : 80);
         if (sslContext != null && !secure) {
             throw new IllegalArgumentException("Subgraph " + subgraphName + " has TLS settings (sslBundle) but no https URL: "
                 + url);
         }
-        this.httpClient = !secure ? configured
-            : sslContext == null ? configured.secure() : configured.secure(spec -> spec.sslContext(sslContext));
+        this.secure = secure;
+        this.sslContext = sslContext;
+        this.httpClient = configure(httpClient);
+        this.loopClients = loopClients;
         String rawPath = uri.getRawPath() == null || uri.getRawPath().isEmpty() ? "/" : uri.getRawPath();
         this.path = uri.getRawQuery() == null ? rawPath : rawPath + "?" + uri.getRawQuery();
         this.subgraphName = subgraphName;
         this.headerCustomizer = headerCustomizer;
+    }
+
+    /** A client configured with this subgraph's address and TLS settings. */
+    private HttpClient configure(HttpClient client) {
+        SocketAddress address = this.address;
+        HttpClient configured = client.remoteAddress(() -> address);
+        SslContext sslContext = this.sslContext;
+        return !secure ? configured
+            : sslContext == null ? configured.secure() : configured.secure(spec -> spec.sslContext(sslContext));
+    }
+
+    /** The client for a call from the current thread: its event loop's, if it has one. */
+    private HttpClient client() {
+        Function<EventExecutor, HttpClient> loopClients = this.loopClients;
+        EventExecutor loop = loopClients == null ? null : ThreadExecutorMap.currentExecutor();
+        if (loop == null) {
+            return httpClient;
+        }
+        HttpClient client = configuredLoopClients.get(loop);
+        return client != null ? client
+            : configuredLoopClients.computeIfAbsent(loop, l -> configure(loopClients.apply(l)));
     }
 
     /** A subgraph's HTTP response: its status and body (empty if it had none). */
@@ -137,7 +185,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
      */
     private <T> Mono<T> post(byte[] body, boolean batch, FeddiGatewayRequestContext context,
                              BiConsumer<HttpResponse, SynchronousSink<T>> handler) {
-        return httpClient.post()
+        return client().post()
             .uri(path)
             .send((request, out) -> {
                 request.requestHeaders()
