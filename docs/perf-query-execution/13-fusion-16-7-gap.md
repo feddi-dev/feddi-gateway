@@ -180,6 +180,8 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   loops that happened to own most connections did most of the work. Eight loops on four CPUs smooth this out (at
   a cost in burst); a pool per event loop removes it: the response is read on the loop of the request, and server
   connections are spread round-robin. The gateway then uses 95–96% of its cores in every run.
+- **Launcher default:** `-XX:+UseCompactObjectHeaders` is now one of the launcher's JVM options (release
+  note); server request observations stay on in feddi and are switched off only in the benchmark's `start.sh`.
 - **Release note (loop pools):** `maxConnections` applies per event loop (up to loops × `maxConnections`
   connections per subgraph).
 - **Shared key arrays** made parsing allocate less but cost more later: parsed objects get further fields when
