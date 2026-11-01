@@ -231,6 +231,13 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   rises to 1,918 (0.94 of Fusion's 2,034, from 0.85 with `variables`), but constant drops to 4,588 (CV 2.0%) and
   burst to 4,287: the merged request waits for the slower of the two lookups, and the subgraph resolves both in one
   request instead of two in parallel. A trade between latency and throughput, not a clear win.
+- **Larger young generation** (`233401`, 3g / 2g): noise (−1.4% / +1.0% / −1.0%); the defaults stay.
+- **Profile of the combined branch** (`20261101-025329`, constant, 4,689 req/s): no single hot spot is left.
+  Subgraph response parsing (`JsonTreeReader`) 14%, response writing (`ResponseWriter` + `JsonBuffer`) 14%, Reactor
+  and Netty plumbing without a feddi frame ~30%, the GC 0%. Candidates: grouping entities by a `CompactMap` of their
+  variables (hash and equals in `HashMap.computeIfAbsent`, ~5% with the call), the copy of each subgraph response
+  into a `byte[]` (23.5% of allocation, ~2.5% CPU in `CompositeByteBuf.getBytes` and `isAccessible`; parsing from
+  Netty's buffers would need `RawString` to stop pointing into the array), `ArrayList.grow` (2.2%).
 
 ## Order
 
