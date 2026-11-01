@@ -179,6 +179,7 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
 | exact-size subgraph response arrays (`perf/exp-content-length`) | `221547` | 4,765 (CV 0.3%) | 1,741 | 4,333 (0.3%) | noise (+0.2% / +0.7% / −0.6%), not merged |
 | alias, exact copies, lookups to one subgraph in a round merged (`perf/exp-alias-merge`) | `225500` | 4,588 (CV 2.0%) | **1,918** | 4,287 (0.2%) | against exact-copies alias: −3.8% constant, **+6.8% constant-latency**, −1.3% burst |
 | larger young generation (`-Xms3g -Xmx3g -Xmn2g` instead of 2g / 1g) | `233401` | 4,692 (CV 0.5%) | 1,747 | 4,314 (0.2%) | against `175754`: −1.4% / +1.0% / −1.0%, noise, kept at 2g / 1g |
+| entities grouped by an array of their requirement values (`perf/exp-entity-key`) | `060956` | 4,567 (CV 0.6%) | 1,734 | 4,185 (0.7%) | **worse** against the fresh baseline `065724` (4,757 / 1,764 / 4,404): −4.0% / −1.7% / −5.0%, dropped |
 
 - **Why constant mode swung:** within each baseline run, throughput followed the gateway's CPU use (3,760 at 76%,
   4,430 at 94%), and so did the subgraphs' and k6's: the gateway was waiting, not saturated. A subgraph response is
@@ -237,6 +238,11 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   measured 25.9 ms, so ~1.2 ms lies between the socket and the trace (reading the request before the filter, writing
   the response) and the rest of k6's extra ~2 ms is outside the gateway. The 4.5 ms gap to Fusion is mostly the
   subgraph calls (accounts and products answer feddi ~2 ms slower, the reviews round is longer).
+- **Grouping key** (`20261101-060956`): an array of the requirement values with a cached hash as the key, the
+  variables map built once per unique entity, the map sized for all positions. Slower although it does less work
+  per position; a fresh baseline (`065724`, same code as `175754`) rules out drift. Not investigated further; one
+  suspect is the map sized for every position (most lookups have far fewer unique entities). List presizing was
+  not run: the hot lists are already sized, and `ArrayList.grow` in the profile is mostly sampling skid.
 - **Larger young generation** (`233401`, 3g / 2g): noise (−1.4% / +1.0% / −1.0%); the defaults stay.
 - **Profile of the combined branch** (`20261101-025329`, constant, 4,689 req/s): no single hot spot is left.
   Subgraph response parsing (`JsonTreeReader`) 14%, response writing (`ResponseWriter` + `JsonBuffer`) 14%, Reactor
