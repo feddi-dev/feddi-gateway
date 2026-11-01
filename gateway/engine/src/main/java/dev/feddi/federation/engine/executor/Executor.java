@@ -46,6 +46,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Executes a query plan against subgraph clients and merges results.
@@ -664,11 +666,25 @@ public final class Executor {
         // Fetch the unique entities: one request each, or batched as configured for the subgraph. Most steps
         // fit into one batch, which needs no Flux.
         List<List<UniqueEntity>> batches = batches(toFetch, step.operation(), client.batching());
+        Function<List<EntityResult>, StepResult> toStepResult = entityResults -> {
+            StepResult stepResult = new StepResult();
+            for (EntityResult entityResult : entityResults) {
+                mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
+            }
+            for (EntityResult entityResult : skipped) {
+                mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
+            }
+            return stepResult;
+        };
+        if (batches.size() == 1 && reused.isEmpty()) {
+            // The common case: the call's result becomes the step's in one operator
+            return fetchBatch(step.operation(), client, batches.get(0), toStepResult);
+        }
         Mono<List<EntityResult>> fetched = batches.isEmpty() ? Mono.just(List.of())
             : batches.size() == 1
-            ? fetchBatchOrFail(step, client, batches.get(0))
+            ? fetchBatch(step.operation(), client, batches.get(0), Function.identity())
             : Flux.fromIterable(batches)
-                .flatMap(batch -> fetchBatchOrFail(step, client, batch))
+                .flatMap(batch -> fetchBatch(step.operation(), client, batch, Function.identity()))
                 .collectList()
                 .map(lists -> {
                     List<EntityResult> all = new ArrayList<>();
@@ -683,16 +699,7 @@ public final class Executor {
                 return all;
             });
         }
-        return fetched.map(entityResults -> {
-            StepResult stepResult = new StepResult();
-            for (EntityResult entityResult : entityResults) {
-                mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
-            }
-            for (EntityResult entityResult : skipped) {
-                mergeEntityResult(entityResult, step, ctx, wrapperPath, nullFieldNames, stepResult);
-            }
-            return stepResult;
-        });
+        return fetched.map(toStepResult);
     }
 
     /**
@@ -762,27 +769,6 @@ public final class Executor {
             level = ((Field) level.getSelections().get(0)).getSelectionSet();
         }
         return ((Field) level.getSelections().get(0)).getResultKey();
-    }
-
-    /**
-     * Fetches a batch; a failure does not fail the step: it is reported once, and every position of the batch's
-     * entities gets null fields.
-     */
-    private static Mono<List<EntityResult>> fetchBatchOrFail(ExecutionStep step, SubgraphClient client,
-                                                             List<UniqueEntity> batch) {
-        return fetchBatch(step.operation(), client, batch)
-            .onErrorResume(e -> {
-                for (UniqueEntity entity : batch) {
-                    entity.shareError(e);
-                }
-                List<EntityResult> failed = new ArrayList<>();
-                for (UniqueEntity entity : batch) {
-                    for (Map<String, Object> context : entity.positions()) {
-                        failed.add(new EntityResult(context, null, failed.isEmpty() ? e : null));
-                    }
-                }
-                return Mono.just(failed);
-            });
     }
 
     /**
@@ -1287,36 +1273,66 @@ public final class Executor {
     }
 
     /**
-     * Fetches one batch of unique entities and distributes the results to their positions.
+     * Fetches a batch and hands its entities' results to {@code then}. A failure does not fail the step: it is
+     * reported once, and every position of the batch's entities gets null fields.
      */
-    private static Mono<List<EntityResult>> fetchBatch(OperationDefinition operation, SubgraphClient client,
-                                                       List<UniqueEntity> batch) {
+    private static <R> Mono<R> fetchBatch(OperationDefinition operation, SubgraphClient client,
+                                          List<UniqueEntity> batch, Function<List<EntityResult>, R> then) {
+        Function<Throwable, R> failed = e -> then.apply(failedBatch(batch, e));
         List<Map<String, Object>> variableSets = batch.stream().map(UniqueEntity::variables).toList();
-        Mono<List<ExecutionResult>> results;
         if (variableSets.size() == 1) {
-            results = client.execute(operation, variableSets.get(0)).map(List::of);
-        } else if (client.batching().mode() == BatchingOptions.Mode.VARIABLES) {
-            results = client.executeBatch(operation, variableSets);
-        } else {
-            AliasBatch aliasBatch = AliasBatch.create(operation, variableSets, client.batching().maxBatchSize());
-            results = client.execute(aliasBatch.operation(), aliasBatch.variables()).map(aliasBatch::split);
+            return new FoldMono<>(client.execute(operation, variableSets.get(0)),
+                result -> then.apply(batchResultsOrFail(batch, () -> List.of(result))), failed);
         }
-        return results.map(list -> {
-            if (list.size() != batch.size()) {
-                throw new ExecutionException("Subgraph returned " + list.size() + " results for a batch of "
-                    + batch.size());
+        if (client.batching().mode() == BatchingOptions.Mode.VARIABLES) {
+            return new FoldMono<>(client.executeBatch(operation, variableSets),
+                results -> then.apply(batchResultsOrFail(batch, () -> results)), failed);
+        }
+        AliasBatch aliasBatch = AliasBatch.create(operation, variableSets, client.batching().maxBatchSize());
+        return new FoldMono<>(client.execute(aliasBatch.operation(), aliasBatch.variables()),
+            result -> then.apply(batchResultsOrFail(batch, () -> aliasBatch.split(result))), failed);
+    }
+
+    /** The batch's results, or its failure when the response does not fit the batch. */
+    private static List<EntityResult> batchResultsOrFail(List<UniqueEntity> batch,
+                                                         Supplier<List<ExecutionResult>> results) {
+        try {
+            return batchResults(batch, results.get());
+        } catch (RuntimeException e) {
+            return failedBatch(batch, e);
+        }
+    }
+
+    /** The entities' results of a batch: the subgraph's result for each entity at each of its positions. */
+    private static List<EntityResult> batchResults(List<UniqueEntity> batch, List<ExecutionResult> list) {
+        if (list.size() != batch.size()) {
+            throw new ExecutionException("Subgraph returned " + list.size() + " results for a batch of "
+                + batch.size());
+        }
+        int positions = 0;
+        for (UniqueEntity entity : batch) {
+            positions += entity.positions().size();
+        }
+        List<EntityResult> entityResults = new ArrayList<>(positions);
+        for (int i = 0; i < batch.size(); i++) {
+            batch.get(i).shareResult(list.get(i));
+            entityResults.addAll(fanOut(batch.get(i), list.get(i)));
+        }
+        return entityResults;
+    }
+
+    /** Null fields at every position of a failed batch's entities; the failure is reported once. */
+    private static List<EntityResult> failedBatch(List<UniqueEntity> batch, Throwable e) {
+        for (UniqueEntity entity : batch) {
+            entity.shareError(e);
+        }
+        List<EntityResult> failed = new ArrayList<>();
+        for (UniqueEntity entity : batch) {
+            for (Map<String, Object> context : entity.positions()) {
+                failed.add(new EntityResult(context, null, failed.isEmpty() ? e : null));
             }
-            int positions = 0;
-            for (UniqueEntity entity : batch) {
-                positions += entity.positions().size();
-            }
-            List<EntityResult> entityResults = new ArrayList<>(positions);
-            for (int i = 0; i < batch.size(); i++) {
-                batch.get(i).shareResult(list.get(i));
-                entityResults.addAll(fanOut(batch.get(i), list.get(i)));
-            }
-            return entityResults;
-        });
+        }
+        return failed;
     }
 
     /**
