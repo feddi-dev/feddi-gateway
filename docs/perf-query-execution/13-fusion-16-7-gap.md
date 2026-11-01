@@ -178,6 +178,7 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
 | `batching: alias` with exact copies (no padding, `-Dfeddi.experiment.exactAliasCopies=true`, 2 runs) | `214540` | 4,771 (CV 0.0%) | **1,796** | 4,342 (0.2%) | level in constant and burst, **+3.9% constant-latency** |
 | exact-size subgraph response arrays (`perf/exp-content-length`) | `221547` | 4,765 (CV 0.3%) | 1,741 | 4,333 (0.3%) | noise (+0.2% / +0.7% / −0.6%), not merged |
 | alias, exact copies, lookups to one subgraph in a round merged (`perf/exp-alias-merge`) | `225500` | 4,588 (CV 2.0%) | **1,918** | 4,287 (0.2%) | against exact-copies alias: −3.8% constant, **+6.8% constant-latency**, −1.3% burst |
+| larger young generation (`-Xms3g -Xmx3g -Xmn2g` instead of 2g / 1g) | `233401` | 4,692 (CV 0.5%) | 1,747 | 4,314 (0.2%) | against `175754`: −1.4% / +1.0% / −1.0%, noise, kept at 2g / 1g |
 
 - **Why constant mode swung:** within each baseline run, throughput followed the gateway's CPU use (3,760 at 76%,
   4,430 at 94%), and so did the subgraphs' and k6's: the gateway was waiting, not saturated. A subgraph response is
