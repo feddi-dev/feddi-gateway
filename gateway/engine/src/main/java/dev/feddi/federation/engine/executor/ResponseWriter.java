@@ -36,15 +36,12 @@ public final class ResponseWriter {
     private static final byte[] EMPTY_OBJECT = {'{', '}'};
     private static final byte[] EXTENSIONS_KEY = "\"extensions\":".getBytes(StandardCharsets.US_ASCII);
 
-    /**
-     * The response as JSON (the first {@code length} bytes of {@code bytes}, which may be longer) and the number of
-     * its errors.
-     */
-    public record Output(byte[] bytes, int length, int errorCount) {
+    /** The response as JSON and the number of its errors. */
+    public record Output(byte[] json, int errorCount) {
 
-        /** The response as an array of its own length. */
-        public byte[] json() {
-            return length == bytes.length ? bytes : Arrays.copyOf(bytes, length);
+        /** Copies a written response into an {@link Output} of its own (a {@link Sink}). */
+        public static Output copy(byte[] bytes, int length, int errorCount) {
+            return new Output(Arrays.copyOf(bytes, length), errorCount);
         }
     }
 
@@ -64,10 +61,6 @@ public final class ResponseWriter {
          */
         T accept(byte[] bytes, int length, int errorCount);
     }
-
-    /** Copies the response into an {@link Output} of its own. */
-    private static final Sink<Output> COPY = (bytes, length, errorCount) ->
-        new Output(Arrays.copyOf(bytes, length), length, errorCount);
 
     /** Scratch buffers larger than this are not kept for the next response. */
     private static final int MAX_SCRATCH = 1 << 20;
@@ -111,7 +104,7 @@ public final class ResponseWriter {
      */
     public static Output write(ResponseShape shape, @Nullable Map<String, Object> data, List<GraphQLError> errors,
                                @Nullable Map<Object, Object> extensions) {
-        return write(shape, data, errors, extensions, COPY);
+        return write(shape, data, errors, extensions, Output::copy);
     }
 
     /**
@@ -190,7 +183,7 @@ public final class ResponseWriter {
      * Writes a response without data, e.g. for a request that failed before execution.
      */
     public static Output writeErrors(List<GraphQLError> errors) {
-        return writeErrors(errors, COPY);
+        return writeErrors(errors, Output::copy);
     }
 
     /**

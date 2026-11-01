@@ -615,14 +615,13 @@ public final class Executor {
                 ExecutionStep member = steps.get(memberIndex);
                 List<Map<String, Object>> parentContexts = selectParentContexts(member, ctx);
                 RequirementReader reader = new RequirementReader(member.possibleTypes());
-                RequirementReader.Requirements requirements = RequirementReader.Requirements.of(member.requirements());
                 for (Map<String, Object> context : parentContexts) {
                     // Start with filtered query variables, then overlay requirement variables
                     // Requirement variables take precedence since they're entity-specific
                     Map<String, Object> stepVariables =
                         new CompactMap(operationVariables.size() + member.requirements().size());
                     stepVariables.putAll(operationVariables);
-                    reader.putVariables(requirements, context, stepVariables);
+                    reader.putVariables(member.requirements(), context, stepVariables);
                     if (lacksAny(requiredVariables, stepVariables)) {
                         skipped.add(new EntityResult(context, null));
                         continue;
@@ -711,7 +710,6 @@ public final class Executor {
         }
         String lookupKey = lookupFieldResponseKey(step.operation(), wrapperPath.size());
         RequirementReader reader = new RequirementReader(step.possibleTypes());
-        RequirementReader.Requirements requirements = RequirementReader.Requirements.of(step.requirements());
         for (ExecutionPlan.ReuseSource source : sources) {
             if (!ctx.finishedSteps.contains(source.step())) {
                 continue;
@@ -723,7 +721,7 @@ public final class Executor {
             for (Map<String, Object> object : objects) {
                 Map<String, Object> variables = new CompactMap(operationVariables.size() + step.requirements().size());
                 variables.putAll(operationVariables);
-                reader.putVariables(requirements, object, variables);
+                reader.putVariables(step.requirements(), object, variables);
                 UniqueEntity entity = uniqueEntities.get(variables);
                 if (entity == null) {
                     continue;

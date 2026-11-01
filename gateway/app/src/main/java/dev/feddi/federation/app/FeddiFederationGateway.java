@@ -40,7 +40,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -388,8 +387,7 @@ public final class FeddiFederationGateway {
 
         /** The response as JSON, written in one pass into an array of its own. */
         public ResponseWriter.Output toJson() {
-            return toJson((bytes, length, errorCount) ->
-                new ResponseWriter.Output(Arrays.copyOf(bytes, length), length, errorCount));
+            return toJson(ResponseWriter.Output::copy);
         }
 
         /**
