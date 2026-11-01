@@ -185,6 +185,8 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
 | transparent huge pages, second run (THP mode `madvise`, so the option takes effect) | `20261101-190128` | 4,776 (CV 0.3%) | 1,760 | 4,353 (0.2%) | +0.4% / −0.2% / −1.2%, noise; not a default |
 | Netty leak detection off (`-Dio.netty.leakDetection.level=disabled`) | `20261101-102717` | 4,772 (CV 0.2%) | 1,761 | 4,372 (0.5%) | +0.3% / −0.2% / −0.7%, noise |
 | more inlining (`-XX:MaxInlineLevel=25 -XX:FreqInlineSize=500`) | `20261101-110659` | 4,816 (CV 0.3%) | 1,760 | 4,400 (0.2%) | +1.2% / −0.2% / −0.1%, noise |
+| one operator each for the subgraph call's timeout and its timing (`perf/exp-fewer-operators` `abc8ef5`, 2 runs) | `20261101-204635` | 4,803 (CV 0.6%) | 1,746 | 4,394 (0.0%) | +1.0% / −1.0% / −0.2%, noise |
+| + a lookup's call to its step result in one operator (`512df78`, 2 runs) | `20261101-211711` | 4,748 (CV 0.5%) | 1,728 | 4,366 (0.1%) | −0.2% / −2.0% / −0.9%, noise; both dropped |
 
 - **Why constant mode swung:** within each baseline run, throughput followed the gateway's CPU use (3,760 at 76%,
   4,430 at 94%), and so did the subgraphs' and k6's: the gateway was waiting, not saturated. A subgraph response is
@@ -248,6 +250,13 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   per position; a fresh baseline (`065724`, same code as `175754`) rules out drift. Not investigated further; one
   suspect is the map sized for every position (most lookups have far fewer unique entities). List presizing was
   not run: the hot lists are already sized, and `ArrayList.grow` in the profile is mostly sampling skid.
+- **Fewer Reactor operators** (`perf/exp-fewer-operators`): Reactor takes 17% of the gateway's CPU, 6.4% of it
+  subscribing a step's chain and 9% passing signals without a feddi frame. Custom operators replaced 5 operators
+  per subgraph call (timeout, timing) and 2–3 per lookup step (map, onErrorResume, map): no measurable gain. The
+  remaining Reactor cost is mostly Reactor Netty's own chain per request, which feddi does not assemble. The
+  scheduler itself was already free of operators. Reading subgraph responses straight from Netty's buffers was not
+  built: the parser and `RawString` would have to read off-heap memory that stays alive until the response is
+  written, for at most ~2.5% CPU, and the cheaper exact-size copies were already neutral.
 - **Larger young generation** (`233401`, 3g / 2g): noise (−1.4% / +1.0% / −1.0%); the defaults stay.
 - **Profile of the combined branch** (`20261101-025329`, constant, 4,689 req/s): no single hot spot is left.
   Subgraph response parsing (`JsonTreeReader`) 14%, response writing (`ResponseWriter` + `JsonBuffer`) 14%, Reactor
