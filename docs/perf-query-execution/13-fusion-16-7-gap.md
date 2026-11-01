@@ -181,8 +181,10 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
 | larger young generation (`-Xms3g -Xmx3g -Xmn2g` instead of 2g / 1g) | `233401` | 4,692 (CV 0.5%) | 1,747 | 4,314 (0.2%) | against `175754`: −1.4% / +1.0% / −1.0%, noise, kept at 2g / 1g |
 | entities grouped by an array of their requirement values (`perf/exp-entity-key`) | `060956` | 4,567 (CV 0.6%) | 1,734 | 4,185 (0.7%) | **worse** against the fresh baseline `065724` (4,757 / 1,764 / 4,404): −4.0% / −1.7% / −5.0%, dropped |
 | Netty buffer checks off (`-Dio.netty.buffer.checkAccessible=false -Dio.netty.buffer.checkBounds=false`) | `20261101-090624` | 4,798 (CV 0.6%) | 1,726 | 4,430 (0.1%) | against `065724`: +0.9% / −2.2% / +0.6%, noise |
-| transparent huge pages (`-XX:+UseTransparentHugePages`) | `20261101-094740` | **4,840** (CV 0.5%) | 1,733 (2.0%) | 4,438 (0.5%) | +1.7% / −1.8% / +0.8%; small, needs a second run |
+| transparent huge pages (`-XX:+UseTransparentHugePages`) | `20261101-094740` | **4,840** (CV 0.5%) | 1,733 (2.0%) | 4,438 (0.5%) | +1.7% / −1.8% / +0.8%; not confirmed by the second run |
+| transparent huge pages, second run (THP mode `madvise`, so the option takes effect) | `20261101-190128` | 4,776 (CV 0.3%) | 1,760 | 4,353 (0.2%) | +0.4% / −0.2% / −1.2%, noise; not a default |
 | Netty leak detection off (`-Dio.netty.leakDetection.level=disabled`) | `20261101-102717` | 4,772 (CV 0.2%) | 1,761 | 4,372 (0.5%) | +0.3% / −0.2% / −0.7%, noise |
+| more inlining (`-XX:MaxInlineLevel=25 -XX:FreqInlineSize=500`) | `20261101-110659` | 4,816 (CV 0.3%) | 1,760 | 4,400 (0.2%) | +1.2% / −0.2% / −0.1%, noise |
 
 - **Why constant mode swung:** within each baseline run, throughput followed the gateway's CPU use (3,760 at 76%,
   4,430 at 94%), and so did the subgraphs' and k6's: the gateway was waiting, not saturated. A subgraph response is
