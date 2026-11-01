@@ -177,6 +177,7 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
 | + `batching: alias` for every subgraph (`perf/exp-alias`, `-Dfeddi.experiment.batching=alias`) | `201800` | 4,000 (CV 2.3%) | 1,685 | 3,962 (1.0%) | **worse**: −16% constant, −9% burst |
 | `batching: alias` with exact copies (no padding, `-Dfeddi.experiment.exactAliasCopies=true`, 2 runs) | `214540` | 4,771 (CV 0.0%) | **1,796** | 4,342 (0.2%) | level in constant and burst, **+3.9% constant-latency** |
 | exact-size subgraph response arrays (`perf/exp-content-length`) | `221547` | 4,765 (CV 0.3%) | 1,741 | 4,333 (0.3%) | noise (+0.2% / +0.7% / −0.6%), not merged |
+| alias, exact copies, lookups to one subgraph in a round merged (`perf/exp-alias-merge`) | `225500` | 4,588 (CV 2.0%) | **1,918** | 4,287 (0.2%) | against exact-copies alias: −3.8% constant, **+6.8% constant-latency**, −1.3% burst |
 
 - **Why constant mode swung:** within each baseline run, throughput followed the gateway's CPU use (3,760 at 76%,
   4,430 at 94%), and so did the subgraphs' and k6's: the gateway was waiting, not saturated. A subgraph response is
@@ -225,6 +226,10 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   constant-latency (1,796 against 1,729): the padding cost the loss, and one aliased operation is answered faster
   than a variable batch. Next: merge the lookups to one subgraph in the same round into one request, like Fusion.
   (Reviews' wire latency is not measured: the parser mispairs its large chunked responses.)
+- **Merged lookups** (`225500`): one reviews request per round instead of two, like Fusion. Constant-latency
+  rises to 1,918 (0.94 of Fusion's 2,034, from 0.85 with `variables`), but constant drops to 4,588 (CV 2.0%) and
+  burst to 4,287: the merged request waits for the slower of the two lookups, and the subgraph resolves both in one
+  request instead of two in parallel. A trade between latency and throughput, not a clear win.
 
 ## Order
 
