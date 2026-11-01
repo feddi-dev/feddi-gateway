@@ -24,6 +24,7 @@ import graphql.language.Selection;
 import graphql.language.SelectionSet;
 import graphql.language.VariableDefinition;
 import graphql.schema.GraphQLSchema;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
@@ -35,6 +36,7 @@ import reactor.core.publisher.Sinks;
 import reactor.util.context.Context;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -606,32 +608,44 @@ public final class Executor {
 
         // Group entities by the variables their lookup needs: the same entity often appears
         // at many positions (e.g. one product under many reviews), but is fetched only once.
-        Map<Map<String, Object>, UniqueEntity> uniqueEntities = new LinkedHashMap<>();
+        // Only the requirement variables differ between entities, so they are the key; an entity's
+        // variables map is built once, when it is first seen.
+        String[] names = step.requirements().keySet().toArray(String[]::new);
+        int[] required = requiredIndexes(requiredVariables, names);
+        boolean lacksQueryVariable = lacksQueryVariable(requiredVariables, names, operationVariables);
+        Map<LookupValues, UniqueEntity> uniqueEntities;
         List<EntityResult> skipped = new ArrayList<>();
         // The entities' objects are read under the lock of the merges: steps running in parallel merge their
         // results into the same objects
         synchronized (ctx) {
+            List<List<Map<String, Object>>> contextsByMember = new ArrayList<>(steps.size());
+            int positions = 0;
+            for (ExecutionStep member : steps) {
+                List<Map<String, Object>> parentContexts = selectParentContexts(member, ctx);
+                contextsByMember.add(parentContexts);
+                positions += parentContexts.size();
+            }
+            uniqueEntities = LinkedHashMap.newLinkedHashMap(positions);
             for (int memberIndex = 0; memberIndex < steps.size(); memberIndex++) {
                 ExecutionStep member = steps.get(memberIndex);
-                List<Map<String, Object>> parentContexts = selectParentContexts(member, ctx);
                 RequirementReader reader = new RequirementReader(member.possibleTypes());
-                RequirementReader.Requirements requirements = RequirementReader.Requirements.of(member.requirements());
-                for (Map<String, Object> context : parentContexts) {
-                    // Start with filtered query variables, then overlay requirement variables
-                    // Requirement variables take precedence since they're entity-specific
-                    Map<String, Object> stepVariables =
-                        new CompactMap(operationVariables.size() + member.requirements().size());
-                    stepVariables.putAll(operationVariables);
-                    reader.putVariables(requirements, context, stepVariables);
-                    if (lacksAny(requiredVariables, stepVariables)) {
+                SelectedValue[] selections = selections(member, names);
+                for (Map<String, Object> context : contextsByMember.get(memberIndex)) {
+                    LookupValues values = LookupValues.read(reader, selections, context);
+                    if (lacksQueryVariable || values.lacksAny(required)) {
                         skipped.add(new EntityResult(context, null));
                         continue;
                     }
-                    uniqueEntities.computeIfAbsent(stepVariables, UniqueEntity::new).add(context, memberIndex);
+                    UniqueEntity entity = uniqueEntities.get(values);
+                    if (entity == null) {
+                        entity = new UniqueEntity(values.toVariables(operationVariables, names));
+                        uniqueEntities.put(values, entity);
+                    }
+                    entity.add(context, memberIndex);
                 }
             }
             if (ctx.reuseEntities && client.reusesResults() && !uniqueEntities.isEmpty()) {
-                reuseFetchedObjects(step, ctx, operationVariables, wrapperPath, uniqueEntities, skipped);
+                reuseFetchedObjects(step, ctx, names, wrapperPath, uniqueEntities, skipped);
             }
         }
         if (uniqueEntities.isEmpty() && skipped.isEmpty()) {
@@ -702,8 +716,8 @@ public final class Executor {
      * variables (read with this step's requirements) are an entity's, and whose fields are all set, is the entity's
      * lookup result. Called under the lock of the merges.
      */
-    private void reuseFetchedObjects(ExecutionStep step, ExecutionContext ctx, Map<String, Object> operationVariables,
-                                     List<String> wrapperPath, Map<Map<String, Object>, UniqueEntity> uniqueEntities,
+    private void reuseFetchedObjects(ExecutionStep step, ExecutionContext ctx, String[] names,
+                                     List<String> wrapperPath, Map<LookupValues, UniqueEntity> uniqueEntities,
                                      List<EntityResult> results) {
         List<ExecutionPlan.ReuseSource> sources = ctx.reuseSources.get(step.id());
         if (sources == null) {
@@ -711,7 +725,7 @@ public final class Executor {
         }
         String lookupKey = lookupFieldResponseKey(step.operation(), wrapperPath.size());
         RequirementReader reader = new RequirementReader(step.possibleTypes());
-        RequirementReader.Requirements requirements = RequirementReader.Requirements.of(step.requirements());
+        SelectedValue[] selections = selections(step, names);
         for (ExecutionPlan.ReuseSource source : sources) {
             if (!ctx.finishedSteps.contains(source.step())) {
                 continue;
@@ -721,10 +735,8 @@ public final class Executor {
             Set<String>[] noTypes = new Set[source.path().size() + 1];
             collectEntityTargets(ctx.getMergedData(), source.path(), noTypes, 0, objects);
             for (Map<String, Object> object : objects) {
-                Map<String, Object> variables = new CompactMap(operationVariables.size() + step.requirements().size());
-                variables.putAll(operationVariables);
-                reader.putVariables(requirements, object, variables);
-                UniqueEntity entity = uniqueEntities.get(variables);
+                LookupValues values = LookupValues.read(reader, selections, object);
+                UniqueEntity entity = uniqueEntities.get(values);
                 if (entity == null) {
                     continue;
                 }
@@ -741,7 +753,7 @@ public final class Executor {
                 if (found == null) {
                     continue;
                 }
-                uniqueEntities.remove(variables);
+                uniqueEntities.remove(values);
                 Map<String, Object> data = new CompactMap(1);
                 data.put(lookupKey, found);
                 for (int i = wrapperPath.size() - 1; i >= 0; i--) {
@@ -861,6 +873,85 @@ public final class Executor {
             }
         }
         return false;
+    }
+
+    /** The indexes of the required variables among the requirement variables. */
+    private static int[] requiredIndexes(String[] requiredVariables, String[] names) {
+        int[] indexes = new int[requiredVariables.length];
+        int count = 0;
+        for (String required : requiredVariables) {
+            for (int i = 0; i < names.length; i++) {
+                if (names[i].equals(required)) {
+                    indexes[count++] = i;
+                    break;
+                }
+            }
+        }
+        return Arrays.copyOf(indexes, count);
+    }
+
+    /** Whether a required variable that is no requirement variable has no value among the query's variables. */
+    private static boolean lacksQueryVariable(String[] requiredVariables, String[] names,
+                                              Map<String, Object> operationVariables) {
+        for (String required : requiredVariables) {
+            if (!Arrays.asList(names).contains(required) && operationVariables.get(required) == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A step's requirements in the order of the given variable names (the steps of a group share them). */
+    private static SelectedValue[] selections(ExecutionStep step, String[] names) {
+        SelectedValue[] selections = new SelectedValue[names.length];
+        for (int i = 0; i < names.length; i++) {
+            selections[i] = step.requirements().get(names[i]);
+        }
+        return selections;
+    }
+
+    /**
+     * The requirement variables' values of one entity, in the order of the step's variable names: the key that
+     * groups an entity's positions. The hash is computed once.
+     */
+    private record LookupValues(@Nullable Object[] values, int hash) {
+
+        static LookupValues read(RequirementReader reader, SelectedValue[] selections, Map<String, Object> context) {
+            Object[] values = new Object[selections.length];
+            for (int i = 0; i < selections.length; i++) {
+                values[i] = reader.extractFromSelectedValue(context, selections[i]);
+            }
+            return new LookupValues(values, Arrays.hashCode(values));
+        }
+
+        boolean lacksAny(int[] indexes) {
+            for (int index : indexes) {
+                if (values[index] == null) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** The lookup's variables: the query's, overlaid with these. */
+        Map<String, Object> toVariables(Map<String, Object> operationVariables, String[] names) {
+            Map<String, Object> variables = new CompactMap(operationVariables.size() + names.length);
+            variables.putAll(operationVariables);
+            for (int i = 0; i < names.length; i++) {
+                variables.put(names[i], values[i]);
+            }
+            return variables;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof LookupValues key && key.hash == hash && Arrays.equals(key.values, values);
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
     }
 
     /**
