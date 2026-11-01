@@ -231,6 +231,12 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   rises to 1,918 (0.94 of Fusion's 2,034, from 0.85 with `variables`), but constant drops to 4,588 (CV 2.0%) and
   burst to 4,287: the merged request waits for the slower of the two lookups, and the subgraph resolves both in one
   request instead of two in parallel. A trade between latency and throughput, not a clear win.
+- **Gateway port on the wire** (constant-latency, 3 s tcpdump on port 5220; `20261101-064921` feddi, `060213`
+  Fusion): last request byte to first response byte, median 27.1 ms for feddi (p10 21.4, p90 31.7) and 22.6 ms for
+  Fusion (p10 16.9, p90 28.8); same request (1,033 bytes) and response size (87,327 bytes). The gateway's own trace
+  measured 25.9 ms, so ~1.2 ms lies between the socket and the trace (reading the request before the filter, writing
+  the response) and the rest of k6's extra ~2 ms is outside the gateway. The 4.5 ms gap to Fusion is mostly the
+  subgraph calls (accounts and products answer feddi ~2 ms slower, the reviews round is longer).
 - **Larger young generation** (`233401`, 3g / 2g): noise (−1.4% / +1.0% / −1.0%); the defaults stay.
 - **Profile of the combined branch** (`20261101-025329`, constant, 4,689 req/s): no single hot spot is left.
   Subgraph response parsing (`JsonTreeReader`) 14%, response writing (`ResponseWriter` + `JsonBuffer`) 14%, Reactor
