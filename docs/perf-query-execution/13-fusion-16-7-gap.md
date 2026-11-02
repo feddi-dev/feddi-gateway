@@ -264,6 +264,13 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   variables (hash and equals in `HashMap.computeIfAbsent`, ~5% with the call), the copy of each subgraph response
   into a `byte[]` (23.5% of allocation, ~2.5% CPU in `CompositeByteBuf.getBytes` and `isAccessible`; parsing from
   Netty's buffers would need `RawString` to stop pointing into the array), `ArrayList.grow` (2.2%).
+- **Alias with exact copies, on `main`** (`perf/alias-exact-copies`; benchmark config `batching: alias` from the
+  fork branch `feddi-alias-batching`, `fec6072`): the padding is removed from `AliasBatch`, one copy per entity.
+  2 runs (`20261102-051718`): 4,858 / 1,793 / 4,343. Final 3 runs (`061903`): **4,839 / 1,780 / 4,348**, against
+  the `variables` baseline `065724` (4,757 / 1,764 / 4,404) +1.7% / +0.9% / −1.3%; 1.03 / 0.88 / 0.99 of Fusion.
+  Kept: a small gain and less code.
+- **Merged lookups on top** (`perf/alias-merged-lookups`, 2 runs `054758`): 4,562 / 1,885 / 4,219 (burst CV 3.8%),
+  −6.1% / +5.1% / −2.9% against exact copies alone. The same trade as before (`225500`): dropped.
 
 ## Order
 
