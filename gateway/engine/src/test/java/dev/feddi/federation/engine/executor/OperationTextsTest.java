@@ -45,9 +45,9 @@ class OperationTextsTest {
     void aliasTemplatesAreReusedPerOperationAndSize() {
         var op = operation("query ($id: ID!) { user(id: $id) { name } }");
 
-        var first = AliasBatch.create(op, List.of(Map.of("id", "1"), Map.of("id", "2")), 64);
-        var second = AliasBatch.create(op, List.of(Map.of("id", "3"), Map.of("id", "4")), 64);
-        var larger = AliasBatch.create(op, List.of(Map.of("id", "1"), Map.of("id", "2"), Map.of("id", "3")), 64);
+        var first = AliasBatch.create(op, List.of(Map.of("id", "1"), Map.of("id", "2")));
+        var second = AliasBatch.create(op, List.of(Map.of("id", "3"), Map.of("id", "4")));
+        var larger = AliasBatch.create(op, List.of(Map.of("id", "1"), Map.of("id", "2"), Map.of("id", "3")));
 
         assertThat(second.operation()).isSameAs(first.operation());
         assertThat(second.variables()).containsEntry("id_b0", "3").containsEntry("id_b1", "4");

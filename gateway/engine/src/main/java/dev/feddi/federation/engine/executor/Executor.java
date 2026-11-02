@@ -1298,7 +1298,7 @@ public final class Executor {
         } else if (client.batching().mode() == BatchingOptions.Mode.VARIABLES) {
             results = client.executeBatch(operation, variableSets);
         } else {
-            AliasBatch aliasBatch = AliasBatch.create(operation, variableSets, client.batching().maxBatchSize());
+            AliasBatch aliasBatch = AliasBatch.create(operation, variableSets);
             results = client.execute(aliasBatch.operation(), aliasBatch.variables()).map(aliasBatch::split);
         }
         return results.map(list -> {

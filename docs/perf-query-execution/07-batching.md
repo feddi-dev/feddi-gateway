@@ -118,8 +118,9 @@ Consequences for feddi:
    graphql-over-http#307 draft says a server MUST execute once per entry), so the old probe (`{ __typename }` with
    two empty variable sets) took its subgraphs for unsupported, and with the strict check the gateway did not start
    in the graphql-gateway-benchmarks harness.
-4. **`alias` safety:** a maximum batch size (split above it), and batch sizes rounded up to fixed buckets (1, 2, 4,
-   8, …) so subgraph document caches get hits.
+4. **`alias` safety:** a maximum batch size (split above it). *Changed (2026-11):* one copy per entity. Rounding
+   batch sizes up to fixed buckets (1, 2, 4, 8, …) gave subgraph document caches hits, but the subgraph resolved the
+   padding copies too, which cost 16% throughput in the benchmark (`13-fusion-16-7-gap.md`).
 5. **SPI:** `SubgraphClient` (published in `dev.feddi:feddi-gateway-extension`) gets a `default` method
    `executeBatch(operation, List<variables>, context)`. The default calls `execute` once per variable set, so
    existing custom clients keep working. The built-in HTTP client overrides it per mode.
@@ -165,8 +166,8 @@ How the techniques change the set of operation texts:
 | Plan cache, entity dedup | no | none |
 | `variables` batching | no (one text for any number of entities) | none |
 | Merging identical steps, planner v2 | yes, but a fixed set | regenerate the allowlist on feddi upgrades |
-| `alias` batching | one text per batch-size bucket | ~5–10× more texts per lookup |
-| `alias-combine` (different steps in one document) | combinations × buckets | too many to register in practice |
+| `alias` batching | one text per batch size | up to the maximum batch size × more texts per lookup |
+| `alias-combine` (different steps in one document) | combinations × batch sizes | too many to register in practice |
 
 Consequences:
 - Subgraphs with allowlists: use `batching: variables` (if supported) or `none`; dedup and step merging still apply.

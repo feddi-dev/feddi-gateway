@@ -37,9 +37,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * }
  * </pre>
  *
- * <p>The number of copies is rounded up to a power of two (capped at the maximum batch size)
- * by repeating the last variable set, so a subgraph sees only a few distinct documents per
- * lookup and its parsed-document cache gets hits.
+ * <p>There is one copy per entity: padding the copies to a few sizes would give the subgraph's
+ * parsed-document cache more hits, but it resolves the repeated copies too.
  */
 final class AliasBatch {
 
@@ -87,17 +86,15 @@ final class AliasBatch {
      *
      * @param operation    the per-entity lookup operation; see {@link #supports}
      * @param variableSets one variables map per entity, at least one
-     * @param maxBatchSize the maximum number of copies (padding never exceeds it)
      */
-    static AliasBatch create(OperationDefinition operation, List<Map<String, Object>> variableSets, int maxBatchSize) {
+    static AliasBatch create(OperationDefinition operation, List<Map<String, Object>> variableSets) {
         int size = variableSets.size();
-        int copies = Math.max(size, Math.min(bucket(size), maxBatchSize));
-        Template template = template(operation, copies);
+        Template template = template(operation, size);
 
         Map<String, Object> variables = new LinkedHashMap<>();
-        for (int i = 0; i < copies; i++) {
+        for (int i = 0; i < size; i++) {
             String suffix = "_b" + i;
-            Map<String, Object> set = variableSets.get(Math.min(i, size - 1));
+            Map<String, Object> set = variableSets.get(i);
             for (String name : template.variableNames()) {
                 if (set.containsKey(name)) {
                     variables.put(name + suffix, set.get(name));
@@ -162,7 +159,7 @@ final class AliasBatch {
     }
 
     /**
-     * Splits the combined result into one result per entity (padding copies are dropped).
+     * Splits the combined result into one result per entity.
      * Errors whose path starts at an aliased root field go to that entity with the original
      * field name; all other errors go to the first entity.
      */
@@ -208,9 +205,8 @@ final class AliasBatch {
                             .locations(error.getLocations())
                             .extensions(error.getExtensions())
                             .build());
+                        return;
                     }
-                    // Errors of padding copies are dropped with their data.
-                    return;
                 } catch (NumberFormatException ignored) {
                     // Not one of our aliases: fall through.
                 }
@@ -227,10 +223,5 @@ final class AliasBatch {
             }
         });
         return (Field) renamed;
-    }
-
-    /** Smallest power of two that is at least {@code n}. */
-    private static int bucket(int n) {
-        return n <= 1 ? 1 : Integer.highestOneBit(n - 1) << 1;
     }
 }
