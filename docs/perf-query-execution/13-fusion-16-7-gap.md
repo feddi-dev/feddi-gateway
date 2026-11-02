@@ -271,6 +271,10 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   Kept: a small gain and less code.
 - **Merged lookups on top** (`perf/alias-merged-lookups`, 2 runs `054758`): 4,562 / 1,885 / 4,219 (burst CV 3.8%),
   −6.1% / +5.1% / −2.9% against exact copies alone. The same trade as before (`225500`): dropped.
+- **Final comparison** (feddi `506b2e0`, 3 runs each, Fusion latest = HotChocolate 16.7.0): `variables` with Fusion
+  (`20261102-070727`) 4,720 / 1,716 / 4,334 against Fusion 4,689 / 2,045 / 4,370, so 1.01 / 0.84 / 0.99; `alias`
+  (`082550`) **4,822 / 1,811 / 4,334**, so 1.03 / 0.89 / 0.99 of Fusion and +2.2% / +5.5% / 0.0% against
+  `variables`. With alias batching feddi is ahead in constant, level in burst and 11% behind in constant-latency.
 
 ## Order
 
