@@ -3,8 +3,6 @@ package dev.feddi.federation.engine.planner;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalInt;
-import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -63,47 +61,10 @@ public final class BestPathTracker {
     }
     
     /**
-     * Gets the best paths to a specific subgraph.
-     */
-    public List<OperationPath> getBestPathsTo(String subgraph) {
-        PathsWithCost pwc = subgraphToBestPaths.get(subgraph);
-        return pwc != null ? List.copyOf(pwc.paths()) : List.of();
-    }
-    
-    /**
-     * Gets the best cost to a specific subgraph.
-     */
-    public OptionalInt getBestCostTo(String subgraph) {
-        PathsWithCost pwc = subgraphToBestPaths.get(subgraph);
-        return pwc != null ? OptionalInt.of(pwc.cost()) : OptionalInt.empty();
-    }
-    
-    /**
      * Checks if there are any paths tracked.
      */
     public boolean isEmpty() {
         return subgraphToBestPaths.isEmpty();
-    }
-    
-    /**
-     * Gets the number of subgraphs with tracked paths.
-     */
-    public int subgraphCount() {
-        return subgraphToBestPaths.size();
-    }
-    
-    /**
-     * Gets all subgraphs that have paths.
-     */
-    public Set<String> getSubgraphs() {
-        return Set.copyOf(subgraphToBestPaths.keySet());
-    }
-    
-    /**
-     * Clears all tracked paths.
-     */
-    public void clear() {
-        subgraphToBestPaths.clear();
     }
     
     @Override

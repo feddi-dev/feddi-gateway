@@ -16,10 +16,6 @@ public final class SchemaValidator {
     private final List<PostMergeValidationRule> postMergeRules;
     private final List<PostGraphValidationRule> postGraphRules;
 
-    public SchemaValidator(List<ValidationRule> rules, List<PostMergeValidationRule> postMergeRules) {
-        this(rules, postMergeRules, List.of());
-    }
-
     public SchemaValidator(List<ValidationRule> rules, List<PostMergeValidationRule> postMergeRules,
                           List<PostGraphValidationRule> postGraphRules) {
         this.rules = new ArrayList<>(rules);

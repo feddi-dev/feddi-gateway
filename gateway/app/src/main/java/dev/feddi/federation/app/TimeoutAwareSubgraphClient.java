@@ -51,11 +51,4 @@ public class TimeoutAwareSubgraphClient implements SubgraphClient {
                 e -> new SubgraphTimeoutException(subgraphName, timeout, e));
     }
 
-    public String subgraphName() {
-        return subgraphName;
-    }
-
-    public Duration timeout() {
-        return timeout;
-    }
 }

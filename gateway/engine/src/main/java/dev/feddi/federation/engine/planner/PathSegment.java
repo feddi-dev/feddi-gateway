@@ -48,24 +48,10 @@ public record PathSegment(
     }
     
     /**
-     * Gets the source node of this segment.
-     */
-    public Node sourceNode() {
-        return edge.source();
-    }
-    
-    /**
      * Gets the subgraph of the target node.
      */
     public String targetSubgraph() {
         return edge.target().subgraph();
-    }
-    
-    /**
-     * Checks if this is the first segment (no previous).
-     */
-    public boolean isFirst() {
-        return previous == null;
     }
     
     /**

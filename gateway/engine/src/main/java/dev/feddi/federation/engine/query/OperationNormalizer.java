@@ -515,9 +515,7 @@ public final class OperationNormalizer {
         }
 
         if (!argumentsMatch(field1.getArguments(), field2.getArguments())) {
-            throw new ArgumentConflictException(
-                getResponseKey(field1), field1.getArguments(), field2.getArguments()
-            );
+            throw new ArgumentConflictException(getResponseKey(field1));
         }
 
         // Merge sub-selection sets, then locally re-merge + re-sort
@@ -929,114 +927,42 @@ public final class OperationNormalizer {
 
     /** A @skip/@include condition on a variable that has no Boolean value. */
     public static class MissingConditionValueException extends RuntimeException {
-        private final String variableName;
-
         public MissingConditionValueException(String variableName, String directiveName) {
             super("Variable '" + variableName + "' of @" + directiveName + " has no Boolean value");
-            this.variableName = variableName;
-        }
-
-        public String getVariableName() {
-            return variableName;
         }
     }
 
     public static class OperationNotFoundException extends RuntimeException {
-        private final String operationName;
-
         public OperationNotFoundException(String operationName) {
             super(operationName == null
                 ? "No anonymous operation found in document"
                 : "Operation '" + operationName + "' not found in document");
-            this.operationName = operationName;
-        }
-
-        public String getOperationName() {
-            return operationName;
         }
     }
 
     public static class CircularFragmentException extends RuntimeException {
-        private final String fragmentName;
-        private final Set<String> cycle;
-
         public CircularFragmentException(String fragmentName, Set<String> visitedFragments) {
             super("Circular fragment reference detected: fragment '" + fragmentName +
                   "' references itself through chain: " + visitedFragments);
-            this.fragmentName = fragmentName;
-            this.cycle = Set.copyOf(visitedFragments);
-        }
-
-        public String getFragmentName() {
-            return fragmentName;
-        }
-
-        public Set<String> getCycle() {
-            return cycle;
         }
     }
 
     public static class FragmentNotFoundException extends RuntimeException {
-        private final String fragmentName;
-
         public FragmentNotFoundException(String fragmentName) {
             super("Fragment '" + fragmentName + "' is not defined");
-            this.fragmentName = fragmentName;
-        }
-
-        public String getFragmentName() {
-            return fragmentName;
         }
     }
 
     public static class FieldConflictException extends RuntimeException {
-        private final String responseKey;
-        private final String fieldName1;
-        private final String fieldName2;
-
         public FieldConflictException(String responseKey, String fieldName1, String fieldName2) {
             super("Fields with response key '" + responseKey +
                   "' have conflicting field names: '" + fieldName1 + "' vs '" + fieldName2 + "'");
-            this.responseKey = responseKey;
-            this.fieldName1 = fieldName1;
-            this.fieldName2 = fieldName2;
-        }
-
-        public String getResponseKey() {
-            return responseKey;
-        }
-
-        public String getFieldName1() {
-            return fieldName1;
-        }
-
-        public String getFieldName2() {
-            return fieldName2;
         }
     }
 
     public static class ArgumentConflictException extends RuntimeException {
-        private final String responseKey;
-        private final List<Argument> arguments1;
-        private final List<Argument> arguments2;
-
-        public ArgumentConflictException(String responseKey, List<Argument> arguments1, List<Argument> arguments2) {
+        public ArgumentConflictException(String responseKey) {
             super("Fields with response key '" + responseKey + "' have conflicting arguments");
-            this.responseKey = responseKey;
-            this.arguments1 = List.copyOf(arguments1);
-            this.arguments2 = List.copyOf(arguments2);
-        }
-
-        public String getResponseKey() {
-            return responseKey;
-        }
-
-        public List<Argument> getArguments1() {
-            return arguments1;
-        }
-
-        public List<Argument> getArguments2() {
-            return arguments2;
         }
     }
 }

@@ -53,13 +53,6 @@ public record Diagnostic(
     }
     
     /**
-     * Creates an info diagnostic.
-     */
-    public static Diagnostic info(String code, String message, String coordinate, String schemaName) {
-        return new Diagnostic(code, message, Severity.INFO, coordinate, schemaName, null);
-    }
-    
-    /**
      * Checks if this is an error.
      */
     public boolean isError() {

@@ -262,7 +262,7 @@ public final class ExternalUnusedRule implements ValidationRule {
         GraphQLType currentType = schema.getType(currentTypeName);
         GraphQLType targetType = schema.getType(targetTypeName);
 
-        if (currentType instanceof GraphQLInterfaceType interfaceType && targetType instanceof GraphQLObjectType objectType) {
+        if (currentType instanceof GraphQLInterfaceType && targetType instanceof GraphQLObjectType objectType) {
             return objectType.getInterfaces().stream()
                 .anyMatch(iface -> iface.getName().equals(currentTypeName));
         }

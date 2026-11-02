@@ -75,13 +75,6 @@ public final class Graph {
     }
     
     /**
-     * Gets all edges in the graph.
-     */
-    public List<Edge> edges() {
-        return edges;
-    }
-    
-    /**
      * Gets the root node for a specific operation type (e.g., "Query", "Mutation").
      *
      * @param operationType the operation type name
@@ -392,13 +385,6 @@ public final class Graph {
             return this;
         }
 
-        /**
-         * Adds a root node for a specific operation type.
-         */
-        public GraphBuilder root(String typeName, String subgraph) {
-            return root(new Node(typeName, subgraph));
-        }
-        
         /**
          * Adds an edge to the graph.
          */

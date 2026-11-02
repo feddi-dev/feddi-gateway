@@ -30,13 +30,6 @@ public final class ValidationResult {
     }
     
     /**
-     * Creates a validation result with a single diagnostic.
-     */
-    public static ValidationResult of(Diagnostic diagnostic) {
-        return new ValidationResult(List.of(diagnostic));
-    }
-    
-    /**
      * Gets all diagnostics.
      */
     public List<Diagnostic> diagnostics() {

@@ -218,7 +218,7 @@ public final class SatisfiabilityValidationRule implements PostGraphValidationRu
                             continue;
                         }
                         if (hasRequirements(candidate, step)
-                            && !requirementsResolvable(currentSchema, candidate, step, allowed)) {
+                            && !requirementsResolvable(currentSchema, candidate, step)) {
                             continue;
                         }
                         next.add(candidate);
@@ -274,7 +274,7 @@ public final class SatisfiabilityValidationRule implements PostGraphValidationRu
         }
 
         /** ResolveRequirements: every @require argument resolvable from schemas other than {@code target}. */
-        private boolean requirementsResolvable(String source, String target, Step step, Set<String> allowed) {
+        private boolean requirementsResolvable(String source, String target, Step step) {
             Set<String> others = new TreeSet<>(schemas.keySet());  // each requirement only excludes its own schema
             others.remove(target);
             for (GraphQLArgument argument : field(schemas.get(target), step).getArguments()) {
