@@ -12,7 +12,7 @@ All work stays on this branch until it is finished. Andi then reviews it before 
 |---|---|
 | Branch | `perf/query-execution` (from `main` @ `912aeb5`) |
 | Current step | 7 CPU (done: 5 Spring e2e, 0 tests, 1 plan cache, 2 entity dedup, 3a shared calls, 4 batching, 7.1 JSONL parsing; 8 calls). Step 6 (planner v2) is done on `perf/planner-v2`, waiting for review: all Fusion planner tests green, spec check of composition, refactoring ([11-planner-v2.md](11-planner-v2.md)) |
-| Fusion 16.7 gap (`perf/exp-combined`) | done: subgraph timeout on the event loop, pooled response buffer, per-event-loop subgraph pools, unboxed response path indices (requirement arrays reverted as noise): 0.97 / 0.84 / 0.95 of Fusion (constant / latency / burst). Open: constant-latency ([13-fusion-16-7-gap.md](13-fusion-16-7-gap.md)) |
+| Fusion 16.7 gap (`perf/exp-combined`) | done: subgraph timeout on the event loop, pooled response buffer, per-event-loop subgraph pools, unboxed response path indices (requirement arrays reverted as noise): 0.97 / 0.84 / 0.95 of Fusion (constant / latency / burst); with functional endpoint, compact headers and alias with exact copies 1.03 / 0.89 / 0.99 (final run against Fusion 16.7.0; `variables` 1.01 / 0.84 / 0.99). Merged alias lookups and fewer Reactor operators measured and dropped. Open: constant-latency ([13-fusion-16-7-gap.md](13-fusion-16-7-gap.md)) |
 | Benchmark result (published, commit `5ff8b61`) | Rust subgraphs: wrong results · .NET subgraphs: ~19 RPS (leaders ~2,400–2,900) · Burst: not run |
 
 ## Files

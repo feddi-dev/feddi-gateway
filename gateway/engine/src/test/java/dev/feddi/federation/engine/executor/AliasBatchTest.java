@@ -22,7 +22,7 @@ class AliasBatchTest {
 
     @Test
     void rewritesOneAliasedCopyPerEntityWithRenamedVariables() {
-        var batch = AliasBatch.create(LOOKUP, List.of(vars("1", 100), vars("2", 200)), 64);
+        var batch = AliasBatch.create(LOOKUP, List.of(vars("1", 100), vars("2", 200)));
 
         assertThat(AstPrinter.printAstCompact(batch.operation())).isEqualTo(
             "query ($upc_b0:ID!,$weight_b0:Long!,$upc_b1:ID!,$weight_b1:Long!){"
@@ -34,33 +34,25 @@ class AliasBatchTest {
     }
 
     @Test
-    void padsToPowerOfTwoBucketByRepeatingTheLastEntity() {
-        var batch = AliasBatch.create(LOOKUP, List.of(vars("1", 1), vars("2", 2), vars("3", 3)), 64);
-
-        assertThat(batch.operation().getSelectionSet().getSelections()).hasSize(4);
-        assertThat(batch.variables()).containsEntry("upc_b3", "3");
-    }
-
-    @Test
-    void paddingNeverExceedsMaxBatchSize() {
-        var batch = AliasBatch.create(LOOKUP, List.of(vars("1", 1), vars("2", 2), vars("3", 3)), 3);
+    void sendsOneCopyPerEntity() {
+        var batch = AliasBatch.create(LOOKUP, List.of(vars("1", 1), vars("2", 2), vars("3", 3)));
 
         assertThat(batch.operation().getSelectionSet().getSelections()).hasSize(3);
+        assertThat(batch.variables()).containsEntry("upc_b2", "3").doesNotContainKey("upc_b3");
     }
 
     @Test
     void splitsDataAndErrorsBackPerEntity() {
-        var batch = AliasBatch.create(LOOKUP, List.of(vars("1", 1), vars("2", 2), vars("3", 3)), 64);
+        var batch = AliasBatch.create(LOOKUP, List.of(vars("1", 1), vars("2", 2), vars("3", 3)));
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("_b0_productByUpc", Map.of("inStock", true));
         data.put("_b1_productByUpc", null);
         data.put("_b2_productByUpc", Map.of("inStock", false));
-        data.put("_b3_productByUpc", Map.of("inStock", false));
         ExecutionResult combined = ExecutionResultImpl.newExecutionResult()
             .data(data)
             .addError(error("not found", List.of("_b1_productByUpc")))
             .addError(error("estimate failed", List.of("_b2_productByUpc", "shippingEstimate")))
-            .addError(error("padding error", List.of("_b3_productByUpc")))
+            .addError(error("unknown copy", List.of("_b3_productByUpc")))
             .addError(error("request warning", null))
             .build();
 
@@ -70,7 +62,8 @@ class AliasBatchTest {
         assertThat((Object) results.get(0).getData()).isEqualTo(Map.of("productByUpc", Map.of("inStock", true)));
         Map<String, Object> second = results.get(1).getData();
         assertThat(second).containsEntry("productByUpc", null);
-        assertThat(results.get(0).getErrors()).extracting(GraphQLError::getMessage).containsExactly("request warning");
+        assertThat(results.get(0).getErrors()).extracting(GraphQLError::getMessage)
+            .containsExactly("unknown copy", "request warning");
         assertThat(results.get(1).getErrors()).singleElement()
             .satisfies(e -> assertThat(e.getPath()).containsExactly("productByUpc"));
         assertThat(results.get(2).getErrors()).singleElement()
@@ -79,7 +72,7 @@ class AliasBatchTest {
 
     @Test
     void splitWithoutDataKeepsErrorsOnFirstEntity() {
-        var batch = AliasBatch.create(LOOKUP, List.of(vars("1", 1), vars("2", 2)), 64);
+        var batch = AliasBatch.create(LOOKUP, List.of(vars("1", 1), vars("2", 2)));
         ExecutionResult combined = ExecutionResultImpl.newExecutionResult()
             .addError(error("validation failed", null)).build();
 
