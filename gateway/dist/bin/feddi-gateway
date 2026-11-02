@@ -86,6 +86,7 @@ fi
 #                     (a gateway allocates short-lived objects per request; young collections are short)
 # Heap:               2GB fixed, 1GB of it young generation
 # AlwaysPreTouch:     Pre-fault heap pages at startup for predictable runtime
+# CompactHeaders:     8-byte object headers instead of 12: less heap per request, fewer collections
 # ExitOnOutOfMemory:  Die cleanly on OOM (important for container restarts)
 # HeapDump:           Write heap dump on OOM for post-mortem analysis
 # OmitStackTrace:     Always include full stack traces (JVM optimization disabled)
@@ -100,6 +101,7 @@ DEFAULT_JVM_OPTS="${FEDDI_GATEWAY_JVM_OPTS:-\
  -Xmx2g \
  -Xmn1g \
  -XX:+AlwaysPreTouch \
+ -XX:+UseCompactObjectHeaders \
  -XX:+ExitOnOutOfMemoryError \
  -XX:+HeapDumpOnOutOfMemoryError \
  -XX:-OmitStackTraceInFastThrow \

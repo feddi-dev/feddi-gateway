@@ -10,6 +10,7 @@ import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.concurrent.EventExecutor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.ssl.NoSuchSslBundleException;
 import org.springframework.boot.ssl.SslBundle;
@@ -53,6 +54,12 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
      */
     private final Map<PoolSettings, HttpClient> clients = new ConcurrentHashMap<>();
 
+    /**
+     * Clients by their pool settings and event loop, for calls made on an event loop: each loop has pools of its
+     * own, so a subgraph's response is read on the loop of the request that called it.
+     */
+    private final Map<PoolSettings, Map<EventExecutor, HttpClient>> loopClients = new ConcurrentHashMap<>();
+
     public DefaultSubgraphClientFactory(@Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
         this(headerCustomizer, null);
     }
@@ -74,10 +81,14 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
         PoolSettings pool = new PoolSettings(
             (int) number(config, FeddiGatewayReloadService.MAX_CONNECTIONS, FeddiGatewaySettings.DEFAULT_MAX_CONNECTIONS),
             number(config, FeddiGatewayReloadService.MAX_IDLE_TIME_MS, FeddiGatewaySettings.DEFAULT_MAX_IDLE_TIME_MS));
+        int connectTimeout = (int) Math.min(connectTimeoutMs, Integer.MAX_VALUE);
         HttpClient httpClient = clients.computeIfAbsent(pool, DefaultSubgraphClientFactory::client)
-            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) Math.min(connectTimeoutMs, Integer.MAX_VALUE));
-        return new DefaultSubgraphClient(httpClient, url, subgraphName, headerCustomizer, maxResponseBytes,
-            sslContext(subgraphName, config.get(SSL_BUNDLE)));
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout);
+        Map<EventExecutor, HttpClient> byLoop = loopClients.computeIfAbsent(pool, p -> new ConcurrentHashMap<>());
+        return new DefaultSubgraphClient(httpClient,
+            loop -> byLoop.computeIfAbsent(loop, l -> client(pool))
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout),
+            url, subgraphName, headerCustomizer, maxResponseBytes, sslContext(subgraphName, config.get(SSL_BUNDLE)));
     }
 
     private static HttpClient client(PoolSettings settings) {

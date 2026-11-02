@@ -7,6 +7,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.http.codec.CodecCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.reactive.function.server.RequestPredicates;
+import org.springframework.web.reactive.function.server.RouterFunction;
+import org.springframework.web.reactive.function.server.RouterFunctions;
+import org.springframework.web.reactive.function.server.ServerResponse;
 
 /**
  * Spring configuration for the gateway.
@@ -30,6 +34,12 @@ public class FeddiGatewayConfig {
                 configurer.defaultCodecs().maxInMemorySize((int) maxBytes);
             }
         };
+    }
+
+    /** Routes {@code POST /graphql} to the {@link GraphQLController}. */
+    @Bean
+    public RouterFunction<ServerResponse> graphQLRoute(GraphQLController controller) {
+        return RouterFunctions.route(RequestPredicates.POST("/graphql"), controller::handle);
     }
 
     /**

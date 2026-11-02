@@ -36,16 +36,44 @@ public final class ResponseWriter {
     private static final byte[] EMPTY_OBJECT = {'{', '}'};
     private static final byte[] EXTENSIONS_KEY = "\"extensions\":".getBytes(StandardCharsets.US_ASCII);
 
-    /**
-     * The response as JSON (the first {@code length} bytes of {@code bytes}, which may be longer) and the number of
-     * its errors.
-     */
-    public record Output(byte[] bytes, int length, int errorCount) {
+    /** The response as JSON and the number of its errors. */
+    public record Output(byte[] json, int errorCount) {
 
-        /** The response as an array of its own length. */
-        public byte[] json() {
-            return length == bytes.length ? bytes : Arrays.copyOf(bytes, length);
+        /** Copies a written response into an {@link Output} of its own (a {@link Sink}). */
+        public static Output copy(byte[] bytes, int length, int errorCount) {
+            return new Output(Arrays.copyOf(bytes, length), errorCount);
         }
+    }
+
+    /**
+     * Receives a written response. The bytes are only valid during the call: the writer reuses its buffer for the
+     * next response on the same thread, so the sink copies what it keeps.
+     *
+     * @param <T> what the sink makes of the response
+     */
+    @FunctionalInterface
+    public interface Sink<T> {
+
+        /**
+         * @param bytes the response as JSON, the first {@code length} bytes
+         * @param length the length of the response
+         * @param errorCount the number of errors in the response
+         */
+        T accept(byte[] bytes, int length, int errorCount);
+    }
+
+    /** Scratch buffers larger than this are not kept for the next response. */
+    private static final int MAX_SCRATCH = 1 << 20;
+
+    /**
+     * One buffer per platform thread (the server's event loops), reused for every response written on it instead
+     * of a new array of the response's size.
+     */
+    private static final ThreadLocal<Scratch> SCRATCH = ThreadLocal.withInitial(Scratch::new);
+
+    private static final class Scratch {
+        private @Nullable JsonBuffer buffer;
+        private boolean inUse;
     }
 
     private final List<GraphQLError> errors;
@@ -55,7 +83,10 @@ public final class ResponseWriter {
 
     private final String[] cachedStrings = new String[STRING_CACHE_SIZE];
     private final byte[][] cachedBytes = new byte[STRING_CACHE_SIZE][];
-    private Object[] path = new Object[16];
+    /** The path to the value being written: field names, or null for a list index (in {@link #indices}). */
+    private String[] path = new String[16];
+    /** List indices of the path, not boxed: the path is only needed for an error. */
+    private int[] indices = new int[16];
     private int depth;
 
     private ResponseWriter(List<GraphQLError> errors, JsonBuffer data) {
@@ -64,7 +95,7 @@ public final class ResponseWriter {
     }
 
     /**
-     * Writes a response.
+     * Writes a response into an array of its own.
      *
      * @param shape the shape of the operation's response data
      * @param data the data as the executor assembled it, or null
@@ -73,8 +104,47 @@ public final class ResponseWriter {
      */
     public static Output write(ResponseShape shape, @Nullable Map<String, Object> data, List<GraphQLError> errors,
                                @Nullable Map<Object, Object> extensions) {
-        // Written as {"data":...} into one buffer; errors, if any, go first, which needs a second buffer
-        JsonBuffer buffer = new JsonBuffer(Math.max(8192, shape.sizeHint));
+        return write(shape, data, errors, extensions, Output::copy);
+    }
+
+    /**
+     * Writes a response into the thread's scratch buffer and hands it to a sink.
+     *
+     * @param shape the shape of the operation's response data
+     * @param data the data as the executor assembled it, or null
+     * @param errors the errors of the execution
+     * @param extensions the response extensions, or null
+     * @param sink receives the response; must copy what it keeps
+     */
+    public static <T> T write(ResponseShape shape, @Nullable Map<String, Object> data, List<GraphQLError> errors,
+                              @Nullable Map<Object, Object> extensions, Sink<T> sink) {
+        Scratch scratch = Thread.currentThread().isVirtual() ? null : SCRATCH.get();
+        // A sink that writes another response on the same thread gets a buffer of its own
+        boolean reuse = scratch != null && !scratch.inUse;
+        int capacity = Math.max(8192, shape.sizeHint);
+        JsonBuffer buffer;
+        if (reuse && scratch.buffer != null) {
+            buffer = scratch.buffer;
+            buffer.reset(0);
+        } else {
+            buffer = new JsonBuffer(capacity);
+        }
+        if (reuse) {
+            scratch.inUse = true;
+        }
+        try {
+            return write(buffer, shape, data, errors, extensions, sink);
+        } finally {
+            if (reuse) {
+                scratch.inUse = false;
+                scratch.buffer = buffer.array().length <= MAX_SCRATCH ? buffer : null;
+            }
+        }
+    }
+
+    // Written as {"data":...} into one buffer; errors, if any, go first, which needs a second buffer
+    private static <T> T write(JsonBuffer buffer, ResponseShape shape, @Nullable Map<String, Object> data,
+                               List<GraphQLError> errors, @Nullable Map<Object, Object> extensions, Sink<T> sink) {
         buffer.write((byte) '{');
         buffer.write(DATA_KEY);
         int dataStart = buffer.position();
@@ -106,19 +176,19 @@ public final class ResponseWriter {
             out.writeValue(extensions);
         }
         out.write((byte) '}');
-        return new Output(out.array(), out.position(), allErrors.size());
+        return sink.accept(out.array(), out.position(), allErrors.size());
     }
 
     /**
-     * Writes a response without data, e.g. for a request that failed before execution.
+     * Writes a response without data, e.g. for a request that failed before execution, and hands it to a sink.
      */
-    public static Output writeErrors(List<GraphQLError> errors) {
+    public static <T> T writeErrors(List<GraphQLError> errors, Sink<T> sink) {
         JsonBuffer out = new JsonBuffer(256);
         out.write((byte) '{');
         out.write(ERRORS_KEY);
         writeErrors(out, errors);
         out.write((byte) '}');
-        return new Output(out.array(), out.position(), errors.size());
+        return sink.accept(out.array(), out.position(), errors.size());
     }
 
     private static void writeErrors(JsonBuffer out, List<GraphQLError> errors) {
@@ -238,7 +308,7 @@ public final class ResponseWriter {
                 if (i > 0) {
                     data.write((byte) ',');
                 }
-                push(i);
+                pushIndex(i);
                 boolean valid = writeValue(itemType, shape, items.get(i), coordinate);
                 depth--;
                 if (!valid) {
@@ -277,15 +347,32 @@ public final class ResponseWriter {
         cachedBytes[slot] = data.copy(start);
     }
 
-    private void push(Object segment) {
+    private void push(String field) {
         if (depth == path.length) {
-            path = Arrays.copyOf(path, depth * 2);
+            grow();
         }
-        path[depth++] = segment;
+        path[depth++] = field;
+    }
+
+    private void pushIndex(int index) {
+        if (depth == path.length) {
+            grow();
+        }
+        indices[depth] = index;
+        path[depth++] = null;
+    }
+
+    private void grow() {
+        path = Arrays.copyOf(path, depth * 2);
+        indices = Arrays.copyOf(indices, depth * 2);
     }
 
     private void reportNull(String coordinate) {
-        List<Object> current = List.of(Arrays.copyOf(path, depth));
+        Object[] segments = new Object[depth];
+        for (int i = 0; i < depth; i++) {
+            segments[i] = path[i] != null ? path[i] : (Object) indices[i];
+        }
+        List<Object> current = List.of(segments);
         if (hasErrorAtOrBelow(errors, current) || hasErrorAtOrBelow(added, current)) {
             return;
         }

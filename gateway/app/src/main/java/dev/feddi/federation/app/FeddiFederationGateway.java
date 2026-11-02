@@ -306,15 +306,23 @@ public final class FeddiFederationGateway {
             return completed;
         }
 
-        /** The response as JSON, written in one pass. */
+        /** The response as JSON, written in one pass into an array of its own. */
         public ResponseWriter.Output toJson() {
+            return toJson(ResponseWriter.Output::copy);
+        }
+
+        /**
+         * Writes the response as JSON in one pass and hands it to a sink, which copies what it keeps
+         * ({@link ResponseWriter.Sink}).
+         */
+        public <T> T toJson(ResponseWriter.Sink<T> sink) {
             if (prepared == null) {
                 // The request failed before execution
-                return ResponseWriter.writeErrors(rawResult.getErrors());
+                return ResponseWriter.writeErrors(rawResult.getErrors(), sink);
             }
             @SuppressWarnings("unchecked")
             Map<String, Object> data = rawResult.getData() instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
-            return ResponseWriter.write(prepared.shape(), data, rawResult.getErrors(), rawResult.getExtensions());
+            return ResponseWriter.write(prepared.shape(), data, rawResult.getErrors(), rawResult.getExtensions(), sink);
         }
     }
 

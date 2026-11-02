@@ -54,6 +54,9 @@ batching. Answer, paraphrased:
 - Both ChilliCream's (Fusion) and Apollo's implementations use **variable batching**.
 - Apollo is working on its planner update.
 
+In the benchmark, Fusion 16.7 sends one aliased operation per subgraph and round instead (see
+`13-fusion-16-7-gap.md`).
+
 Consequences for feddi:
 
 - `variables` is the standard direction. Our wire format (variables array in, JSONL with `variableIndex` out)
