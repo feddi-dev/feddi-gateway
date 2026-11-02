@@ -59,14 +59,6 @@ public final class OperationPath {
     }
 
     /**
-     * Creates a new path with the first edge.
-     */
-    public static OperationPath withFirstEdge(Node rootNode, Edge firstEdge) {
-        PathSegment segment = PathSegment.root(firstEdge);
-        return new OperationPath(rootNode, segment, Set.of(firstEdge), null);
-    }
-
-    /**
      * Advances this path by adding a new edge.
      * For lookup edges, preserves the type context (same entity type, different subgraph).
      * For field edges, clears the type context (the field's return type is a new type scope).
@@ -108,13 +100,6 @@ public final class OperationPath {
     }
     
     /**
-     * Gets the root node where this path starts.
-     */
-    public Node rootNode() {
-        return rootNode;
-    }
-    
-    /**
      * Gets the current tail node (where we are now).
      */
     public Node tail() {
@@ -143,20 +128,6 @@ public final class OperationPath {
     }
     
     /**
-     * Checks if this path has visited the given edge.
-     */
-    public boolean hasVisitedEdge(Edge edge) {
-        return visitedEdges.contains(edge);
-    }
-    
-    /**
-     * Checks if this path has visited a subgraph.
-     */
-    public boolean hasVisitedSubgraph(String subgraph) {
-        return getVisitedSubgraphs().contains(subgraph);
-    }
-    
-    /**
      * Gets all subgraphs visited by this path.
      */
     public Set<String> getVisitedSubgraphs() {
@@ -182,27 +153,6 @@ public final class OperationPath {
         }
         Collections.reverse(edges);
         return edges;
-    }
-    
-    /**
-     * Gets all segments in this path, from first to last.
-     */
-    public List<PathSegment> getSegments() {
-        List<PathSegment> segments = new ArrayList<>();
-        PathSegment current = lastSegment;
-        while (current != null) {
-            segments.add(current);
-            current = current.previous();
-        }
-        Collections.reverse(segments);
-        return segments;
-    }
-    
-    /**
-     * Gets the depth of this path (number of edges).
-     */
-    public int depth() {
-        return lastSegment != null ? lastSegment.depth() : 0;
     }
     
     /**

@@ -193,8 +193,5 @@ public final class Composer {
             return new SubgraphInput(name, null, sdl);
         }
         
-        public static SubgraphInput of(String name, String url, String sdl) {
-            return new SubgraphInput(name, url, sdl);
-        }
     }
 }

@@ -36,13 +36,6 @@ public record Requirement(String argumentName, SelectedValue selection, Type<?> 
     }
 
     /**
-     * Creates a Requirement from an argument name, parsed selection, and type.
-     */
-    public static Requirement of(String argumentName, SelectedValue selection, Type<?> argumentType) {
-        return new Requirement(argumentName, selection, argumentType, null);
-    }
-
-    /**
      * Creates a Requirement with all fields including the source field name.
      */
     public static Requirement of(String argumentName, SelectedValue selection, Type<?> argumentType, String fieldName) {

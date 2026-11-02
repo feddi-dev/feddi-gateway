@@ -29,13 +29,6 @@ public record CompositionResult(
     }
 
     /**
-     * Checks if composition failed.
-     */
-    public boolean isFailure() {
-        return !isSuccess();
-    }
-
-    /**
      * Creates a successful composition result.
      */
     public static CompositionResult success(

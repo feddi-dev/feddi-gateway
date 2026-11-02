@@ -8,7 +8,4 @@ public class PlanningException extends RuntimeException {
         super(message);
     }
 
-    public PlanningException(String message, Throwable cause) {
-        super(message, cause);
-    }
 }

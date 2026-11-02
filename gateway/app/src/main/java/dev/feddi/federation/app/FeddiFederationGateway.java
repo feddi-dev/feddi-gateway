@@ -243,85 +243,6 @@ public final class FeddiFederationGateway {
             executionListener, gatewayMetrics, documentProvider, introspectionEnabled);
     }
     
-    /**
-     * Creates a new FeddiFederationGateway using a pre-composed supergraph SDL from the control plane.
-     * Skips schema merging and validation (already done by the control plane), but still builds
-     * the planning graph from subgraph schemas.
-     *
-     * @param supergraphSdl the pre-composed supergraph SDL
-     * @param subgraphInputs the subgraph schemas (needed to build the planning graph)
-     * @param subgraphClients map of subgraph name to client
-     * @return the configured gateway
-     */
-    public static FeddiFederationGateway createWithPreComposedSupergraph(
-            String supergraphSdl,
-            List<SubgraphInput> subgraphInputs,
-            Map<String, SubgraphClient> subgraphClients) {
-        return createWithPreComposedSupergraph(supergraphSdl, subgraphInputs, subgraphClients, ExecutionListener.NOOP, null, null);
-    }
-
-    /**
-     * Creates a new FeddiFederationGateway using a pre-composed supergraph SDL from the control plane,
-     * with an execution listener for metrics.
-     *
-     * @param supergraphSdl the pre-composed supergraph SDL
-     * @param subgraphInputs the subgraph schemas (needed to build the planning graph)
-     * @param subgraphClients map of subgraph name to client
-     * @param executionListener listener for execution events (metrics, logging, etc.)
-     * @param gatewayMetrics feddi Gateway metrics for planning duration recording (may be null)
-     * @return the configured gateway
-     */
-    public static FeddiFederationGateway createWithPreComposedSupergraph(
-            String supergraphSdl,
-            List<SubgraphInput> subgraphInputs,
-            Map<String, SubgraphClient> subgraphClients,
-            ExecutionListener executionListener,
-            FeddiGatewayMetrics gatewayMetrics) {
-        return createWithPreComposedSupergraph(supergraphSdl, subgraphInputs, subgraphClients,
-            executionListener, gatewayMetrics, null);
-    }
-
-    /**
-     * Creates a new FeddiFederationGateway using a pre-composed supergraph SDL from the control plane,
-     * with an execution listener, metrics, and an optional document provider.
-     *
-     * @param supergraphSdl the pre-composed supergraph SDL
-     * @param subgraphInputs the subgraph schemas (needed to build the planning graph)
-     * @param subgraphClients map of subgraph name to client
-     * @param executionListener listener for execution events (metrics, logging, etc.)
-     * @param gatewayMetrics feddi Gateway metrics for planning duration recording (may be null)
-     * @param documentProvider optional provider for pre-parsed documents (may be null)
-     * @return the configured gateway
-     */
-    public static FeddiFederationGateway createWithPreComposedSupergraph(
-            String supergraphSdl,
-            List<SubgraphInput> subgraphInputs,
-            Map<String, SubgraphClient> subgraphClients,
-            ExecutionListener executionListener,
-            FeddiGatewayMetrics gatewayMetrics,
-            DocumentProvider documentProvider) {
-
-        log.info("Creating feddi Gateway from pre-composed supergraph ({} subgraphs)", subgraphInputs.size());
-
-        // Parse the pre-composed supergraph SDL into a GraphQLSchema
-        var schemaParser = new SchemaParser();
-        var typeDefinitionRegistry = schemaParser.parse(supergraphSdl);
-        var supergraph = new SchemaGenerator().makeExecutableSchema(
-                typeDefinitionRegistry, CustomScalarWiring.runtimeWiring());
-
-        // Parse subgraph schemas and build the planning graph
-        // (GraphBuilder is fast — it just traverses ASTs to build edges)
-        var subgraphParser = new SubgraphParser();
-        List<Subgraph> subgraphs = subgraphInputs.stream()
-                .map(input -> subgraphParser.parse(input.name(), input.url(), input.sdl()))
-                .toList();
-        var graph = new GraphBuilder().build(subgraphs);
-
-        log.info("Gateway created from pre-composed supergraph with {} subgraphs", subgraphs.size());
-        return new FeddiFederationGateway(graph, supergraph, subgraphClients, executionListener,
-            gatewayMetrics, documentProvider);
-    }
-
     public static FeddiFederationGateway createWithPreComposedSupergraph(
             String supergraphSdl,
             List<SubgraphInput> subgraphInputs,
@@ -557,13 +478,6 @@ public final class FeddiFederationGateway {
      */
     public GraphQLSchema supergraph() {
         return supergraph;
-    }
-    
-    /**
-     * Returns the planning graph.
-     */
-    public Graph graph() {
-        return graph;
     }
     
     /**

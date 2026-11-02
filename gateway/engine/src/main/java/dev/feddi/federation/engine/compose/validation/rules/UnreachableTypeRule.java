@@ -174,7 +174,7 @@ public final class UnreachableTypeRule implements ValidationRule {
 
             // Process based on type kind
             if (type instanceof GraphQLObjectType objectType) {
-                processObjectType(objectType, schema, visited, toVisit);
+                processObjectType(objectType, visited, toVisit);
             } else if (type instanceof GraphQLInterfaceType interfaceType) {
                 processInterfaceType(interfaceType, schema, visited, toVisit);
             } else if (type instanceof GraphQLUnionType unionType) {
@@ -187,8 +187,8 @@ public final class UnreachableTypeRule implements ValidationRule {
         return visited;
     }
 
-    private void processObjectType(GraphQLObjectType objectType, GraphQLSchema schema,
-                                   Set<String> visited, Queue<GraphQLNamedType> toVisit) {
+    private void processObjectType(GraphQLObjectType objectType, Set<String> visited,
+                                   Queue<GraphQLNamedType> toVisit) {
         // Process all fields
         for (GraphQLFieldDefinition field : objectType.getFieldDefinitions()) {
             processFieldReturnType(field, visited, toVisit);

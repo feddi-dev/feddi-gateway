@@ -300,8 +300,6 @@ final class PlanningContext {
     void recordFieldResolution(OperationPath path, String alias, String fieldName,
                                List<String> parentPath, boolean hasChildren,
                                List<Argument> queryArguments, InlineFragmentContext keyFragment) {
-        String subgraph = path.currentSubgraph();
-
         // Find the last lookup edge that enters the current subgraph (if any)
         SubgraphPlan plan = planFor(path, parentPath);
 
@@ -478,24 +476,6 @@ final class PlanningContext {
     }
 
     /**
-     * Adds a potentially nested field path to the plan.
-     * For example, Path("dimension.size") adds "dimension" with children, then "size" under it.
-     * Also handles type-conditioned paths like "&lt;Movie&gt;.imdbCode" by extracting only the field names.
-     * For infix type conditions (e.g., "relatedMedia&lt;Movie&gt;.imdbCode"), creates inline fragments
-     * so that type-specific fields are properly fetched from interface types.
-     *
-     * When a field is not found on an interface but exists on implementing types, automatically
-     * generates inline fragments for each implementing type that has the field. For example,
-     * @require(field: "data.bar") where data returns Foo interface and bar is on Bar implementing type
-     * generates: { data { __typename ... on Bar { bar } } }
-     *
-     * @return a map from field name to response key for each segment in the path
-     */
-    Map<String, String> addNestedFieldPath(SubgraphPlan plan, Path path, List<String> parentPath, FieldOrigin origin) {
-        return addNestedFieldPathWithSubgraph(plan, path, parentPath, origin, plan.subgraph, null);
-    }
-
-    /**
      * Adds a potentially nested field path to the plan with subgraph context for type resolution.
      *
      * @param plan the subgraph plan to add fields to
@@ -533,7 +513,6 @@ final class PlanningContext {
         // Add requirements for the lookup
         if (enteringLookupEdge != null) {
             // Find or create source plan
-            String sourceSubgraph = enteringLookupEdge.source().subgraph();
             SubgraphPlan sourcePlan = sourcePlanOf(path, enteringLookupIndex(path, parentPath, subgraph), parentPath);
 
             // Track dependency
