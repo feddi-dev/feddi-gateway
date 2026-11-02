@@ -54,13 +54,6 @@ public record LookupArgument(
     }
 
     /**
-     * Creates a LookupArgument from a pre-parsed SelectedValue, with type information.
-     */
-    public static LookupArgument of(String argumentName, SelectedValue selection, Type<?> argumentType) {
-        return new LookupArgument(argumentName, selection, argumentType);
-    }
-
-    /**
      * Creates a LookupArgument from a Path, with type information.
      * Convenience method for simple path cases.
      */
@@ -81,14 +74,6 @@ public record LookupArgument(
             throw new IllegalStateException("No paths found in selection for argument: " + argumentName);
         }
         return paths.get(0);
-    }
-
-    /**
-     * Checks if this is a simple path selection (single path, no object/list selection).
-     */
-    public boolean isSimplePath() {
-        return selection.alternatives().size() == 1
-            && selection.alternatives().get(0) instanceof Path;
     }
 
     public List<Path> extractPaths() {

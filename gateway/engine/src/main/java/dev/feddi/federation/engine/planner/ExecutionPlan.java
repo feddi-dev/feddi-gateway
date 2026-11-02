@@ -44,22 +44,8 @@ public record ExecutionPlan(List<ExecutionStep> steps, Map<Integer, List<ReuseSo
     /**
      * Creates an ExecutionPlan with the given steps.
      */
-    public static ExecutionPlan of(ExecutionStep... steps) {
-        return new ExecutionPlan(List.of(steps));
-    }
-    
-    /**
-     * Creates an ExecutionPlan with the given steps.
-     */
     public static ExecutionPlan of(List<ExecutionStep> steps) {
         return new ExecutionPlan(steps);
-    }
-    
-    /**
-     * Creates an empty execution plan.
-     */
-    public static ExecutionPlan empty() {
-        return new ExecutionPlan(List.of());
     }
     
     /**
@@ -76,15 +62,6 @@ public record ExecutionPlan(List<ExecutionStep> steps, Map<Integer, List<ReuseSo
         return steps.isEmpty();
     }
     
-    /**
-     * Gets the root steps (steps with no dependencies).
-     */
-    public List<ExecutionStep> rootSteps() {
-        return steps.stream()
-            .filter(ExecutionStep::isRoot)
-            .toList();
-    }
-
     /**
      * Aggregates all artificial field paths from all steps.
      * These are fields that were added for internal purposes (lookups, @require)

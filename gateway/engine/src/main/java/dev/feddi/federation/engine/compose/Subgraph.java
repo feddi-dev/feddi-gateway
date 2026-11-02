@@ -26,13 +26,6 @@ public record Subgraph(
         // url can be null for testing purposes
     }
 
-    /**
-     * Creates a Subgraph without a URL.
-     */
-    public static Subgraph of(String name, GraphQLSchema schema) {
-        return new Subgraph(name, null, schema);
-    }
-
     @Override
     public String toString() {
         return String.format("Subgraph(%s, url=%s)", name, url);

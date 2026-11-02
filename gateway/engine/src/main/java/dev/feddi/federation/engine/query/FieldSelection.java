@@ -29,24 +29,10 @@ public record FieldSelection(
     }
 
     /**
-     * Convenience constructor without alias or arguments.
-     */
-    public FieldSelection(String fieldName, List<Selection> subSelections) {
-        this(null, fieldName, List.of(), subSelections);
-    }
-
-    /**
      * Returns the response key for this field (alias if present, otherwise field name).
      */
     public String responseKey() {
         return alias != null ? alias : fieldName;
-    }
-
-    /**
-     * Checks if this field has an alias.
-     */
-    public boolean hasAlias() {
-        return alias != null;
     }
 
     /**
@@ -57,31 +43,10 @@ public record FieldSelection(
     }
 
     /**
-     * Creates a leaf field selection with an alias.
-     */
-    public static FieldSelection leaf(String alias, String fieldName) {
-        return new FieldSelection(alias, fieldName, List.of(), List.of());
-    }
-
-    /**
-     * Creates a field selection with sub-selections.
-     */
-    public static FieldSelection withSelections(String fieldName, Selection... subSelections) {
-        return new FieldSelection(null, fieldName, List.of(), List.of(subSelections));
-    }
-
-    /**
      * Creates a field selection with sub-selections.
      */
     public static FieldSelection withSelections(String fieldName, List<Selection> subSelections) {
         return new FieldSelection(null, fieldName, List.of(), subSelections);
-    }
-
-    /**
-     * Checks if this field has arguments.
-     */
-    public boolean hasArguments() {
-        return !arguments.isEmpty();
     }
 
     /**

@@ -68,12 +68,4 @@ public class TimeoutAwareSubgraphClient implements SubgraphClient {
         return loop == null ? Schedulers.parallel()
             : LOOP_TIMERS.computeIfAbsent(loop, l -> Schedulers.fromExecutorService(l, "feddi-subgraph-timeout"));
     }
-
-    public String subgraphName() {
-        return subgraphName;
-    }
-
-    public Duration timeout() {
-        return timeout;
-    }
 }

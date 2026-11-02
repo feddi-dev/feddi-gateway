@@ -36,20 +36,6 @@ public record Operation(
     }
 
     /**
-     * Convenience constructor without variable definitions.
-     */
-    public Operation(String rootType, List<Selection> selections) {
-        this(rootType, List.of(), selections);
-    }
-
-    /**
-     * Creates an Operation with the given selections.
-     */
-    public static Operation of(String rootType, Selection... selections) {
-        return new Operation(rootType, List.of(), List.of(selections));
-    }
-
-    /**
      * Creates an Operation with the given selections.
      */
     public static Operation of(String rootType, List<Selection> selections) {
@@ -169,17 +155,6 @@ public record Operation(
             throw new IllegalArgumentException("Operation has unevaluated directive @" + directives.get(0).getName()
                 + "; normalize it with OperationNormalizer first");
         }
-    }
-
-    /**
-     * Returns only the field selections (excludes inline fragments).
-     * Useful for tests and code that only expects fields at top level.
-     */
-    public List<FieldSelection> fieldSelections() {
-        return selections.stream()
-            .filter(s -> s instanceof FieldSelection)
-            .map(s -> (FieldSelection) s)
-            .toList();
     }
 
     @Override
