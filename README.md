@@ -39,9 +39,9 @@ It works best overall when used together with the feddi Platform. For full docum
 ### Code Coverage
 | Metric | Coverage | Covered / Total |
 |:-------|---------:|----------------:|
-| Line | 88.6% | 9851/11118 |
-| Branch | 80.8% | 5151/6377 |
-| Method | 86.9% | 1811/2084 |
+| Line | 90.0% | 9841/10929 |
+| Branch | 81.7% | 5151/6304 |
+| Method | 90.0% | 1811/2012 |
 <!-- test-results-end -->
 
 ## Requirements
