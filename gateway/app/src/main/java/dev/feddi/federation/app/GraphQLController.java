@@ -25,6 +25,7 @@ import org.springframework.web.server.UnsupportedMediaTypeStatusException;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +40,10 @@ public class GraphQLController {
     private static final Logger log = LoggerFactory.getLogger(GraphQLController.class);
     private static final ObjectMapper JSON = new ObjectMapper()
         .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+    /** The response to a request whose execution failed with an exception. */
+    private static final byte[] INTERNAL_ERROR = ResponseWriter.writeErrors(List.of(GraphqlErrorBuilder.newError()
+        .message("Internal server error")
+        .build()), (bytes, length, errors) -> Arrays.copyOf(bytes, length));
 
     private final FeddiGatewayHolder gatewayHolder;
     private final UsageReporter usageReporter;
@@ -159,9 +164,7 @@ public class GraphQLController {
                 // the server log to avoid leaking stack-frame hints, JDBC strings,
                 // file paths, or other internal state to clients.
                 log.error("GraphQL execution failed with exception", e);
-                return Mono.just(ResponseWriter.writeErrors(List.of(GraphqlErrorBuilder.newError()
-                    .message("Internal server error")
-                    .build()), (bytes, length, errors) -> copy(bytes, length, buffers)));
+                return Mono.just(copy(INTERNAL_ERROR, INTERNAL_ERROR.length, buffers));
             });
     }
 

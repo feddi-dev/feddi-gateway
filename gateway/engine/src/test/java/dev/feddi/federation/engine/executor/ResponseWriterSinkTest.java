@@ -93,6 +93,42 @@ class ResponseWriterSinkTest {
         assertThat(json).isEqualTo("{\"errors\":[]}");
     }
 
+    @Test
+    void writesExtensionsAfterTheData() {
+        String json = ResponseWriter.write(SHAPE, names("a"), List.of(), Map.of("cost", 1),
+            ResponseWriterSinkTest::string);
+
+        assertThat(json).isEqualTo("{\"data\":{\"names\":[\"a\"]},\"extensions\":{\"cost\":1}}");
+    }
+
+    @Test
+    void reportsANullBelowTheInitialPathCapacity() {
+        GraphQLSchema schema = SchemaGenerator.createdMockedSchema("""
+            type Query { node: Node }
+            type Node { child: Node, name: String! }
+            """);
+        int depth = 20;
+        String query = "{ node { " + "child { ".repeat(depth) + "name" + " }".repeat(depth) + " } }";
+        ResponseShape shape = ResponseShape.compile(schema,
+            Parser.parse(query).getDefinitionsOfType(OperationDefinition.class).getFirst());
+        CompactMap leaf = new CompactMap();
+        leaf.put("name", null);
+        CompactMap node = leaf;
+        for (int i = 0; i < depth; i++) {
+            CompactMap parent = new CompactMap();
+            parent.put("child", node);
+            node = parent;
+        }
+        CompactMap data = new CompactMap();
+        data.put("node", node);
+
+        ResponseWriter.Output output = ResponseWriter.write(shape, data, List.of(), null);
+
+        String path = "\"node\"," + "\"child\",".repeat(depth) + "\"name\"";
+        assertThat(new String(output.json(), StandardCharsets.UTF_8)).contains("\"path\":[" + path + "]");
+        assertThat(output.errorCount()).isEqualTo(1);
+    }
+
     private static String string(byte[] bytes, int length, int errorCount) {
         return new String(bytes, 0, length, StandardCharsets.UTF_8);
     }

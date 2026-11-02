@@ -180,14 +180,7 @@ public final class ResponseWriter {
     }
 
     /**
-     * Writes a response without data, e.g. for a request that failed before execution.
-     */
-    public static Output writeErrors(List<GraphQLError> errors) {
-        return writeErrors(errors, Output::copy);
-    }
-
-    /**
-     * Writes a response without data and hands it to a sink.
+     * Writes a response without data, e.g. for a request that failed before execution, and hands it to a sink.
      */
     public static <T> T writeErrors(List<GraphQLError> errors, Sink<T> sink) {
         JsonBuffer out = new JsonBuffer(256);
