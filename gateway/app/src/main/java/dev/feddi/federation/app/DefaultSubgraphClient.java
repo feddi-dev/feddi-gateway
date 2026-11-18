@@ -25,8 +25,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.support.Netty4HeadersAdapter;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoSink;
 import reactor.core.publisher.SynchronousSink;
 import reactor.netty.ByteBufFlux;
 import reactor.netty.http.client.HttpClient;
@@ -38,6 +40,7 @@ import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -185,6 +188,130 @@ public class DefaultSubgraphClient implements SubgraphClient {
      */
     private <T> Mono<T> post(byte[] body, boolean batch, FeddiGatewayRequestContext context,
                              BiConsumer<HttpResponse, SynchronousSink<T>> handler) {
+        if (batch) {
+            return postAggregated(body, true, context, handler);
+        }
+        return Mono.create(sink -> {
+            boolean[] delivered = {false};
+            Disposable call = client().post()
+                .uri(path)
+                .send((request, out) -> {
+                    request.requestHeaders()
+                        .set(HttpHeaderNames.CONTENT_TYPE, JSON_TYPE)
+                        .set(HttpHeaderNames.ACCEPT, JSON_TYPE);
+                    applyHeaders(request.requestHeaders(), context);
+                    return out.send(Mono.just(Unpooled.wrappedBuffer(body)));
+                })
+                .response((response, content) -> {
+                    long declared = response.responseHeaders().getInt(HttpHeaderNames.CONTENT_LENGTH, -1);
+                    if (declared > maxResponseBytes) {
+                        return Mono.error(tooLarge());
+                    }
+                    int status = response.status().code();
+                    if (declared >= 0) {
+                        // Netty reads the last content together with the declared bytes: nothing to gain
+                        return content.aggregate().asByteArray().defaultIfEmpty(EMPTY)
+                            .doOnNext(bytes -> {
+                                delivered[0] = true;
+                                deliver(new HttpResponse(status, bytes), handler, sink);
+                            });
+                    }
+                    // A chunked body: the result is read as soon as its JSON root ends, without waiting for the
+                    // final empty chunk; the rest of the body is still read, so the connection stays reusable
+                    JsonRootEnd json = new JsonRootEnd();
+                    return content
+                        .doOnNext(buffer -> {
+                            if (delivered[0]) {
+                                return;
+                            }
+                            if (json.length() + buffer.readableBytes() > maxResponseBytes) {
+                                throw tooLarge();
+                            }
+                            if (json.append(buffer)) {
+                                delivered[0] = true;
+                                deliver(new HttpResponse(status, json.bytes()), handler, sink);
+                            }
+                        })
+                        .then(Mono.fromRunnable(() -> {
+                            if (!delivered[0]) {
+                                delivered[0] = true;
+                                deliver(new HttpResponse(status, json.bytes()), handler, sink);
+                            }
+                        }));
+                })
+                .contextWrite(sink.contextView())
+                .subscribe(null, error -> {
+                    if (!delivered[0]) {
+                        delivered[0] = true;
+                        sink.error(error);
+                    }
+                });
+            sink.onCancel(call);
+        });
+    }
+
+    /** Hands a response to the handler and its outcome to the sink. */
+    private static <T> void deliver(HttpResponse response, BiConsumer<HttpResponse, SynchronousSink<T>> handler,
+                                    MonoSink<T> sink) {
+        Mono.just(response).<T>handle(handler).subscribe(sink::success, sink::error, sink::success);
+    }
+
+    /**
+     * Collects a chunked body and notices where its JSON root ends (the end of its first top-level object or array),
+     * outside strings.
+     */
+    static final class JsonRootEnd {
+        private byte[] bytes = new byte[1024];
+        private int length;
+        private int depth;
+        private boolean started;
+        private boolean inString;
+        private boolean escaped;
+
+        int length() {
+            return length;
+        }
+
+        /** Appends a buffer's readable bytes; true once the JSON root has ended. */
+        boolean append(ByteBuf buffer) {
+            int count = buffer.readableBytes();
+            if (length + count > bytes.length) {
+                bytes = Arrays.copyOf(bytes, Math.max(length + count, bytes.length * 2));
+            }
+            buffer.getBytes(buffer.readerIndex(), bytes, length, count);
+            int end = length + count;
+            for (int i = length; i < end; i++) {
+                byte b = bytes[i];
+                if (inString) {
+                    if (escaped) {
+                        escaped = false;
+                    } else if (b == '\\') {
+                        escaped = true;
+                    } else if (b == '"') {
+                        inString = false;
+                    }
+                } else if (b == '"') {
+                    inString = true;
+                } else if (b == '{' || b == '[') {
+                    depth++;
+                    started = true;
+                } else if ((b == '}' || b == ']') && --depth == 0 && started) {
+                    length = end;
+                    return true;
+                }
+            }
+            length = end;
+            return false;
+        }
+
+        byte[] bytes() {
+            return length == 0 ? EMPTY : Arrays.copyOf(bytes, length);
+        }
+    }
+
+    /** Posts a JSON body and reads the response once the whole body has arrived. */
+    private <T> Mono<T> postAggregated(byte[] body, boolean batch, FeddiGatewayRequestContext context,
+                                       BiConsumer<HttpResponse, SynchronousSink<T>> handler) {
         return client().post()
             .uri(path)
             .send((request, out) -> {
