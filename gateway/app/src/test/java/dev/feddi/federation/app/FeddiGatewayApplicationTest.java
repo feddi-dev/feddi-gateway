@@ -8,9 +8,14 @@ class FeddiGatewayApplicationTest {
 
     @Test
     void usesTwoEventLoopsPerCoreAndAtLeastFour() {
-        assertThat(FeddiGatewayApplication.ioWorkerCount(1)).isEqualTo(4);
-        assertThat(FeddiGatewayApplication.ioWorkerCount(2)).isEqualTo(4);
-        assertThat(FeddiGatewayApplication.ioWorkerCount(4)).isEqualTo(8);
-        assertThat(FeddiGatewayApplication.ioWorkerCount(16)).isEqualTo(32);
+        assertThat(FeddiGatewayApplication.ioWorkerCount(null, 1)).isEqualTo("4");
+        assertThat(FeddiGatewayApplication.ioWorkerCount(null, 2)).isEqualTo("4");
+        assertThat(FeddiGatewayApplication.ioWorkerCount(null, 4)).isEqualTo("8");
+        assertThat(FeddiGatewayApplication.ioWorkerCount(null, 16)).isEqualTo("32");
+    }
+
+    @Test
+    void keepsAConfiguredNumberOfEventLoops() {
+        assertThat(FeddiGatewayApplication.ioWorkerCount("3", 16)).isEqualTo("3");
     }
 }

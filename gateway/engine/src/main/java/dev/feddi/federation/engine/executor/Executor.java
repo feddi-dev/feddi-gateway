@@ -36,6 +36,7 @@ import reactor.core.publisher.Sinks;
 import reactor.util.context.Context;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -354,11 +355,12 @@ public final class Executor {
      * topological order, how many nodes each waits for and which wait for it, and the operations that several nodes
      * send, whose calls and entities can be shared.
      *
+     * @param lookups  whether each node's steps are lookups that may run together ({@link #isGroupable})
      * @param mutation whether the plan has mutation steps: the lookups after one top-level field must see what it
      *                 changed, so nothing fetched before it is reused, neither calls nor entities
      */
     private record Schedule(List<List<ExecutionStep>> nodes, int[] dependencyCounts, int[][] dependents,
-                            boolean mutation, Map<String, Set<String>> repeatedOperations) {
+                            boolean[] lookups, boolean mutation, Map<String, Set<String>> repeatedOperations) {
 
         /**
          * This schedule with the lookup nodes to each of the given subgraphs (in alias mode) at the same depth merged
@@ -367,7 +369,7 @@ public final class Executor {
          * each other.
          */
         Schedule mergeLookups(Set<String> subgraphs) {
-            if (mutation || subgraphs.isEmpty()) {
+            if (mutation) {
                 return this;
             }
             int count = nodes.size();
@@ -393,8 +395,8 @@ public final class Executor {
             for (int i = 0; i < count; i++) {
                 ExecutionStep step = nodes.get(i).get(0);
                 target[i] = i;
-                if (!step.isRoot() && isGroupable(step) && subgraphs.contains(step.subgraph())
-                    && AliasBatch.supports(step.operation())) {
+                // Lookups that cannot be aliased are sent on their own by the merged node
+                if (lookups[i] && subgraphs.contains(step.subgraph())) {
                     Integer first = rounds.putIfAbsent(List.of(step.subgraph(), depth[i]), i);
                     if (first != null) {
                         target[i] = first;
@@ -415,16 +417,9 @@ public final class Executor {
                     targetDependencies.add(target[dependency]);
                 }
             }
-            List<Integer> order = new ArrayList<>();
-            Set<Integer> placed = new HashSet<>();
-            while (order.size() < steps.size()) {
-                for (Integer node : steps.keySet()) {
-                    if (!placed.contains(node) && placed.containsAll(waitsFor.get(node))) {
-                        placed.add(node);
-                        order.add(node);
-                    }
-                }
-            }
+            // By depth: a node's dependencies are less deep than it
+            List<Integer> order = new ArrayList<>(steps.keySet());
+            order.sort(Comparator.comparingInt(node -> depth[node]));
             Map<Integer, Integer> index = new HashMap<>();
             for (int i = 0; i < order.size(); i++) {
                 index.put(order.get(i), i);
@@ -438,10 +433,14 @@ public final class Executor {
                     mergedDependents.get(index.get(dependency)).add(index.get(node));
                 }
             }
+            boolean[] mergedLookups = new boolean[order.size()];
+            for (int i = 0; i < order.size(); i++) {
+                mergedLookups[i] = lookups[order.get(i)];
+            }
             return new Schedule(order.stream().map(node -> List.copyOf(steps.get(node))).toList(), counts,
                 mergedDependents.stream().map(list -> list.stream().mapToInt(Integer::intValue).toArray())
                     .toArray(int[][]::new),
-                mutation, repeatedOperations);
+                mergedLookups, mutation, repeatedOperations);
         }
 
         static Schedule of(ExecutionPlan plan) {
@@ -450,6 +449,7 @@ public final class Executor {
             // Lookup steps that send the same operation to the same subgraph once the same steps are done run as one
             // (entities deduplicated together, one batch)
             List<List<ExecutionStep>> nodes = new ArrayList<>();
+            List<Boolean> lookups = new ArrayList<>();
             List<List<Integer>> dependencies = new ArrayList<>();
             Map<Integer, Integer> nodeOfStep = new HashMap<>();
             Map<StepGroup, Integer> groups = new HashMap<>();
@@ -465,6 +465,7 @@ public final class Executor {
                 if (node == null) {
                     node = nodes.size();
                     nodes.add(new ArrayList<>(List.of(step)));
+                    lookups.add(group != null);
                     dependencies.add(stepDependencies);
                     if (group != null) {
                         groups.put(group, node);
@@ -476,10 +477,12 @@ public final class Executor {
             }
 
             int[] dependencyCounts = new int[nodes.size()];
+            boolean[] nodeLookups = new boolean[nodes.size()];
             List<List<Integer>> dependents = new ArrayList<>();
             nodes.forEach(node -> dependents.add(new ArrayList<>()));
             for (int node = 0; node < nodes.size(); node++) {
                 dependencyCounts[node] = dependencies.get(node).size();
+                nodeLookups[node] = lookups.get(node);
                 for (int dependency : dependencies.get(node)) {
                     dependents.get(dependency).add(node);
                 }
@@ -500,7 +503,7 @@ public final class Executor {
             return new Schedule(nodes.stream().map(List::copyOf).toList(), dependencyCounts,
                 dependents.stream().map(list -> list.stream().mapToInt(Integer::intValue).toArray())
                     .toArray(int[][]::new),
-                mutation, repeated);
+                nodeLookups, mutation, repeated);
         }
     }
 
@@ -844,10 +847,8 @@ public final class Executor {
     private Mono<StepResult> executeMergedLookups(List<ExecutionStep> steps, ExecutionContext ctx,
                                                  Map<String, Object> queryVariables,
                                                  Map<String, SubgraphClient> clients) {
+        // Only the subgraphs of the gateway's clients in alias mode have merged lookups
         SubgraphClient client = clients.get(steps.get(0).subgraph());
-        if (client == null) {
-            return Mono.error(new ExecutionException("No client for subgraph: " + steps.get(0).subgraph()));
-        }
         Map<String, List<ExecutionStep>> byOperation = new LinkedHashMap<>();
         for (ExecutionStep step : steps) {
             byOperation.computeIfAbsent(OperationTexts.compact(step.operation()), text -> new ArrayList<>()).add(step);
@@ -873,9 +874,6 @@ public final class Executor {
                 : distribute(lookup, combinedResults.map(parts -> parts.get(part)));
             results.add(finish(lookup, ctx, fetched));
         }
-        if (results.isEmpty()) {
-            return Mono.just(new StepResult());
-        }
         return Flux.merge(results).collectList().map(Executor::combineStepResults);
     }
 
@@ -894,11 +892,8 @@ public final class Executor {
      */
     private static Mono<List<EntityResult>> distribute(Lookup lookup, Mono<List<ExecutionResult>> results) {
         List<UniqueEntity> batch = lookup.toFetch();
+        // A part has one result per entity of the lookup (AliasBatch#splitParts)
         return results.map(list -> {
-            if (list.size() != batch.size()) {
-                throw new ExecutionException("Subgraph returned " + list.size() + " results for a batch of "
-                    + batch.size());
-            }
             List<EntityResult> entityResults = new ArrayList<>();
             for (int i = 0; i < batch.size(); i++) {
                 batch.get(i).shareResult(list.get(i));
@@ -921,10 +916,8 @@ public final class Executor {
 
     private static StepResult combineStepResults(List<StepResult> results) {
         StepResult combined = new StepResult();
+        // Lookups have no root data
         for (StepResult result : results) {
-            if (result.getRootData() != null) {
-                combined.setRootData(result.getRootData());
-            }
             result.getErrors().forEach(combined::addError);
         }
         return combined;

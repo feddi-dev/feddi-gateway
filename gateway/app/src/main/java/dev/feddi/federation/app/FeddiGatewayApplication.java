@@ -1,6 +1,7 @@
 package dev.feddi.federation.app;
 
 import dev.feddi.federation.extension.ExtensionConfigProvider;
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -52,17 +53,15 @@ public class FeddiGatewayApplication {
 
         // Two event loops per core unless configured: a request and its subgraph calls run on one loop, and with one
         // loop per core a loop busy with one request delays the subgraph responses of the others waiting on it
-        if (System.getProperty(ReactorNetty.IO_WORKER_COUNT) == null) {
-            System.setProperty(ReactorNetty.IO_WORKER_COUNT,
-                String.valueOf(ioWorkerCount(Runtime.getRuntime().availableProcessors())));
-        }
+        System.setProperty(ReactorNetty.IO_WORKER_COUNT, ioWorkerCount(System.getProperty(ReactorNetty.IO_WORKER_COUNT),
+            Runtime.getRuntime().availableProcessors()));
 
         SpringApplication.run(FeddiGatewayApplication.class, args);
     }
 
-    /** The default number of Netty event loops: two per core, at least four (Reactor Netty's minimum). */
-    static int ioWorkerCount(int cores) {
-        return Math.max(4, 2 * cores);
+    /** The number of Netty event loops: the configured one, or two per core and at least four (Reactor Netty's). */
+    static String ioWorkerCount(@Nullable String configured, int cores) {
+        return configured != null ? configured : String.valueOf(Math.max(4, 2 * cores));
     }
 
     private static FeddiGatewayConfigFile getOrLoadConfig() {

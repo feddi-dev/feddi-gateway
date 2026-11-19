@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
  * Alias batching: rewrites one lookup operation and N variable sets into a single
@@ -132,14 +133,7 @@ final class AliasBatch {
             offset += sets.size();
         }
         CombinedKey key = new CombinedKey(keys);
-        OperationDefinition operation = COMBINED.get(key);
-        if (operation == null) {
-            operation = buildCombined(parts);
-            if (COMBINED.size() >= MAX_TEMPLATES) {
-                COMBINED.clear();
-            }
-            COMBINED.put(key, operation);
-        }
+        OperationDefinition operation = cached(COMBINED, key, k -> buildCombined(parts));
         return new AliasBatch(operation, variables, layouts, offset);
     }
 
@@ -162,16 +156,20 @@ final class AliasBatch {
      * so the same operation instances recur.
      */
     private static Template template(OperationDefinition operation, int copies) {
-        TemplateKey key = new TemplateKey(operation, copies);
-        Template template = TEMPLATES.get(key);
-        if (template == null) {
-            template = buildTemplate(operation, copies);
-            if (TEMPLATES.size() >= MAX_TEMPLATES) {
-                TEMPLATES.clear();
+        return cached(TEMPLATES, new TemplateKey(operation, copies), key -> buildTemplate(operation, copies));
+    }
+
+    /** The cached value for a key, built and cached when missing; a full cache is cleared first. */
+    private static <K, V> V cached(Map<K, V> cache, K key, Function<K, V> build) {
+        V value = cache.get(key);
+        if (value == null) {
+            value = build.apply(key);
+            if (cache.size() >= MAX_TEMPLATES) {
+                cache.clear();
             }
-            TEMPLATES.put(key, template);
+            cache.put(key, value);
         }
-        return template;
+        return value;
     }
 
     private static Template buildTemplate(OperationDefinition operation, int copies) {
