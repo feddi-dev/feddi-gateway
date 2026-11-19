@@ -284,6 +284,62 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   nested async iterators (#10940), reused entities matched on XxHash3 keys (#10941). Candidates for feddi: reading
   until the JSON root ends (`DefaultSubgraphClient` aggregates the whole chunked body), and twice the Netty event loops.
 
+### Experiments of 2026-11-18
+
+Baseline `main` `1a75067` (`20261118-081803`, 3 runs): 4,759 / 1,822 / 4,351. Benchmark `cfc8a84`, feddi only,
+`batching: alias`, the launcher's JVM options. One run first; 2 more when a mode moves by less than 3% or the modes
+disagree, or to confirm a change that is kept. Each experiment that helped became the baseline of the next.
+
+| Experiment | Run | constant | constant-latency | burst | Result |
+|:--|:--|--:|--:|--:|:--|
+| baseline `main` (3 runs) | `081803` | 4,759 | 1,822 | 4,351 | |
+| read a chunked response once its JSON root ends (`perf/exp-json-end` `2f46f0d`, 3 runs) | `085856` | 4,220 | 1,679 | 4,035 | **worse**: −11% / −8% / −7%, dropped |
+| **8 event loops** (`-Dreactor.netty.ioWorkerCount=8`, 3 runs) | `20261119-062434` | **4,833** | **2,125** | **4,387** | **+1.6% / +16.6% / +0.8%**, new baseline |
+| Oracle GraalVM 25 (Graal JIT, `bench.sh --jdk graalvm`, 4 loops, 1 run) | `070418` | 4,770 | 1,804 | 4,354 | against `main`: +0.2% / −1.0% / +0.1%, no effect |
+| 12 event loops (1 run) | `081631` | 4,797 | 2,155 | 4,354 | against 8: −0.7% / +1.4% / −0.8%, noise |
+| 16 event loops (1 run) | `083640` | 4,760 | 2,076 | 4,371 | against 8: −1.5% / −2.3% / −0.4% |
+| two loops per core as feddi's default (`perf/event-loops` `0dc09e8`, 2 runs) | `091705`, `093730` | 4,822 | 2,130 | 4,334 | same as the option (−0.2% / +0.2% / −1.2%) |
+| **+ merged alias lookups** (`perf/exp-merged-lookups` `22dcd93`, 8 loops, 3 runs) | `085642`, `095816` | **4,980** | **2,137** | **4,443** | **+3.0% / +0.6% / +1.3%** against 8 loops, kept |
+
+- **Reading until the JSON root ends** costs more than it saves in Netty: the final empty chunk usually arrives in
+  the same read as the end of the JSON, so there is nothing to wait for, while scanning every byte, copying each
+  chunk into a growing array and the extra `Mono.create`/`subscribe` per call add CPU on the hot path (the gateway's
+  cores went from 96% to 98% in constant mode, constant-latency lost 8% as well).
+- **Why 8 loops help constant-latency** (not verified by a trace): since the per-event-loop pools, a request and all
+  its subgraph calls run on the loop that accepted it. With 4 loops, ~12 of the 50 concurrent requests share a loop,
+  and while the loop parses, merges and writes one request, the subgraph responses of the others wait unread in
+  their sockets. The trace counted that wait as subgraph time, which is where the "subgraphs answer feddi ~2 ms
+  slower" came from. With 8 loops a request waits behind half as many others. This fits the earlier measurement:
+  before the per-loop pools (`084835`, 2026-10-31) 8 loops did not help constant-latency (1,722 against 1,696),
+  because the work of a request was spread over all loops. It levels off at 8 (12 loops are noise, 16 lose),
+  constant and burst gain little because the gateway is CPU-bound there, and Fusion took the same step with two
+  socket threads per core (#10890). Open: CPU per request in constant-latency also fell by ~30% (28% of the cores
+  at 1,822 req/s, 23% at 2,125).
+- **Capture with 8 loops** (`20261119-072401`, constant-latency, feddi and Fusion, 1 run each, 3 s tcpdump on the
+  loopback): feddi **2,143**, Fusion **2,140**. accounts and products answer feddi 0.7 ms slower than Fusion (median
+  7.4 / 6.9 ms against 6.8 / 6.2 ms), down from ~2 ms; inventory 9.1 against 9.4 ms. Fusion still sends one reviews
+  request per query, feddi two.
+- **Merged alias lookups** were a trade with 4 loops (+5–7% constant-latency, −4 to −6% constant, `225500` and
+  `054758`): the merged request waits for the slower of the two lookups, and a loop shared by more requests made that
+  wait cost throughput. With 8 loops the trade is gone: one reviews request instead of two saves gateway CPU (90%
+  of the cores against 95% in constant mode) and gives +3.0% constant and +1.3% burst, with constant-latency level.
+- **GraalVM**: the Graal JIT does no better than C2 here, so the Temurin JDK stays.
+- **Final comparison** (`20261119-102929`, `perf/event-loops` `e56a974`: two loops per core as the default plus
+  merged alias lookups, feddi and Fusion 16.7.6, 3 runs): feddi **4,969 / 2,132 / 4,476**, Fusion 5,215 / 2,172 / 4,537,
+  **0.95 / 0.98 / 0.99** of Fusion (from 0.92 / 0.84 / 0.96). Against the baseline: +4.4% / +17.0% / +2.9%.
+- **Ideas assessed, not built:**
+  - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
+    parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
+    plan selects no key or requirement fields from it, the subgraph's selection equals the client's in field order,
+    and no type conditions or non-null checks apply. In the benchmark query almost every object gets fields of
+    another subgraph merged in (products: inventory and reviews; users: reviews), so little of the 87 KB response
+    qualifies. Not worth it for this query.
+  - *An executor without Reactor.* The step scheduler is already a `BaseSubscriber` with no operators; removing 5–8
+    operators per call measured as noise (`20261101-204635`). The remaining Reactor cost is Reactor Netty's own chain
+    (server and client) and the `Mono` in the public `SubgraphClient` SPI. Replacing it means a Netty HTTP client of
+    our own per loop (requests as ready-made bytes) behind the SPI's `Mono`, and a request path outside WebFlux,
+    which bypasses users' `WebFilter`s. Large, with ~5–10% expected at most; parked.
+
 ## Order
 
 1. Timeout without `Schedulers.parallel` (topic 1): small change, removes cross-thread hops on every call.
