@@ -4,6 +4,7 @@ import dev.feddi.federation.extension.ExtensionConfigProvider;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import reactor.netty.ReactorNetty;
 
 /**
  * Spring Boot application for the GraphQL Federation Gateway.
@@ -49,7 +50,19 @@ public class FeddiGatewayApplication {
             System.setProperty("feddi.gateway.extensions." + namespace, "true");
         }
 
+        // Two event loops per core unless configured: a request and its subgraph calls run on one loop, and with one
+        // loop per core a loop busy with one request delays the subgraph responses of the others waiting on it
+        if (System.getProperty(ReactorNetty.IO_WORKER_COUNT) == null) {
+            System.setProperty(ReactorNetty.IO_WORKER_COUNT,
+                String.valueOf(ioWorkerCount(Runtime.getRuntime().availableProcessors())));
+        }
+
         SpringApplication.run(FeddiGatewayApplication.class, args);
+    }
+
+    /** The default number of Netty event loops: two per core, at least four (Reactor Netty's minimum). */
+    static int ioWorkerCount(int cores) {
+        return Math.max(4, 2 * cores);
     }
 
     private static FeddiGatewayConfigFile getOrLoadConfig() {
