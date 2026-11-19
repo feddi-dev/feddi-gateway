@@ -327,6 +327,38 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
 - **Final comparison** (`20261119-102929`, `perf/event-loops` `e56a974`: two loops per core as the default plus
   merged alias lookups, feddi and Fusion 16.7.6, 3 runs): feddi **4,969 / 2,132 / 4,476**, Fusion 5,215 / 2,172 / 4,537,
   **0.95 / 0.98 / 0.99** of Fusion (from 0.92 / 0.84 / 0.96). Against the baseline: +4.4% / +17.0% / +2.9%.
+- **Profile of `perf/event-loops`** (`20261119-161445`, `824c1ab`, 1 run with JFR: constant 4,924, constant-latency
+  2,117 req/s). Constant mode, 41.7k samples, each attributed to the innermost frame that matches an area (JDK
+  frames count for their caller):
+
+  | Area | constant | constant-latency |
+  |:--|--:|--:|
+  | Reactor core, Netty, Reactor Netty, Spring WebFlux | 36.5% | 42.2% |
+  | Subgraph response parsing (`JsonTreeReader`) | 15.6% | 13.3% |
+  | Response writing (`ResponseWriter`, `JsonBuffer`) | 12.9% | 11.5% |
+  | Executor, other (mostly lookup preparation) | 18.2% | 16.5% |
+  | Entity targets and requirements | 7.5% | 6.0% |
+  | Scheduling, alias batches, merges, app, Jackson, graphql-java, planner | 9.3% | 10.5% |
+
+  - *Lookup preparation* (`Executor.prepare`) is **20.3%** inclusive: walking the response for entity targets
+    3.4%, requirement filtering 2.0%, building each entity's variables 4.2% (`RequirementReader.putVariables`),
+    deduplicating entities by their variables map 4.8% (`CompactMap.hashCode`/`equals`, `HashMap.computeIfAbsent`),
+    the reuse check 1.5%, its own code 2.8%. Grouping by an array of values was tried and lost
+    (`perf/exp-entity-key`).
+  - *Sending a subgraph request* (`StepScheduler.run` subscribing the client chain) is **16.4%**: Reactor Netty's
+    `HttpClientConnect` 8.4%, of which the connection pool borrow (`SimpleDequePool`, `PooledConnectionProvider`)
+    ~5%; the rest is calls that complete synchronously (shared calls) and merge in place.
+  - *Self time*: `JsonBuffer.write` 6.1% (the `arraycopy` of raw strings into the response), `readObject` 5.7%,
+    `CompactMap.indexOf` 5.4% (linear key search, callers spread: entity targets, merges, requirements),
+    `skipString` 4.6%.
+  - *Allocation*: `CompactMap` construction 17%, the copy of each subgraph body into a `byte[]` 16.5%,
+    requirement variables 5.8%. 389 young collections of 1 GB in 345 s, about 270 KB per request (400 KB in
+    October); GC pauses 0.2% of the time.
+  - No single hot spot. The largest feddi-side block is lookup preparation; the largest outside feddi is the
+    subgraph HTTP client. A subgraph client on plain Netty (one connection set per event loop, requests written as
+    ready-made bytes, no pool borrow per call) behind the `SubgraphClient` SPI would leave Spring and users'
+    `WebFilter`s unchanged and could save part of the ~10%. Feddi's gateway uses 91% of its cores for 0.95 of
+    Fusion's throughput, Fusion 83%: closing the gap needs about 13% less CPU per request.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
