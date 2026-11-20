@@ -1,5 +1,6 @@
 package dev.feddi.federation.app;
 
+import dev.feddi.federation.engine.executor.RequestTimeline;
 import dev.feddi.federation.engine.executor.ResponseWriter;
 import dev.feddi.federation.extension.ExecutionOutcome;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
@@ -63,6 +64,7 @@ public class GraphQLController {
                 List.of(MediaType.APPLICATION_JSON)));
         }
         DataBufferFactory buffers = httpRequest.exchange().getResponse().bufferFactory();
+        RequestTimeline timeline = RequestTimeline.begin();
         // The body is read before the response is created: a failure while reading (a body above the size limit)
         // must not happen while the response is being written, or Netty releases the request's buffers twice
         Mono<byte[]> body = httpRequest.bodyToMono(byte[].class);
@@ -70,8 +72,15 @@ public class GraphQLController {
         return (pool == null ? body : body.publishOn(pool))
             .switchIfEmpty(Mono.error(() -> new ServerWebInputException("Request body is missing")))
             .map(GraphQLController::readRequest)
-            .flatMap(request -> ServerResponse.ok().contentType(MediaType.APPLICATION_JSON)
-                .body(BodyInserters.fromDataBuffers(executeQuery(request, httpRequest, buffers))));
+            .flatMap(request -> {
+                if (timeline != null) {
+                    timeline.mark("body read");
+                }
+                Mono<DataBuffer> body = executeQuery(request, httpRequest, buffers, timeline);
+                return ServerResponse.ok().contentType(MediaType.APPLICATION_JSON)
+                    .body(BodyInserters.fromDataBuffers(timeline == null ? body
+                        : body.doOnNext(b -> timeline.finish()).contextWrite(c -> c.put(RequestTimeline.KEY, timeline))));
+            });
     }
 
     private static GraphQLRequest readRequest(byte[] bytes) {
@@ -82,7 +91,8 @@ public class GraphQLController {
         }
     }
 
-    private Mono<DataBuffer> executeQuery(GraphQLRequest request, ServerRequest httpRequest, DataBufferFactory buffers) {
+    private Mono<DataBuffer> executeQuery(GraphQLRequest request, ServerRequest httpRequest, DataBufferFactory buffers,
+                                          RequestTimeline timeline) {
         String clientName = httpRequest.headers().firstHeader("graphql-client-name");
         String clientVersion = httpRequest.headers().firstHeader("graphql-client-version");
 
@@ -120,9 +130,15 @@ public class GraphQLController {
             .build();
 
         long startNanos = System.nanoTime();
+        if (timeline != null) {
+            timeline.mark("execute");
+        }
 
         return gateway.execute(executionInput, requestContext)
             .map(gatewayResult -> {
+                if (timeline != null) {
+                    timeline.mark("result");
+                }
                 Response response = gatewayResult.toJson((bytes, length, errors) ->
                     new Response(copy(bytes, length, buffers), errors));
                 long durationNanos = System.nanoTime() - startNanos;
