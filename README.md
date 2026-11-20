@@ -131,7 +131,8 @@ In a separate terminal, upload your subgraph definitions from the repository roo
 
 ```bash
 curl -X POST http://localhost:9091/admin/upload \
-  -F file=@subgraphs.zip
+  -H 'Content-Type: application/zip' \
+  --data-binary @subgraphs.zip
 ```
 
 Your federated graph is now available at `POST http://localhost:8080/graphql`. Make sure the subgraph servers are running at the configured URLs before sending queries.
@@ -188,7 +189,7 @@ The feddi Gateway itself recognizes the namespace and forwards its configuration
 
 ### feddi Gateway Definition Uploads
 
-The default runtime source accepts feddi Gateway definitions through `POST /admin/upload` as multipart form data with a `file` part containing a ZIP archive. The response is sent once the upload is active: `200` when the new definition is active, `400` with an `error` message when it was rejected (invalid ZIP, composition error, or a subgraph configured with `batching: variables` that does not support it); the active definition is then kept. `409` means another upload is still being activated.
+The default runtime source accepts feddi Gateway definitions through `POST /admin/upload` as the raw request body, a ZIP archive (not multipart form data: `curl -F` is rejected with `No valid subgraphs found in zip`, use `--data-binary`). The response is sent once the upload is active: `200` when the new definition is active, `400` with an `error` message when it was rejected (invalid ZIP, composition error, or a subgraph configured with `batching: variables` that does not support it); the active definition is then kept. `409` means another upload is still being activated.
 
 If an extension-provided `FeddiGatewayDefinitionSource` is installed and active, ZIP uploads are disabled.
 
