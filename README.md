@@ -226,6 +226,9 @@ feddi Gateway-level ZIP config keys in the optional root `config.yaml` or `confi
 | `maxIdleTimeMs` | long | `4000` | How long a connection to a subgraph may stay unused before the gateway closes it, in milliseconds. Keep it below the subgraphs' (or their load balancers') idle timeout, e.g. Node.js closes idle connections after 5 seconds, an AWS ALB after 60 |
 | `maxConnections` | int | 256 | Most connections to one subgraph address per event loop (each event loop has pools of its own) |
 
+The gateway runs two Netty event loops per core (at least 4); set the system property `reactor.netty.ioWorkerCount` to
+change it. A request and its subgraph calls run on one event loop.
+
 Per-subgraph keys in each required `config.yaml` or `config.yml`:
 
 | Key | Type | Default | Required | Meaning |

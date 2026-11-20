@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.publisher.Mono;
 
 import java.util.LinkedHashMap;
@@ -72,6 +73,79 @@ class BatchingExecutionTest {
     }
 
     @Test
+    void lookupsToOneSubgraphInTheSameRoundAreOneRequestInAliasMode() {
+        var run = execute(BenchmarkHeavyQueryTest.HEAVY_QUERY, new BatchingOptions(Mode.ALIAS, 64),
+            UnaryOperator.identity());
+
+        assertMatchesMonolith(BenchmarkHeavyQueryTest.HEAVY_QUERY, run.result());
+        // The reviews of users and of products: one aliased operation instead of two requests
+        assertThat(run.clients().get(BenchmarkSubgraphs.REVIEWS).calls()).singleElement()
+            .satisfies(call -> assertThat(call.operation()).contains("user(").contains("product("));
+    }
+
+    @Test
+    void mergedLookupsAboveTheMaxBatchSizeAreSentOnTheirOwn() {
+        var run = execute(BenchmarkHeavyQueryTest.HEAVY_QUERY, new BatchingOptions(Mode.ALIAS, 2),
+            UnaryOperator.identity());
+
+        assertMatchesMonolith(BenchmarkHeavyQueryTest.HEAVY_QUERY, run.result());
+        assertThat(run.clients().get(BenchmarkSubgraphs.REVIEWS).calls()).hasSizeGreaterThan(2)
+            .noneSatisfy(call -> assertThat(call.operation()).contains("user(").contains("product("));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "{ topProducts { upc reviews { id } } users { id reviews { body } } }",
+        "{ users { id reviews { body } } topProducts { upc reviews { id } } }"
+    })
+    void mergedLookupsWaitForTheRootFieldsOfEveryLookup(String query) {
+        var run = execute(query, new BatchingOptions(Mode.ALIAS, 64), UnaryOperator.identity());
+
+        assertMatchesMonolith(query, run.result());
+        assertThat(run.clients().get(BenchmarkSubgraphs.REVIEWS).calls()).singleElement();
+    }
+
+    @Test
+    void onlyLookupsToSubgraphsInAliasModeAreMerged() {
+        var run = execute(BenchmarkHeavyQueryTest.HEAVY_QUERY, new BatchingOptions(Mode.NONE, 64),
+            client -> new AliasModeClient(client));
+
+        assertMatchesMonolith(BenchmarkHeavyQueryTest.HEAVY_QUERY, run.result());
+        assertThat(run.clients().get(BenchmarkSubgraphs.REVIEWS).calls()).singleElement();
+    }
+
+    @Test
+    void lookupOfOneObjectIsMergedToo() {
+        String query = "{ me { id reviews { body } } topProducts { upc reviews { id } } }";
+
+        var run = execute(query, new BatchingOptions(Mode.ALIAS, 64), UnaryOperator.identity());
+
+        assertMatchesMonolith(query, run.result());
+        assertThat(run.clients().get(BenchmarkSubgraphs.REVIEWS).calls()).singleElement()
+            .satisfies(call -> assertThat(call.operation()).contains("user(").contains("product("));
+    }
+
+    @Test
+    void variableBatchesKeepOneRequestPerLookup() {
+        var run = execute(BenchmarkHeavyQueryTest.HEAVY_QUERY, new BatchingOptions(Mode.VARIABLES, 64),
+            UnaryOperator.identity());
+
+        assertMatchesMonolith(BenchmarkHeavyQueryTest.HEAVY_QUERY, run.result());
+        assertThat(run.clients().get(BenchmarkSubgraphs.REVIEWS).calls()).hasSize(2);
+    }
+
+    @Test
+    void failedMergedRequestIsReportedOncePerLookup() {
+        var run = execute(BenchmarkHeavyQueryTest.HEAVY_QUERY, new BatchingOptions(Mode.ALIAS, 64),
+            client -> new FailingClient(client.batching()));
+
+        assertThat(run.result().getErrors()).hasSize(2)
+            .allSatisfy(error -> assertThat(error.getMessage()).contains("reviews unavailable"));
+        List<Map<String, Object>> users = list(((Map<String, Object>) run.result().getData()).get("users"));
+        assertThat(users).isNotEmpty().allSatisfy(user -> assertThat(user).containsEntry("reviews", null));
+    }
+
+    @Test
     void singleEntityIsNotBatched() {
         String query = "{ topProducts(first: 1) { upc reviews { id } } }";
 
@@ -113,6 +187,25 @@ class BatchingExecutionTest {
         public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
                                                         List<Map<String, Object>> variableSets) {
             return Mono.error(new IllegalStateException("reviews unavailable"));
+        }
+    }
+
+    /** A subgraph in alias mode while the others send one request per entity. */
+    private record AliasModeClient(SubgraphClient delegate) implements SubgraphClient {
+        @Override
+        public Mono<ExecutionResult> execute(OperationDefinition operation, Map<String, Object> variables) {
+            return delegate.execute(operation, variables);
+        }
+
+        @Override
+        public Mono<List<ExecutionResult>> executeBatch(OperationDefinition operation,
+                                                        List<Map<String, Object>> variableSets) {
+            return delegate.executeBatch(operation, variableSets);
+        }
+
+        @Override
+        public BatchingOptions batching() {
+            return new BatchingOptions(Mode.ALIAS, 64);
         }
     }
 
