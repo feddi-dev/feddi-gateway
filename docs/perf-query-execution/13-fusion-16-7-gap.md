@@ -370,6 +370,11 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
     9.82 ms before, Fusion 9.35 ms; median 8.40 / 8.48 / 8.13 ms); most of it is waiting for the subgraphs (86% busy)
     and k6. The remaining gap is about 0.3 ms per request of latency, not CPU: the sequential subgraph rounds and
     the time from a subgraph's answer to the next round.
+  - **Parked** (2026-11-20): it saves CPU but moves no benchmark mode, and it would make feddi maintain an HTTP
+    client on the hottest path. Before a merge: non-blocking DNS (it resolves on the event loop), a retry only for
+    requests not yet sent (a mutation could run twice), pools shared across definition reloads and closed with them,
+    idle connections closed in the background, decoder failures and unexpected data closing the connection, and a
+    check that the OpenTelemetry agent still sees subgraph calls.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
