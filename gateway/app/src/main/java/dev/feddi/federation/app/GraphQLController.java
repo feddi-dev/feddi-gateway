@@ -55,6 +55,7 @@ public class GraphQLController {
         this.gatewayHolder = gatewayHolder;
         this.usageReporter = usageReporter;
         this.gatewayMetrics = gatewayMetrics;
+        LoopLagProbe.start();
     }
 
     /** Handles {@code POST /graphql} (routed in {@link FeddiGatewayConfig}). */
