@@ -359,6 +359,17 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
     ready-made bytes, no pool borrow per call) behind the `SubgraphClient` SPI would leave Spring and users'
     `WebFilter`s unchanged and could save part of the ~10%. Feddi's gateway uses 91% of its cores for 0.95 of
     Fusion's throughput, Fusion 83%: closing the gap needs about 13% less CPU per request.
+- **Subgraph client on plain Netty** (`perf/netty-client` `ae2633f`, prototype): calls made on an event loop go over
+  HTTP/1.1 connections of that loop (at most `maxConnections` per loop, further calls wait for one; one retry when
+  the subgraph closed an idle connection), https and calls off a loop keep Reactor Netty. 1 run (`20261120-053248`):
+  5,007 / 2,087 / 4,441; 3 runs (`20261120-055312`): **5,065 / 2,116 / 4,438**, +1.9% / −0.8% / −0.8% against
+  `20261119-102929`, all within noise. Gateway cores fall from 91% to 81% (constant) and 84% to 73% (burst): about
+  11% less CPU per request, now equal to Fusion's (0.016 cores per req/s each).
+  - Throughput stays flat because constant mode is a closed loop: 50 VUs, each waiting for its response, so req/s
+    is 50 / response time. The gateway's own work is a small share of the response time (avg 9.65 ms against
+    9.82 ms before, Fusion 9.35 ms; median 8.40 / 8.48 / 8.13 ms); most of it is waiting for the subgraphs (86% busy)
+    and k6. The remaining gap is about 0.3 ms per request of latency, not CPU: the sequential subgraph rounds and
+    the time from a subgraph's answer to the next round.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
