@@ -375,6 +375,24 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
     requests not yet sent (a mutation could run twice), pools shared across definition reloads and closed with them,
     idle connections closed in the background, decoder failures and unexpected data closing the connection, and a
     check that the OpenTelemetry agent still sees subgraph calls.
+- **Where the latency goes** (`20261120-092204`, constant, feddi `666c139` on `perf/latency-timeline` with a timeline
+  of every 8th request, feddi and Fusion, 1 run each: 4,950 / 5,230 req/s; 0.5 s loopback capture of each).
+  Per request cycle of a k6 connection (ms, capture):
+
+  | | feddi mean / med / p90 | Fusion mean / med / p90 |
+  |:--|--:|--:|
+  | gateway: request in → response out | 8.71 / **6.40** / **18.62** | 8.21 / 6.70 / 15.85 |
+  | k6: response in → next request | 2.28 / 0.51 / 9.18 | 1.56 / 0.91 / 9.62 |
+  | cycle | 11.14 / 9.15 / 20.96 | 9.75 / 8.73 / 15.99 |
+
+  feddi is faster in the median and slower in the tail. The timeline (from the handler's start) puts the critical
+  path on the reviews call: sent at 0.9 ms, headers at 4.1 ms, body at 5.0 ms, response built at 5.5 ms (medians);
+  the third round (products, inventory, accounts) is served from reused calls in 0.2 ms. Its p90 is 11.7 ms
+  against 18.6 ms on the wire, so most of the tail is outside the executor: waiting for the event loop before the
+  handler or before the response is written. The gateway has 4 hardware threads and 8 event loops, and each of
+  k6's 50 connections stays on one loop (6–7 per loop): a request waits behind the parsing and writing of the
+  others on its loop, while Fusion's thread pool lets any free thread take the next piece of work. To confirm:
+  measure the event loops' lag directly.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
