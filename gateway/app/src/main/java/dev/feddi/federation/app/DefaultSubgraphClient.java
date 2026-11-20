@@ -82,6 +82,8 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
     /** The largest response body read, in bytes. */
     private final long maxResponseBytes;
+    /** Plain-Netty connections per event loop for calls made on one, or null to use Reactor Netty everywhere. */
+    private @Nullable LoopConnections loopConnections;
 
     public DefaultSubgraphClient(HttpClient httpClient, String url, String subgraphName,
                                   @Nullable SubgraphRequestHeaderCustomizer headerCustomizer) {
@@ -148,6 +150,20 @@ public class DefaultSubgraphClient implements SubgraphClient {
         this.headerCustomizer = headerCustomizer;
     }
 
+    /**
+     * Sends calls made on an event loop over plain-Netty connections of that loop (http only).
+     *
+     * @return this client
+     */
+    DefaultSubgraphClient useLoopConnections(reactor.netty.resources.LoopResources loopResources, int maxConnections,
+                                             long maxIdleTimeMs, int connectTimeoutMs) {
+        if (!secure) {
+            this.loopConnections = new LoopConnections(loopResources, address, maxConnections, maxIdleTimeMs,
+                connectTimeoutMs, maxResponseBytes, this::tooLarge);
+        }
+        return this;
+    }
+
     /** A client configured with this subgraph's address and TLS settings. */
     private HttpClient configure(HttpClient client) {
         SocketAddress address = this.address;
@@ -185,6 +201,17 @@ public class DefaultSubgraphClient implements SubgraphClient {
      */
     private <T> Mono<T> post(byte[] body, boolean batch, FeddiGatewayRequestContext context,
                              BiConsumer<HttpResponse, SynchronousSink<T>> handler) {
+        LoopConnections connections = loopConnections;
+        Mono<LoopConnections.Response> onLoop = connections == null ? null
+            : connections.post(path, body, headers -> {
+                headers.set(HttpHeaderNames.CONTENT_TYPE, JSON_TYPE)
+                    .set(HttpHeaderNames.ACCEPT, batch ? BATCH_ACCEPT : JSON_TYPE);
+                applyHeaders(headers, context);
+            });
+        if (onLoop != null) {
+            return onLoop.handle((response, sink) ->
+                handler.accept(new HttpResponse(response.status(), response.body()), sink));
+        }
         return client().post()
             .uri(path)
             .send((request, out) -> {

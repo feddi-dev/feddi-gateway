@@ -16,6 +16,7 @@ import org.springframework.boot.ssl.NoSuchSslBundleException;
 import org.springframework.boot.ssl.SslBundle;
 import org.springframework.boot.ssl.SslBundles;
 import org.springframework.boot.ssl.SslOptions;
+import reactor.netty.http.HttpResources;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
 
@@ -37,6 +38,9 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
 
     /** The subgraph config key naming a Spring Boot SSL bundle for the subgraph's TLS connections. */
     static final String SSL_BUNDLE = "sslBundle";
+
+    /** System property: false sends all subgraph calls with Reactor Netty's client (prototype switch). */
+    static final String LOOP_CONNECTIONS = "feddi.loopConnections";
 
     private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
 
@@ -85,10 +89,14 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
         HttpClient httpClient = clients.computeIfAbsent(pool, DefaultSubgraphClientFactory::client)
             .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout);
         Map<EventExecutor, HttpClient> byLoop = loopClients.computeIfAbsent(pool, p -> new ConcurrentHashMap<>());
-        return new DefaultSubgraphClient(httpClient,
+        DefaultSubgraphClient client = new DefaultSubgraphClient(httpClient,
             loop -> byLoop.computeIfAbsent(loop, l -> client(pool))
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout),
             url, subgraphName, headerCustomizer, maxResponseBytes, sslContext(subgraphName, config.get(SSL_BUNDLE)));
+        return Boolean.parseBoolean(System.getProperty(LOOP_CONNECTIONS, "true"))
+            ? client.useLoopConnections(HttpResources.get(), pool.maxConnections(), pool.maxIdleTimeMs(),
+                connectTimeout)
+            : client;
     }
 
     private static HttpClient client(PoolSettings settings) {
