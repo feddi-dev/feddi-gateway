@@ -393,6 +393,22 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   k6's 50 connections stays on one loop (6–7 per loop): a request waits behind the parsing and writing of the
   others on its loop, while Fusion's thread pool lets any free thread take the next piece of work. To confirm:
   measure the event loops' lag directly.
+- **Event loop lag** (`20261120-161112`, constant, feddi `6d6f3a7` on `perf/loop-lag`, 1 run: 4,900 req/s). A
+  probe thread submits a task to each of the 8 loops every millisecond and records how long it waits to start
+  (µs, all loops, per 20 s window):
+
+  | | p50 | p90 | p99 | p99.9 |
+  |:--|--:|--:|--:|--:|
+  | idle (between runs) | 24 | 33 | 49 | 65 |
+  | under load, start of the run | 135 | 1,753 | 8,007 | 15,040 |
+  | under load, end of the run (100 s later) | 264 | 2,617 | 10,738 | 18,760 |
+
+  Confirmed: work waits for its loop, 2–3 ms at p90 and 10 ms at p99, on every loop alike. The loops' task queues
+  are empty when the probe submits (pending tasks p99 = 0), so the wait is a loop busy with its channels' I/O
+  (requests are handled inline in the read) or a loop thread not running (8 loops and the GC threads on 4
+  hardware threads). The lag grows during each run and is back to the start value at the next run; not yet
+  explained (GC is a candidate). Next, one at a time: a GC log on the same run, then 4 loops (one per hardware
+  thread).
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
