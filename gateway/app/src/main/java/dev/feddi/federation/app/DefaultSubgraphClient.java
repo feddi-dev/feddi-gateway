@@ -6,6 +6,7 @@ import dev.feddi.federation.engine.IntrospectionFields;
 import dev.feddi.federation.engine.executor.JsonTreeReader;
 import dev.feddi.federation.engine.executor.OperationTexts;
 import dev.feddi.federation.engine.executor.RawString;
+import dev.feddi.federation.engine.executor.RequestTimeline;
 import dev.feddi.federation.extension.FeddiGatewayRequestContext;
 import dev.feddi.federation.extension.FeddiGatewaySettings;
 import dev.feddi.federation.extension.SubgraphClient;
@@ -188,6 +189,10 @@ public class DefaultSubgraphClient implements SubgraphClient {
         return client().post()
             .uri(path)
             .send((request, out) -> {
+                RequestTimeline timeline = RequestTimeline.of(request.currentContextView());
+                if (timeline != null) {
+                    timeline.markNumbered(subgraphName + " send");
+                }
                 request.requestHeaders()
                     .set(HttpHeaderNames.CONTENT_TYPE, JSON_TYPE)
                     .set(HttpHeaderNames.ACCEPT, batch ? BATCH_ACCEPT : JSON_TYPE);
@@ -195,6 +200,10 @@ public class DefaultSubgraphClient implements SubgraphClient {
                 return out.send(Mono.just(Unpooled.wrappedBuffer(body)));
             })
             .response((response, content) -> {
+                RequestTimeline timeline = RequestTimeline.of(response.currentContextView());
+                if (timeline != null) {
+                    timeline.markNumbered(subgraphName + " headers");
+                }
                 // A declared length is checked up front (Netty reads no more than it); a body without one is
                 // counted while it arrives
                 long declared = response.responseHeaders().getInt(HttpHeaderNames.CONTENT_LENGTH, -1);
@@ -205,7 +214,12 @@ public class DefaultSubgraphClient implements SubgraphClient {
                 int status = response.status().code();
                 return received.aggregate().asByteArray()
                     .defaultIfEmpty(EMPTY)
-                    .<T>handle((bytes, sink) -> handler.accept(new HttpResponse(status, bytes), sink));
+                    .<T>handle((bytes, sink) -> {
+                        if (timeline != null) {
+                            timeline.markNumbered(subgraphName + " body");
+                        }
+                        handler.accept(new HttpResponse(status, bytes), sink);
+                    });
             })
             .single();
     }

@@ -166,6 +166,8 @@ public final class Executor {
 
             /** Whether the node's steps send different operations: lookups merged into one request. */
             final boolean mergedLookups;
+            /** Experiment: the node's name in the request timeline. */
+            String label = "";
 
             Node(List<ExecutionStep> steps, int dependencies) {
                 this.steps = steps;
@@ -191,11 +193,13 @@ public final class Executor {
         /** The execution's subscriber context, for every call. */
         private final Context context;
         private volatile boolean cancelled;
+        private final RequestTimeline timeline;
 
         StepScheduler(ExecutionPlan plan, Map<String, Object> queryVariables, MonoSink<ExecutionContext> sink) {
             this.queryVariables = queryVariables;
             this.sink = sink;
             this.context = Context.of(sink.contextView());
+            this.timeline = RequestTimeline.of(sink.contextView());
             Schedule schedule = SCHEDULES.get(plan);
             Set<String> aliasSubgraphs = new HashSet<>();
             subgraphClients.forEach((name, client) -> {
@@ -210,6 +214,10 @@ public final class Executor {
             nodes = new ArrayList<>(schedule.nodes().size());
             for (int i = 0; i < schedule.nodes().size(); i++) {
                 nodes.add(new Node(schedule.nodes().get(i), schedule.dependencyCounts()[i]));
+                if (timeline != null) {
+                    nodes.get(i).label = "n" + i + ":" + schedule.nodes().get(i).get(0).subgraph()
+                        + (schedule.nodes().get(i).size() > 1 ? "x" + schedule.nodes().get(i).size() : "");
+                }
             }
             for (int i = 0; i < nodes.size(); i++) {
                 for (int dependent : schedule.dependents()[i]) {
@@ -241,6 +249,9 @@ public final class Executor {
                 return;
             }
             Mono<StepResult> execution;
+            if (timeline != null) {
+                timeline.mark(node.label + " run");
+            }
             try {
                 execution = execute(node);
             } catch (RuntimeException e) {
@@ -252,6 +263,9 @@ public final class Executor {
             StepCall call = new StepCall(node);
             node.call = call;
             execution.subscribe(call);
+            if (timeline != null) {
+                timeline.mark(node.label + " subscribed");
+            }
         }
 
         /**
@@ -305,6 +319,9 @@ public final class Executor {
                 return;
             }
             node.result = result;
+            if (timeline != null) {
+                timeline.mark(node.label + " result");
+            }
             try {
                 // Dependents read the shared response tree, so a result enters it before they start
                 sharedContext.merge(result);
@@ -314,12 +331,18 @@ public final class Executor {
                 sink.error(e);
                 return;
             }
+            if (timeline != null) {
+                timeline.mark(node.label + " merged");
+            }
             for (Node dependent : node.dependents) {
                 if (dependent.openDependencies.decrementAndGet() == 0) {
                     run(dependent);
                 }
             }
             if (openNodes.decrementAndGet() == 0 && !cancelled) {
+                if (timeline != null) {
+                    timeline.mark("executed");
+                }
                 sink.success(mergeAllStepResults(nodes.stream().map(n -> (Object) n.result).toArray()));
             }
         }
