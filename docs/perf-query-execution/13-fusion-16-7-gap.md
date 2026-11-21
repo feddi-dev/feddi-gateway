@@ -271,10 +271,180 @@ above; benchmark repo pinned to `d55521e` (the baseline's). Profile of `main`: r
   Kept: a small gain and less code.
 - **Merged lookups on top** (`perf/alias-merged-lookups`, 2 runs `054758`): 4,562 / 1,885 / 4,219 (burst CV 3.8%),
   −6.1% / +5.1% / −2.9% against exact copies alone. The same trade as before (`225500`): dropped.
-- **Final comparison** (feddi `506b2e0`, 3 runs each, Fusion latest = HotChocolate 16.7.0): `variables` with Fusion
+- **Final comparison** (feddi `506b2e0`, 3 runs each, Fusion latest = HotChocolate 16.7.3; the subgraphs stay on 16.7.0): `variables` with Fusion
   (`20261102-070727`) 4,720 / 1,716 / 4,334 against Fusion 4,689 / 2,045 / 4,370, so 1.01 / 0.84 / 0.99; `alias`
   (`082550`) **4,822 / 1,811 / 4,334**, so 1.03 / 0.89 / 0.99 of Fusion and +2.2% / +5.5% / 0.0% against
   `variables`. With alias batching feddi is ahead in constant, level in burst and 11% behind in constant-latency.
+- **Fusion 16.7.6 on benchmark `main`** (`20261118-013940`, benchmark `cfc8a84` with feddi's release `2026-11-03-0517`
+  and `batching: alias`, 3 runs): feddi **4,796 / 1,787 / 4,362**, Fusion 5,239 / 2,134 / 4,534, so 0.92 / 0.84 / 0.96.
+  feddi is unchanged (within 1.3% of `082550`); Fusion gained 11.7% / 4.4% / 3.8% over 16.7.3. Since 2026-11-12 the
+  benchmark starts Fusion with two socket threads per core and inline socket completions, which 16.7.6 uses to
+  continue the plan executor on the socket thread (#10890, #10852). Other runtime changes in 16.7.6: stop reading a
+  subgraph response once its JSON root ends instead of waiting for the final empty chunk (#10847), alias calls without
+  nested async iterators (#10940), reused entities matched on XxHash3 keys (#10941). Candidates for feddi: reading
+  until the JSON root ends (`DefaultSubgraphClient` aggregates the whole chunked body), and twice the Netty event loops.
+
+### Experiments of 2026-11-18
+
+Baseline `main` `1a75067` (`20261118-081803`, 3 runs): 4,759 / 1,822 / 4,351. Benchmark `cfc8a84`, feddi only,
+`batching: alias`, the launcher's JVM options. One run first; 2 more when a mode moves by less than 3% or the modes
+disagree, or to confirm a change that is kept. Each experiment that helped became the baseline of the next.
+
+| Experiment | Run | constant | constant-latency | burst | Result |
+|:--|:--|--:|--:|--:|:--|
+| baseline `main` (3 runs) | `081803` | 4,759 | 1,822 | 4,351 | |
+| read a chunked response once its JSON root ends (`perf/exp-json-end` `2f46f0d`, 3 runs) | `085856` | 4,220 | 1,679 | 4,035 | **worse**: −11% / −8% / −7%, dropped |
+| **8 event loops** (`-Dreactor.netty.ioWorkerCount=8`, 3 runs) | `20261119-062434` | **4,833** | **2,125** | **4,387** | **+1.6% / +16.6% / +0.8%**, new baseline |
+| Oracle GraalVM 25 (Graal JIT, `bench.sh --jdk graalvm`, 4 loops, 1 run) | `070418` | 4,770 | 1,804 | 4,354 | against `main`: +0.2% / −1.0% / +0.1%, no effect |
+| 12 event loops (1 run) | `081631` | 4,797 | 2,155 | 4,354 | against 8: −0.7% / +1.4% / −0.8%, noise |
+| 16 event loops (1 run) | `083640` | 4,760 | 2,076 | 4,371 | against 8: −1.5% / −2.3% / −0.4% |
+| two loops per core as feddi's default (`perf/event-loops` `0dc09e8`, 2 runs) | `091705`, `093730` | 4,822 | 2,130 | 4,334 | same as the option (−0.2% / +0.2% / −1.2%) |
+| **+ merged alias lookups** (`perf/exp-merged-lookups` `22dcd93`, 8 loops, 3 runs) | `085642`, `095816` | **4,980** | **2,137** | **4,443** | **+3.0% / +0.6% / +1.3%** against 8 loops, kept |
+
+- **Reading until the JSON root ends** costs more than it saves in Netty: the final empty chunk usually arrives in
+  the same read as the end of the JSON, so there is nothing to wait for, while scanning every byte, copying each
+  chunk into a growing array and the extra `Mono.create`/`subscribe` per call add CPU on the hot path (the gateway's
+  cores went from 96% to 98% in constant mode, constant-latency lost 8% as well).
+- **Why 8 loops help constant-latency** (not verified by a trace): since the per-event-loop pools, a request and all
+  its subgraph calls run on the loop that accepted it. With 4 loops, ~12 of the 50 concurrent requests share a loop,
+  and while the loop parses, merges and writes one request, the subgraph responses of the others wait unread in
+  their sockets. The trace counted that wait as subgraph time, which is where the "subgraphs answer feddi ~2 ms
+  slower" came from. With 8 loops a request waits behind half as many others. This fits the earlier measurement:
+  before the per-loop pools (`084835`, 2026-10-31) 8 loops did not help constant-latency (1,722 against 1,696),
+  because the work of a request was spread over all loops. It levels off at 8 (12 loops are noise, 16 lose),
+  constant and burst gain little because the gateway is CPU-bound there, and Fusion took the same step with two
+  socket threads per core (#10890). Open: CPU per request in constant-latency also fell by ~30% (28% of the cores
+  at 1,822 req/s, 23% at 2,125).
+- **Capture with 8 loops** (`20261119-072401`, constant-latency, feddi and Fusion, 1 run each, 3 s tcpdump on the
+  loopback): feddi **2,143**, Fusion **2,140**. accounts and products answer feddi 0.7 ms slower than Fusion (median
+  7.4 / 6.9 ms against 6.8 / 6.2 ms), down from ~2 ms; inventory 9.1 against 9.4 ms. Fusion still sends one reviews
+  request per query, feddi two.
+- **Merged alias lookups** were a trade with 4 loops (+5–7% constant-latency, −4 to −6% constant, `225500` and
+  `054758`): the merged request waits for the slower of the two lookups, and a loop shared by more requests made that
+  wait cost throughput. With 8 loops the trade is gone: one reviews request instead of two saves gateway CPU (90%
+  of the cores against 95% in constant mode) and gives +3.0% constant and +1.3% burst, with constant-latency level.
+- **GraalVM**: the Graal JIT does no better than C2 here, so the Temurin JDK stays.
+- **Final comparison** (`20261119-102929`, `perf/event-loops` `e56a974`: two loops per core as the default plus
+  merged alias lookups, feddi and Fusion 16.7.6, 3 runs): feddi **4,969 / 2,132 / 4,476**, Fusion 5,215 / 2,172 / 4,537,
+  **0.95 / 0.98 / 0.99** of Fusion (from 0.92 / 0.84 / 0.96). Against the baseline: +4.4% / +17.0% / +2.9%.
+- **Profile of `perf/event-loops`** (`20261119-161445`, `824c1ab`, 1 run with JFR: constant 4,924, constant-latency
+  2,117 req/s). Constant mode, 41.7k samples, each attributed to the innermost frame that matches an area (JDK
+  frames count for their caller):
+
+  | Area | constant | constant-latency |
+  |:--|--:|--:|
+  | Reactor core, Netty, Reactor Netty, Spring WebFlux | 36.5% | 42.2% |
+  | Subgraph response parsing (`JsonTreeReader`) | 15.6% | 13.3% |
+  | Response writing (`ResponseWriter`, `JsonBuffer`) | 12.9% | 11.5% |
+  | Executor, other (mostly lookup preparation) | 18.2% | 16.5% |
+  | Entity targets and requirements | 7.5% | 6.0% |
+  | Scheduling, alias batches, merges, app, Jackson, graphql-java, planner | 9.3% | 10.5% |
+
+  - *Lookup preparation* (`Executor.prepare`) is **20.3%** inclusive: walking the response for entity targets
+    3.4%, requirement filtering 2.0%, building each entity's variables 4.2% (`RequirementReader.putVariables`),
+    deduplicating entities by their variables map 4.8% (`CompactMap.hashCode`/`equals`, `HashMap.computeIfAbsent`),
+    the reuse check 1.5%, its own code 2.8%. Grouping by an array of values was tried and lost
+    (`perf/exp-entity-key`).
+  - *Sending a subgraph request* (`StepScheduler.run` subscribing the client chain) is **16.4%**: Reactor Netty's
+    `HttpClientConnect` 8.4%, of which the connection pool borrow (`SimpleDequePool`, `PooledConnectionProvider`)
+    ~5%; the rest is calls that complete synchronously (shared calls) and merge in place.
+  - *Self time*: `JsonBuffer.write` 6.1% (the `arraycopy` of raw strings into the response), `readObject` 5.7%,
+    `CompactMap.indexOf` 5.4% (linear key search, callers spread: entity targets, merges, requirements),
+    `skipString` 4.6%.
+  - *Allocation*: `CompactMap` construction 17%, the copy of each subgraph body into a `byte[]` 16.5%,
+    requirement variables 5.8%. 389 young collections of 1 GB in 345 s, about 270 KB per request (400 KB in
+    October); GC pauses 0.2% of the time.
+  - No single hot spot. The largest feddi-side block is lookup preparation; the largest outside feddi is the
+    subgraph HTTP client. A subgraph client on plain Netty (one connection set per event loop, requests written as
+    ready-made bytes, no pool borrow per call) behind the `SubgraphClient` SPI would leave Spring and users'
+    `WebFilter`s unchanged and could save part of the ~10%. Feddi's gateway uses 91% of its cores for 0.95 of
+    Fusion's throughput, Fusion 83%: closing the gap needs about 13% less CPU per request.
+- **Subgraph client on plain Netty** (`perf/netty-client` `ae2633f`, prototype): calls made on an event loop go over
+  HTTP/1.1 connections of that loop (at most `maxConnections` per loop, further calls wait for one; one retry when
+  the subgraph closed an idle connection), https and calls off a loop keep Reactor Netty. 1 run (`20261120-053248`):
+  5,007 / 2,087 / 4,441; 3 runs (`20261120-055312`): **5,065 / 2,116 / 4,438**, +1.9% / −0.8% / −0.8% against
+  `20261119-102929`, all within noise. Gateway cores fall from 91% to 81% (constant) and 84% to 73% (burst): about
+  11% less CPU per request, now equal to Fusion's (0.016 cores per req/s each).
+  - Throughput stays flat because constant mode is a closed loop: 50 VUs, each waiting for its response, so req/s
+    is 50 / response time. The gateway's own work is a small share of the response time (avg 9.65 ms against
+    9.82 ms before, Fusion 9.35 ms; median 8.40 / 8.48 / 8.13 ms); most of it is waiting for the subgraphs (86% busy)
+    and k6. The remaining gap is about 0.3 ms per request of latency, not CPU: the sequential subgraph rounds and
+    the time from a subgraph's answer to the next round.
+  - **Parked** (2026-11-20): it saves CPU but moves no benchmark mode, and it would make feddi maintain an HTTP
+    client on the hottest path. Before a merge: non-blocking DNS (it resolves on the event loop), a retry only for
+    requests not yet sent (a mutation could run twice), pools shared across definition reloads and closed with them,
+    idle connections closed in the background, decoder failures and unexpected data closing the connection, and a
+    check that the OpenTelemetry agent still sees subgraph calls.
+- **Where the latency goes** (`20261120-092204`, constant, feddi `666c139` on `perf/latency-timeline` with a timeline
+  of every 8th request, feddi and Fusion, 1 run each: 4,950 / 5,230 req/s; 0.5 s loopback capture of each).
+  Per request cycle of a k6 connection (ms, capture):
+
+  | | feddi mean / med / p90 | Fusion mean / med / p90 |
+  |:--|--:|--:|
+  | gateway: request in → response out | 8.71 / **6.40** / **18.62** | 8.21 / 6.70 / 15.85 |
+  | k6: response in → next request | 2.28 / 0.51 / 9.18 | 1.56 / 0.91 / 9.62 |
+  | cycle | 11.14 / 9.15 / 20.96 | 9.75 / 8.73 / 15.99 |
+
+  feddi is faster in the median and slower in the tail. The timeline (from the handler's start) puts the critical
+  path on the reviews call: sent at 0.9 ms, headers at 4.1 ms, body at 5.0 ms, response built at 5.5 ms (medians);
+  the third round (products, inventory, accounts) is served from reused calls in 0.2 ms. Its p90 is 11.7 ms
+  against 18.6 ms on the wire, so most of the tail is outside the executor: waiting for the event loop before the
+  handler or before the response is written. The gateway has 4 hardware threads and 8 event loops, and each of
+  k6's 50 connections stays on one loop (6–7 per loop): a request waits behind the parsing and writing of the
+  others on its loop, while Fusion's thread pool lets any free thread take the next piece of work. To confirm:
+  measure the event loops' lag directly.
+- **Event loop lag** (`20261120-161112`, constant, feddi `6d6f3a7` on `perf/loop-lag`, 1 run: 4,900 req/s). A
+  probe thread submits a task to each of the 8 loops every millisecond and records how long it waits to start
+  (µs, all loops, per 20 s window):
+
+  | | p50 | p90 | p99 | p99.9 |
+  |:--|--:|--:|--:|--:|
+  | idle (between runs) | 24 | 33 | 49 | 65 |
+  | under load, start of the run | 135 | 1,753 | 8,007 | 15,040 |
+  | under load, end of the run (100 s later) | 264 | 2,617 | 10,738 | 18,760 |
+
+  Confirmed: work waits for its loop, 2–3 ms at p90 and 10 ms at p99, on every loop alike. The loops' task queues
+  are empty when the probe submits (pending tasks p99 = 0), so the wait is a loop busy with its channels' I/O
+  (requests are handled inline in the read) or a loop thread not running (8 loops and the GC threads on 4
+  hardware threads). The lag grows during each run and is back to the start value at the next run; not yet
+  explained (GC is a candidate).
+- **GC during the lag** (`20261121-074056`, same run with `-Xlog:gc,safepoint`, 4,903 req/s; the lag repeated
+  within 3%). Young pauses: ~34 per 20 s, 2.7–8.3 ms each, ~100 ms per 20 s (0.5% of the time), flat over the run;
+  other safepoints are negligible (time to reach a safepoint ≤ 0.1 ms). GC explains part of the p99.9, not the
+  p90 of 2–3 ms (10% of the probes) nor the growth. The growth tracks the load: sampled requests per 20 s rise
+  from 11,908 to 12,633 (+6%) as the loops warm up, and p50 lag doubles, as expected for a queue near saturation
+  (8 loops on 4 hardware threads at ~80%). Side note: ~3 MB/s is promoted to the old generation under load
+  (49 → 424 MB after young GCs within a run), freed by a full GC between runs. So the tail is busy loops, not GC;
+  4 loops were tried before and cost throughput.
+- **Shared pool for the work after subgraph responses** (`perf/shared-pool` `addd68f`, parked): a `publishOn` to a
+  work-stealing `ForkJoinPool` after a subgraph body is aggregated, so parsing, merging, the next round's requests
+  and building the client's response run on any free thread; `=all` also moves the client's request (parsing,
+  planning). 1 run each, against the baseline 4,969 / 2,132 / 4,476 (constant / constant-latency / burst):
+
+  | variant | constant | constant-latency | burst | gateway cores (constant) |
+  |:--|--:|--:|--:|--:|
+  | responses, 4 threads (`20261121-084705`) | 4,510 (−9.2%) | 2,160 (+1.3%) | 4,147 (−7.4%) | 95% |
+  | all, 4 threads (`20261121-090727`) | 4,354 (−12.4%) | 1,942 (−8.9%) | 4,036 (−9.8%) | 98% |
+  | responses, 8 threads (`20261121-092736`) | 4,648 (−6.5%) | 1,928 (−9.6%) | 4,364 (−2.5%) | 90% |
+
+  With the lag probe (`20261121-094735`, `835fc96`, responses, 4 threads, 4,407 req/s), the loops are free (lag
+  p50 / p90 / p99 = 20 / 132 / 380 µs, from 264 / 2,617 / 10,738), but the work now waits in the pool: the
+  accounts response's headers arrive at 0.26 ms and its body is handled at 2.26 ms (median; 0.7 ms before). The
+  queue moved from the loops to the pool, and each hop costs CPU (95% gateway cores against 80%). So the tail is
+  the gateway's total CPU demand on 4 hardware threads, not the binding of a connection to its loop; the lever is
+  CPU per request. Parked.
+- **Ideas assessed, not built:**
+  - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
+    parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
+    plan selects no key or requirement fields from it, the subgraph's selection equals the client's in field order,
+    and no type conditions or non-null checks apply. In the benchmark query almost every object gets fields of
+    another subgraph merged in (products: inventory and reviews; users: reviews), so little of the 87 KB response
+    qualifies. Not worth it for this query.
+  - *An executor without Reactor.* The step scheduler is already a `BaseSubscriber` with no operators; removing 5–8
+    operators per call measured as noise (`20261101-204635`). The remaining Reactor cost is Reactor Netty's own chain
+    (server and client) and the `Mono` in the public `SubgraphClient` SPI. Replacing it means a Netty HTTP client of
+    our own per loop (requests as ready-made bytes) behind the SPI's `Mono`, and a request path outside WebFlux,
+    which bypasses users' `WebFilter`s. Large, with ~5–10% expected at most; parked.
 
 ## Order
 
