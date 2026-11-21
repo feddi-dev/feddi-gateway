@@ -439,6 +439,17 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   99% gateway cores; with client observations off (`20261121-175212`): 4,549 / 2,112 / 4,183 (−8.5% / −0.9% /
   −6.5%). `WebClient` itself costs 7–9% at full load, its observations ~4% more: the built-in client stays on
   Reactor Netty's `HttpClient`.
+- **Subgraph traffic and responses compared with Fusion** (constant-mode captures of `20261120-092204` and the
+  core usage of `20261119-102929`): both gateways make one call per subgraph per request with about the same
+  request sizes; subgraph cores per 1,000 req/s are 17.7% (feddi) against 17.1% (Fusion) in constant mode and
+  18.1% each in burst; the subgraphs answer feddi as fast or faster (reviews median 2.4 ms against 5.6 ms). The
+  client responses are byte-identical (87,327 bytes) and arrive in the same two TCP segments; only the headers
+  differ (Fusion adds `Date`, `Server`, `Vary`). Neither the subgraph work nor the response explains the gap.
+- **At most 3 subgraph connections per event loop** (`perf/exp-max-connections` `0328a2c`, default 256; 24 per
+  subgraph instead of the 50 in the capture, Fusion uses 22–63), 3 runs (`20261121-201330`, `20261121-203455`):
+  **5,107 / 2,122 / 4,507**, +2.8% / −0.5% / +0.7% against `20261119-102929` (0.98 / 0.98 / 0.99 of Fusion).
+  Gateway cores in constant-latency fall from 20% to 12–13% (Fusion 15%), in constant and burst they stay at
+  92% / 82%. The throughput gain is within noise across sessions; the CPU drop in constant-latency is clear.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
