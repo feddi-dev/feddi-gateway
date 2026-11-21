@@ -68,9 +68,9 @@ public class GraphQLController {
         RequestTimeline timeline = RequestTimeline.begin();
         // The body is read before the response is created: a failure while reading (a body above the size limit)
         // must not happen while the response is being written, or Netty releases the request's buffers twice
-        Mono<byte[]> body = httpRequest.bodyToMono(byte[].class);
+        Mono<byte[]> requestBody = httpRequest.bodyToMono(byte[].class);
         Scheduler pool = SharedPool.REQUESTS;
-        return (pool == null ? body : body.publishOn(pool))
+        return (pool == null ? requestBody : requestBody.publishOn(pool))
             .switchIfEmpty(Mono.error(() -> new ServerWebInputException("Request body is missing")))
             .map(GraphQLController::readRequest)
             .flatMap(request -> {
