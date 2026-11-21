@@ -433,6 +433,12 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   queue moved from the loops to the pool, and each hop costs CPU (95% gateway cores against 80%). So the tail is
   the gateway's total CPU demand on 4 hardware threads, not the binding of a connection to its loop; the lever is
   CPU per request. Parked.
+- **Subgraph calls through Spring Boot's `WebClient`** (`perf/webclient-cost` `497b715`, experiment for
+  `docs/design/spring-subgraph-client.md`): a `WebClient` from Boot's builder on the same per-loop Reactor Netty
+  clients, same parsing. With Boot's defaults (`20261121-173051`): 4,366 / 2,116 / 3,997 (−12.1% / −0.8% / −10.7%),
+  99% gateway cores; with client observations off (`20261121-175212`): 4,549 / 2,112 / 4,183 (−8.5% / −0.9% /
+  −6.5%). `WebClient` itself costs 7–9% at full load, its observations ~4% more: the built-in client stays on
+  Reactor Netty's `HttpClient`.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
