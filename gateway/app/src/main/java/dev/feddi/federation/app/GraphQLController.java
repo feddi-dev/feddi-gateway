@@ -23,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebInputException;
 import org.springframework.web.server.UnsupportedMediaTypeStatusException;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,7 +65,9 @@ public class GraphQLController {
         DataBufferFactory buffers = httpRequest.exchange().getResponse().bufferFactory();
         // The body is read before the response is created: a failure while reading (a body above the size limit)
         // must not happen while the response is being written, or Netty releases the request's buffers twice
-        return httpRequest.bodyToMono(byte[].class)
+        Mono<byte[]> body = httpRequest.bodyToMono(byte[].class);
+        Scheduler pool = SharedPool.REQUESTS;
+        return (pool == null ? body : body.publishOn(pool))
             .switchIfEmpty(Mono.error(() -> new ServerWebInputException("Request body is missing")))
             .map(GraphQLController::readRequest)
             .flatMap(request -> ServerResponse.ok().contentType(MediaType.APPLICATION_JSON)

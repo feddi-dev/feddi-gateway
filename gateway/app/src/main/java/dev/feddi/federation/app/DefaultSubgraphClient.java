@@ -28,6 +28,7 @@ import org.springframework.http.support.Netty4HeadersAdapter;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SynchronousSink;
+import reactor.core.scheduler.Scheduler;
 import reactor.netty.ByteBufFlux;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.transport.AddressUtils;
@@ -203,8 +204,9 @@ public class DefaultSubgraphClient implements SubgraphClient {
                 }
                 ByteBufFlux received = declared >= 0 ? content : ByteBufFlux.fromInbound(limited(content));
                 int status = response.status().code();
-                return received.aggregate().asByteArray()
-                    .defaultIfEmpty(EMPTY)
+                Mono<byte[]> aggregated = received.aggregate().asByteArray().defaultIfEmpty(EMPTY);
+                Scheduler pool = SharedPool.RESPONSES;
+                return (pool == null ? aggregated : aggregated.publishOn(pool))
                     .<T>handle((bytes, sink) -> handler.accept(new HttpResponse(status, bytes), sink));
             })
             .single();
