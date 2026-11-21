@@ -407,8 +407,15 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   are empty when the probe submits (pending tasks p99 = 0), so the wait is a loop busy with its channels' I/O
   (requests are handled inline in the read) or a loop thread not running (8 loops and the GC threads on 4
   hardware threads). The lag grows during each run and is back to the start value at the next run; not yet
-  explained (GC is a candidate). Next, one at a time: a GC log on the same run, then 4 loops (one per hardware
-  thread).
+  explained (GC is a candidate).
+- **GC during the lag** (`20261121-074056`, same run with `-Xlog:gc,safepoint`, 4,903 req/s; the lag repeated
+  within 3%). Young pauses: ~34 per 20 s, 2.7–8.3 ms each, ~100 ms per 20 s (0.5% of the time), flat over the run;
+  other safepoints are negligible (time to reach a safepoint ≤ 0.1 ms). GC explains part of the p99.9, not the
+  p90 of 2–3 ms (10% of the probes) nor the growth. The growth tracks the load: sampled requests per 20 s rise
+  from 11,908 to 12,633 (+6%) as the loops warm up, and p50 lag doubles, as expected for a queue near saturation
+  (8 loops on 4 hardware threads at ~80%). Side note: ~3 MB/s is promoted to the old generation under load
+  (49 → 424 MB after young GCs within a run), freed by a full GC between runs. So the tail is busy loops, not GC;
+  4 loops were tried before and cost throughput.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
