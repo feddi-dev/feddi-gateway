@@ -416,6 +416,23 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   (8 loops on 4 hardware threads at ~80%). Side note: ~3 MB/s is promoted to the old generation under load
   (49 → 424 MB after young GCs within a run), freed by a full GC between runs. So the tail is busy loops, not GC;
   4 loops were tried before and cost throughput.
+- **Shared pool for the work after subgraph responses** (`perf/shared-pool` `addd68f`, parked): a `publishOn` to a
+  work-stealing `ForkJoinPool` after a subgraph body is aggregated, so parsing, merging, the next round's requests
+  and building the client's response run on any free thread; `=all` also moves the client's request (parsing,
+  planning). 1 run each, against the baseline 4,969 / 2,132 / 4,476 (constant / constant-latency / burst):
+
+  | variant | constant | constant-latency | burst | gateway cores (constant) |
+  |:--|--:|--:|--:|--:|
+  | responses, 4 threads (`20261121-084705`) | 4,510 (−9.2%) | 2,160 (+1.3%) | 4,147 (−7.4%) | 95% |
+  | all, 4 threads (`20261121-090727`) | 4,354 (−12.4%) | 1,942 (−8.9%) | 4,036 (−9.8%) | 98% |
+  | responses, 8 threads (`20261121-092736`) | 4,648 (−6.5%) | 1,928 (−9.6%) | 4,364 (−2.5%) | 90% |
+
+  With the lag probe (`20261121-094735`, `835fc96`, responses, 4 threads, 4,407 req/s), the loops are free (lag
+  p50 / p90 / p99 = 20 / 132 / 380 µs, from 264 / 2,617 / 10,738), but the work now waits in the pool: the
+  accounts response's headers arrive at 0.26 ms and its body is handled at 2.26 ms (median; 0.7 ms before). The
+  queue moved from the loops to the pool, and each hop costs CPU (95% gateway cores against 80%). So the tail is
+  the gateway's total CPU demand on 4 hardware threads, not the binding of a connection to its loop; the lever is
+  CPU per request. Parked.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
