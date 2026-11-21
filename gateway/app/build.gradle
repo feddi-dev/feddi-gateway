@@ -48,6 +48,8 @@ dependencies {
 	// Spring Boot
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	// experiment: Spring Boot's WebClient.Builder for subgraph calls (-Dfeddi.experiment.webclient=true)
+	implementation 'org.springframework.boot:spring-boot-starter-webclient'
 
 	// YAML parsing for config files
 	implementation libs.jackson.dataformat.yaml

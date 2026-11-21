@@ -24,6 +24,8 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.http.support.Netty4HeadersAdapter;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -78,6 +80,10 @@ public class DefaultSubgraphClient implements SubgraphClient {
     private final @Nullable SslContext sslContext;
     /** The path (and query) of the subgraph URL; the client is configured with its scheme, host and port. */
     private final String path;
+    /** Experiment: when set, calls go through a WebClient built from this builder (Spring Boot's). */
+    static volatile WebClient.@Nullable Builder webClientBuilder;
+    private final Map<HttpClient, WebClient> webClients = new ConcurrentHashMap<>();
+    private final URI uri;
     private final String subgraphName;
     private final @Nullable SubgraphRequestHeaderCustomizer headerCustomizer;
     /** The largest response body read, in bytes. */
@@ -144,6 +150,7 @@ public class DefaultSubgraphClient implements SubgraphClient {
         this.loopClients = loopClients;
         String rawPath = uri.getRawPath() == null || uri.getRawPath().isEmpty() ? "/" : uri.getRawPath();
         this.path = uri.getRawQuery() == null ? rawPath : rawPath + "?" + uri.getRawQuery();
+        this.uri = uri;
         this.subgraphName = subgraphName;
         this.headerCustomizer = headerCustomizer;
     }
@@ -185,6 +192,10 @@ public class DefaultSubgraphClient implements SubgraphClient {
      */
     private <T> Mono<T> post(byte[] body, boolean batch, FeddiGatewayRequestContext context,
                              BiConsumer<HttpResponse, SynchronousSink<T>> handler) {
+        WebClient.Builder builder = webClientBuilder;
+        if (builder != null) {
+            return postWithWebClient(builder, body, batch, context, handler);
+        }
         return client().post()
             .uri(path)
             .send((request, out) -> {
@@ -208,6 +219,36 @@ public class DefaultSubgraphClient implements SubgraphClient {
                     .<T>handle((bytes, sink) -> handler.accept(new HttpResponse(status, bytes), sink));
             })
             .single();
+    }
+
+    /** Experiment: the same call through a WebClient, one per event loop's HTTP client. */
+    private <T> Mono<T> postWithWebClient(WebClient.Builder builder, byte[] body, boolean batch,
+                                          FeddiGatewayRequestContext context,
+                                          BiConsumer<HttpResponse, SynchronousSink<T>> handler) {
+        WebClient webClient = webClients.computeIfAbsent(client(), client -> builder.clone()
+            .clientConnector(new ReactorClientHttpConnector(client))
+            .codecs(codecs -> codecs.defaultCodecs().maxInMemorySize((int) Math.min(maxResponseBytes, Integer.MAX_VALUE)))
+            .build());
+        return webClient.post()
+            .uri(uri)
+            .headers(headers -> {
+                headers.set(HttpHeaders.CONTENT_TYPE, JSON_TYPE);
+                headers.set(HttpHeaders.ACCEPT, batch ? BATCH_ACCEPT : JSON_TYPE);
+                context.requestHeader("authorization").ifPresent(v -> headers.set(HttpHeaders.AUTHORIZATION, v));
+                context.requestHeader("user-agent").ifPresent(v -> headers.set(HttpHeaders.USER_AGENT, v));
+                context.requestHeader(TRACEPARENT).ifPresent(v -> headers.set(TRACEPARENT, v));
+                context.requestHeader(TRACESTATE).ifPresent(v -> headers.set(TRACESTATE, v));
+                if (headerCustomizer != null) {
+                    headerCustomizer.customize(headers, subgraphName, context);
+                }
+            })
+            .bodyValue(body)
+            .exchangeToMono(response -> {
+                int status = response.statusCode().value();
+                return response.bodyToMono(byte[].class)
+                    .defaultIfEmpty(EMPTY)
+                    .<T>handle((bytes, sink) -> handler.accept(new HttpResponse(status, bytes), sink));
+            });
     }
 
     /** A body that fails once more than {@link #maxResponseBytes} have arrived. */
