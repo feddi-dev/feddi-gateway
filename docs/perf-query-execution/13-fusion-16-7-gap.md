@@ -385,6 +385,9 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   | k6: response in → next request | 2.28 / 0.51 / 9.18 | 1.56 / 0.91 / 9.62 |
   | cycle | 11.14 / 9.15 / 20.96 | 9.75 / 8.73 / 15.99 |
 
+  (Correction: tcpdump dropped packets in these captures, and the parser then paired some requests with a later
+  response. The gap-free figures are under *Gap-free captures* below.)
+
   feddi is faster in the median and slower in the tail. The timeline (from the handler's start) puts the critical
   path on the reviews call: sent at 0.9 ms, headers at 4.1 ms, body at 5.0 ms, response built at 5.5 ms (medians);
   the third round (products, inventory, accounts) is served from reused calls in 0.2 ms. Its p90 is 11.7 ms
@@ -442,7 +445,8 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
 - **Subgraph traffic and responses compared with Fusion** (constant-mode captures of `20261120-092204` and the
   core usage of `20261119-102929`): both gateways make one call per subgraph per request with about the same
   request sizes; subgraph cores per 1,000 req/s are 17.7% (feddi) against 17.1% (Fusion) in constant mode and
-  18.1% each in burst; the subgraphs answer feddi as fast or faster (reviews median 2.4 ms against 5.6 ms). The
+  18.1% each in burst; the subgraph calls take about as long for both (see *Gap-free captures* below; the reviews
+  medians first read here, 2.4 ms against 5.6 ms, came from streams with capture drops). The
   client responses are byte-identical (87,327 bytes) and arrive in the same two TCP segments; only the headers
   differ (Fusion adds `Date`, `Server`, `Vary`). Neither the subgraph work nor the response explains the gap.
 - **At most 3 subgraph connections per event loop** (`perf/exp-max-connections` `0328a2c`, default 256; 24 per
@@ -470,7 +474,8 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   read a request, the handler starts within 0.1 ms and flushing costs nothing; ~0.4 ms pass before the loop reads
   the request (capture 5.87 ms against 5.50 ms). In the timeline, feddi's own work on the critical path is ~0.5
   ms; the rest of the gateway's share is subgraph responses unread while the loop is busy: accounts 0.6 ms
-  against 0.13 ms on the wire, reviews 3.2 ms against 2.4 ms to its headers and 0.9 ms from headers to body.
+  against 0.13 ms on the wire, reviews 3.2 ms against 2.4 ms to its headers and 0.9 ms from headers to body
+  (the wire figures are from a capture with drops; gap-free, reviews takes ~1 ms on the wire).
 - **New requests as loop tasks** (`perf/exp-defer-requests` `1c94a0d`, `-Dfeddi.experiment.deferRequests=true`:
   a request continues as a task of its loop, so subgraph responses already read run first), 3 runs
   (`20261122-025013`, `20261122-031042`): 4,977 / 2,121 / 4,453 (+0.2% / −0.5% / −0.5%), no effect. Reordering
@@ -491,6 +496,24 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   Sharing work costs more than it saves: constant-latency CPU rises from 20% to 23–24%. With 8 loops on 4
   hardware threads a waiting response waits for a CPU, not a loop, and the OS already gives a CPU to whichever
   loop is ready; with 4 loops, moving strands between loops loses cache locality and adds wake-ups. Parked.
+- **Gap-free captures** (the constant-mode captures of `20261120-092204` again, keeping only TCP streams without a
+  capture drop and pairing a response only if it ends before the connection's next request), ms:
+
+  | | feddi mean / med | Fusion mean / med |
+  |:--|--:|--:|
+  | client: request in → response out | 6.95 / 6.08 | 6.40 / 5.71 |
+  | k6: response in → next request | 3.42 / 0.86 | 3.75 / 1.41 |
+  | reviews: wait + transfer (median) | 0.93 + 0.07 | 1.20 + 0.11 |
+  | accounts / inventory / products (median) | 0.14 / 0.19 / 0.15 | 0.14 / 0.18 / 0.14 |
+
+  The subgraph calls take as long for both, and k6 is not slower for feddi: the gap (~0.55 ms per request) is
+  time inside the gateway. Gateway CPU per request (core usage of `20261119-102929`, 4 cores): constant 0.73
+  against 0.64 ms (+15%), constant-latency 0.38 against 0.28 ms (+36%), burst 0.75 against 0.68 ms (+10%). At
+  91% CPU, requests inside the gateway wait for its 4 cores, so the waits on busy loops measured above are CPU
+  queueing, and scheduling changes cannot remove them. What closes the gap is less CPU per request: the 3
+  connections per loop experiment, which cut CPU, is the one that gained (+2.8% constant). Next: profile where
+  feddi spends the extra ~0.1 ms of CPU per request (executor ~20%, subgraph response parsing 15.6%, Netty
+  15.2%, Reactor core 14.6%, response writing 12.9% in the constant profile).
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
