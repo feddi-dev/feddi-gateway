@@ -542,6 +542,12 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   feddi's loops run about twice as long each time they get a CPU and then wait three times as long for the next
   one; Fusion's threads give up the CPU twice as often, so a thread with a response to read gets a CPU sooner.
   This is where the responses wait before they are read.
+- **Loops that yield their CPU** (`perf/exp-yield-loops` `6834768`, `-Dfeddi.experiment.steal=yield`: a loop that
+  has run 250 µs without blocking in its poll calls `Thread.yield()`), 1 run (`20261122-190950`): 4,879 / 1,972 /
+  4,455 (−1.8% / −7.5% / −0.5%), constant-latency cores 24% against 20–21%. The wait per timeslice falls from 484
+  to 360 µs, but the loops' total run-queue wait stays the same (28.7 s against 27.6 s in 10 s): yielding only
+  splits the waits into more, shorter ones. On average 6.5 of feddi's 8 loops want a CPU ((CPU + wait) / 10 s),
+  4.9 of Fusion's 8 threads: Fusion's threads are idle in their poll more often. Parked.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
