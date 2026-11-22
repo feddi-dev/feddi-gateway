@@ -67,9 +67,17 @@ public class GraphQLController {
         return httpRequest.bodyToMono(byte[].class)
             .switchIfEmpty(Mono.error(() -> new ServerWebInputException("Request body is missing")))
             .map(GraphQLController::readRequest)
-            .flatMap(request -> ServerResponse.ok().contentType(MediaType.APPLICATION_JSON)
+            .flatMap(request -> ServerResponse.ok().contentType(GRAPHQL_RESPONSE)
+                // Experiment: the response headers Fusion sends
+                .header("Date", java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(
+                    java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC)))
+                .header("Server", "Kestrel")
+                .header("Vary", "Accept")
                 .body(BodyInserters.fromDataBuffers(executeQuery(request, httpRequest, buffers))));
     }
+
+    private static final MediaType GRAPHQL_RESPONSE =
+        MediaType.parseMediaType("application/graphql-response+json; charset=utf-8");
 
     private static GraphQLRequest readRequest(byte[] bytes) {
         try {
