@@ -509,11 +509,13 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   The subgraph calls take as long for both, and k6 is not slower for feddi: the gap (~0.55 ms per request) is
   time inside the gateway. Gateway CPU per request (core usage of `20261119-102929`, 4 cores): constant 0.73
   against 0.64 ms (+15%), constant-latency 0.38 against 0.28 ms (+36%), burst 0.75 against 0.68 ms (+10%). At
-  91% CPU, requests inside the gateway wait for its 4 cores, so the waits on busy loops measured above are CPU
-  queueing, and scheduling changes cannot remove them. What closes the gap is less CPU per request: the 3
-  connections per loop experiment, which cut CPU, is the one that gained (+2.8% constant). Next: profile where
-  feddi spends the extra ~0.1 ms of CPU per request (executor ~20%, subgraph response parsing 15.6%, Netty
-  15.2%, Reactor core 14.6%, response writing 12.9% in the constant profile).
+  91% CPU one could expect the waits inside the gateway to be CPU queueing, but the plain Netty client above
+  already brought feddi's CPU per request to Fusion's (81% cores) without moving req/s, so less CPU alone does not
+  close the gap. A profile of `main` (`20261122-062337`, constant, 4,986 req/s) is unchanged from the one above:
+  executor 18.6%, subgraph response parsing 15.1%, Netty 14.6%, Reactor core 14.1%, response writing 13.9%;
+  subscribing a subgraph call (`StepScheduler.run`) 10.4%, `CompactMap.indexOf` 5.5%. Open: how Fusion's
+  request spends less time inside the gateway at the same CPU, e.g. by running one request's work on several
+  threads at once, where feddi runs it on one loop.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
