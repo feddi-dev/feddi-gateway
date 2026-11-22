@@ -456,6 +456,26 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   So 3 is right at the edge of this benchmark's load, where fewer connections save CPU just before calls start
   to queue; as a default it would cost setups with slower subgraphs. The default stays 256; `maxConnections` is
   a tuning setting.
+- **Warm-up within a run** (k6's per-second counts in `20261119-102929`): both gateways speed up by ~9% from
+  the first to the last sixth of every constant run (feddi 4,740 → 5,153, Fusion 4,944 → 5,405), runs 2 and 3
+  included, long after the JIT is warm; feddi stays at 0.95–0.96 of Fusion throughout. The rise comes from the
+  shared setup, not from feddi's JIT, so an AOT cache would not close the gap. Not measured further.
+- **Fusion's response headers** (`perf/exp-fusion-headers` `3c39efa`: `application/graphql-response+json;
+  charset=utf-8`, `Date`, `Server`, `Vary`), 2 runs (`20261122-015243`, `20261122-022435`): 4,949 / 4,917
+  constant (−0.4% / −1.0%); k6's turnaround after a response 2.88 ms mean, 0.81 ms median (before 2.28 / 0.51).
+  The headers make no difference.
+- **Times on the wire** (`perf/exp-wire-times` `af9e6fa`, a Netty handler after the server codec, with the
+  request timeline; `20261122-023840`, 4,945 req/s), medians: request head → last content 0.03 ms, last content
+  → response head 5.50 ms (the timeline's `finished`: 5.41 ms), response head → flushed 0.03 ms. Once Netty has
+  read a request, the handler starts within 0.1 ms and flushing costs nothing; ~0.4 ms pass before the loop reads
+  the request (capture 5.87 ms against 5.50 ms). In the timeline, feddi's own work on the critical path is ~0.5
+  ms; the rest of the gateway's share is subgraph responses unread while the loop is busy: accounts 0.6 ms
+  against 0.13 ms on the wire, reviews 3.2 ms against 2.4 ms to its headers and 0.9 ms from headers to body.
+- **New requests as loop tasks** (`perf/exp-defer-requests` `1c94a0d`, `-Dfeddi.experiment.deferRequests=true`:
+  a request continues as a task of its loop, so subgraph responses already read run first), 3 runs
+  (`20261122-025013`, `20261122-031042`): 4,977 / 2,121 / 4,453 (+0.2% / −0.5% / −0.5%), no effect. Reordering
+  within one round of the loop does not shorten the waits: the responses are not yet in the socket when the loop
+  starts a new request, they arrive while it is busy.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
