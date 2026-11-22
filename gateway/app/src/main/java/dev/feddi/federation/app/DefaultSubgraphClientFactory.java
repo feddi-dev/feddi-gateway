@@ -92,6 +92,15 @@ public class DefaultSubgraphClientFactory implements SubgraphClientFactory {
     }
 
     private static HttpClient client(PoolSettings settings) {
+        HttpClient client = pooledClient(settings);
+        if (SubgraphWire.ENABLED) {
+            client = client.doOnChannelInit((observer, channel, remote) -> SubgraphWire.install(channel, remote));
+        }
+        var recv = SubgraphWire.recvAllocator();
+        return recv == null ? client : client.option(ChannelOption.RCVBUF_ALLOCATOR, recv);
+    }
+
+    private static HttpClient pooledClient(PoolSettings settings) {
         Duration maxIdleTime = Duration.ofMillis(settings.maxIdleTimeMs());
         return HttpClient.create(ConnectionProvider.builder("feddi-subgraphs")
             .maxConnections(settings.maxConnections())
