@@ -530,6 +530,18 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   help (not run). The intra-request parallel work Fusion could do saves at most ~0.1–0.15 ms (from the timeline:
   a response is processed in 0.005–0.09 ms and the parallel calls of a round do not arrive together), so the wait
   is the loop being busy with other connections or not being on a CPU.
+- **CPU run-queue waits** (`/proc/<pid>/task/*/schedstat` of the gateway's threads over 10 s of the first constant
+  run, feddi `main` and Fusion in one run `20261122-183813`; cores 91% / 84%):
+
+  | Gateway | busy threads | CPU s | run-queue wait s | wait / CPU | wait per timeslice | CPU per timeslice |
+  |:--|:--|--:|--:|--:|--:|--:|
+  | feddi | 8 `reactor-http-epoll` | 36.9 | 27.6 | 0.75 | 484 µs | 647 µs |
+  | Fusion | 8 `.NET Sockets` | 34.0 | 14.5 | 0.43 | 146 µs | 341 µs |
+
+  Both run their work on 8 threads over 4 hardware threads (Fusion on its socket threads, not the thread pool).
+  feddi's loops run about twice as long each time they get a CPU and then wait three times as long for the next
+  one; Fusion's threads give up the CPU twice as often, so a thread with a response to read gets a CPU sooner.
+  This is where the responses wait before they are read.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
