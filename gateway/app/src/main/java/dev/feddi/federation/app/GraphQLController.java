@@ -67,8 +67,25 @@ public class GraphQLController {
         return httpRequest.bodyToMono(byte[].class)
             .switchIfEmpty(Mono.error(() -> new ServerWebInputException("Request body is missing")))
             .map(GraphQLController::readRequest)
+            .flatMap(GraphQLController::deferOnLoop)
             .flatMap(request -> ServerResponse.ok().contentType(MediaType.APPLICATION_JSON)
                 .body(BodyInserters.fromDataBuffers(executeQuery(request, httpRequest, buffers))));
+    }
+
+    /** Experiment: whether a new request runs as a task of its loop, after the loop's pending I/O. */
+    private static final boolean DEFER_REQUESTS = Boolean.getBoolean("feddi.experiment.deferRequests");
+
+    /**
+     * Experiment: continues a new request as a task of its event loop, so subgraph responses that the loop has
+     * already read (which complete running requests) are handled before the new request starts.
+     */
+    private static Mono<GraphQLRequest> deferOnLoop(GraphQLRequest request) {
+        io.netty.util.concurrent.EventExecutor loop = DEFER_REQUESTS
+            ? io.netty.util.internal.ThreadExecutorMap.currentExecutor() : null;
+        if (loop == null) {
+            return Mono.just(request);
+        }
+        return Mono.create(sink -> loop.execute(() -> sink.success(request)));
     }
 
     private static GraphQLRequest readRequest(byte[] bytes) {
