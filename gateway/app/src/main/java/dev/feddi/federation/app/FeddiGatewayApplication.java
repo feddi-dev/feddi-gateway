@@ -59,6 +59,16 @@ public class FeddiGatewayApplication {
         SpringApplication.run(FeddiGatewayApplication.class, args);
     }
 
+    static {
+        // Experiment: event loops that share work (-Dfeddi.experiment.steal=defer|steal|wake); in a static
+        // initializer so that tests, which do not call main(), get them too
+        StealingLoops loops = StealingLoops.create(Integer.parseInt(ioWorkerCount(
+            System.getProperty(ReactorNetty.IO_WORKER_COUNT), Runtime.getRuntime().availableProcessors())));
+        if (loops != null) {
+            reactor.netty.http.HttpResources.set(loops);
+        }
+    }
+
     /** The number of Netty event loops: the configured one, or two per core and at least four (Reactor Netty's). */
     static String ioWorkerCount(@Nullable String configured, int cores) {
         return configured != null ? configured : String.valueOf(Math.max(4, 2 * cores));

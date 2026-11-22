@@ -134,3 +134,11 @@ tasks.register('integrationTest', Test) {
 	// Ensure the app is built before running integration tests
 	dependsOn bootJar
 }
+
+// Experiment: run the tests with the stealing event loops (./gradlew -Dfeddi.experiment.steal=wake ...)
+tasks.withType(Test).configureEach {
+	def steal = System.getProperty('feddi.experiment.steal')
+	if (steal) {
+		systemProperty 'feddi.experiment.steal', steal
+	}
+}

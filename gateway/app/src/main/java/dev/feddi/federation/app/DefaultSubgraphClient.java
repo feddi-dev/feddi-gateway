@@ -203,8 +203,13 @@ public class DefaultSubgraphClient implements SubgraphClient {
                 }
                 ByteBufFlux received = declared >= 0 ? content : ByteBufFlux.fromInbound(limited(content));
                 int status = response.status().code();
-                return received.aggregate().asByteArray()
-                    .defaultIfEmpty(EMPTY)
+                Mono<byte[]> aggregated = received.aggregate().asByteArray().defaultIfEmpty(EMPTY);
+                // Experiment: the work after the response runs on the request's strand, which another loop can take
+                StealingLoops.Strand strand = StealingLoops.strand(response.currentContextView());
+                if (strand != null) {
+                    aggregated = aggregated.flatMap(b -> Mono.<byte[]>create(s -> strand.submit(() -> s.success(b))));
+                }
+                return aggregated
                     .<T>handle((bytes, sink) -> handler.accept(new HttpResponse(status, bytes), sink));
             })
             .single();

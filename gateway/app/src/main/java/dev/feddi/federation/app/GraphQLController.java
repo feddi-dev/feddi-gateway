@@ -68,7 +68,12 @@ public class GraphQLController {
             .switchIfEmpty(Mono.error(() -> new ServerWebInputException("Request body is missing")))
             .map(GraphQLController::readRequest)
             .flatMap(request -> ServerResponse.ok().contentType(MediaType.APPLICATION_JSON)
-                .body(BodyInserters.fromDataBuffers(executeQuery(request, httpRequest, buffers))));
+                .body(BodyInserters.fromDataBuffers(executeQuery(request, httpRequest, buffers)
+                    // Experiment: one strand per request for the work after its subgraph responses
+                    .contextWrite(c -> {
+                        StealingLoops.Strand strand = StealingLoops.newStrand();
+                        return strand == null ? c : c.put(StealingLoops.KEY, strand);
+                    }))));
     }
 
     private static GraphQLRequest readRequest(byte[] bytes) {
