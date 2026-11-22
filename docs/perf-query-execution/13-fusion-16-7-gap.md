@@ -516,6 +516,20 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   subscribing a subgraph call (`StepScheduler.run`) 10.4%, `CompactMap.indexOf` 5.5%. Open: how Fusion's
   request spends less time inside the gateway at the same CPU, e.g. by running one request's work on several
   threads at once, where feddi runs it on one loop.
+- **Where the subgraph calls wait** (`perf/exp-subgraph-wire` `60bf0db`, a handler at the head of each subgraph
+  connection, `-Dfeddi.experiment.subgraphWire=true`, with the timeline and a gap-free loopback capture in the
+  same run, `20261122-075431`, 4,898 req/s), medians / p90 in ms:
+
+  | | flush after write | wire: request → response | first read after flush | reads, loop rounds |
+  |:--|--:|--:|--:|--:|
+  | accounts, inventory, products | 0.02 | 0.14–0.19 / 0.75–1.32 | 0.64–0.68 / 2.2–3.8 | 1, 1 |
+  | reviews (74 KB) | 0.02 | 1.03 / 3.14 | 2.21 / 7.47 | 2 (p90 3), 1 (p90 2) |
+
+  Requests leave at once; the responses sit in the socket ~0.5 ms (small ones) to ~1.2 ms (reviews) before the
+  loop reads them. A response is read in one or two reads in one loop round, so a larger receive buffer would not
+  help (not run). The intra-request parallel work Fusion could do saves at most ~0.1–0.15 ms (from the timeline:
+  a response is processed in 0.005–0.09 ms and the parallel calls of a round do not arrive together), so the wait
+  is the loop being busy with other connections or not being on a CPU.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
