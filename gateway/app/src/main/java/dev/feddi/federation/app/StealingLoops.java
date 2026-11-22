@@ -31,11 +31,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@link Strand}, which a loop queues in its own deque instead of running it inline: the loop returns to its I/O
  * first. With {@code defer} only the loop itself runs its deque (after its I/O). With {@code steal} a loop that has
  * nothing to do takes strands from the other loops' deques before it waits for I/O. With {@code wake} a loop that
- * queues a strand also wakes a loop waiting for I/O, if there is one, to take it.
+ * queues a strand also wakes a loop waiting for I/O, if there is one, to take it. With {@code yield} there are no
+ * strands: a loop that has run for {@code -Dfeddi.experiment.yieldMicros} (default 250) without blocking in its I/O
+ * poll yields its CPU ({@code Thread.yield()}), so other loops with work get one sooner.
  */
 public final class StealingLoops implements LoopResources {
 
-    enum Mode { DEFER, STEAL, WAKE }
+    enum Mode { DEFER, STEAL, WAKE, YIELD }
+
+    /** In YIELD mode, how long a loop runs without blocking before it yields its CPU. */
+    static final long YIELD_NANOS = Long.getLong("feddi.experiment.yieldMicros", 250L) * 1000L;
 
     static final @Nullable Mode MODE = mode(System.getProperty("feddi.experiment.steal"));
 
@@ -94,7 +99,7 @@ public final class StealingLoops implements LoopResources {
 
     /** A new strand for a request, or null if the experiment is off. */
     static @Nullable Strand newStrand() {
-        return MODE == null ? null : new Strand();
+        return MODE == null || MODE == Mode.YIELD ? null : new Strand();
     }
 
     /**
@@ -227,8 +232,14 @@ public final class StealingLoops implements LoopResources {
             }
         }
 
+        /** In YIELD mode, when the loop last blocked or yielded (only touched by this loop's thread). */
+        private long burstStart = System.nanoTime();
+
         @Override
         protected int runIo() {
+            if (MODE == Mode.YIELD) {
+                return runIoYielding();
+            }
             Group g = group;
             if (MODE != Mode.DEFER && g != null && !hasTasks()) {
                 if (g.othersHaveWork(this)) {
@@ -247,6 +258,20 @@ public final class StealingLoops implements LoopResources {
             } finally {
                 idle = false;
             }
+        }
+
+        private int runIoYielding() {
+            boolean mayBlock = !hasTasks();
+            int handled = super.runIo();
+            long now = System.nanoTime();
+            if (mayBlock && handled == 0) {
+                // Blocked in the poll (or woken with nothing to do): a new burst starts
+                burstStart = now;
+            } else if (now - burstStart > YIELD_NANOS) {
+                Thread.yield();
+                burstStart = System.nanoTime();
+            }
+            return handled;
         }
     }
 }
