@@ -476,6 +476,21 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   (`20261122-025013`, `20261122-031042`): 4,977 / 2,121 / 4,453 (+0.2% / −0.5% / −0.5%), no effect. Reordering
   within one round of the loop does not shorten the waits: the responses are not yet in the socket when the loop
   starts a new request, they arrive while it is busy.
+- **Loops that share work** (`perf/exp-stealing-loops` `a4979c6`, `-Dfeddi.experiment.steal=defer|steal|wake`:
+  feddi's own Netty loops; the work after a subgraph response runs on the request's serial strand, queued in the
+  loop's deque. `defer`: the loop runs its deque after its I/O; `steal`: a loop with nothing to do takes strands
+  from other loops before it polls; `wake`: queueing a strand also wakes a loop waiting for I/O), 1 run each:
+
+  | Mode | constant | constant-latency | burst |
+  |:--|--:|--:|--:|
+  | defer, 8 loops (`20261122-043535`) | 5,022 (+1.1%) | 2,153 (+1.0%) | 4,473 (−0.1%) |
+  | steal, 8 loops (`20261122-045531`) | 4,860 (−2.2%) | 2,113 (−0.9%) | 4,408 (−1.5%) |
+  | wake, 8 loops (`20261122-051540`) | 4,910 (−1.2%) | 2,106 (−1.2%) | 4,379 (−2.2%) |
+  | wake, 4 loops (`20261122-053624`) | 4,700 (−5.4%) | 1,979 (−7.2%) | 4,332 (−3.2%) |
+
+  Sharing work costs more than it saves: constant-latency CPU rises from 20% to 23–24%. With 8 loops on 4
+  hardware threads a waiting response waits for a CPU, not a loop, and the OS already gives a CPU to whichever
+  loop is ready; with 4 loops, moving strands between loops loses cache locality and adds wake-ups. Parked.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
