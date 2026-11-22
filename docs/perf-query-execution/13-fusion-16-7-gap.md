@@ -450,6 +450,12 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   **5,107 / 2,122 / 4,507**, +2.8% / −0.5% / +0.7% against `20261119-102929` (0.98 / 0.98 / 0.99 of Fusion).
   Gateway cores in constant-latency fall from 20% to 12–13% (Fusion 15%), in constant and burst they stay at
   92% / 82%. The throughput gain is within noise across sessions; the CPU drop in constant-latency is clear.
+  With **2** per loop (`369e2f5`, 1 run, `20261122-002324`): 5,086 / **1,566** / 4,469, constant-latency −26.5%
+  (no failed requests: calls wait for a connection). With **6** per loop (`a062ae5`, 3 runs, `20261122-004404`,
+  `20261122-010452`): 5,016 / 2,149 / 4,515 (+0.9% / +0.8% / +0.9%), constant-latency CPU at 20% as with 256.
+  So 3 is right at the edge of this benchmark's load, where fewer connections save CPU just before calls start
+  to queue; as a default it would cost setups with slower subgraphs. The default stays 256; `maxConnections` is
+  a tuning setting.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
