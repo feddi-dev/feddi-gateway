@@ -575,7 +575,13 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   cores) sends its 74 KB response four times slower. The time the lighter gateway saves reappears in the subgraph,
   so in this closed loop the subgraph side limits throughput more than the gateway; Fusion's reviews calls are
   also longer than `main`'s. Not explained: why Fusion still gets ~4% more req/s with shorter reviews calls than
-  the Netty client. One run; a second capture would confirm the reviews slowdown.
+  the Netty client.
+
+  A second capture (`20261123-081150`, 5,044 req/s, 1 stream cut) confirms the slower reviews calls, though by
+  less: 1.41 + 0.22 ms (+0.6 ms over `main`; transfer 3–4× slower in both runs). Its client time is 6.26 / 6.00 ms,
+  0.7 ms below the first capture at the same req/s. A capture holds only ~1,900 requests, so its noise is as large
+  as the ~0.55 ms gap it was meant to explain; this also applies to the capture-based figures above ("the gap is
+  time inside the gateway"). Req/s over whole runs stays the reliable measure.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
