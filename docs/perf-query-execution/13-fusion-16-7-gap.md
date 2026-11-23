@@ -548,6 +548,19 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   to 360 µs, but the loops' total run-queue wait stays the same (28.7 s against 27.6 s in 10 s): yielding only
   splits the waits into more, shorter ones. On average 6.5 of feddi's 8 loops want a CPU ((CPU + wait) / 10 s),
   4.9 of Fusion's 8 threads: Fusion's threads are idle in their poll more often. Parked.
+- **Run-queue waits with the plain Netty client** (`perf/netty-client` `ae2633f`, the same sampler, feddi only,
+  1 run `20261123-030404`): 4,988 / 2,112 / 4,443 (main 4,969 / 2,132 / 4,476), cores 80% / 19% / 74%.
+
+  | feddi | CPU s | run-queue wait s | wait per timeslice | threads wanting a CPU |
+  |:--|--:|--:|--:|--:|
+  | `main` | 36.9 | 27.6 | 484 µs | 6.5 |
+  | plain Netty client | 32.2 | 21.0 | 249 µs | 5.3 |
+  | Fusion (for reference) | 34.0 | 14.5 | 146 µs | 4.9 |
+
+  The loops use less CPU than Fusion's threads, and two-thirds of the wait difference to Fusion is gone, but
+  req/s does not move. The CPU run-queue waits are probably not what limits throughput; the open question moves
+  from the gateway's scheduling to how the closed loop behaves with k6 (91–98% of its core) and the subgraphs
+  (86%) near saturation.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
