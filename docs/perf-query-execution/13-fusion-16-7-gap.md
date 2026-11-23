@@ -561,6 +561,21 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   req/s does not move. The CPU run-queue waits are probably not what limits throughput; the open question moves
   from the gateway's scheduling to how the closed loop behaves with k6 (91–98% of its core) and the subgraphs
   (86%) near saturation.
+- **Capture with the plain Netty client** (`perf/netty-client` `ae2633f`, gap-free loopback capture of one constant
+  run, 5,034 req/s, 5 streams cut at a gap), medians in ms unless noted:
+
+  | | `main` | plain Netty client | Fusion |
+  |:--|--:|--:|--:|
+  | client: request in → response out (mean / med) | 6.95 / 6.08 | 6.98 / 6.84 | 6.40 / 5.71 |
+  | reviews: wait + transfer | 0.93 + 0.07 | 1.85 + 0.28 | 1.20 + 0.11 |
+  | accounts / inventory / products | 0.14 / 0.19 / 0.15 | 0.15 / 0.20 / 0.15 | 0.14 / 0.18 / 0.14 |
+
+  Without the reviews round, the time inside the gateway falls by roughly 0.4 ms (a difference of medians, so
+  approximate), to about Fusion's level, but the reviews call grows by ~1.1 ms: the reviews subgraph (86% of its
+  cores) sends its 74 KB response four times slower. The time the lighter gateway saves reappears in the subgraph,
+  so in this closed loop the subgraph side limits throughput more than the gateway; Fusion's reviews calls are
+  also longer than `main`'s. Not explained: why Fusion still gets ~4% more req/s with shorter reviews calls than
+  the Netty client. One run; a second capture would confirm the reviews slowdown.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
