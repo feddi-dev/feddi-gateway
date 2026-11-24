@@ -582,6 +582,33 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   0.7 ms below the first capture at the same req/s. A capture holds only ~1,900 requests, so its noise is as large
   as the ~0.55 ms gap it was meant to explain; this also applies to the capture-based figures above ("the gap is
   time inside the gateway"). Req/s over whole runs stays the reliable measure.
+- **CPU layout:** the gateway runs on CPUs 2–3 and 10–11 (physical cores 2–3), the subgraphs on 4–7 and 12–15
+  (cores 4–7), k6 on core 1, the system on core 0: the gateway shares no physical core with the subgraphs, only
+  the L3 cache.
+- **Captures over 10 windows** (0.5 s each, 9 s apart in the measured constant run, ~15,000 calls per gateway;
+  mean ± standard error of the 10 window means; a single window of `main` ranges from 6.36 to 7.50 ms). `main`
+  and Fusion in one run (`20261124-082338`, 4,976 / 5,203 req/s), the plain Netty client in its own
+  (`20261124-083951`, 4,840 req/s, lower than its earlier 5,034 / 5,044):
+
+  | ms per call (mean) | `main` | Fusion | plain Netty client |
+  |:--|--:|--:|--:|
+  | client: request in → response out | 7.04 ± 0.10 | 6.51 ± 0.18 | 6.75 ± 0.15 |
+  | reviews (in flight) | 2.03 ± 0.05 (9.6) | 2.48 ± 0.12 (12.3) | 2.60 ± 0.08 (12.1) |
+  | accounts / inventory / products | 0.35 / 0.51 / 0.30 | 0.32 / 0.46 / 0.33 | 0.37 / 0.57 / 0.35 |
+  | sum of the 4 subgraph calls | 3.19 | 3.59 | 3.89 |
+  | client time − subgraph sum | 3.85 | 2.92 | 2.86 |
+  | client requests in flight (of 50 VUs) | 32.9 | 32.2 | 31.3 |
+
+  Each client request makes one call to each subgraph. The client gap of 0.53 ms between `main` and Fusion is
+  real (about 2.5 standard errors). Fusion's subgraph calls take *longer* than feddi's (+0.4 ms, mostly reviews,
+  with more reviews calls in flight), so the time outside the subgraph calls is ~0.9 ms shorter for Fusion (exact
+  only if the calls ran one after another; parallel rounds shift both values alike). The plain Netty client brings
+  this time to Fusion's level (2.86 against 2.92 ms), but its subgraph calls grow by about as much (3.89 ms), and
+  req/s does not rise. A faster gateway puts more load on the subgraphs, which are close to saturation (86–89%
+  of their cores), and the subgraph calls get slower. Fusion gains anyway; the Netty client does not, because
+  its subgraph calls are ~0.3 ms longer than Fusion's (comparing across runs, so this needs confirming). Open:
+  whether feddi's subgraph requests cost the subgraphs more than Fusion's (request size, query text, number of
+  connections).
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
