@@ -609,6 +609,22 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   its subgraph calls are ~0.3 ms longer than Fusion's (comparing across runs, so this needs confirming). Open:
   whether feddi's subgraph requests cost the subgraphs more than Fusion's (request size, query text, number of
   connections).
+- **The subgraph requests compared** (from the loopback captures of `20261120`, ~1,800–2,300 calls per subgraph
+  and gateway; feddi then sent alias-batched lookups, one call per subgraph as now):
+
+  | | feddi | Fusion |
+  |:--|:--|:--|
+  | connections per subgraph (in the window) | 50 each | 35 / 33 / 22 / 65 (accounts / inventory / products / reviews) |
+  | request head | 189–191 bytes, `Accept: application/json`, k6's `User-Agent` forwarded | 307–309 bytes, `Accept` lists `application/graphql-response+json` first |
+  | request body (accounts / inventory / products / reviews) | 52 / 997 / 63 / 1,435 bytes | 69 / 1,577 / 80 / 1,433 bytes |
+  | query text | anonymous, the selection repeated in each alias | named operation, the lookups' selection in fragments (reviews: 2) |
+  | distinct queries per subgraph | 1 | 1 |
+  | response (reviews) | 74,271 bytes, `application/json`, chunked | 74,260 bytes, `application/graphql-response+json`, chunked |
+
+  The requests are nearly equivalent: the same entities, the same response sizes, one cached document per
+  subgraph each. Fewer connections were already tried (at most 3 per loop, above: no throughput gain). What is
+  left are the fragments and the operation name, which could only matter if Hot Chocolate executes fragment-based
+  selections more cheaply; a replay of both reviews queries against the reviews subgraph alone would settle it.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
