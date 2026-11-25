@@ -625,6 +625,13 @@ disagree, or to confirm a change that is kept. Each experiment that helped becam
   subgraph each. Fewer connections were already tried (at most 3 per loop, above: no throughput gain). What is
   left are the fragments and the operation name, which could only matter if Hot Chocolate executes fragment-based
   selections more cheaply; a replay of both reviews queries against the reviews subgraph alone would settle it.
+- **Replay of both reviews requests** (the reviews subgraph alone on the subgraph CPUs, k6 on core 1 with 12 VUs,
+  feddi's and Fusion's captured request for the same 11 entities, alternating, 3 × 30 s each after a warm-up):
+  feddi 6,431 / 6,449 / 6,447 req/s, Fusion 6,446 / 6,438 / 6,447; latency 1.70–1.71 ms and 0.796–0.799 ms of
+  reviews CPU per request for both, all responses complete. Swapping the `Accept` headers changes nothing
+  (6,392 / 6,422). The queries cost the subgraph the same: fragments, operation name and `Accept` are ruled out.
+  At 0.8 ms of CPU per call, reviews alone needs ~4 of the subgraphs' 8 hardware threads at 5,000 req/s, so the
+  subgraphs are close to their limit in this benchmark.
 - **Ideas assessed, not built:**
   - *Copying unchanged subtrees as bytes.* Strings already stay raw bytes (`RawString`), objects and arrays are
     parsed into `CompactMap`s. A subtree could be kept as a byte range only if no later step merges into it, the
