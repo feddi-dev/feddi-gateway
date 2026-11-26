@@ -1,5 +1,5 @@
 [versions]
-graphql-java = "0.0.0-2026-11-11T23-22-02-2f17eaf"
+graphql-java = "0.0.0-2026-11-18T02-26-02-fe3abcf"
 reactor = "3.8.8"
 antlr = "4.13.2"
 jackson = "2.23.0"
